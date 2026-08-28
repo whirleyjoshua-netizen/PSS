@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- Favicon: the four panels on charcoal. Hex literals are required here
+       because a static icon file cannot read the app's CSS custom properties. -->
+  <rect width="32" height="32" fill="#1E1E1E"/>
+  <g transform="translate(6.5 4.5) scale(0.2264)">
+    <path d="M0 0 L22 6 L22 106 L0 100 Z" fill="#F7F5F0"/>
+    <path d="M18 12 L40 18 L40 100 L18 94 Z" fill="#B3AAA0"/>
+    <path d="M36 23 L58 29 L58 96 L36 90 Z" fill="#CDB891"/>
+    <path d="M54 35 L76 41 L76 92 L54 86 Z" fill="#8A8377"/>
+  </g>
+</svg>
