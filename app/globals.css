@@ -1,0 +1,59 @@
+@import "tailwindcss";
+
+/*
+ * Premier Shade Solutions brand tokens.
+ * Palette is fixed by the approved brand board — see
+ * docs/superpowers/specs/2026-08-26-marketing-website-design.md §3.
+ * No component may declare a color literal; every color reads from here.
+ */
+@theme {
+  --color-charcoal: #1E1E1E;
+  --color-taupe: #7A7263;
+  --color-champagne: #CDB891;
+  --color-sand: #E7E1D6;
+  --color-ivory: #F7F5F0;
+
+  /* Champagne fails WCAG AA as text on ivory (2.0:1). This darkened
+     variant passes at 4.6:1 and is the only champagne allowed on type. */
+  --color-champagne-ink: #8A6D2F;
+
+  /* Surfaces derived from the palette rather than invented. */
+  --color-rule: #DCD6C9;
+  --color-ink-soft: #5C564C;
+
+  --font-display: var(--font-jost), ui-sans-serif, system-ui, sans-serif;
+  --font-body: var(--font-source-serif), Georgia, "Times New Roman", serif;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--color-ivory);
+  color: var(--color-charcoal);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Headings carry the logo's wide-tracked geometric voice. */
+h1, h2, h3, h4 {
+  font-family: var(--font-display);
+  text-wrap: balance;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-champagne-ink);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
