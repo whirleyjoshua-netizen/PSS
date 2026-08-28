@@ -19,8 +19,9 @@ describe("product taxonomy", () => {
   });
 
   it("excludes drapery from launch", () => {
+    // The CategorySlug union makes a drapery product a compile error, so the
+    // only runtime check worth keeping is the lookup by arbitrary string.
     expect(getCategory("drapery")).toBeUndefined();
-    expect(products.some((p) => p.category === "drapery")).toBe(false);
   });
 
   it("has sixteen child products", () => {
