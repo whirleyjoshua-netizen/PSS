@@ -13,7 +13,7 @@ describe("Header", () => {
 
     for (const category of categories) {
       const links = within(nav).getAllByRole("link", {
-        name: new RegExp(`^${category.name}$`, "i"),
+        name: new RegExp(`^${category.navLabel}$`, "i"),
       });
       expect(links.some((link) => link.getAttribute("href") === `/${category.slug}`)).toBe(true);
     }

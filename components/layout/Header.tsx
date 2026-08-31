@@ -67,9 +67,9 @@ export function Header() {
                   <li key={category.slug} className="group relative">
                     <Link
                       href={`/${category.slug}`}
-                      className="block px-3 py-2 font-display text-sm uppercase tracking-[0.12em] text-charcoal transition-colors hover:text-champagne-ink"
+                      className="block whitespace-nowrap px-3 py-2 font-display text-sm uppercase tracking-[0.12em] text-charcoal transition-colors hover:text-champagne-ink"
                     >
-                      {category.name}
+                      {category.navLabel}
                     </Link>
 
                     {children.length > 0 ? (
@@ -97,13 +97,13 @@ export function Header() {
           <div className="hidden items-center gap-3 md:flex">
             <a
               href={business.phone.href}
-              className="font-display text-sm uppercase tracking-[0.12em] text-charcoal transition-colors hover:text-champagne-ink"
+              className="whitespace-nowrap font-display text-sm uppercase tracking-[0.12em] text-charcoal transition-colors hover:text-champagne-ink"
             >
               Call {business.phone.display}
             </a>
             <Link
               href="/contact"
-              className="inline-flex min-h-11 items-center bg-champagne px-5 py-2.5 font-display text-xs font-medium uppercase tracking-[0.14em] text-charcoal transition-colors hover:bg-charcoal hover:text-ivory"
+              className="inline-flex min-h-11 items-center whitespace-nowrap bg-champagne px-5 py-2.5 font-display text-xs font-medium uppercase tracking-[0.14em] text-charcoal transition-colors hover:bg-charcoal hover:text-ivory"
             >
               Free Consultation
             </Link>

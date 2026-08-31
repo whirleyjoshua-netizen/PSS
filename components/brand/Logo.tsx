@@ -25,6 +25,8 @@ const PANELS = [
 const PANEL_WIDTH = 22;
 /** Vertical shear across each panel's width — what reads as perspective. */
 const SHEAR = 6;
+/** The lit edge down the right of each panel, as in the reference artwork. */
+const RIM = 2.4;
 
 function Mark({ tone, className }: { tone: Tone; className?: string }) {
   const key = tone === "dark" ? "dark" : "light";
@@ -38,21 +40,35 @@ function Mark({ tone, className }: { tone: Tone; className?: string }) {
     >
       {PANELS.map((panel) => {
         const x2 = panel.x + PANEL_WIDTH;
+        const rimX = x2 - RIM;
+        const rimTop = panel.top + SHEAR - (RIM * SHEAR) / PANEL_WIDTH;
+        const rimBottom = panel.bottom + SHEAR - (RIM * SHEAR) / PANEL_WIDTH;
+
         return (
-          <path
-            key={panel.x}
-            d={[
-              `M${panel.x} ${panel.top}`,
-              `L${x2} ${panel.top + SHEAR}`,
-              `L${x2} ${panel.bottom + SHEAR}`,
-              `L${panel.x} ${panel.bottom}`,
-              "Z",
-            ].join(" ")}
-            fill={panel[key]}
-            /* The lightest panel needs a hairline to separate from an ivory ground. */
-            stroke={panel.x === 54 && tone === "light" ? "var(--color-rule)" : "none"}
-            strokeWidth="0.75"
-          />
+          <g key={panel.x}>
+            <path
+              d={[
+                `M${panel.x} ${panel.top}`,
+                `L${x2} ${panel.top + SHEAR}`,
+                `L${x2} ${panel.bottom + SHEAR}`,
+                `L${panel.x} ${panel.bottom}`,
+                "Z",
+              ].join(" ")}
+              fill={panel[key]}
+            />
+            {/* Champagne rim separates each panel from the one behind it and
+                keeps the lightest panel visible on an ivory ground. */}
+            <path
+              d={[
+                `M${rimX} ${rimTop}`,
+                `L${x2} ${panel.top + SHEAR}`,
+                `L${x2} ${panel.bottom + SHEAR}`,
+                `L${rimX} ${rimBottom}`,
+                "Z",
+              ].join(" ")}
+              fill={panel.x >= 36 ? "#A8863F" : "var(--color-champagne)"}
+            />
+          </g>
         );
       })}
     </svg>
@@ -116,7 +132,7 @@ export function Logo({
         role="img"
         aria-label="Premier Shade Solutions"
       >
-        <Mark tone={tone} className="h-[1.6em] w-auto" />
+        <Mark tone={tone} className="h-[2.4em] w-auto" />
         {wordmark}
       </span>
     );
@@ -128,7 +144,7 @@ export function Logo({
       role="img"
       aria-label="Premier Shade Solutions"
     >
-      <Mark tone={tone} className="h-[1.35em] w-auto shrink-0" />
+      <Mark tone={tone} className="h-[2.05em] w-auto shrink-0" />
       {wordmark}
     </span>
   );
