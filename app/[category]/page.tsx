@@ -6,6 +6,8 @@ import {
   ProductCardList,
   ConsultationCta,
 } from "@/components/product/ProductParts";
+import { JsonLd } from "@/components/seo/JsonLd";
+import { breadcrumbSchema } from "@/lib/seo/schema";
 import { categories } from "@/content/products";
 import { getCategory, getProductsIn } from "@/lib/content/products";
 
@@ -49,12 +51,15 @@ export default async function CategoryPage({
 
   const children = getProductsIn(found.slug);
 
+  const trail = [{ name: found.name, url: `/${found.slug}` }];
+
   return (
     <>
+      <JsonLd schema={breadcrumbSchema(trail)} />
       <PageHero
         eyebrow={found.tagline}
         title={`${found.name} in Las Vegas`}
-        trail={[{ name: found.name, url: `/${found.slug}` }]}
+        trail={trail}
       />
 
       <Section tone="ivory">

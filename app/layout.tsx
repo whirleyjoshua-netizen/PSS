@@ -3,6 +3,9 @@ import { Jost, Source_Serif_4 } from "next/font/google";
 import "./globals.css";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
+import { JsonLd } from "@/components/seo/JsonLd";
+import { localBusinessSchema } from "@/lib/seo/schema";
+import { business } from "@/content/business";
 
 const jost = Jost({
   variable: "--font-jost",
@@ -19,9 +22,22 @@ const sourceSerif = Source_Serif_4({
 });
 
 export const metadata: Metadata = {
-  title: "Premier Shade Solutions",
+  metadataBase: new URL(business.domain),
+  title: {
+    default: "Custom Blinds, Shades & Shutters in Las Vegas | Premier Shade Solutions",
+    template: "%s",
+  },
   description:
-    "Custom blinds, shades, shutters, and motorized window treatments for the Las Vegas valley.",
+    "Custom blinds, shades, shutters, and motorized window treatments for Las Vegas, Henderson, Summerlin, and North Las Vegas. Free in-home consultation.",
+  applicationName: business.name,
+  authors: [{ name: business.name }],
+  openGraph: {
+    siteName: business.name,
+    locale: "en_US",
+    type: "website",
+    url: business.domain,
+  },
+  robots: { index: true, follow: true },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
@@ -42,6 +58,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           {children}
         </main>
         <Footer />
+        <JsonLd schema={localBusinessSchema()} />
       </body>
     </html>
   );

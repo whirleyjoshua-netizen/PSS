@@ -3,6 +3,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Section } from "@/components/ui/Section";
 import { PageHero, ConsultationCta } from "@/components/product/ProductParts";
+import { JsonLd } from "@/components/seo/JsonLd";
+import { breadcrumbSchema, productSchema } from "@/lib/seo/schema";
 import {
   allProductPaths,
   getCategory,
@@ -49,16 +51,19 @@ export default async function ProductPage({
   if (!found || !parent) notFound();
 
   const siblings = getSiblings(found);
+  const trail = [
+    { name: parent.name, url: `/${parent.slug}` },
+    { name: found.name, url: `/${parent.slug}/${found.slug}` },
+  ];
 
   return (
     <>
+      <JsonLd schema={productSchema(found)} />
+      <JsonLd schema={breadcrumbSchema(trail)} />
       <PageHero
         eyebrow={found.tagline}
         title={`${found.name} in Las Vegas`}
-        trail={[
-          { name: parent.name, url: `/${parent.slug}` },
-          { name: found.name, url: `/${parent.slug}/${found.slug}` },
-        ]}
+        trail={trail}
       />
 
       <Section tone="ivory">
