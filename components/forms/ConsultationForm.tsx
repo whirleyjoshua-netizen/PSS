@@ -1,0 +1,155 @@
+"use client";
+
+import { Button } from "@/components/ui/Button";
+import { business } from "@/content/business";
+import { categories } from "@/content/products";
+import { WINDOW_COUNTS } from "@/lib/leads/schema";
+import { useConsultationForm } from "./useConsultationForm";
+import {
+  FormMessage,
+  Honeypot,
+  Label,
+  SelectField,
+  TextAreaField,
+  TextField,
+} from "./Field";
+
+const HEARD_VIA = [
+  "",
+  "Google search",
+  "Referral from a friend",
+  "Saw our van or a job site",
+  "Social media",
+  "Home show or event",
+  "Other",
+] as const;
+
+export function ConsultationForm() {
+  const { state, error, submit } = useConsultationForm("contact");
+
+  return (
+    <form onSubmit={submit} noValidate className="relative flex flex-col gap-6">
+      <Honeypot />
+
+      <div className="grid gap-6 sm:grid-cols-2">
+        <TextField id="c-name" name="name" label="Name" autoComplete="name" required />
+        <TextField
+          id="c-phone"
+          name="phone"
+          label="Phone"
+          type="tel"
+          inputMode="tel"
+          autoComplete="tel"
+          required
+        />
+      </div>
+
+      <TextField
+        id="c-email"
+        name="email"
+        label="Email"
+        type="email"
+        inputMode="email"
+        autoComplete="email"
+        required
+      />
+
+      <div className="grid gap-6 sm:grid-cols-2">
+        <TextField
+          id="c-address"
+          name="address"
+          label="Street address"
+          autoComplete="street-address"
+        />
+        <SelectField
+          id="c-city"
+          name="city"
+          label="City"
+          options={business.serviceArea}
+          defaultValue={business.serviceArea[0]}
+        />
+      </div>
+
+      <fieldset className="flex flex-col gap-3">
+        <legend className="font-display text-xs font-medium uppercase tracking-[0.16em] text-ink-soft">
+          What are you interested in?
+        </legend>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {categories.map((category) => (
+            <label
+              key={category.slug}
+              htmlFor={`c-treat-${category.slug}`}
+              className="flex min-h-11 cursor-pointer items-center gap-3 border border-rule px-4 py-2 text-sm text-charcoal transition-colors hover:border-champagne-ink"
+            >
+              <input
+                id={`c-treat-${category.slug}`}
+                type="checkbox"
+                name="treatments"
+                value={category.name}
+                className="size-4 accent-[var(--color-champagne-ink)]"
+              />
+              {category.name}
+            </label>
+          ))}
+        </div>
+      </fieldset>
+
+      <div className="grid gap-6 sm:grid-cols-2">
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="c-windows">Approximate number of windows</Label>
+          <select
+            id="c-windows"
+            name="windowCount"
+            defaultValue=""
+            className="min-h-11 w-full border border-rule bg-ivory px-4 py-3 text-charcoal focus:border-champagne-ink focus:outline-none"
+          >
+            <option value="">Not sure yet</option>
+            {WINDOW_COUNTS.map((count) => (
+              <option key={count} value={count}>
+                {count}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="c-heard">How did you hear about us?</Label>
+          <select
+            id="c-heard"
+            name="heardVia"
+            defaultValue=""
+            className="min-h-11 w-full border border-rule bg-ivory px-4 py-3 text-charcoal focus:border-champagne-ink focus:outline-none"
+          >
+            {HEARD_VIA.map((option) => (
+              <option key={option} value={option}>
+                {option === "" ? "Select one" : option}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <TextAreaField
+        id="c-notes"
+        name="notes"
+        label="Anything else we should know?"
+        rows={5}
+        placeholder="Which rooms, which direction the windows face, whether glare or heat is the main problem…"
+      />
+
+      <FormMessage
+        state={state}
+        error={error}
+        phone={business.phone}
+        successTitle="Request received"
+        successBody="We will reach out shortly to schedule your in-home consultation. If it is urgent, give us a call."
+      />
+
+      {state !== "success" ? (
+        <Button type="submit" disabled={state === "submitting"} className="w-full sm:w-auto">
+          {state === "submitting" ? "Sending…" : "Request Free Consultation"}
+        </Button>
+      ) : null}
+    </form>
+  );
+}
