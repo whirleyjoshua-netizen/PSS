@@ -45,3 +45,9 @@ next-env.d.ts
 /playwright-report/
 /blob-report/
 /playwright/.cache/
+
+.vercel
+.env*
+
+# Local ad-hoc scripts
+scripts/_*
