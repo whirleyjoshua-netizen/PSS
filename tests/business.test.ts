@@ -44,8 +44,16 @@ describe("business content", () => {
     expect(offenders).toEqual([]);
   });
 
-  it("flags the placeholders so launch-day swaps are findable", () => {
-    expect(business.phone.isPlaceholder).toBe(true);
+  it("publishes a real, correctly formatted phone number", () => {
+    expect(business.phone.isPlaceholder).toBe(false);
+    expect(business.phone.display).toMatch(/^\(\d{3}\) \d{3}-\d{4}$/);
+    // The tel: href must be the same digits in E.164, or tapping calls
+    // a different number than the one on screen.
+    const digits = business.phone.display.replace(/\D/g, "");
+    expect(business.phone.href).toBe(`tel:+1${digits}`);
+  });
+
+  it("still flags the placeholders that remain, so launch-day swaps are findable", () => {
     expect(business.emailIsPlaceholder).toBe(true);
     expect(business.address.isPlaceholder).toBe(true);
   });

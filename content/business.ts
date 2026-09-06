@@ -1,14 +1,12 @@
 /**
  * Single source of truth for name, address, phone (NAP).
  *
- * The phone number, email, and street address are not yet known. They live
- * here as placeholders and MUST NOT be duplicated anywhere else in the app —
- * tests/business.test.ts fails the build if a phone number appears in any
- * component. When the real values arrive, this is the only file that changes.
+ * The phone number is live. The email and street address are still
+ * placeholders. Nothing here may be duplicated anywhere else in the app —
+ * tests/business.test.ts fails if a phone number appears in any component.
+ * When the remaining real values arrive, this is the only file that changes.
  */
 
-export const PLACEHOLDER_PHONE_DISPLAY = "(702) 000-0000";
-export const PLACEHOLDER_PHONE_HREF = "tel:+17020000000";
 export const PLACEHOLDER_EMAIL = "hello@premiershadesolutions.com";
 
 export const business = {
@@ -18,9 +16,9 @@ export const business = {
   domain: "https://premiershadesolutions.com",
 
   phone: {
-    display: PLACEHOLDER_PHONE_DISPLAY,
-    href: PLACEHOLDER_PHONE_HREF,
-    isPlaceholder: true,
+    display: "(725) 400-5254",
+    href: "tel:+17254005254",
+    isPlaceholder: false,
   },
 
   email: PLACEHOLDER_EMAIL,
