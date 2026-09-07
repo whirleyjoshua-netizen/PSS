@@ -1,9 +1,11 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { business } from "@/content/business";
 import { categories } from "@/content/products";
 import { WINDOW_COUNTS } from "@/lib/leads/schema";
+import { HEARD_VIA_OPTIONS, referralLabel } from "@/lib/leads/referral";
 import { useConsultationForm } from "./useConsultationForm";
 import {
   FormMessage,
@@ -14,18 +16,18 @@ import {
   TextField,
 } from "./Field";
 
-const HEARD_VIA = [
-  "",
-  "Google search",
-  "Referral from a friend",
-  "Saw our van or a job site",
-  "Social media",
-  "Home show or event",
-  "Other",
-] as const;
-
 export function ConsultationForm() {
   const { state, error, submit } = useConsultationForm("contact");
+  const [heardVia, setHeardVia] = useState("");
+
+  // A printed QR code carries ?ref=flyer, which prefills this select so the
+  // lead arrives attributed. Read on mount rather than via useSearchParams:
+  // this page is statically rendered, and useSearchParams would opt it out.
+  useEffect(() => {
+    const ref = new URLSearchParams(window.location.search).get("ref");
+    const label = referralLabel(ref);
+    if (label) setHeardVia(label);
+  }, []);
 
   return (
     <form onSubmit={submit} noValidate className="relative flex flex-col gap-6">
@@ -117,12 +119,14 @@ export function ConsultationForm() {
           <select
             id="c-heard"
             name="heardVia"
-            defaultValue=""
+            value={heardVia}
+            onChange={(event) => setHeardVia(event.target.value)}
             className="min-h-11 w-full border border-rule bg-ivory px-4 py-3 text-charcoal focus:border-champagne-ink focus:outline-none"
           >
-            {HEARD_VIA.map((option) => (
+            <option value="">Select one</option>
+            {HEARD_VIA_OPTIONS.map((option) => (
               <option key={option} value={option}>
-                {option === "" ? "Select one" : option}
+                {option}
               </option>
             ))}
           </select>
