@@ -53,8 +53,15 @@ describe("business content", () => {
     expect(business.phone.href).toBe(`tel:+1${digits}`);
   });
 
-  it("still flags the placeholders that remain, so launch-day swaps are findable", () => {
-    expect(business.emailIsPlaceholder).toBe(true);
+  it("publishes a real contact email on the business domain", () => {
+    expect(business.emailIsPlaceholder).toBe(false);
+    expect(business.email).toBe("support@premiershadesolutions.com");
+    // Sending from a free mailbox on a site that owns its domain reads as
+    // less established, and hurts deliverability against DMARC.
+    expect(business.email).not.toMatch(/gmail|yahoo|hotmail|outlook\.com/i);
+  });
+
+  it("still flags the placeholder that remains, so launch-day swaps are findable", () => {
     expect(business.address.isPlaceholder).toBe(true);
   });
 });

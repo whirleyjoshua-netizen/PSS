@@ -1,13 +1,11 @@
 /**
  * Single source of truth for name, address, phone (NAP).
  *
- * The phone number is live. The email and street address are still
- * placeholders. Nothing here may be duplicated anywhere else in the app —
+ * The phone number and email are live. The street address is still a
+ * placeholder. Nothing here may be duplicated anywhere else in the app —
  * tests/business.test.ts fails if a phone number appears in any component.
  * When the remaining real values arrive, this is the only file that changes.
  */
-
-export const PLACEHOLDER_EMAIL = "hello@premiershadesolutions.com";
 
 export const business = {
   name: "Premier Shade Solutions",
@@ -21,8 +19,8 @@ export const business = {
     isPlaceholder: false,
   },
 
-  email: PLACEHOLDER_EMAIL,
-  emailIsPlaceholder: true,
+  email: "support@premiershadesolutions.com",
+  emailIsPlaceholder: false,
 
   address: {
     locality: "Las Vegas",
