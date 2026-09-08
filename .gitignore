@@ -51,3 +51,6 @@ next-env.d.ts
 
 # Local ad-hoc scripts
 scripts/_*
+
+# Lighthouse reports
+.lh/
