@@ -13,9 +13,10 @@
   --color-sand: #E7E1D6;
   --color-ivory: #F7F5F0;
 
-  /* Champagne fails WCAG AA as text on ivory (2.0:1). This darkened
-     variant passes at 4.6:1 and is the only champagne allowed on type. */
-  --color-champagne-ink: #8A6D2F;
+  /* Champagne fails WCAG AA as text (1.77:1 on ivory). This darkened variant
+     is the only champagne permitted on type: 5.55:1 on ivory, 4.65:1 on sand.
+     Both verified — do not lighten it without re-checking against BOTH. */
+  --color-champagne-ink: #766028;
 
   /* Surfaces derived from the palette rather than invented. */
   --color-rule: #DCD6C9;

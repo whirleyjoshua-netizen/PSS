@@ -1,61 +1,32 @@
-"use client";
-
-import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Logo } from "@/components/brand/Logo";
 import { Container } from "@/components/ui/Container";
+import { MobileMenu } from "./MobileMenu";
 import { business } from "@/content/business";
 import { categories } from "@/content/products";
 import { getProductsIn } from "@/lib/content/products";
 
 /**
- * Sticky header.
+ * Sticky header — a server component.
  *
- * Submenus are always present in the DOM and revealed with CSS on hover and
- * focus-within, never conditionally rendered. That keeps all sixteen product
- * links crawlable and reachable by keyboard — a JS-gated menu would hide the
- * entire product catalogue from search engines.
+ * Two deliberate choices keep this shipping almost no JavaScript:
+ *
+ * 1. Submenus are always in the DOM and revealed with CSS on hover and
+ *    focus-within, never conditionally rendered. That keeps all sixteen
+ *    product links crawlable and reachable by keyboard.
+ * 2. Only the mobile menu is a client component. Making the whole header
+ *    client-side meant hydrating seventy-odd links on every page load, which
+ *    dominated total blocking time.
  */
 export function Header() {
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [scrolled, setScrolled] = useState(false);
-  const toggleRef = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 8);
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-
-  useEffect(() => {
-    if (!menuOpen) return;
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setMenuOpen(false);
-        toggleRef.current?.focus();
-      }
-    };
-
-    document.addEventListener("keydown", onKeyDown);
-    document.body.style.overflow = "hidden";
-
-    return () => {
-      document.removeEventListener("keydown", onKeyDown);
-      document.body.style.overflow = "";
-    };
-  }, [menuOpen]);
-
   return (
-    <header
-      className={`sticky top-0 z-50 bg-ivory/95 backdrop-blur transition-shadow ${
-        scrolled ? "border-b border-rule shadow-sm" : "border-b border-transparent"
-      }`}
-    >
+    <header className="sticky top-0 z-50 border-b border-rule bg-ivory/95 backdrop-blur">
       <Container>
         <div className="flex items-center justify-between gap-6 py-4">
-          <Link href="/" className="shrink-0" aria-label={`${business.name} home`}>
+          {/* No aria-label here: the Logo's own role="img" names this link. An
+              aria-label that does not contain the link's visible text is a
+              label/name mismatch for voice-control users. */}
+          <Link href="/" className="shrink-0">
             <Logo variant="lockup" className="text-[26px] md:text-[30px]" />
           </Link>
 
@@ -109,118 +80,31 @@ export function Header() {
             </Link>
           </div>
 
-          <div className="flex items-center gap-2 md:hidden">
+          <div className="flex items-center gap-2 lg:hidden">
             <a
               href={business.phone.href}
               aria-label={`Call ${business.name}`}
-              className="inline-flex size-11 items-center justify-center text-charcoal"
+              className="inline-flex size-11 items-center justify-center text-charcoal md:hidden"
             >
-              <PhoneIcon />
+              <svg
+                viewBox="0 0 24 24"
+                className="size-5"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                aria-hidden="true"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 0 0 2.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 0 1-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 0 0-1.091-.852H4.5A2.25 2.25 0 0 0 2.25 4.5v2.25Z"
+                />
+              </svg>
             </a>
-            <button
-              ref={toggleRef}
-              type="button"
-              aria-expanded={menuOpen}
-              aria-controls="mobile-menu"
-              onClick={() => setMenuOpen((open) => !open)}
-              className="inline-flex size-11 items-center justify-center text-charcoal"
-            >
-              <span className="sr-only">{menuOpen ? "Close menu" : "Open menu"}</span>
-              <MenuIcon open={menuOpen} />
-            </button>
+            <MobileMenu />
           </div>
         </div>
       </Container>
-
-      <div
-        id="mobile-menu"
-        hidden={!menuOpen}
-        className="max-h-[calc(100dvh-5rem)] overflow-y-auto border-t border-rule bg-ivory md:hidden"
-      >
-        <Container>
-          <nav aria-label="Mobile" className="py-6">
-            <ul className="flex flex-col gap-6">
-              {categories.map((category) => (
-                <li key={category.slug}>
-                  <Link
-                    href={`/${category.slug}`}
-                    onClick={() => setMenuOpen(false)}
-                    className="font-display text-lg uppercase tracking-[0.12em] text-charcoal"
-                  >
-                    {category.name}
-                  </Link>
-                  {getProductsIn(category.slug).length > 0 ? (
-                    <ul className="mt-2 flex flex-col gap-1 border-l border-rule pl-4">
-                      {getProductsIn(category.slug).map((product) => (
-                        <li key={product.slug}>
-                          <Link
-                            href={`/${category.slug}/${product.slug}`}
-                            onClick={() => setMenuOpen(false)}
-                            className="block py-1 text-ink-soft"
-                          >
-                            {product.name}
-                          </Link>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : null}
-                </li>
-              ))}
-              <li className="pt-2">
-                <Link
-                  href="/gallery"
-                  onClick={() => setMenuOpen(false)}
-                  className="font-display text-lg uppercase tracking-[0.12em] text-charcoal"
-                >
-                  Gallery
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="/about"
-                  onClick={() => setMenuOpen(false)}
-                  className="font-display text-lg uppercase tracking-[0.12em] text-charcoal"
-                >
-                  About
-                </Link>
-              </li>
-              <li className="pt-2">
-                <Link
-                  href="/contact"
-                  onClick={() => setMenuOpen(false)}
-                  className="inline-flex min-h-11 w-full items-center justify-center bg-champagne px-5 py-3 font-display text-sm font-medium uppercase tracking-[0.14em] text-charcoal"
-                >
-                  Free Consultation
-                </Link>
-              </li>
-            </ul>
-          </nav>
-        </Container>
-      </div>
     </header>
-  );
-}
-
-function PhoneIcon() {
-  return (
-    <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 0 0 2.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 0 1-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 0 0-1.091-.852H4.5A2.25 2.25 0 0 0 2.25 4.5v2.25Z"
-      />
-    </svg>
-  );
-}
-
-function MenuIcon({ open }: { open: boolean }) {
-  return (
-    <svg viewBox="0 0 24 24" className="size-6" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
-      {open ? (
-        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-      ) : (
-        <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5M3.75 17.25h16.5" />
-      )}
-    </svg>
   );
 }

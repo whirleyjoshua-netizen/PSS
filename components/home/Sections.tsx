@@ -68,7 +68,7 @@ export function CategoryGrid() {
                 </h3>
                 <p className="text-sm text-ink-soft">{category.tagline}</p>
                 {children.length > 0 ? (
-                  <p className="mt-auto pt-4 text-xs text-taupe">
+                  <p className="mt-auto pt-4 text-xs text-ink-soft">
                     {children.map((child) => child.name).join(" · ")}
                   </p>
                 ) : null}
@@ -199,7 +199,7 @@ export function MeetTheOwners() {
               This is the highest-converting image on the site — the thing the
               competition does not have. */}
           <Image
-            src="/brand/lockup-dark.png"
+            src="/brand/owners-placeholder.webp"
             alt=""
             fill
             aria-hidden="true"
@@ -257,7 +257,7 @@ export function ServiceAreaBlock() {
               <span className="font-display text-lg font-light text-charcoal">
                 {city}
               </span>
-              <span className="mt-1 block text-xs uppercase tracking-[0.16em] text-taupe">
+              <span className="mt-1 block text-xs uppercase tracking-[0.16em] text-ink-soft">
                 Nevada
               </span>
             </Link>

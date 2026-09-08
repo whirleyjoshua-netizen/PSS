@@ -105,14 +105,14 @@ export function Logo({
         PREMIER
       </span>
       <span className="mt-[0.28em] flex items-center gap-[0.4em]" aria-hidden="true">
-        <span className={`h-px w-[0.9em] ${rule} opacity-70`} />
+        <span className={`h-px w-[0.9em] ${rule} opacity-80`} />
         <span
           className={`font-display leading-none ${accent}`}
           style={{ fontSize: "0.33em", letterSpacing: "0.28em" }}
         >
           SHADE SOLUTIONS
         </span>
-        <span className={`h-px flex-1 ${rule} opacity-70`} />
+        <span className={`h-px flex-1 ${rule} opacity-80`} />
       </span>
     </span>
   );

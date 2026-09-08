@@ -9,13 +9,16 @@ export function Hero() {
       {/* TODO(content): replace with a photograph of a completed local job.
           The brand render stands in until real install photos exist. */}
       <Image
-        src="/brand/panels-dark.png"
+        src="/brand/hero-backdrop.webp"
         alt=""
-        width={1536}
-        height={1024}
+        fill
         priority
+        // Decorative full-bleed art. `fill` + sizes lets next/image serve a
+        // width matched to the viewport instead of the full 1536px source.
+        sizes="100vw"
+        quality={70}
         aria-hidden="true"
-        className="absolute inset-0 size-full object-cover opacity-70"
+        className="object-cover opacity-70"
       />
       <div
         className="absolute inset-0 bg-gradient-to-r from-charcoal via-charcoal/85 to-charcoal/40"

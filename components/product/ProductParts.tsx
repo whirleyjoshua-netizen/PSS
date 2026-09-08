@@ -10,7 +10,7 @@ export type Crumb = { name: string; url: string };
 export function Breadcrumbs({ trail }: { trail: Crumb[] }) {
   return (
     <nav aria-label="Breadcrumb">
-      <ol className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.14em] text-taupe">
+      <ol className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.14em] text-ink-soft">
         <li>
           <Link href="/" className="transition-colors hover:text-champagne-ink">
             Home
@@ -85,7 +85,7 @@ export function ProductCardList({
               {product.name}
             </h3>
             <p className="text-sm text-ink-soft">{product.tagline}</p>
-            <p className="text-sm leading-relaxed text-taupe">{product.bestFor}</p>
+            <p className="text-sm leading-relaxed text-ink-soft">{product.bestFor}</p>
             <span
               aria-hidden="true"
               className="mt-auto pt-4 font-display text-xs uppercase tracking-[0.16em] text-champagne-ink"

@@ -63,7 +63,7 @@ export default function ContactPage() {
                   </li>
                 ))}
               </ul>
-              <p className="mt-4 text-sm text-taupe">
+              <p className="mt-4 text-sm text-ink-soft">
                 Nearby but not listed? Call us — we will tell you honestly
                 whether we can get to you.
               </p>

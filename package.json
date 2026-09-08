@@ -34,6 +34,7 @@
     "eslint-config-next": "16.3.3",
     "jsdom": "^29.1.1",
     "jsqr": "^1.4.0",
+    "lighthouse": "^12.8.2",
     "pngjs": "^7.0.0",
     "qrcode": "^1.5.4",
     "tailwindcss": "^4",
