@@ -67,7 +67,11 @@ export default async function ProductPage({
       />
 
       <Section tone="ivory">
-        <div className="grid gap-12 lg:grid-cols-[minmax(0,1fr)_20rem]">
+        {/* Columns are sized to their content and left-aligned so the body
+            starts on the same edge as the page heading above it. A 1fr first
+            column would stretch and leave a hole beside the capped prose
+            measure; centering would break alignment with the hero. */}
+        <div className="grid gap-12 lg:grid-cols-[minmax(0,72ch)_22rem] lg:gap-16">
           <div className="flex flex-col gap-5 text-lg leading-relaxed text-ink-soft">
             {found.body.map((paragraph) => (
               <p key={paragraph.slice(0, 40)}>{paragraph}</p>

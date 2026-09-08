@@ -24,7 +24,7 @@ export default function ContactPage() {
       />
 
       <Section tone="ivory">
-        <div className="grid gap-12 lg:grid-cols-[minmax(0,1fr)_20rem]">
+        <div className="grid gap-12 lg:grid-cols-[minmax(0,64rem)_22rem] lg:gap-16">
           <ConsultationForm />
 
           <aside className="flex flex-col gap-8">

@@ -63,7 +63,7 @@ export function SectionHeading({
   return (
     <div className={`flex flex-col gap-4 ${align === "center" ? "items-center text-center" : ""}`}>
       {eyebrow ? <Eyebrow tone={tone}>{eyebrow}</Eyebrow> : null}
-      <h2 className="max-w-2xl text-3xl font-light tracking-tight md:text-4xl">{title}</h2>
+      <h2 className="max-w-3xl text-3xl font-light tracking-tight md:text-4xl">{title}</h2>
       {lead ? (
         <p
           className={`max-w-2xl text-lg ${

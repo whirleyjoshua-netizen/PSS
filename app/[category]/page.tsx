@@ -63,7 +63,7 @@ export default async function CategoryPage({
       />
 
       <Section tone="ivory">
-        <div className="flex max-w-2xl flex-col gap-5 text-lg leading-relaxed text-ink-soft">
+        <div className="flex max-w-[72ch] flex-col gap-5 text-lg leading-relaxed text-ink-soft">
           {found.intro.map((paragraph) => (
             <p key={paragraph.slice(0, 40)}>{paragraph}</p>
           ))}
