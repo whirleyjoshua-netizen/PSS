@@ -194,16 +194,12 @@ export function MeetTheOwners() {
   return (
     <Section tone="ivory">
       <div className="grid items-center gap-12 lg:grid-cols-2">
-        <div className="relative aspect-4/3 overflow-hidden bg-sand">
-          {/* TODO(content): replace with a real photograph of the two of you.
-              This is the highest-converting image on the site — the thing the
-              competition does not have. */}
+        <div className="relative mx-auto aspect-4/5 w-full max-w-md overflow-hidden bg-sand">
           <Image
-            src="/brand/owners-placeholder.webp"
-            alt=""
+            src="/brand/owners-family.webp"
+            alt="The owners of Premier Shade Solutions with their young daughter"
             fill
-            aria-hidden="true"
-            sizes="(min-width: 1024px) 50vw, 100vw"
+            sizes="(min-width: 1024px) 28rem, 100vw"
             className="object-cover"
           />
         </div>
