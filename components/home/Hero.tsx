@@ -6,15 +6,13 @@ import { business } from "@/content/business";
 export function Hero() {
   return (
     <section className="relative overflow-hidden bg-charcoal text-ivory">
-      {/* TODO(content): replace with a photograph of a completed local job.
-          The brand render stands in until real install photos exist. */}
       <Image
-        src="/brand/hero-backdrop.webp"
+        src="/gallery/transitional-shades-slider-wall.webp"
         alt=""
         fill
         priority
         // Decorative full-bleed art. `fill` + sizes lets next/image serve a
-        // width matched to the viewport instead of the full 1536px source.
+        // width matched to the viewport instead of the full 1800px source.
         sizes="100vw"
         quality={70}
         aria-hidden="true"

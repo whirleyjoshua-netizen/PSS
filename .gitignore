@@ -54,3 +54,6 @@ scripts/_*
 
 # Lighthouse reports
 .lh/
+
+# Full-resolution source photos; optimized WebP lives in public/gallery/
+Images/

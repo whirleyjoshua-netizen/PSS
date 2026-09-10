@@ -8,7 +8,7 @@ import { gallery } from "@/content/gallery";
 export const metadata: Metadata = {
   title: "Gallery | Premier Shade Solutions",
   description:
-    "Blinds, shades, and shutters installed in homes across Las Vegas, Henderson, Summerlin, and North Las Vegas.",
+    "Blinds, shades, and shutters we measured and installed — real jobs, photographed on site.",
   alternates: { canonical: "/gallery" },
 };
 
@@ -17,8 +17,8 @@ export default function GalleryPage() {
     <>
       <PageHero
         eyebrow="Our work"
-        title="Installed across the valley"
-        lead="Real jobs in real Las Vegas homes — no stock photography."
+        title="Recent installations"
+        lead="Real jobs, photographed on site — no stock photography."
         trail={[{ name: "Gallery", url: "/gallery" }]}
       />
 
