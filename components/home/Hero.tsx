@@ -14,7 +14,6 @@ export function Hero() {
         // Decorative full-bleed art. `fill` + sizes lets next/image serve a
         // width matched to the viewport instead of the full 1800px source.
         sizes="100vw"
-        quality={70}
         aria-hidden="true"
         className="object-cover opacity-70"
       />
