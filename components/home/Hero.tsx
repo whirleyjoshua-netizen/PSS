@@ -7,7 +7,7 @@ export function Hero() {
   return (
     <section className="relative overflow-hidden bg-charcoal text-ivory">
       <Image
-        src="/gallery/transitional-shades-slider-wall.webp"
+        src="/gallery/timber-great-room-hero-wide.webp"
         alt=""
         fill
         priority
@@ -15,10 +15,10 @@ export function Hero() {
         // width matched to the viewport instead of the full 1800px source.
         sizes="100vw"
         aria-hidden="true"
-        className="object-cover opacity-70"
+        className="object-cover opacity-100"
       />
       <div
-        className="absolute inset-0 bg-gradient-to-r from-charcoal via-charcoal/85 to-charcoal/40"
+        className="absolute inset-0 bg-gradient-to-r from-charcoal/95 via-charcoal/75 to-charcoal/30"
         aria-hidden="true"
       />
 
