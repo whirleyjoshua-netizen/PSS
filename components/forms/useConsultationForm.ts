@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { consultationSchema } from "@/lib/leads/schema";
 
 export type FormState = "idle" | "submitting" | "success" | "error";
@@ -13,6 +14,7 @@ export type FormState = "idle" | "submitting" | "success" | "error";
  * the message the visitor sees is the same one the server would have sent.
  */
 export function useConsultationForm(source: "hero" | "contact") {
+  const router = useRouter();
   const [state, setState] = useState<FormState>("idle");
   const [error, setError] = useState<string | null>(null);
 
@@ -65,7 +67,9 @@ export function useConsultationForm(source: "hero" | "contact") {
       }
 
       form.reset();
+      // The inline success message covers the moment before navigation lands.
       setState("success");
+      router.push("/thank-you");
     } catch {
       setError("We could not reach the server. Please check your connection or call us.");
       setState("error");

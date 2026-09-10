@@ -46,3 +46,52 @@ export async function sendLeadNotification(
     throw new Error(`Resend rejected the notification: ${error.message}`);
   }
 }
+
+/**
+ * Sends the visitor their "we got your request" email. Plain text for the same
+ * reasons as the notification, and it keeps it out of the promotions tab.
+ * Replies go to the business inbox rather than the no-reply sender.
+ */
+export async function sendCustomerConfirmation(
+  input: ConsultationInput,
+): Promise<void> {
+  const apiKey = process.env.RESEND_API_KEY;
+  const from = process.env.LEAD_FROM_EMAIL ?? "leads@premiershadesolutions.com";
+
+  if (!apiKey) {
+    throw new Error("Customer confirmation email is not configured");
+  }
+
+  const firstName = input.name.trim().split(/\s+/)[0];
+
+  const text = [
+    `Hi ${firstName},`,
+    "",
+    `Thank you for reaching out to ${business.name}. We have your request for a free in-home consultation.`,
+    "",
+    "What happens next:",
+    "",
+    "1. We call you within one business day to find a time that works.",
+    "2. At the visit we bring real samples to your windows, measure every opening, and give you a quote before we leave. No charge, no obligation.",
+    "3. Your window treatments are made to order, and we install them ourselves.",
+    "",
+    "Before we visit, it helps to think about which rooms matter most, whether glare, heat, or privacy is the main problem, and to have everyone who is deciding at home.",
+    "",
+    `Need us sooner? Call ${business.phone.display} or just reply to this email.`,
+    "",
+    `${business.name}`,
+    business.domain,
+  ].join("\n");
+
+  const { error } = await new Resend(apiKey).emails.send({
+    from: `${business.name} <${from}>`,
+    to: input.email,
+    replyTo: business.email,
+    subject: `We received your consultation request, ${firstName}`,
+    text,
+  });
+
+  if (error) {
+    throw new Error(`Resend rejected the confirmation: ${error.message}`);
+  }
+}

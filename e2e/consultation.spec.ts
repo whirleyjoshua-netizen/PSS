@@ -21,7 +21,8 @@ test("a visitor can request a consultation from the homepage hero", async ({ pag
   await page.getByLabel("Email", { exact: true }).fill("dana@example.com");
   await page.getByRole("button", { name: /request consultation/i }).click();
 
-  await expect(page.getByRole("status")).toContainText(/reach out/i);
+  await expect(page).toHaveURL(/\/thank-you$/);
+  await expect(page.getByRole("heading", { level: 1 })).toContainText(/thank you/i);
   expect(submitted).toMatchObject({
     name: "Dana Reyes",
     phone: "7025550134",
@@ -49,7 +50,7 @@ test("the full contact form submits with treatments and city", async ({ page }) 
     .fill("West-facing living room, brutal afternoon sun.");
   await page.getByRole("button", { name: /request free consultation/i }).click();
 
-  await expect(page.getByRole("status")).toBeVisible();
+  await expect(page).toHaveURL(/\/thank-you$/);
   expect(submitted).toMatchObject({
     city: "Henderson",
     source: "contact",
@@ -109,7 +110,7 @@ test("the hero form is fully operable by keyboard", async ({ page }) => {
   await page.keyboard.press("Tab");
   await page.keyboard.press("Enter");
 
-  await expect(page.getByRole("status")).toBeVisible();
+  await expect(page).toHaveURL(/\/thank-you$/);
 });
 
 test("the honeypot is present but invisible to a sighted user", async ({ page }) => {

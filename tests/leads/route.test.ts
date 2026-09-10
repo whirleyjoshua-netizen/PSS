@@ -2,9 +2,10 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const insertLead = vi.fn();
 const sendLeadNotification = vi.fn();
+const sendCustomerConfirmation = vi.fn();
 
 vi.mock("@/lib/leads/db", () => ({ insertLead }));
-vi.mock("@/lib/leads/email", () => ({ sendLeadNotification }));
+vi.mock("@/lib/leads/email", () => ({ sendLeadNotification, sendCustomerConfirmation }));
 
 const { POST } = await import("@/app/api/consultation/route");
 
@@ -27,6 +28,50 @@ beforeEach(() => {
   vi.spyOn(console, "error").mockImplementation(() => {});
   insertLead.mockReset().mockResolvedValue({ id: "abc" });
   sendLeadNotification.mockReset().mockResolvedValue(undefined);
+  sendCustomerConfirmation.mockReset().mockResolvedValue(undefined);
+});
+
+describe("customer confirmation email", () => {
+  it("is sent to the visitor with the normalized payload once the lead is captured", async () => {
+    await POST(request({ ...body, email: "DANA@Example.com" }));
+
+    expect(sendCustomerConfirmation).toHaveBeenCalledOnce();
+    expect(sendCustomerConfirmation).toHaveBeenCalledWith(
+      expect.objectContaining({ email: "dana@example.com", name: "Dana Reyes" }),
+    );
+  });
+
+  it("is still sent when only one of the two captures failed", async () => {
+    insertLead.mockRejectedValue(new Error("Neon down"));
+
+    await POST(request(body));
+
+    expect(sendCustomerConfirmation).toHaveBeenCalledOnce();
+  });
+
+  it("is not sent when the lead was lost, so the visitor is never told 'thanks' falsely", async () => {
+    insertLead.mockRejectedValue(new Error("Neon down"));
+    sendLeadNotification.mockRejectedValue(new Error("Resend down"));
+
+    await POST(request(body));
+
+    expect(sendCustomerConfirmation).not.toHaveBeenCalled();
+  });
+
+  it("does not turn a captured lead into an error when it fails", async () => {
+    sendCustomerConfirmation.mockRejectedValue(new Error("Resend down"));
+
+    const response = await POST(request(body));
+
+    expect(response.status).toBe(201);
+    expect(await response.json()).toMatchObject({ ok: true });
+  });
+
+  it("is never sent for a honeypot submission", async () => {
+    await POST(request({ ...body, company: "spam" }));
+
+    expect(sendCustomerConfirmation).not.toHaveBeenCalled();
+  });
 });
 
 describe("POST /api/consultation", () => {

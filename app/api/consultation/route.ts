@@ -1,6 +1,6 @@
 import { consultationSchema } from "@/lib/leads/schema";
 import { insertLead } from "@/lib/leads/db";
-import { sendLeadNotification } from "@/lib/leads/email";
+import { sendCustomerConfirmation, sendLeadNotification } from "@/lib/leads/email";
 
 /**
  * The only dynamic endpoint on the site.
@@ -65,6 +65,14 @@ export async function POST(request: Request) {
       },
       { status: 502 },
     );
+  }
+
+  // Only once the lead is known to be captured, so nobody is thanked for a
+  // request that was lost. Its failure is logged, never shown to the visitor.
+  try {
+    await sendCustomerConfirmation(parsed.data);
+  } catch (error) {
+    console.error("Customer confirmation email failed", error);
   }
 
   return Response.json({ ok: true }, { status: 201 });

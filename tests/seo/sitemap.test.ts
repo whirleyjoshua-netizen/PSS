@@ -30,4 +30,9 @@ describe("sitemap", () => {
     const urls = (await sitemap()).map((entry) => entry.url);
     expect(urls.some((url) => url.includes("/api/"))).toBe(false);
   });
+
+  it("leaves out the post-submission thank-you page", async () => {
+    const urls = (await sitemap()).map((entry) => entry.url);
+    expect(urls.some((url) => url.includes("/thank-you"))).toBe(false);
+  });
 });

@@ -5,6 +5,9 @@ import { HeroForm } from "@/components/forms/HeroForm";
 import { ConsultationForm } from "@/components/forms/ConsultationForm";
 import { business } from "@/content/business";
 
+const push = vi.fn();
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
+
 const ok = () =>
   vi.fn(async () => new Response(JSON.stringify({ ok: true }), { status: 201 }));
 
@@ -16,6 +19,7 @@ async function fillHero(user: ReturnType<typeof userEvent.setup>, phone = "70255
 
 beforeEach(() => {
   vi.stubGlobal("fetch", ok());
+  push.mockReset();
 });
 
 afterEach(() => {
@@ -34,7 +38,7 @@ describe("HeroForm", () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 
-  it("posts a valid submission and confirms it", async () => {
+  it("posts a valid submission and sends the visitor to the thank-you page", async () => {
     const user = userEvent.setup();
     render(<HeroForm />);
 
@@ -42,7 +46,22 @@ describe("HeroForm", () => {
     await user.click(screen.getByRole("button", { name: /consultation/i }));
 
     await waitFor(() => expect(fetch).toHaveBeenCalledOnce());
-    expect(await screen.findByRole("status")).toBeInTheDocument();
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/thank-you"));
+  });
+
+  it("stays on the page when the server rejects the request", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify({ ok: false }), { status: 502 })),
+    );
+    const user = userEvent.setup();
+    render(<HeroForm />);
+
+    await fillHero(user);
+    await user.click(screen.getByRole("button", { name: /consultation/i }));
+
+    await screen.findByRole("alert");
+    expect(push).not.toHaveBeenCalled();
   });
 
   it("sends the hero source so leads can be attributed", async () => {
