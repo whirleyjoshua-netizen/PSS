@@ -141,7 +141,7 @@ export function GalleryStrip() {
   return (
     <Section tone="ivory">
       <div className="flex flex-wrap items-end justify-between gap-6">
-        <SectionHeading eyebrow="Recent work" title="Installed across the valley" />
+        <SectionHeading eyebrow="Recent work" title="Recent installations" />
         <ButtonLink href="/gallery" variant="outline">
           View the gallery
         </ButtonLink>

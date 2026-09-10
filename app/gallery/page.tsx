@@ -55,9 +55,6 @@ export default function GalleryPage() {
                 {item.caption ? (
                   <p className="text-sm text-ink-soft">{item.caption}</p>
                 ) : null}
-                <p className="font-display text-xs uppercase tracking-[0.16em] text-ink-soft">
-                  {item.city}
-                </p>
               </li>
             ))}
           </ul>
