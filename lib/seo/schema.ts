@@ -16,6 +16,7 @@ type LocalBusinessSchema = {
   areaServed: { "@type": string; name: string }[];
   priceRange: string;
   slogan: string;
+  sameAs?: string[];
 };
 
 /**
@@ -48,6 +49,10 @@ export function localBusinessSchema(): LocalBusinessSchema {
   }
   if (!business.emailIsPlaceholder) {
     schema.email = business.email;
+  }
+  const profiles = Object.values(business.socials);
+  if (profiles.length > 0) {
+    schema.sameAs = profiles;
   }
   if (!business.address.isPlaceholder) {
     schema.address = {

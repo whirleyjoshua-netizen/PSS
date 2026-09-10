@@ -36,7 +36,10 @@ export const business = {
 
   serviceArea: ["Las Vegas", "Henderson", "Summerlin", "North Las Vegas"],
 
-  socials: {} as Record<string, string>,
+  /** Published as schema.org sameAs so Google ties these profiles to the site. */
+  socials: {
+    googleBusinessProfile: "https://maps.google.com/?cid=17944498424867039244",
+  } as Record<string, string>,
 } as const;
 
 export type Business = typeof business;
