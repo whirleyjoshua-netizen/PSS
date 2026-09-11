@@ -21,7 +21,7 @@ export default async function AuthPage({
       <h1 className="font-display text-2xl font-light">Sign in to the PSS job tracker</h1>
       <form action={completeSignIn} className="flex flex-col gap-4">
         <input type="hidden" name="token" value={token} />
-        <Button type="submit">Sign in</Button>
+        <Button type="submit" variant="solid">Sign in</Button>
       </form>
     </div>
   );

@@ -1,8 +1,6 @@
 import Link from "next/link";
-import { ButtonLink } from "@/components/ui/Button";
 import { listJobs } from "@/lib/admin/jobs";
 import { requireAdmin } from "@/lib/admin/session";
-import { signOut } from "./actions";
 import { JobCard, groupByStage } from "./JobCard";
 
 export default async function BoardPage({
@@ -10,7 +8,7 @@ export default async function BoardPage({
 }: {
   searchParams: Promise<{ lost?: string }>;
 }) {
-  const { email } = await requireAdmin();
+  await requireAdmin();
   const includeLost = (await searchParams).lost === "1";
   const groups = groupByStage(await listJobs({ includeLost }), includeLost);
   const now = new Date();
@@ -18,18 +16,10 @@ export default async function BoardPage({
   return (
     <div className="mx-auto flex max-w-[110rem] flex-col gap-6">
       <header className="flex flex-wrap items-center justify-between gap-4">
-        <h1 className="font-display text-2xl font-light">Jobs</h1>
-        <div className="flex flex-wrap items-center gap-3 text-sm">
-          <Link href={includeLost ? "/admin" : "/admin?lost=1"} className="underline underline-offset-4">
-            {includeLost ? "Hide lost" : "Show lost"}
-          </Link>
-          <ButtonLink href="/admin/jobs/new">New job</ButtonLink>
-          <form action={signOut}>
-            <button type="submit" className="text-ink-soft underline underline-offset-4" title={email}>
-              Sign out
-            </button>
-          </form>
-        </div>
+        <h1 className="text-2xl font-semibold">Jobs</h1>
+        <Link href={includeLost ? "/admin" : "/admin?lost=1"} className="text-sm underline underline-offset-4">
+          {includeLost ? "Hide lost" : "Show lost"}
+        </Link>
       </header>
 
       <ul className="flex flex-wrap gap-x-5 gap-y-1 text-sm text-ink-soft" aria-label="Jobs per stage">

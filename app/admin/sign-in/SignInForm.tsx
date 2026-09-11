@@ -31,7 +31,7 @@ export function SignInForm({ expired = false }: { expired?: boolean }) {
       {state.status === "error" ? (
         <p role="alert" className="text-sm text-charcoal">{state.message}</p>
       ) : null}
-      <Button type="submit" disabled={pending}>
+      <Button type="submit" variant="solid" disabled={pending}>
         {pending ? "Sending…" : "Email me a sign-in link"}
       </Button>
     </form>

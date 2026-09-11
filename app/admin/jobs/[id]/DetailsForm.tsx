@@ -62,7 +62,7 @@ export function DetailsForm({ job }: { job: Job }) {
         </div>
       </fieldset>
       <div className="flex items-center gap-4 sm:col-span-2">
-        <Button type="submit" disabled={pending}>{pending ? "Saving…" : "Save details"}</Button>
+        <Button type="submit" variant="solid" disabled={pending}>{pending ? "Saving…" : "Save details"}</Button>
         {state.error ? <p role="alert" className="text-sm">{state.error}</p> : null}
         {state.ok ? <p role="status" className="text-sm text-ink-soft">Saved</p> : null}
       </div>

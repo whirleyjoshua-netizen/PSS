@@ -43,6 +43,29 @@ h1, h2, h3, h4 {
   text-wrap: balance;
 }
 
+/*
+ * The owner-only admin area is a working tool, not a page to market: plain
+ * white and black with grey rules and a system sans-serif. Redefining the
+ * tokens here, rather than restyling each component, keeps the shared form
+ * fields and buttons working unchanged on the public site.
+ */
+.admin-theme {
+  --color-ivory: #FFFFFF;
+  --color-sand: #F4F4F5;
+  --color-charcoal: #0A0A0A;
+  --color-taupe: #71717A;
+  --color-champagne: #0A0A0A;
+  --color-champagne-ink: #0A0A0A;
+  --color-rule: #E4E4E7;
+  --color-ink-soft: #52525B;
+  --font-display: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  --font-body: var(--font-display);
+
+  background: var(--color-ivory);
+  color: var(--color-charcoal);
+  font-family: var(--font-body);
+}
+
 :focus-visible {
   outline: 2px solid var(--color-champagne-ink);
   outline-offset: 2px;

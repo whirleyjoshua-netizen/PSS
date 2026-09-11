@@ -32,7 +32,7 @@ export function NewJobForm() {
       <SelectField id="job-source" name="source" label="How they reached us" options={HAND_SOURCES} defaultValue={field(values, "source", "phone")} />
       <TextAreaField id="job-notes" name="notes" label="Notes (optional)" defaultValue={field(values, "notes")} />
       {state.error ? <p role="alert" className="text-sm">{state.error}</p> : null}
-      <Button type="submit" disabled={pending} className="self-start">{pending ? "Adding…" : "Add job"}</Button>
+      <Button type="submit" variant="solid" disabled={pending} className="self-start">{pending ? "Adding…" : "Add job"}</Button>
     </form>
   );
 }

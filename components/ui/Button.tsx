@@ -8,6 +8,8 @@ const VARIANTS = {
   primary: "bg-champagne text-charcoal hover:bg-charcoal hover:text-ivory",
   outline: "border border-charcoal text-charcoal hover:bg-charcoal hover:text-ivory",
   outlineLight: "border border-ivory/40 text-ivory hover:bg-ivory hover:text-charcoal",
+  /** Charcoal fill with ivory text; inside .admin-theme this is black on white. */
+  solid: "bg-charcoal text-ivory hover:bg-ink-soft",
 } as const;
 
 export type ButtonVariant = keyof typeof VARIANTS;

@@ -22,7 +22,7 @@ export function StageControls({ job }: { job: Job }) {
 
       {next ? (
         <form action={moveStage.bind(null, job.id, next)}>
-          <Button type="submit" className="w-full sm:w-auto">Move to {stageLabel(next)}</Button>
+          <Button type="submit" variant="solid" className="w-full sm:w-auto">Move to {stageLabel(next)}</Button>
         </form>
       ) : null}
 
