@@ -1,4 +1,5 @@
 import "server-only";
+import { after } from "next/server";
 import { Resend } from "resend";
 import { business } from "@/content/business";
 import { db } from "@/lib/db";
@@ -11,55 +12,63 @@ const LINKS_PER_HOUR = 5;
 /**
  * Emails a one-time sign-in link to an allowlisted owner.
  *
- * Returns ok for strangers and for rate-limited owners too, so the form never
- * reveals who has access or how many links were sent.
+ * Always returns immediately, having done nothing yet. All work — the
+ * allowlist check, rate limiting, and the email itself — happens later in
+ * `after()`, so the response time and shape never reveal who has access.
+ * Every error inside is caught and logged; none of it can reach the caller.
  */
-export async function requestSignIn(
-  rawEmail: string,
-): Promise<{ ok: true } | { ok: false; error: string }> {
+export async function requestSignIn(rawEmail: string): Promise<void> {
   const email = rawEmail.trim().toLowerCase();
-  if (!isAllowed(email)) return { ok: true };
 
-  const sql = db();
-  await sql`delete from admin_login_tokens where expires_at < now() - interval '1 day'`;
+  after(async () => {
+    try {
+      if (!isAllowed(email)) return;
 
-  const [{ count }] = await sql`
-    select count(*)::int as count from admin_login_tokens
-    where email = ${email} and created_at > now() - interval '1 hour'`;
-  if (Number(count) >= LINKS_PER_HOUR) return { ok: true };
+      const sql = db();
+      await sql`delete from admin_login_tokens where expires_at < now() - interval '1 day'`;
 
-  const token = newToken();
-  await sql`
-    insert into admin_login_tokens (token_hash, email, expires_at)
-    values (${hashToken(token)}, ${email}, now() + ${`${LINK_MINUTES} minutes`}::interval)`;
+      const [{ count }] = await sql`
+        select count(*)::int as count from admin_login_tokens
+        where email = ${email} and created_at > now() - interval '1 hour'`;
+      if (Number(count) >= LINKS_PER_HOUR) return;
 
-  // The origin comes from configuration, never from the request's Host header.
-  const origin = process.env.ADMIN_BASE_URL ?? business.domain;
-  const link = `${origin}/admin/auth?token=${token}`;
+      const token = newToken();
+      await sql`
+        insert into admin_login_tokens (token_hash, email, expires_at)
+        values (${hashToken(token)}, ${email}, now() + ${`${LINK_MINUTES} minutes`}::interval)`;
 
-  const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.LEAD_FROM_EMAIL ?? "leads@premiershadesolutions.com";
-  if (!apiKey) return { ok: false, error: "Sign-in email is not configured." };
+      // The origin comes from configuration, never from the request's Host header.
+      const origin = process.env.ADMIN_BASE_URL ?? business.domain;
+      const link = `${origin}/admin/auth?token=${token}`;
 
-  const { error } = await new Resend(apiKey).emails.send({
-    from: `${business.name} <${from}>`,
-    to: email,
-    subject: "Your PSS sign-in link",
-    text: [
-      "Sign in to the PSS job tracker:",
-      "",
-      link,
-      "",
-      `This link works once and expires in ${LINK_MINUTES} minutes.`,
-      "If you did not ask for it, ignore this email.",
-    ].join("\n"),
+      const apiKey = process.env.RESEND_API_KEY;
+      const from = process.env.LEAD_FROM_EMAIL ?? "leads@premiershadesolutions.com";
+      if (!apiKey) {
+        console.error("Sign-in email is not configured (missing RESEND_API_KEY).");
+        return;
+      }
+
+      const { error } = await new Resend(apiKey).emails.send({
+        from: `${business.name} <${from}>`,
+        to: email,
+        subject: "Your PSS sign-in link",
+        text: [
+          "Sign in to the PSS job tracker:",
+          "",
+          link,
+          "",
+          `This link works once and expires in ${LINK_MINUTES} minutes.`,
+          "If you did not ask for it, ignore this email.",
+        ].join("\n"),
+      });
+
+      if (error) {
+        console.error("Sign-in email failed", error);
+      }
+    } catch (error) {
+      console.error("Sign-in request failed", error);
+    }
   });
-
-  if (error) {
-    console.error("Sign-in email failed", error);
-    return { ok: false, error: "We could not send the email. Try again in a minute." };
-  }
-  return { ok: true };
 }
 
 /** Marks a sign-in token used and returns its email, or null if it cannot be used. */

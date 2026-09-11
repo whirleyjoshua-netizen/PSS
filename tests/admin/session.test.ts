@@ -34,8 +34,21 @@ describe("sessions", () => {
     expect(name).toBe(SESSION_COOKIE);
     expect(options).toMatchObject({ httpOnly: true, sameSite: "lax", path: "/" });
     expect(options?.maxAge).toBe(60 * 60 * 24 * 30);
-    expect(sql.mock.calls[0]).toContain(hashToken(value));
-    expect(sql.mock.calls[0]).not.toContain(value);
+    const insert = sql.mock.calls.find((call) =>
+      (call[0] as TemplateStringsArray).join("?").includes("insert into admin_sessions"),
+    )!;
+    expect(insert).toContain(hashToken(value));
+    expect(insert).not.toContain(value);
+  });
+
+  it("deletes expired sessions before creating a new one", async () => {
+    await createSession("owner@example.com");
+
+    const del = sql.mock.calls.find((call) =>
+      (call[0] as TemplateStringsArray).join("?").includes("delete from admin_sessions"),
+    )!;
+    expect(del).toBeDefined();
+    expect((del[0] as TemplateStringsArray).join("?")).toContain("expires_at < now()");
   });
 
   it("finds the owner for a live session", async () => {

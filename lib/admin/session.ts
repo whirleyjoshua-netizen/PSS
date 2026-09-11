@@ -10,8 +10,11 @@ export const SESSION_COOKIE = "pss_admin";
 const SESSION_SECONDS = 60 * 60 * 24 * 30;
 
 export async function createSession(email: string): Promise<void> {
+  const sql = db();
+  await sql`delete from admin_sessions where expires_at < now()`;
+
   const token = newToken();
-  await db()`
+  await sql`
     insert into admin_sessions (token_hash, email, expires_at)
     values (${hashToken(token)}, ${email}, now() + interval '30 days')`;
 

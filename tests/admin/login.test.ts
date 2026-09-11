@@ -5,12 +5,21 @@ vi.mock("@/lib/db", () => ({ db: () => sql }));
 const send = vi.fn();
 vi.mock("resend", () => ({ Resend: class { emails = { send }; } }));
 
+const afterCallbacks: Array<() => unknown> = [];
+vi.mock("next/server", () => ({
+  after: (cb: () => unknown) => {
+    afterCallbacks.push(cb);
+  },
+}));
+const runScheduledWork = () => Promise.all(afterCallbacks.splice(0).map((cb) => cb()));
+
 const { requestSignIn, consumeSignIn } = await import("@/lib/admin/login");
 const { hashToken } = await import("@/lib/admin/tokens");
 
 const text = (call: unknown[]) => (call[0] as TemplateStringsArray).join("?");
 
 beforeEach(() => {
+  afterCallbacks.length = 0;
   sql.mockReset().mockResolvedValue([]);
   send.mockReset().mockResolvedValue({ error: null });
   vi.stubEnv("ADMIN_EMAILS", "owner@example.com");
@@ -19,12 +28,18 @@ beforeEach(() => {
 });
 
 describe("requestSignIn", () => {
+  it("resolves immediately for everyone, doing the work later", async () => {
+    expect(await requestSignIn("owner@example.com")).toBeUndefined();
+    expect(await requestSignIn("stranger@example.com")).toBeUndefined();
+  });
+
   it("emails an allowlisted owner a link on the configured origin", async () => {
     sql.mockImplementation(async (strings: TemplateStringsArray) =>
       strings.join("?").includes("count(*)") ? [{ count: 0 }] : [],
     );
 
-    expect(await requestSignIn(" Owner@Example.com ")).toEqual({ ok: true });
+    await requestSignIn(" Owner@Example.com ");
+    await runScheduledWork();
 
     const message = send.mock.calls[0][0];
     expect(message.to).toBe("owner@example.com");
@@ -36,6 +51,7 @@ describe("requestSignIn", () => {
       strings.join("?").includes("count(*)") ? [{ count: 0 }] : [],
     );
     await requestSignIn("owner@example.com");
+    await runScheduledWork();
 
     const token = send.mock.calls[0][0].text.match(/token=([A-Za-z0-9_-]+)/)[1];
     const insert = sql.mock.calls.find((call) => text(call).includes("insert into admin_login_tokens"))!;
@@ -43,8 +59,9 @@ describe("requestSignIn", () => {
     expect(insert).not.toContain(token);
   });
 
-  it("says the same thing to a stranger but sends nothing", async () => {
-    expect(await requestSignIn("stranger@example.com")).toEqual({ ok: true });
+  it("says nothing to a stranger and does no work at all", async () => {
+    await requestSignIn("stranger@example.com");
+    await runScheduledWork();
     expect(send).not.toHaveBeenCalled();
     expect(sql).not.toHaveBeenCalled();
   });
@@ -54,18 +71,23 @@ describe("requestSignIn", () => {
       strings.join("?").includes("count(*)") ? [{ count: 5 }] : [],
     );
 
-    expect(await requestSignIn("owner@example.com")).toEqual({ ok: true });
+    await requestSignIn("owner@example.com");
+    await runScheduledWork();
     expect(send).not.toHaveBeenCalled();
   });
 
-  it("reports a failed email so the owner can try again", async () => {
+  it("logs a failed send instead of throwing", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
     sql.mockImplementation(async (strings: TemplateStringsArray) =>
       strings.join("?").includes("count(*)") ? [{ count: 0 }] : [],
     );
     send.mockResolvedValue({ error: { message: "down" } });
 
-    const result = await requestSignIn("owner@example.com");
-    expect(result.ok).toBe(false);
+    await requestSignIn("owner@example.com");
+    await expect(runScheduledWork()).resolves.toBeDefined();
+    expect(consoleError).toHaveBeenCalled();
+
+    consoleError.mockRestore();
   });
 });
 
