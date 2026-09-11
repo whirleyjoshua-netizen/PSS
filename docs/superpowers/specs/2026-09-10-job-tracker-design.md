@@ -20,6 +20,8 @@ Rejected: a separate admin app (two codebases and deploys for two users), and an
 
 **Flow.** `/admin/sign-in` takes an email address. If it is on the allowlist, a one-time sign-in link is emailed through Resend. The link expires after 15 minutes and works once. Following it creates a session and lands on `/admin`.
 
+**Link origin.** The sign-in link is built from `ADMIN_BASE_URL` (default: the production domain from `content/business.ts`), never from the request's `Host` header, so a forged request cannot make the site email an owner a link to another domain.
+
 **Allowlist.** The `ADMIN_EMAILS` environment variable, comma-separated, compared case-insensitively after trimming. Initial value: `whirleyjoshua@gmail.com`. A non-allowlisted address sees the same "check your email" confirmation and no email is sent, so the form never reveals who has access.
 
 **Tokens.** Sign-in tokens and session tokens are 32 random bytes, base64url-encoded. The database stores only a SHA-256 hash of each, so a database leak does not yield usable tokens.
@@ -102,7 +104,7 @@ Admin pages reuse the site's design tokens and form components (`components/form
 
 - **Unit (Vitest):** stage order and `nextStage()`; token hashing; allowlist parsing; rate limit; the zod form schemas; the cents conversion.
 - **Access:** every Server Action and admin page rejects a request with no session, with an expired session, and with a session whose email has been removed from the allowlist.
-- **E2E (Playwright):** sign-in by following a link captured from a test-only mail sink (enabled only when `ADMIN_TEST_MAILBOX=1` and `NODE_ENV !== "production"`; the production build refuses to start with the flag set), the board rendering jobs by stage, advancing a job, adding a note, and creating a job by hand. Tests run against a Neon branch, never the production database.
+- **E2E (Playwright):** sign-in by inserting a login token directly into the test database and opening its link (no test-only code path exists in the app), the board rendering jobs by stage, advancing a job, adding a note, and creating a job by hand. Tests run against a Neon branch, never the production database.
 - The existing tests continue to pass, including the consultation route, which must keep inserting leads with `status = 'new'`.
 
 ## 9. Out of scope
