@@ -26,6 +26,7 @@ export function TextField({
   autoComplete,
   inputMode,
   placeholder,
+  defaultValue,
 }: {
   id: string;
   name: string;
@@ -35,6 +36,7 @@ export function TextField({
   autoComplete?: string;
   inputMode?: "text" | "tel" | "email" | "numeric";
   placeholder?: string;
+  defaultValue?: string;
 }) {
   return (
     <div className="flex flex-col gap-2">
@@ -47,6 +49,7 @@ export function TextField({
         autoComplete={autoComplete}
         inputMode={inputMode}
         placeholder={placeholder}
+        defaultValue={defaultValue}
         className={CONTROL}
       />
     </div>
