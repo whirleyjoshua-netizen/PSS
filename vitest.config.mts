@@ -11,6 +11,9 @@ export default defineConfig({
     include: ["tests/**/*.test.{ts,tsx}"],
   },
   resolve: {
-    alias: { "@": path.resolve(import.meta.dirname, ".") },
+    alias: {
+      "@": path.resolve(import.meta.dirname, "."),
+      "server-only": path.resolve(import.meta.dirname, "tests/server-only-stub.ts"),
+    },
   },
 });
