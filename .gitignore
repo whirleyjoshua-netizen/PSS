@@ -57,3 +57,7 @@ scripts/_*
 
 # Full-resolution source photos; optimized WebP lives in public/gallery/
 Images/
+
+# Git worktrees and subagent workflow scratch space
+.claude/worktrees/
+.superpowers/
