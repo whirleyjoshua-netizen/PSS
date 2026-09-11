@@ -42,11 +42,13 @@ for (const route of ROUTES) {
 test("an unknown product slug is a real 404", async ({ page }) => {
   const response = await page.goto("/shades/does-not-exist");
   expect(response?.status()).toBe(404);
+  await expect(page.getByRole("banner")).toBeVisible();
 });
 
 test("an unknown category is a real 404", async ({ page }) => {
   const response = await page.goto("/drapery");
   expect(response?.status()).toBe(404);
+  await expect(page.getByRole("banner")).toBeVisible();
 });
 
 test("every page carries a unique title and a meta description", async ({ page }) => {
