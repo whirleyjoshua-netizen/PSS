@@ -95,7 +95,7 @@ Admin pages reuse the site's design tokens and form components (`components/form
 ## 7. Errors
 
 - Expired, used, or unknown sign-in link: the sign-in page with "That link has expired or was already used. Request a new one."
-- Sign-in email fails to send: the error is logged, and the page says so and asks the user to try again.
+- Sign-in email fails to send: the error is logged only. The page shows the same "check your email" confirmation as always, because any visible difference would reveal which addresses have access (§3). The allowlist check, rate limit, token, and email all run after the response, via `after()` from `next/server`, so every address gets the same answer at the same speed. An owner whose email never arrives requests another link.
 - A Server Action with no valid session: redirect to sign-in. No data is returned.
 - Validation errors appear inline, using the same messages as the zod schemas.
 - A job id that does not exist: the admin not-found page.
