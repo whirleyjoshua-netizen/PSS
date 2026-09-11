@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { cities } from "@/content/cities";
 import { citySlug, cityPath, getCity } from "@/lib/content/cities";
 import { business } from "@/content/business";
-import { generateStaticParams as cityParams } from "@/app/service-area/[city]/page";
+import { generateStaticParams as cityParams } from "@/app/(site)/service-area/[city]/page";
 
 describe("city content", () => {
   it("covers exactly the service area, in the same order", () => {

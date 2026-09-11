@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { describe, it, expect } from "vitest";
-import Home from "@/app/page";
+import Home from "@/app/(site)/page";
 import { business } from "@/content/business";
 import { categories } from "@/content/products";
 

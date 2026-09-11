@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { describe, it, expect } from "vitest";
-import ThankYouPage, { metadata } from "@/app/thank-you/page";
+import ThankYouPage, { metadata } from "@/app/(site)/thank-you/page";
 import { business } from "@/content/business";
 
 describe("/thank-you", () => {

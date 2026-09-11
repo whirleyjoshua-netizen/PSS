@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { generateStaticParams as categoryParams } from "@/app/[category]/page";
-import { generateStaticParams as productParams } from "@/app/[category]/[product]/page";
+import { generateStaticParams as categoryParams } from "@/app/(site)/[category]/page";
+import { generateStaticParams as productParams } from "@/app/(site)/[category]/[product]/page";
 
 describe("static params", () => {
   it("generates one route per category", async () => {
