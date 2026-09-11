@@ -9,7 +9,11 @@ export type GalleryItem = {
 
 /**
  * Real installations, photographed on the job. Sources live in `Images/` and
- * are converted to 1800px-wide WebP under `public/gallery/`.
+ * are converted to 1800px-wide WebP under `public/gallery/` by
+ * `scripts/gallery-webp.mjs`, which also strips the photos' GPS data.
+ *
+ * Most of these are the owners' own work from their years in Ohio, before
+ * Premier Shade Solutions; the gallery page says so.
  *
  * When adding: use 4:3 or 3:2 landscape, at least 1600px wide, and write alt
  * text describing the treatment and the room — it is read aloud and indexed.
@@ -56,5 +60,77 @@ export const gallery: GalleryItem[] = [
     treatment: "shades",
     caption:
       "Cellular shades on a sun-facing sitting room — the honeycomb cells hold heat off the glass through the afternoon.",
+  },
+  {
+    src: "/gallery/plantation-shutters-dining-room.webp",
+    alt: "White plantation shutters on three windows in a dining room with blue walls and industrial pendant lights over the table.",
+    treatment: "shutters",
+    caption: "Plantation shutters on three dining room windows, louvers tilted to soften the light over the table.",
+  },
+  {
+    src: "/gallery/roller-shade-lake-view.webp",
+    alt: "A sheer roller shade lowered across a wall of glass in a bedroom, with a deck and a lake visible through the fabric.",
+    treatment: "shades",
+    caption: "A sheer roller shade on a lakefront wall of glass — the view stays, the glare does not.",
+  },
+  {
+    src: "/gallery/faux-wood-blinds-living-room.webp",
+    alt: "White faux wood blinds with wide slats on two windows above a grey sofa with patterned pillows.",
+    treatment: "blinds",
+    caption: "Faux wood blinds over a living room sofa — the look of painted wood in a slat that will not warp.",
+  },
+  {
+    src: "/gallery/plantation-shutters-french-doors.webp",
+    alt: "White plantation shutters mounted on a pair of French doors and on the tall window beside them.",
+    treatment: "shutters",
+    caption: "Plantation shutters on a pair of French doors and the window beside them.",
+  },
+  {
+    src: "/gallery/roller-shades-bay-window.webp",
+    alt: "Light roller shades lowered in each window of a bay, with gridded transom windows left uncovered above.",
+    treatment: "shades",
+    caption: "Roller shades fitted to each window of a bay, leaving the transoms above clear for daylight.",
+  },
+  {
+    src: "/gallery/cellular-shades-fireplace-wall.webp",
+    alt: "White cellular shades lowered on three tall windows beside a white fireplace in a living room.",
+    treatment: "shades",
+    caption: "Cellular shades on a run of tall living room windows beside the fireplace.",
+  },
+  {
+    src: "/gallery/plantation-shutters-bedroom.webp",
+    alt: "White plantation shutters with open louvers on two windows in a bedroom with grey walls.",
+    treatment: "shutters",
+    caption: "Plantation shutters in a bedroom — louvers open for daylight, closed flat for sleep.",
+  },
+  {
+    src: "/gallery/roller-shades-curved-bay.webp",
+    alt: "Roller shades raised to different heights across a curved bay of five windows, with trees visible below and clear transoms above.",
+    treatment: "shades",
+    caption: "Individual roller shades on a curved five-window bay, each set to its own height.",
+  },
+  {
+    src: "/gallery/cellular-shades-top-down-bedroom.webp",
+    alt: "Top-down bottom-up cellular shades covering the lower half of two wood-trimmed windows in a bedroom, with sky visible above.",
+    treatment: "shades",
+    caption: "Top-down cellular shades on wood-trimmed windows — privacy below, sky above.",
+  },
+  {
+    src: "/gallery/shades-open-living-room.webp",
+    alt: "Light window shades on every window and on a pair of French doors in an open-plan living room with a large sectional sofa.",
+    treatment: "shades",
+    caption: "Coordinated shades across every opening in an open-plan living room, French doors included.",
+  },
+  {
+    src: "/gallery/cellular-shades-entry-sidelights.webp",
+    alt: "Slim cellular shades on both sidelights of a white front door, with a matching shade on a high window in the entryway.",
+    treatment: "shades",
+    caption: "Slim cellular shades on front-door sidelights, with a matching shade on the high window above.",
+  },
+  {
+    src: "/gallery/cellular-shades-kitchen-door.webp",
+    alt: "Cellular shades on a kitchen patio door and on the windows of a breakfast nook beneath a patterned valance.",
+    treatment: "shades",
+    caption: "Cellular shades on a patio door and the breakfast-nook windows beside it.",
   },
 ];

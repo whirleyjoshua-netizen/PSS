@@ -17,8 +17,8 @@ export default function GalleryPage() {
     <>
       <PageHero
         eyebrow="Our work"
-        title="Recent installations"
-        lead="Real jobs, photographed on site — no stock photography."
+        title="Our installations"
+        lead="Our own work, photographed on site — no stock photography. Most of these are from our years in Ohio, before we moved home to Las Vegas."
         trail={[{ name: "Gallery", url: "/gallery" }]}
       />
 
