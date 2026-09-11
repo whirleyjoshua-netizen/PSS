@@ -17,7 +17,9 @@ export default defineConfig({
 
   projects: [
     { name: "desktop", use: { ...devices["Desktop Chrome"] } },
-    { name: "mobile", use: { ...devices["Pixel 7"] } },
+    // admin.spec.ts runs serially, desktop-only: its afterAll cleanup would
+    // otherwise race with a second project's copy of the same tests.
+    { name: "mobile", use: { ...devices["Pixel 7"] }, testIgnore: /admin\.spec\.ts/ },
   ],
 
   // Tests run against a production build, so what is verified is what ships.

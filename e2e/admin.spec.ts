@@ -5,6 +5,11 @@ import { createHash, randomBytes } from "node:crypto";
 const url = process.env.E2E_POSTGRES_URL;
 test.skip(!url, "Set E2E_POSTGRES_URL to a Neon branch to run admin tests");
 
+// This file's own cleanup runs once per worker (afterAll), so running it in
+// parallel across workers/projects races: one worker can delete the rows
+// another worker's test still depends on. Run serially, desktop only.
+test.describe.configure({ mode: "serial" });
+
 const sql = () => neon(url!);
 const NAME = `E2E Tracker ${Date.now()}`;
 
