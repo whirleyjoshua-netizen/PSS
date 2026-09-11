@@ -18,7 +18,7 @@ Rejected: a separate admin app (two codebases and deploys for two users), and an
 
 ## 3. Sign-in and access
 
-**Flow.** `/admin/sign-in` takes an email address. If it is on the allowlist, a one-time sign-in link is emailed through Resend. The link expires after 15 minutes and works once. Following it creates a session and lands on `/admin`.
+**Flow.** `/admin/sign-in` takes an email address. If it is on the allowlist, a one-time sign-in link is emailed through Resend. The link expires after 15 minutes and works once. Following it opens a short confirm page with a "Sign in" button; pressing the button uses the token, creates a session, and lands on `/admin`. Opening the link alone uses nothing, because email security scanners open links automatically and would otherwise spend a single-use token before the owner taps it.
 
 **Link origin.** The sign-in link is built from `ADMIN_BASE_URL` (default: the production domain from `content/business.ts`), never from the request's `Host` header, so a forged request cannot make the site email an owner a link to another domain.
 
