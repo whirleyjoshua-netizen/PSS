@@ -26,5 +26,14 @@ export default defineConfig({
     url: baseURL,
     reuseExistingServer: !process.env.CI,
     timeout: 240_000,
+    // Admin tests need a database. They run only against a Neon branch passed in
+    // E2E_POSTGRES_URL, never production, and are skipped when it is absent.
+    env: process.env.E2E_POSTGRES_URL
+      ? {
+          POSTGRES_URL: process.env.E2E_POSTGRES_URL,
+          ADMIN_EMAILS: "e2e-owner@example.com",
+          ADMIN_BASE_URL: baseURL,
+        }
+      : {},
   },
 });
