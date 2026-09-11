@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { business } from "@/content/business";
 
 const sql = vi.fn();
 vi.mock("@/lib/db", () => ({ db: () => sql }));
@@ -44,6 +45,33 @@ describe("requestSignIn", () => {
     const message = send.mock.calls[0][0];
     expect(message.to).toBe("owner@example.com");
     expect(message.text).toMatch(/https:\/\/pss\.test\/admin\/auth\?token=[A-Za-z0-9_-]{43}/);
+  });
+
+  it("falls back to the business domain when ADMIN_BASE_URL is blank", async () => {
+    vi.stubEnv("ADMIN_BASE_URL", "");
+    sql.mockImplementation(async (strings: TemplateStringsArray) =>
+      strings.join("?").includes("count(*)") ? [{ count: 0 }] : [],
+    );
+
+    await requestSignIn("owner@example.com");
+    await runScheduledWork();
+
+    const message = send.mock.calls[0][0];
+    expect(message.text).toContain(`${business.domain}/admin/auth?token=`);
+  });
+
+  it("strips a trailing slash from ADMIN_BASE_URL", async () => {
+    vi.stubEnv("ADMIN_BASE_URL", "https://pss.test/");
+    sql.mockImplementation(async (strings: TemplateStringsArray) =>
+      strings.join("?").includes("count(*)") ? [{ count: 0 }] : [],
+    );
+
+    await requestSignIn("owner@example.com");
+    await runScheduledWork();
+
+    const message = send.mock.calls[0][0];
+    expect(message.text).toContain("https://pss.test/admin/auth?token=");
+    expect(message.text).not.toContain("https://pss.test//admin");
   });
 
   it("stores only the hash of the token it sends", async () => {

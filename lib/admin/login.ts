@@ -38,7 +38,9 @@ export async function requestSignIn(rawEmail: string): Promise<void> {
         values (${hashToken(token)}, ${email}, now() + ${`${LINK_MINUTES} minutes`}::interval)`;
 
       // The origin comes from configuration, never from the request's Host header.
-      const origin = process.env.ADMIN_BASE_URL ?? business.domain;
+      // A blank ADMIN_BASE_URL falls back to the business domain, and any
+      // trailing slash is stripped so the link never gets a doubled one.
+      const origin = (process.env.ADMIN_BASE_URL || business.domain).replace(/\/+$/, "");
       const link = `${origin}/admin/auth?token=${token}`;
 
       const apiKey = process.env.RESEND_API_KEY;

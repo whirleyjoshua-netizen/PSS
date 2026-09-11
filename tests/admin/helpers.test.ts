@@ -43,6 +43,12 @@ describe("money", () => {
     expect(() => dollarsToCents("-5")).toThrow(/amount/);
   });
 
+  it("rejects an amount that overflows the integer column", () => {
+    expect(dollarsToCents("21474836.47")).toBe(2_147_483_647);
+    expect(() => dollarsToCents("21474836.48")).toThrow(/under \$21,474,836/);
+    expect(() => dollarsToCents("999999999")).toThrow(/under \$21,474,836/);
+  });
+
   it("formats cents for display", () => {
     expect(formatCents(450000)).toBe("$4,500");
     expect(formatCents(450050)).toBe("$4,500.50");
