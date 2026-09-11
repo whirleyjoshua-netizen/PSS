@@ -37,6 +37,8 @@ create table if not exists job_events (
 
 create index if not exists job_events_lead_idx on job_events (lead_id, created_at desc);
 
+update leads set stage_changed_at = created_at where status = 'new' and stage_changed_at > created_at and not exists (select 1 from job_events where job_events.lead_id = leads.id);
+
 create table if not exists admin_login_tokens (
   token_hash text primary key,
   email      text not null,
