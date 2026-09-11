@@ -34,7 +34,7 @@ export function TextField({
   type?: string;
   required?: boolean;
   autoComplete?: string;
-  inputMode?: "text" | "tel" | "email" | "numeric";
+  inputMode?: "text" | "tel" | "email" | "numeric" | "decimal";
   placeholder?: string;
   defaultValue?: string;
 }) {
@@ -89,17 +89,19 @@ export function TextAreaField({
   label,
   rows = 4,
   placeholder,
+  defaultValue,
 }: {
   id: string;
   name: string;
   label: string;
   rows?: number;
   placeholder?: string;
+  defaultValue?: string;
 }) {
   return (
     <div className="flex flex-col gap-2">
       <Label htmlFor={id}>{label}</Label>
-      <textarea id={id} name={name} rows={rows} placeholder={placeholder} className={CONTROL} />
+      <textarea id={id} name={name} rows={rows} placeholder={placeholder} defaultValue={defaultValue} className={CONTROL} />
     </div>
   );
 }

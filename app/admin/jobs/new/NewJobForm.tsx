@@ -7,17 +7,30 @@ import { business } from "@/content/business";
 import { HAND_SOURCES } from "@/lib/admin/schema";
 import { addJob, type FormState } from "../actions";
 
+const field = (values: FormState["values"], name: string, fallback = "") => {
+  const value = values?.[name];
+  return typeof value === "string" ? value : fallback;
+};
+
 export function NewJobForm() {
   const [state, action, pending] = useActionState<FormState, FormData>(addJob, {});
+  const values = state.values;
+
   return (
-    <form action={action} className="flex flex-col gap-5">
-      <TextField id="job-name" name="name" label="Name" required />
-      <TextField id="job-phone" name="phone" label="Phone" type="tel" inputMode="tel" required />
-      <TextField id="job-email" name="email" label="Email (optional)" type="email" />
-      <SelectField id="job-city" name="city" label="City" options={business.serviceArea} defaultValue={business.serviceArea[0]} />
-      <TextField id="job-address" name="address" label="Street address (optional)" />
-      <SelectField id="job-source" name="source" label="How they reached us" options={HAND_SOURCES} defaultValue="phone" />
-      <TextAreaField id="job-notes" name="notes" label="Notes (optional)" />
+    <form
+      // Remount with a fresh key each failed submit so the fields pick up the
+      // echoed values as new defaults, instead of React 19's post-action reset.
+      key={values ? JSON.stringify(values) : "initial"}
+      action={action}
+      className="flex flex-col gap-5"
+    >
+      <TextField id="job-name" name="name" label="Name" required defaultValue={field(values, "name")} />
+      <TextField id="job-phone" name="phone" label="Phone" type="tel" inputMode="tel" required defaultValue={field(values, "phone")} />
+      <TextField id="job-email" name="email" label="Email (optional)" type="email" defaultValue={field(values, "email")} />
+      <SelectField id="job-city" name="city" label="City" options={business.serviceArea} defaultValue={field(values, "city", business.serviceArea[0])} />
+      <TextField id="job-address" name="address" label="Street address (optional)" defaultValue={field(values, "address")} />
+      <SelectField id="job-source" name="source" label="How they reached us" options={HAND_SOURCES} defaultValue={field(values, "source", "phone")} />
+      <TextAreaField id="job-notes" name="notes" label="Notes (optional)" defaultValue={field(values, "notes")} />
       {state.error ? <p role="alert" className="text-sm">{state.error}</p> : null}
       <Button type="submit" disabled={pending} className="self-start">{pending ? "Adding…" : "Add job"}</Button>
     </form>

@@ -45,10 +45,19 @@ export function StageControls({ job }: { job: Job }) {
       </form>
 
       {job.status !== "lost" ? (
-        <form action={lostAction} className="flex flex-wrap items-end gap-3">
+        <form
+          key={lostState.values ? JSON.stringify(lostState.values) : "initial"}
+          action={lostAction}
+          className="flex flex-wrap items-end gap-3"
+        >
           <label htmlFor="lost-reason" className="flex flex-1 flex-col gap-1 text-sm">
             Mark lost — reason
-            <input id="lost-reason" name="reason" className="min-h-11 border border-rule bg-ivory px-3" />
+            <input
+              id="lost-reason"
+              name="reason"
+              defaultValue={typeof lostState.values?.reason === "string" ? lostState.values.reason : ""}
+              className="min-h-11 border border-rule bg-ivory px-3"
+            />
           </label>
           <Button type="submit" variant="outline" disabled={losing}>Mark lost</Button>
           {lostState.error ? <p role="alert" className="w-full text-sm">{lostState.error}</p> : null}

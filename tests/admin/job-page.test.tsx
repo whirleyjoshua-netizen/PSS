@@ -2,12 +2,14 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi } from "vitest";
 import type { Job } from "@/lib/admin/jobs";
+import type { FormState } from "@/app/admin/jobs/actions";
 
 const moveStage = vi.fn(async () => {});
 const saveNote = vi.fn(async () => ({ error: "Write a note first" }));
+const saveDetails = vi.fn<(...args: unknown[]) => Promise<FormState>>(async () => ({ ok: true }));
 vi.mock("@/app/admin/jobs/actions", () => ({
-  moveStage, saveNote,
-  markLost: vi.fn(async () => ({})), saveDetails: vi.fn(async () => ({ ok: true })),
+  moveStage, saveNote, saveDetails,
+  markLost: vi.fn(async () => ({})),
 }));
 
 const { StageControls } = await import("@/app/admin/jobs/[id]/StageControls");
@@ -45,5 +47,23 @@ describe("job page", () => {
     expect(screen.getByLabelText(/quote/i)).toHaveValue("4500.00");
     expect(screen.getByRole("checkbox", { name: "Hunter Douglas" })).toBeChecked();
     expect(screen.getByRole("checkbox", { name: "Alta Window Fashions" })).not.toBeChecked();
+  });
+
+  it("keeps typed values on the details form after a failed save", async () => {
+    saveDetails.mockResolvedValueOnce({
+      error: "Enter an amount under $21,474,836",
+      values: { quote: "999999999", installOn: "2027-03-01" },
+    });
+    const user = userEvent.setup();
+    render(<DetailsForm job={job} />);
+
+    const quote = screen.getByLabelText(/quote/i);
+    await user.clear(quote);
+    await user.type(quote, "999999999");
+    await user.click(screen.getByRole("button", { name: /save details/i }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/under \$21,474,836/);
+    expect(screen.getByLabelText(/quote/i)).toHaveValue("999999999");
+    expect(screen.getByLabelText(/install date/i)).toHaveValue("2027-03-01");
   });
 });

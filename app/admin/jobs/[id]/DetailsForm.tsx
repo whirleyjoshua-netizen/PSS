@@ -13,24 +13,41 @@ const CONTROL = "min-h-11 w-full border border-rule bg-ivory px-4 py-3";
 
 export function DetailsForm({ job }: { job: Job }) {
   const [state, action, pending] = useActionState<FormState, FormData>(saveDetails.bind(null, job.id), {});
+  const values = state.values;
+
+  const field = (name: string, fallback: string) => {
+    const value = values?.[name];
+    return typeof value === "string" ? value : fallback;
+  };
+  const brandsChecked = (brand: string) => {
+    const submitted = values?.brands;
+    if (submitted === undefined) return job.brands.includes(brand);
+    return Array.isArray(submitted) ? submitted.includes(brand) : submitted === brand;
+  };
 
   return (
-    <form action={action} className="grid gap-4 sm:grid-cols-2">
+    <form
+      // Remount with a fresh key each failed submit so fields pick up the
+      // echoed values as new defaults, instead of React 19's post-action reset.
+      key={values ? JSON.stringify(values) : "initial"}
+      action={action}
+      className="grid gap-4 sm:grid-cols-2"
+    >
       <label htmlFor="visitAt" className="flex flex-col gap-2 text-sm">
         Visit date and time
         <input id="visitAt" name="visitAt" type="datetime-local" className={CONTROL}
-          defaultValue={job.visitAt ? toLocalInput(job.visitAt) : ""} />
+          defaultValue={field("visitAt", job.visitAt ? toLocalInput(job.visitAt) : "")} />
       </label>
-      <Money id="quote" label="Quote" value={dollars(job.quoteCents)} />
-      <Money id="sold" label="Sold amount" value={dollars(job.soldCents)} />
-      <Money id="deposit" label="Deposit received" value={dollars(job.depositCents)} />
+      <Money id="quote" label="Quote" value={field("quote", dollars(job.quoteCents))} />
+      <Money id="sold" label="Sold amount" value={field("sold", dollars(job.soldCents))} />
+      <Money id="deposit" label="Deposit received" value={field("deposit", dollars(job.depositCents))} />
       <label htmlFor="orderedOn" className="flex flex-col gap-2 text-sm">
         Order date
-        <input id="orderedOn" name="orderedOn" type="date" className={CONTROL} defaultValue={job.orderedOn ?? ""} />
+        <input id="orderedOn" name="orderedOn" type="date" className={CONTROL} defaultValue={field("orderedOn", job.orderedOn ?? "")} />
       </label>
       <label htmlFor="installOn" className="flex flex-col gap-2 text-sm">
         Install date
-        <input id="installOn" name="installOn" type="date" className={CONTROL} defaultValue={job.installOn ?? ""} />
+        <input id="installOn" name="installOn" type="date" className={CONTROL} defaultValue={field("installOn", job.installOn ?? "")} />
       </label>
       <fieldset className="flex flex-col gap-2 sm:col-span-2">
         <legend className="text-sm">Brands on this job</legend>
@@ -38,7 +55,7 @@ export function DetailsForm({ job }: { job: Job }) {
           {BRANDS.map((brand) => (
             <label key={brand} htmlFor={`brand-${brand}`} className="flex min-h-11 items-center gap-2 border border-rule px-3 text-sm">
               <input id={`brand-${brand}`} type="checkbox" name="brands" value={brand}
-                defaultChecked={job.brands.includes(brand)} />
+                defaultChecked={brandsChecked(brand)} />
               {brand}
             </label>
           ))}
@@ -54,5 +71,5 @@ export function DetailsForm({ job }: { job: Job }) {
 }
 
 function Money({ id, label, value }: { id: string; label: string; value: string }) {
-  return <TextField id={id} name={id} label={label} inputMode="numeric" placeholder="$" defaultValue={value} />;
+  return <TextField id={id} name={id} label={label} inputMode="decimal" placeholder="$" defaultValue={value} />;
 }
