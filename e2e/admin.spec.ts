@@ -19,7 +19,11 @@ async function signIn(page: import("@playwright/test").Page) {
 }
 
 test.afterAll(async () => {
-  if (url) await sql()`delete from leads where name like 'E2E Tracker %'`;
+  if (url) {
+    await sql()`delete from leads where name like 'E2E Tracker %'`;
+    await sql()`delete from admin_login_tokens where email = 'e2e-owner@example.com'`;
+    await sql()`delete from admin_sessions where email = 'e2e-owner@example.com'`;
+  }
 });
 
 test("an admin page without a session goes to sign-in", async ({ page }) => {
