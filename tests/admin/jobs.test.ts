@@ -43,7 +43,9 @@ describe("reading jobs", () => {
 
 describe("changing jobs", () => {
   it("moves the stage and logs who did it in one statement", async () => {
-    await jobs.setStage(ID, "sold", "owner@example.com");
+    sql.mockResolvedValue([{ id: ID }]);
+    const ok = await jobs.setStage(ID, "sold", "owner@example.com");
+    expect(ok).toBe(true);
     expect(sql).toHaveBeenCalledOnce();
     const statement = text(sql.mock.calls[0]);
     expect(statement).toContain("update leads");
@@ -57,14 +59,57 @@ describe("changing jobs", () => {
   });
 
   it("records the lost reason with the stage change", async () => {
+    sql.mockResolvedValue([{ id: ID }]);
     await jobs.setStage(ID, "lost", "owner@example.com", "Went with a cheaper quote");
     expect(sql.mock.calls[0]).toContain("Went with a cheaper quote");
   });
 
-  it("logs a note against the job", async () => {
-    await jobs.addNote(ID, "Wants the patio in spring", "owner@example.com");
-    expect(text(sql.mock.calls[0])).toContain("insert into job_events");
+  it("returns false for a missing job or an unchanged stage, without a uuid check hitting the db first", async () => {
+    sql.mockResolvedValue([]);
+    expect(await jobs.setStage(ID, "sold", "owner@example.com")).toBe(false);
+  });
+
+  it("setStage, updateDetails and addNote return false for a non-uuid id without querying", async () => {
+    expect(await jobs.setStage("../etc", "sold", "owner@example.com")).toBe(false);
+    expect(await jobs.updateDetails("../etc", { visitAt: null, quoteCents: null, soldCents: null, depositCents: null, brands: [], orderedOn: null, installOn: null }, "owner@example.com")).toBe(false);
+    expect(await jobs.addNote("../etc", "hi", "owner@example.com")).toBe(false);
+    expect(sql).not.toHaveBeenCalled();
+  });
+
+  it("logs a note against the job and returns whether it was saved", async () => {
+    sql.mockResolvedValue([{ id: ID }]);
+    const ok = await jobs.addNote(ID, "Wants the patio in spring", "owner@example.com");
+    expect(ok).toBe(true);
+    const statement = text(sql.mock.calls[0]);
+    expect(statement).toContain("insert into job_events");
+    expect(statement).toContain("from leads");
     expect(sql.mock.calls[0]).toEqual(expect.arrayContaining([ID, "owner@example.com", "Wants the patio in spring"]));
+  });
+
+  it("addNote returns false when the job does not exist", async () => {
+    sql.mockResolvedValue([]);
+    expect(await jobs.addNote(ID, "hi", "owner@example.com")).toBe(false);
+  });
+
+  it("updateDetails returns true and saves the parsed values when the job exists", async () => {
+    sql.mockResolvedValue([{ id: ID }]);
+    const ok = await jobs.updateDetails(
+      ID,
+      { visitAt: null, quoteCents: 450000, soldCents: null, depositCents: 225000, brands: ["Alta Window Fashions"], orderedOn: null, installOn: "2027-01-10" },
+      "owner@example.com",
+    );
+    expect(ok).toBe(true);
+    expect(sql.mock.calls[0]).toEqual(expect.arrayContaining([450000, 225000, ["Alta Window Fashions"]]));
+  });
+
+  it("updateDetails returns false when the job does not exist", async () => {
+    sql.mockResolvedValue([]);
+    const ok = await jobs.updateDetails(
+      ID,
+      { visitAt: null, quoteCents: null, soldCents: null, depositCents: null, brands: [], orderedOn: null, installOn: null },
+      "owner@example.com",
+    );
+    expect(ok).toBe(false);
   });
 
   it("creates a hand-entered job and returns its id", async () => {

@@ -103,10 +103,11 @@ export async function getEvents(id: string): Promise<JobEvent[]> {
 }
 
 /** One statement, so the stage and its log entry are saved together or not at all. */
-export async function setStage(id: string, to: Stage, actor: string, reason?: string): Promise<void> {
+export async function setStage(id: string, to: Stage, actor: string, reason?: string): Promise<boolean> {
   if (!isStage(to)) throw new Error(`Unknown stage: ${String(to)}`);
+  if (!UUID.test(id)) return false;
   const lostReason = to === "lost" ? (reason ?? null) : null;
-  await db()`
+  const rows = await db()`
     with prev as (select status from leads where id = ${id}),
     moved as (
       update leads set status = ${to}, lost_reason = ${lostReason},
@@ -115,11 +116,14 @@ export async function setStage(id: string, to: Stage, actor: string, reason?: st
       returning id
     )
     insert into job_events (lead_id, actor, kind, from_status, to_status, body)
-    select ${id}, ${actor}, 'stage', prev.status, ${to}, ${lostReason} from prev, moved`;
+    select ${id}, ${actor}, 'stage', prev.status, ${to}, ${lostReason} from prev, moved
+    returning id`;
+  return rows.length > 0;
 }
 
-export async function updateDetails(id: string, input: DetailsInput, actor: string): Promise<void> {
-  await db()`
+export async function updateDetails(id: string, input: DetailsInput, actor: string): Promise<boolean> {
+  if (!UUID.test(id)) return false;
+  const rows = await db()`
     with changed as (
       update leads set
         visit_at = ${input.visitAt}, quote_cents = ${input.quoteCents},
@@ -130,12 +134,18 @@ export async function updateDetails(id: string, input: DetailsInput, actor: stri
       returning id
     )
     insert into job_events (lead_id, actor, kind, body)
-    select id, ${actor}, 'edit', 'Updated job details' from changed`;
+    select id, ${actor}, 'edit', 'Updated job details' from changed
+    returning id`;
+  return rows.length > 0;
 }
 
-export async function addNote(id: string, body: string, actor: string): Promise<void> {
-  await db()`
-    insert into job_events (lead_id, actor, kind, body) values (${id}, ${actor}, 'note', ${body})`;
+export async function addNote(id: string, body: string, actor: string): Promise<boolean> {
+  if (!UUID.test(id)) return false;
+  const rows = await db()`
+    insert into job_events (lead_id, actor, kind, body)
+    select id, ${actor}, 'note', ${body} from leads where id = ${id}
+    returning id`;
+  return rows.length > 0;
 }
 
 export async function createJob(input: NewJobInput, actor: string): Promise<string> {
