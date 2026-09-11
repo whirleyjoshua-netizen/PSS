@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Jost, Source_Serif_4 } from "next/font/google";
+import { GoogleAnalytics } from "@next/third-parties/google";
 import "./globals.css";
 import { business } from "@/content/business";
 
@@ -43,6 +44,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${jost.variable} ${sourceSerif.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">{children}</body>
+      <GoogleAnalytics gaId="G-HP83GW86YX" />
     </html>
   );
 }
