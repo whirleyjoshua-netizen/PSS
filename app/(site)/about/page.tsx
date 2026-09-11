@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Section } from "@/components/ui/Section";
 import { PageHero, ConsultationCta } from "@/components/product/ProductParts";
 import { business } from "@/content/business";
+import { ReviewSpotlight } from "@/components/reviews/ReviewSpotlight";
+import { pastReviews } from "@/content/reviews";
 
 export const metadata: Metadata = {
   title: "About Us | Premier Shade Solutions",
@@ -50,6 +52,8 @@ export default function AboutPage() {
           </p>
         </div>
       </Section>
+
+      <ReviewSpotlight reviews={pastReviews.filter((review) => review.spotlight)} />
 
       <Section tone="sand" containerWidth="prose">
         <h2 className="font-display text-xs font-medium uppercase tracking-[0.22em] text-champagne-ink">

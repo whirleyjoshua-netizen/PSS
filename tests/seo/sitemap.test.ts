@@ -7,9 +7,9 @@ describe("sitemap", () => {
     const urls = (await sitemap()).map((entry) => entry.url);
 
     // 1 home + 5 hubs + 16 products + 4 cities
-    // + gallery, about, contact, privacy, accessibility
-    expect(urls).toHaveLength(31);
-    expect(new Set(urls).size).toBe(31);
+    // + gallery, reviews, about, contact, privacy, accessibility
+    expect(urls).toHaveLength(32);
+    expect(new Set(urls).size).toBe(32);
   });
 
   it("uses absolute URLs on the production domain", async () => {

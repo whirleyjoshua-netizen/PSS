@@ -9,6 +9,7 @@ import {
   ServiceAreaBlock,
   ClosingCta,
 } from "@/components/home/Sections";
+import { PastWorkReviews } from "@/components/reviews/PastWorkReviews";
 
 export default function Home() {
   return (
@@ -19,6 +20,7 @@ export default function Home() {
       <WhyPremier />
       <GalleryStrip />
       <Testimonials />
+      <PastWorkReviews />
       <MeetTheOwners />
       <ServiceAreaBlock />
       <ClosingCta />

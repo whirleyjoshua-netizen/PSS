@@ -16,6 +16,7 @@ const ROUTES = [
   "/service-area/summerlin",
   "/service-area/north-las-vegas",
   "/gallery",
+  "/reviews",
   "/about",
   "/contact",
   "/privacy",
