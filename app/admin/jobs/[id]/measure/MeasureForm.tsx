@@ -4,7 +4,7 @@ import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import type { FormState } from "@/app/admin/jobs/actions";
-import { saveMeasurement } from "@/app/admin/jobs/measure-actions";
+import { removeFile, saveMeasurement } from "@/app/admin/jobs/measure-actions";
 import { postFile, resizePhoto } from "@/lib/admin/client-upload";
 import type { WindowMeasurement } from "@/lib/admin/measurements";
 import { EIGHTH_OPTIONS, REQUIREMENTS, ROOMS, splitEighths } from "@/lib/admin/measure-units";
@@ -41,7 +41,6 @@ export function MeasureForm({ jobId, window, defaultRoom }: {
   defaultRoom: string;
 }) {
   const router = useRouter();
-  const formRef = useRef<HTMLFormElement>(null);
   const [room, setRoom] = useState(window?.room ?? defaultRoom);
   const [state, setState] = useState<FormState & { saved?: number }>({});
   const [formKey, setFormKey] = useState(0);
@@ -66,6 +65,13 @@ export function MeasureForm({ jobId, window, defaultRoom }: {
         if (uploadedPhoto.current && uploadedPhoto.current.file === photo) {
           data.set("photoFileId", uploadedPhoto.current.id);
         } else {
+          if (uploadedPhoto.current) {
+            // A different photo was uploaded on an earlier failed save.
+            // It would otherwise be orphaned (Files only lists documents,
+            // so the owner has no way to see or remove it).
+            void removeFile(jobId, uploadedPhoto.current.id);
+            uploadedPhoto.current = null;
+          }
           const uploaded = await resizePhoto(photo)
             .then((blob) => postFile(jobId, blob, photo.name.replace(/\.\w+$/, "") + ".jpg", "photo"))
             .catch((error: Error) => ({ error: error.message }));
@@ -90,11 +96,12 @@ export function MeasureForm({ jobId, window, defaultRoom }: {
       uploadedPhoto.current = null;
       setState({ saved: Date.now() });
       setFormKey((key) => key + 1); // a fresh form, keeping the room
+      router.refresh(); // updates the "N windows so far" count above the form
     });
   }
 
   return (
-    <form key={formKey} ref={formRef} onSubmit={submit} className="flex flex-col gap-6">
+    <form key={formKey} onSubmit={submit} className="flex flex-col gap-6">
       <div className="flex flex-col gap-2">
         <label htmlFor="room" className="text-sm font-semibold">Room</label>
         <div className="flex flex-wrap gap-2">
