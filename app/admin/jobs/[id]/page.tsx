@@ -2,11 +2,14 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { formatPhone } from "@/lib/leads/schema";
 import { getEvents, getJob } from "@/lib/admin/jobs";
+import { listFiles } from "@/lib/admin/files";
+import { listMeasurements } from "@/lib/admin/measurements";
 import { formatCents } from "@/lib/admin/money";
 import { requireAdmin } from "@/lib/admin/session";
 import { stageLabel } from "@/lib/admin/stages";
 import { formatWhen } from "@/lib/admin/time";
 import { DetailsForm } from "./DetailsForm";
+import { JobFiles } from "./JobFiles";
 import { NoteForm } from "./NoteForm";
 import { StageControls } from "./StageControls";
 
@@ -16,6 +19,7 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
   const job = await getJob(id);
   if (!job) notFound();
   const events = await getEvents(id);
+  const [measurements, files] = await Promise.all([listMeasurements(id), listFiles(id)]);
 
   const mapHref = `https://maps.google.com/?q=${encodeURIComponent([job.address, job.city, "NV"].filter(Boolean).join(", "))}`;
 
@@ -48,6 +52,11 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
       <section className="flex flex-col gap-4">
         <h2 className="font-display text-xs uppercase tracking-[0.2em] text-champagne-ink">Job details</h2>
         <DetailsForm job={job} />
+      </section>
+
+      <section className="flex flex-col gap-4">
+        <h2 className="font-display text-xs uppercase tracking-[0.2em] text-champagne-ink">Files</h2>
+        <JobFiles jobId={job.id} measurements={measurements} files={files} />
       </section>
 
       <section className="flex flex-col gap-4">
