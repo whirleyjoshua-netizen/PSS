@@ -13,5 +13,5 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin", "/admin/((?!sign-in|auth).*)"],
+  matcher: ["/admin", "/admin/((?!sign-in(?:/|$)|auth(?:/|$)|jobs/[^/]+/files$).*)"],
 };
