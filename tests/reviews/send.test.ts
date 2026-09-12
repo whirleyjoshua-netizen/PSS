@@ -68,6 +68,13 @@ describe("sendReviewRequest", () => {
     await expect(sendReviewRequest(job(), "x")).rejects.toThrow(/domain not verified/);
     expect(reviewsDb.recordReviewSent).not.toHaveBeenCalled();
   });
+
+  it("does not throw when the send succeeds but recording it fails", async () => {
+    reviewsDb.recordReviewSent.mockRejectedValue(new Error("Neon down"));
+    await expect(sendReviewRequest(job(), "owner@example.com")).resolves.toBeUndefined();
+    expect(send).toHaveBeenCalledOnce();
+    expect(console.error).toHaveBeenCalled();
+  });
 });
 
 describe("runDailyReviewRequests", () => {
@@ -89,6 +96,13 @@ describe("runDailyReviewRequests", () => {
     send.mockResolvedValue({ error: { message: "rate limited" } });
     expect(await runDailyReviewRequests(NOW)).toEqual({ sent: 0, failed: 1 });
     expect(reviewsDb.releaseReview).toHaveBeenCalledWith(job().id);
+  });
+
+  it("counts a recorded-send failure as sent and never releases the claim", async () => {
+    reviewsDb.listReviewCandidates.mockResolvedValue([job()]);
+    reviewsDb.recordReviewSent.mockRejectedValue(new Error("Neon down"));
+    expect(await runDailyReviewRequests(NOW)).toEqual({ sent: 1, failed: 0 });
+    expect(reviewsDb.releaseReview).not.toHaveBeenCalled();
   });
 
   it("sends nothing when the Google review link is not set", async () => {

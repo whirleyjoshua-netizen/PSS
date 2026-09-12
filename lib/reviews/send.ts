@@ -49,7 +49,11 @@ export async function sendReviewRequest(job: Job, actor: string): Promise<void> 
   });
   if (error) throw new Error(`Resend rejected the review request: ${error.message}`);
 
-  await recordReviewSent(job.id, actor);
+  try {
+    await recordReviewSent(job.id, actor);
+  } catch (recordError) {
+    console.error(`Review request email sent but not recorded for job ${job.id}`, recordError);
+  }
 }
 
 /** The daily cron run: emails every job that is due, one claim at a time. */
