@@ -22,6 +22,7 @@ export async function postFile(
   data.append("kind", kind);
   try {
     const response = await fetch(`/admin/jobs/${jobId}/files`, { method: "POST", body: data });
+    if (response.status === 413) return { error: "That file is too large to upload." };
     const body = await response.json().catch(() => null);
     if (response.ok && body?.id) return { id: body.id as string };
     return { error: body?.error ?? "Upload failed. Check your signal and try again." };

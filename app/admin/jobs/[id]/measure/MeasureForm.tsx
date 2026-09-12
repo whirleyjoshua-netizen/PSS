@@ -46,24 +46,36 @@ export function MeasureForm({ jobId, window, defaultRoom }: {
   const [state, setState] = useState<FormState & { saved?: number }>({});
   const [formKey, setFormKey] = useState(0);
   const [pending, startTransition] = useTransition();
+  // Remembers the last uploaded photo so a retry after a failed save (same
+  // file still selected) reuses its id instead of uploading it again.
+  const uploadedPhoto = useRef<{ file: File; id: string } | null>(null);
 
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
     data.set("room", room);
-    const photo = data.get("photo");
+    // Read the selected file from the input directly rather than through the
+    // FormData entry: some environments hand back an empty File from
+    // FormData(form) for a file input, while input.files always holds the
+    // real selection.
+    const photo = event.currentTarget.querySelector<HTMLInputElement>('input[name="photo"]')?.files?.[0] ?? null;
     data.delete("photo");
 
     startTransition(async () => {
       if (photo instanceof File && photo.size > 0) {
-        const uploaded = await resizePhoto(photo)
-          .then((blob) => postFile(jobId, blob, photo.name.replace(/\.\w+$/, "") + ".jpg", "photo"))
-          .catch((error: Error) => ({ error: error.message }));
-        if ("error" in uploaded) {
-          setState({ error: uploaded.error });
-          return;
+        if (uploadedPhoto.current && uploadedPhoto.current.file === photo) {
+          data.set("photoFileId", uploadedPhoto.current.id);
+        } else {
+          const uploaded = await resizePhoto(photo)
+            .then((blob) => postFile(jobId, blob, photo.name.replace(/\.\w+$/, "") + ".jpg", "photo"))
+            .catch((error: Error) => ({ error: error.message }));
+          if ("error" in uploaded) {
+            setState({ error: uploaded.error });
+            return;
+          }
+          uploadedPhoto.current = { file: photo, id: uploaded.id };
+          data.set("photoFileId", uploaded.id);
         }
-        data.set("photoFileId", uploaded.id);
       }
 
       const result = await saveMeasurement(jobId, window?.id ?? null, data);
@@ -75,6 +87,7 @@ export function MeasureForm({ jobId, window, defaultRoom }: {
         router.push(`/admin/jobs/${jobId}`);
         return;
       }
+      uploadedPhoto.current = null;
       setState({ saved: Date.now() });
       setFormKey((key) => key + 1); // a fresh form, keeping the room
     });

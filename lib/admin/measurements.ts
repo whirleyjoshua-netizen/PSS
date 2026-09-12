@@ -77,12 +77,18 @@ export async function addMeasurement(leadId: string, input: MeasurementInput, ac
   return (rows[0]?.id as string | undefined) ?? null;
 }
 
+/**
+ * Updates a window of this job with its event. When a new photo (from the
+ * same job) replaces a different existing one, the previous photo file is
+ * deleted after the update succeeds so it does not linger unreferenced.
+ */
 export async function updateMeasurement(
   leadId: string, windowId: string, input: MeasurementInput, actor: string,
 ): Promise<boolean> {
   if (!UUID.test(leadId) || !UUID.test(windowId)) return false;
   const rows = await db()`
-    with photo as (select id from job_files where id = ${input.photoFileId} and lead_id = ${leadId}),
+    with previous as (select photo_file_id from window_measurements where id = ${windowId} and lead_id = ${leadId}),
+    photo as (select id from job_files where id = ${input.photoFileId} and lead_id = ${leadId}),
     changed as (
       update window_measurements set
         room = ${input.room}, label = ${input.label}, width_eighths = ${input.widthEighths},
@@ -90,14 +96,19 @@ export async function updateMeasurement(
         requirements = ${input.requirements}, notes = ${input.notes},
         photo_file_id = coalesce((select id from photo), photo_file_id), updated_at = now()
       where id = ${windowId} and lead_id = ${leadId}
-      returning id, lead_id
+      returning id, lead_id, photo_file_id
     ),
     logged as (
       insert into job_events (lead_id, actor, kind, body)
       select lead_id, ${actor}, 'measure', ${`Edited window: ${describe(input)}`} from changed
     )
-    select id from changed`;
-  return rows.length > 0;
+    select changed.id, previous.photo_file_id as previous_photo_id, changed.photo_file_id as new_photo_id
+    from changed, previous`;
+  if (!rows[0]) return false;
+  const previousPhoto = rows[0].previous_photo_id as string | null;
+  const newPhoto = rows[0].new_photo_id as string | null;
+  if (previousPhoto && previousPhoto !== newPhoto) await deleteFile(previousPhoto, actor);
+  return true;
 }
 
 /** Deletes the window with its event, then its photo (if it had one). */

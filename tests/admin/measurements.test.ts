@@ -71,10 +71,31 @@ describe("measurements", () => {
   });
 
   it("updates a window of this job with its event", async () => {
-    sql.mockResolvedValue([{ id: WIN }]);
+    sql.mockResolvedValue([{ id: WIN, previous_photo_id: null, new_photo_id: PHOTO }]);
     expect(await m.updateMeasurement(LEAD, WIN, input, "o")).toBe(true);
     expect(text(sql.mock.calls[0])).toContain("update window_measurements");
     expect(sql.mock.calls[0]).toEqual(expect.arrayContaining([LEAD, WIN]));
+  });
+
+  const OLD_PHOTO = "5f4e3d2c-1b0a-4c9d-8e7f-6a5b4c3d2e1f";
+
+  it("deletes the previous photo when a new one replaces it", async () => {
+    sql.mockResolvedValue([{ id: WIN, previous_photo_id: OLD_PHOTO, new_photo_id: PHOTO }]);
+    expect(await m.updateMeasurement(LEAD, WIN, input, "o")).toBe(true);
+    expect(deleteFile).toHaveBeenCalledWith(OLD_PHOTO, "o");
+  });
+
+  it("does not delete the photo when it is unchanged", async () => {
+    sql.mockResolvedValue([{ id: WIN, previous_photo_id: PHOTO, new_photo_id: PHOTO }]);
+    expect(await m.updateMeasurement(LEAD, WIN, input, "o")).toBe(true);
+    expect(deleteFile).not.toHaveBeenCalled();
+  });
+
+  it("does not delete a previous photo when no new one is submitted", async () => {
+    const noPhoto = measurementSchema.parse({ ...form, photoFileId: "" });
+    sql.mockResolvedValue([{ id: WIN, previous_photo_id: OLD_PHOTO, new_photo_id: OLD_PHOTO }]);
+    expect(await m.updateMeasurement(LEAD, WIN, noPhoto, "o")).toBe(true);
+    expect(deleteFile).not.toHaveBeenCalled();
   });
 
   it("deletes a window and then its photo", async () => {
