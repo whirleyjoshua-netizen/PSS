@@ -1,6 +1,8 @@
 import { consultationSchema } from "@/lib/leads/schema";
 import { insertLead } from "@/lib/leads/db";
 import { sendCustomerConfirmation, sendLeadNotification } from "@/lib/leads/email";
+import { findReferrer } from "@/lib/referrals/db";
+import { REF_COOKIE, cookieValue } from "@/lib/referrals/codes";
 
 /**
  * The only dynamic endpoint on the site.
@@ -45,9 +47,23 @@ export async function POST(request: Request) {
     );
   }
 
+  // A referral never blocks a lead: any lookup failure saves it unattributed.
+  const code = parsed.data.referralCode ?? cookieValue(request.headers.get("cookie"), REF_COOKIE);
+  const referrer = code
+    ? await findReferrer(code).catch((error) => {
+        console.error("Referral lookup failed", error);
+        return null;
+      })
+    : null;
+  const lead = {
+    ...parsed.data,
+    heardVia: parsed.data.heardVia ?? (referrer ? "Referral from a friend" : undefined),
+    referredBy: referrer?.id ?? null,
+  };
+
   const [stored, emailed] = await Promise.allSettled([
-    insertLead(parsed.data),
-    sendLeadNotification(parsed.data),
+    insertLead(lead),
+    sendLeadNotification(lead),
   ]);
 
   if (stored.status === "rejected") {

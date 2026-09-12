@@ -9,17 +9,17 @@ import type { ConsultationInput } from "./schema";
  * reports success to the visitor as long as the notification email got out.
  */
 export async function insertLead(
-  input: ConsultationInput,
+  input: ConsultationInput & { referredBy?: string | null },
 ): Promise<{ id: string }> {
   const sql = db();
 
   const rows = await sql`
     insert into leads
-      (name, phone, email, address, city, treatments, window_count, heard_via, notes, source)
+      (name, phone, email, address, city, treatments, window_count, heard_via, notes, source, referred_by)
     values
       (${input.name}, ${input.phone}, ${input.email}, ${input.address ?? null},
        ${input.city}, ${input.treatments ?? []}, ${input.windowCount ?? null},
-       ${input.heardVia ?? null}, ${input.notes ?? null}, ${input.source})
+       ${input.heardVia ?? null}, ${input.notes ?? null}, ${input.source}, ${input.referredBy ?? null})
     returning id
   `;
 
