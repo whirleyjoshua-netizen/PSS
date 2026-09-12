@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { deleteFile } from "@/lib/admin/files";
+import { deleteFile, getFile } from "@/lib/admin/files";
 import { addMeasurement, deleteMeasurement, updateMeasurement } from "@/lib/admin/measurements";
 import { measurementSchema } from "@/lib/admin/schema";
 import { requireAdmin } from "@/lib/admin/session";
@@ -58,6 +58,8 @@ export async function removeMeasurement(jobId: string, windowId: string): Promis
 
 export async function removeFile(jobId: string, fileId: string): Promise<void> {
   const { email } = await requireAdmin();
-  await deleteFile(fileId, email);
+  const file = await getFile(fileId);
+  if (!file || file.leadId !== jobId) return;
+  await deleteFile(file.id, email);
   revalidatePath(`/admin/jobs/${jobId}`);
 }

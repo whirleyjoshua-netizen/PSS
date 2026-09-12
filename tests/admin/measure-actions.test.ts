@@ -5,7 +5,8 @@ vi.mock("@/lib/admin/session", () => ({ requireAdmin }));
 const measurements = { addMeasurement: vi.fn(), updateMeasurement: vi.fn(), deleteMeasurement: vi.fn() };
 vi.mock("@/lib/admin/measurements", () => measurements);
 const deleteFile = vi.fn();
-vi.mock("@/lib/admin/files", () => ({ deleteFile }));
+const getFile = vi.fn();
+vi.mock("@/lib/admin/files", () => ({ deleteFile, getFile }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
 const actions = await import("@/app/admin/jobs/measure-actions");
@@ -22,6 +23,7 @@ const window = (overrides: Record<string, string> = {}) => {
 beforeEach(() => {
   Object.values(measurements).forEach((fn) => fn.mockReset());
   deleteFile.mockReset();
+  getFile.mockReset();
   requireAdmin.mockReset().mockResolvedValue({ email: "owner@example.com" });
 });
 
@@ -65,6 +67,7 @@ describe("without a session", () => {
   ])("%s touches nothing", async (_name, run) => {
     await expect(run()).rejects.toThrow("NEXT_REDIRECT");
     Object.values(measurements).forEach((fn) => expect(fn).not.toHaveBeenCalled());
+    expect(getFile).not.toHaveBeenCalled();
     expect(deleteFile).not.toHaveBeenCalled();
   });
 });
@@ -73,7 +76,20 @@ describe("deletes", () => {
   it("removes a window and a file as the signed-in owner", async () => {
     await actions.removeMeasurement(LEAD, WIN);
     expect(measurements.deleteMeasurement).toHaveBeenCalledWith(LEAD, WIN, "owner@example.com");
+    getFile.mockResolvedValue({ id: WIN, leadId: LEAD });
     await actions.removeFile(LEAD, WIN);
     expect(deleteFile).toHaveBeenCalledWith(WIN, "owner@example.com");
+  });
+
+  it("does not delete a file that belongs to another job", async () => {
+    getFile.mockResolvedValue({ id: WIN, leadId: "some-other-job" });
+    await actions.removeFile(LEAD, WIN);
+    expect(deleteFile).not.toHaveBeenCalled();
+  });
+
+  it("does not delete a file that does not exist", async () => {
+    getFile.mockResolvedValue(null);
+    await actions.removeFile(LEAD, WIN);
+    expect(deleteFile).not.toHaveBeenCalled();
   });
 });
