@@ -26,26 +26,33 @@ export type Job = {
   orderedOn: string | null;
   installOn: string | null;
   lostReason: string | null;
+  referralCode: string | null;
+  referredBy: string | null;
+  referralPaidAt: Date | null;
+  reviewRequestedAt: Date | null;
+  reviewOptOut: boolean;
 };
 
 export type JobEvent = {
   id: string;
   createdAt: Date;
   actor: string;
-  kind: "stage" | "note" | "edit";
+  kind: "stage" | "note" | "edit" | "email" | "reward";
   fromStatus: Stage | null;
   toStatus: Stage | null;
   body: string | null;
 };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export const isUuid = (id: string): boolean => UUID.test(id);
 
 // Date columns come back as strings so an install date never shifts across time zones.
-const COLUMNS = `id, created_at, name, phone, email, address, city, treatments, window_count,
+export const JOB_COLUMNS = `id, created_at, name, phone, email, address, city, treatments, window_count,
   heard_via, notes, source, status, stage_changed_at, visit_at, quote_cents, sold_cents,
-  deposit_cents, brands, ordered_on::text as ordered_on, install_on::text as install_on, lost_reason`;
+  deposit_cents, brands, ordered_on::text as ordered_on, install_on::text as install_on, lost_reason,
+  referral_code, referred_by, referral_paid_at, review_requested_at, review_opt_out`;
 
-function toJob(row: Record<string, unknown>): Job {
+export function toJob(row: Record<string, unknown>): Job {
   return {
     id: row.id as string,
     createdAt: new Date(row.created_at as string),
@@ -69,25 +76,30 @@ function toJob(row: Record<string, unknown>): Job {
     orderedOn: (row.ordered_on as string | null) ?? null,
     installOn: (row.install_on as string | null) ?? null,
     lostReason: (row.lost_reason as string | null) ?? null,
+    referralCode: (row.referral_code as string | null) ?? null,
+    referredBy: (row.referred_by as string | null) ?? null,
+    referralPaidAt: row.referral_paid_at ? new Date(row.referral_paid_at as string) : null,
+    reviewRequestedAt: row.review_requested_at ? new Date(row.review_requested_at as string) : null,
+    reviewOptOut: row.review_opt_out === true,
   };
 }
 
 export async function listJobs({ includeLost }: { includeLost: boolean }): Promise<Job[]> {
   const rows = await db().query(
-    `select ${COLUMNS} from leads where ($1 or status <> 'lost') order by stage_changed_at desc`,
+    `select ${JOB_COLUMNS} from leads where ($1 or status <> 'lost') order by stage_changed_at desc`,
     [includeLost],
   );
   return rows.map(toJob);
 }
 
 export async function getJob(id: string): Promise<Job | null> {
-  if (!UUID.test(id)) return null;
-  const rows = await db().query(`select ${COLUMNS} from leads where id = $1`, [id]);
+  if (!isUuid(id)) return null;
+  const rows = await db().query(`select ${JOB_COLUMNS} from leads where id = $1`, [id]);
   return rows[0] ? toJob(rows[0]) : null;
 }
 
 export async function getEvents(id: string): Promise<JobEvent[]> {
-  if (!UUID.test(id)) return [];
+  if (!isUuid(id)) return [];
   const rows = await db()`
     select id, created_at, actor, kind, from_status, to_status, body
     from job_events where lead_id = ${id} order by created_at desc`;
@@ -105,7 +117,7 @@ export async function getEvents(id: string): Promise<JobEvent[]> {
 /** One statement, so the stage and its log entry are saved together or not at all. */
 export async function setStage(id: string, to: Stage, actor: string, reason?: string): Promise<boolean> {
   if (!isStage(to)) throw new Error(`Unknown stage: ${String(to)}`);
-  if (!UUID.test(id)) return false;
+  if (!isUuid(id)) return false;
   const lostReason = to === "lost" ? (reason ?? null) : null;
   const rows = await db()`
     with prev as (select status from leads where id = ${id}),
@@ -122,7 +134,7 @@ export async function setStage(id: string, to: Stage, actor: string, reason?: st
 }
 
 export async function updateDetails(id: string, input: DetailsInput, actor: string): Promise<boolean> {
-  if (!UUID.test(id)) return false;
+  if (!isUuid(id)) return false;
   const rows = await db()`
     with changed as (
       update leads set
@@ -140,7 +152,7 @@ export async function updateDetails(id: string, input: DetailsInput, actor: stri
 }
 
 export async function addNote(id: string, body: string, actor: string): Promise<boolean> {
-  if (!UUID.test(id)) return false;
+  if (!isUuid(id)) return false;
   const rows = await db()`
     insert into job_events (lead_id, actor, kind, body)
     select id, ${actor}, 'note', ${body} from leads where id = ${id}

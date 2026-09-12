@@ -22,6 +22,7 @@ const job: Job = {
   heardVia: null, notes: null, source: "phone", status: "quoted", stageChangedAt: new Date(),
   visitAt: null, quoteCents: 450000, soldCents: null, depositCents: null, brands: ["Hunter Douglas"],
   orderedOn: null, installOn: null, lostReason: null,
+  referralCode: null, referredBy: null, referralPaidAt: null, reviewRequestedAt: null, reviewOptOut: false,
 };
 
 describe("job page", () => {

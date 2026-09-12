@@ -9,6 +9,7 @@ const job = (overrides: Partial<Job>): Job => ({
   treatments: ["Shades", "Shutters"], windowCount: null, heardVia: null, notes: null, source: "contact",
   status: "new", stageChangedAt: new Date("2026-09-07T00:00:00Z"), visitAt: null, quoteCents: null,
   soldCents: null, depositCents: null, brands: [], orderedOn: null, installOn: null, lostReason: null,
+  referralCode: null, referredBy: null, referralPaidAt: null, reviewRequestedAt: null, reviewOptOut: false,
   ...overrides,
 });
 
