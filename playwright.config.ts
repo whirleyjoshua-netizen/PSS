@@ -35,6 +35,7 @@ export default defineConfig({
           POSTGRES_URL: process.env.E2E_POSTGRES_URL,
           ADMIN_EMAILS: "e2e-owner@example.com",
           ADMIN_BASE_URL: baseURL,
+          BLOB_READ_WRITE_TOKEN: process.env.E2E_BLOB_READ_WRITE_TOKEN ?? "",
         }
       : {},
   },
