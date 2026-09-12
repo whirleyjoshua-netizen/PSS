@@ -35,4 +35,9 @@ describe("board", () => {
     expect(link).toHaveTextContent("Shades, Shutters");
     expect(link).toHaveTextContent("3 days");
   });
+
+  it("marks referred jobs with a Referral badge", () => {
+    render(<JobCard job={job({ referredBy: "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6d" })} now={new Date("2026-09-10T00:00:00Z")} />);
+    expect(screen.getByRole("link", { name: /dana reyes/i })).toHaveTextContent("Referral");
+  });
 });

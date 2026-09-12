@@ -4,10 +4,14 @@ import { formatPhone } from "@/lib/leads/schema";
 import { getEvents, getJob } from "@/lib/admin/jobs";
 import { formatCents } from "@/lib/admin/money";
 import { requireAdmin } from "@/lib/admin/session";
-import { stageLabel } from "@/lib/admin/stages";
+import { STAGES, stageLabel } from "@/lib/admin/stages";
 import { formatWhen } from "@/lib/admin/time";
+import { listReferrals } from "@/lib/referrals/db";
 import { DetailsForm } from "./DetailsForm";
 import { NoteForm } from "./NoteForm";
+import { ReferralSection } from "./ReferralSection";
+import { ReferralsList } from "./ReferralsList";
+import { ReviewSection } from "./ReviewSection";
 import { StageControls } from "./StageControls";
 
 export default async function JobPage({ params }: { params: Promise<{ id: string }> }) {
@@ -15,7 +19,13 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
   const { id } = await params;
   const job = await getJob(id);
   if (!job) notFound();
-  const events = await getEvents(id);
+  const [events, referrals, referrer] = await Promise.all([
+    getEvents(id),
+    listReferrals(id),
+    job.referredBy ? getJob(job.referredBy) : Promise.resolve(null),
+  ]);
+  const soldIndex = STAGES.findIndex((s) => s.value === "sold");
+  const soldOrLater = STAGES.findIndex((s) => s.value === job.status) >= soldIndex;
 
   const mapHref = `https://maps.google.com/?q=${encodeURIComponent([job.address, job.city, "NV"].filter(Boolean).join(", "))}`;
 
@@ -35,6 +45,12 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
           <dt>Windows</dt><dd>{job.windowCount ?? "—"}</dd>
           <dt>Heard about us</dt><dd>{job.heardVia ?? "—"}</dd>
           <dt>Came in via</dt><dd>{job.source}</dd>
+          {referrer ? (
+            <>
+              <dt>Referred by</dt>
+              <dd><Link href={`/admin/jobs/${referrer.id}`} className="underline underline-offset-4">{referrer.name}</Link></dd>
+            </>
+          ) : null}
           <dt>Quote / sold</dt><dd>{formatCents(job.quoteCents)} / {formatCents(job.soldCents)}</dd>
         </dl>
         {job.notes ? <p className="mt-2 whitespace-pre-line border-l-2 border-champagne pl-4 text-sm">{job.notes}</p> : null}
@@ -49,6 +65,26 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
         <h2 className="font-display text-xs uppercase tracking-[0.2em] text-champagne-ink">Job details</h2>
         <DetailsForm job={job} />
       </section>
+
+      {soldOrLater ? (
+        <>
+          <section className="flex flex-col gap-4">
+            <h2 className="font-display text-xs uppercase tracking-[0.2em] text-champagne-ink">Review request</h2>
+            <ReviewSection job={job} />
+          </section>
+          <section className="flex flex-col gap-4">
+            <h2 className="font-display text-xs uppercase tracking-[0.2em] text-champagne-ink">Referral link</h2>
+            <ReferralSection job={job} />
+          </section>
+        </>
+      ) : null}
+
+      {referrals.length ? (
+        <section className="flex flex-col gap-4">
+          <h2 className="font-display text-xs uppercase tracking-[0.2em] text-champagne-ink">Referrals</h2>
+          <ReferralsList referrerId={job.id} referrals={referrals} />
+        </section>
+      ) : null}
 
       <section className="flex flex-col gap-4">
         <h2 className="font-display text-xs uppercase tracking-[0.2em] text-champagne-ink">Activity</h2>
