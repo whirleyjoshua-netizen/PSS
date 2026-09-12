@@ -10,5 +10,7 @@ export async function GET(request: Request) {
   if (!secret || request.headers.get("authorization") !== `Bearer ${secret}`) {
     return new Response("Unauthorized", { status: 401 });
   }
-  return Response.json(await runDailyReviewRequests());
+  const result = await runDailyReviewRequests();
+  // A config error must fail the Vercel Cron run, or it goes unnoticed.
+  return Response.json(result, { status: "error" in result && result.error ? 500 : 200 });
 }

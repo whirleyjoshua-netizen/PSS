@@ -32,4 +32,11 @@ describe("GET /api/cron/review-requests", () => {
     expect((await call("Bearer ")).status).toBe(401);
     expect(runDailyReviewRequests).not.toHaveBeenCalled();
   });
+
+  it("reports a config error to Vercel with a failing status", async () => {
+    runDailyReviewRequests.mockResolvedValue({ sent: 0, failed: 0, error: "GOOGLE_REVIEW_URL is not set" });
+    const response = await call("Bearer s3cret");
+    expect(response.status).toBe(500);
+    expect(await response.json()).toEqual({ sent: 0, failed: 0, error: "GOOGLE_REVIEW_URL is not set" });
+  });
 });
