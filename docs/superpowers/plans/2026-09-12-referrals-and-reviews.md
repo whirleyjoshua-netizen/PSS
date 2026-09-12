@@ -2074,7 +2074,7 @@ git commit -m "test: end-to-end referral link, attribution, and reward payment"
 - [ ] **Step 5: Run the e2e suite** (only when a Neon branch URL is available)
 
 Run: `E2E_POSTGRES_URL=<neon branch url> npx playwright test e2e/admin.spec.ts --project=desktop`
-Expected: PASS. First apply migration 003 to the branch: `DATABASE_URL=<branch url> node scripts/migrate.mjs`. If no branch URL is available, report that the e2e test was written but not run.
+Expected: PASS. First apply migration 004 to the branch: `MIGRATE_DATABASE_URL=<branch url> node scripts/migrate.mjs`. If no branch URL is available, report that the e2e test was written but not run.
 
 - [ ] **Step 6: Launch. Ask the user before each of these; they touch production.**
 

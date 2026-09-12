@@ -35,6 +35,9 @@ export default defineConfig({
           POSTGRES_URL: process.env.E2E_POSTGRES_URL,
           ADMIN_EMAILS: "e2e-owner@example.com",
           ADMIN_BASE_URL: baseURL,
+          // The e2e run posts real leads to the consultation API; this must
+          // never send real email through Resend.
+          RESEND_API_KEY: "",
         }
       : {},
   },

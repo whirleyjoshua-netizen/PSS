@@ -100,7 +100,8 @@ Migration `004_referrals_reviews.sql`, safe to re-run like `002`:
 
 - `lib/referrals/codes.ts`: code alphabet, generation, normalization, and the reward constant. Pure, unit-tested.
 - `lib/referrals/db.ts`: server-only. Ensure a job has a code, resolve a code to a job, list a job's referrals with reward status, and mark a reward paid (with its event).
-- `lib/reviews/select.ts`: the pure eligibility rule (which jobs are due on a given date), unit-tested apart from the database.
+- `lib/reviews/eligibility.ts`: the pure eligibility rule (which jobs are due on a given date), unit-tested apart from the database.
+- `lib/reviews/db.ts`: server-only. Lists candidates; claims and releases a send; records a sent request; sets the opt-out; stamps and restores `review_requested_at` for a manual send.
 - `lib/reviews/send.ts`: server-only. Build and send the review email, claim and release, write the event.
 - `app/(site)/r/[code]/route.ts`: the referral link handler.
 - `app/api/cron/review-requests/route.ts`: the daily run.
