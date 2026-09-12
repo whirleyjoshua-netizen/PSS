@@ -3,9 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/admin/session";
-import { addNote, createJob, setStage, updateDetails } from "@/lib/admin/jobs";
+import { addNote, createJob, getJob, setStage, updateDetails } from "@/lib/admin/jobs";
 import { detailsSchema, lostSchema, newJobSchema, noteSchema } from "@/lib/admin/schema";
 import type { Stage } from "@/lib/admin/stages";
+import { ensureReferralCode, markReferralPaid } from "@/lib/referrals/db";
+import { setReviewOptOut } from "@/lib/reviews/db";
+import { sendReviewRequest } from "@/lib/reviews/send";
 
 export type FormState = {
   error?: string;
@@ -90,4 +93,45 @@ export async function addJob(_prev: FormState, formData: FormData): Promise<Form
   const id = await createJob(parsed.data, email);
   revalidatePath("/admin");
   redirect(`/admin/jobs/${id}`);
+}
+
+export async function sendReviewNow(id: string, _prev: FormState, _formData: FormData): Promise<FormState> {
+  const { email } = await requireAdmin();
+  const job = await getJob(id);
+  if (!job) return MISSING;
+  if (!job.email) return { error: "This job has no email address." };
+  if (job.reviewOptOut) return { error: "Review requests are turned off for this job." };
+  try {
+    await sendReviewRequest(job, email);
+  } catch (error) {
+    console.error("Review request failed", error);
+    return { error: "Could not send the review request. Check the settings and try again." };
+  }
+  refresh(id);
+  return { ok: true };
+}
+
+export async function saveReviewOptOut(id: string, optOut: boolean): Promise<void> {
+  const { email } = await requireAdmin();
+  await setReviewOptOut(id, optOut, email);
+  refresh(id);
+}
+
+export async function createReferralLink(id: string, _prev: FormState, _formData: FormData): Promise<FormState> {
+  await requireAdmin();
+  const code = await ensureReferralCode(id);
+  if (!code) return MISSING;
+  refresh(id);
+  return { ok: true };
+}
+
+export async function payReferral(
+  referredId: string, referrerId: string, _prev: FormState, _formData: FormData,
+): Promise<FormState> {
+  const { email } = await requireAdmin();
+  const paid = await markReferralPaid(referredId, email);
+  if (!paid) return { error: "That reward is not owed yet, or it was already paid." };
+  refresh(referrerId);
+  refresh(referredId);
+  return { ok: true };
 }
