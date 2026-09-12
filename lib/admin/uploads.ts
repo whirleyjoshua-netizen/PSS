@@ -28,7 +28,8 @@ export function safeName(name: string): string {
  */
 export function contentDisposition(name: string): string {
   const fallback = name.replace(/[^\x20-\x7E]|["\\]/g, "_") || "file";
-  const encoded = encodeURIComponent(name).replace(/['()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
+  const safe = name.replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, "\uFFFD");
+  const encoded = encodeURIComponent(safe).replace(/['()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
   return `inline; filename="${fallback}"; filename*=UTF-8''${encoded}`;
 }
 
