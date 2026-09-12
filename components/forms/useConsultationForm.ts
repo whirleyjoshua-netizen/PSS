@@ -35,6 +35,7 @@ export function useConsultationForm(source: "hero" | "contact") {
       windowCount: str(data.get("windowCount")),
       heardVia: str(data.get("heardVia")),
       notes: str(data.get("notes")),
+      referralCode: str(data.get("referralCode")),
       source,
       company: String(data.get("company") ?? ""),
     };

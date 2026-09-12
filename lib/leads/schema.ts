@@ -31,6 +31,9 @@ export const consultationSchema = z.object({
   heardVia: z.string().trim().max(120).optional(),
   notes: z.string().trim().max(2000).optional(),
 
+  /** A customer's referral code, from a /r/<code> link. Resolved on the server. */
+  referralCode: z.string().trim().max(20).optional(),
+
   source: z.enum(["hero", "contact"]),
 
   /**

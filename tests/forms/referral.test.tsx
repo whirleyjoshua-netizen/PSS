@@ -82,3 +82,22 @@ describe("ConsultationForm referral prefill", () => {
     expect(screen.getByLabelText(/how did you hear/i)).toHaveValue("");
   });
 });
+
+describe("ConsultationForm friend referral", () => {
+  it("prefills the friend source, shows who sent them, and posts the code", async () => {
+    visit("?ref=friend&r=K7M2QX&by=Sarah");
+    const { container } = render(<ConsultationForm />);
+
+    await waitFor(() =>
+      expect(screen.getByLabelText(/how did you hear/i)).toHaveValue("Referral from a friend"),
+    );
+    expect(screen.getByText("Sarah sent you.")).toBeInTheDocument();
+    expect(container.querySelector('input[name="referralCode"]')).toHaveValue("K7M2QX");
+  });
+
+  it("renders no code field without a referral", () => {
+    visit("");
+    const { container } = render(<ConsultationForm />);
+    expect(container.querySelector('input[name="referralCode"]')).toBeNull();
+  });
+});
