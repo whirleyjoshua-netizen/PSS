@@ -1,5 +1,6 @@
 import { getFile, readFile } from "@/lib/admin/files";
 import { requireAdmin } from "@/lib/admin/session";
+import { contentDisposition } from "@/lib/admin/uploads";
 
 /** Streams a private file to a signed-in owner. Never cached publicly. */
 export async function GET(_request: Request, { params }: { params: Promise<{ fileId: string }> }) {
@@ -14,7 +15,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ fil
     headers: {
       "Content-Type": content.contentType,
       "Cache-Control": "private, no-store",
-      "Content-Disposition": `inline; filename="${file.name.replace(/"/g, "")}"`,
+      "Content-Disposition": contentDisposition(file.name),
+      "X-Content-Type-Options": "nosniff",
     },
   });
 }

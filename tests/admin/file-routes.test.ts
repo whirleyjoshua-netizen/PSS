@@ -71,6 +71,14 @@ describe("GET view", () => {
     expect(response.headers.get("content-disposition")).toMatch(/^inline/);
   });
 
+  it("serves a file with a non-Latin-1 name safely", async () => {
+    files.getFile.mockResolvedValue({ id: FILE, name: "Joe’s quote.pdf" });
+    files.readFile.mockResolvedValue({ stream: new Blob(["%PDF"]).stream(), contentType: "application/pdf" });
+    const response = await view.GET(new Request("http://localhost"), params({ fileId: FILE }));
+    expect(response.status).toBe(200);
+    expect(response.headers.get("x-content-type-options")).toBe("nosniff");
+  });
+
   it("returns 404 for an unknown file or a missing blob", async () => {
     files.getFile.mockResolvedValue(null);
     expect((await view.GET(new Request("http://localhost"), params({ fileId: FILE }))).status).toBe(404);

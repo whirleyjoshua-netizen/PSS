@@ -22,6 +22,16 @@ export function safeName(name: string): string {
   return cleaned || "file";
 }
 
+/**
+ * A `Content-Disposition: inline` header value that is always a valid ByteString,
+ * with an RFC 5987 extended parameter carrying the full Unicode name.
+ */
+export function contentDisposition(name: string): string {
+  const fallback = name.replace(/[^\x20-\x7E]|["\\]/g, "_") || "file";
+  const encoded = encodeURIComponent(name).replace(/['()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
+  return `inline; filename="${fallback}"; filename*=UTF-8''${encoded}`;
+}
+
 /** Scales width and height so the longer side is at most `max`, keeping the ratio. */
 export function fitWithin(width: number, height: number, max: number) {
   const scale = Math.min(1, max / Math.max(width, height));
