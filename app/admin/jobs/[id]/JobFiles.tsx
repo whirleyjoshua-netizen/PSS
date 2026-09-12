@@ -4,6 +4,7 @@ import type { JobFile } from "@/lib/admin/files";
 import type { WindowMeasurement } from "@/lib/admin/measurements";
 import { formatEighths, requirementLabel } from "@/lib/admin/measure-units";
 import { formatWhen } from "@/lib/admin/time";
+import { DeleteButton } from "./DeleteButton";
 import { UploadButton } from "./UploadButton";
 
 const size = (bytes: number) => (bytes < 1024 * 1024 ? `${Math.ceil(bytes / 1024)} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`);
@@ -48,10 +49,11 @@ export function JobFiles({ jobId, measurements, files }: {
                     </p>
                     {m.notes ? <p className="whitespace-pre-line">{m.notes}</p> : null}
                   </div>
-                  <div className="flex shrink-0 flex-col items-end gap-1">
-                    <Link href={`/admin/jobs/${jobId}/measure/${m.id}`} className="underline underline-offset-4">Edit</Link>
+                  <div className="flex shrink-0 flex-col items-end gap-2">
+                    <Link href={`/admin/jobs/${jobId}/measure/${m.id}`}
+                      className="min-h-11 inline-flex items-center px-3 underline underline-offset-4">Edit</Link>
                     <form action={removeMeasurement.bind(null, jobId, m.id)}>
-                      <button type="submit" className="text-ink-soft underline underline-offset-4">Delete</button>
+                      <DeleteButton />
                     </form>
                   </div>
                 </li>
@@ -72,7 +74,7 @@ export function JobFiles({ jobId, measurements, files }: {
                   <p className="text-ink-soft">{size(file.sizeBytes)} · {file.uploadedBy} · {formatWhen(file.createdAt)}</p>
                 </div>
                 <form action={removeFile.bind(null, jobId, file.id)}>
-                  <button type="submit" className="text-ink-soft underline underline-offset-4">Delete</button>
+                  <DeleteButton />
                 </form>
               </li>
             ))}
