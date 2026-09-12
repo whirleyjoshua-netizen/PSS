@@ -33,7 +33,7 @@
 
 | File | Responsibility |
 |---|---|
-| `db/migrations/003_referrals_reviews.sql` (new) | New `leads` columns, unique code index, widened event kinds |
+| `db/migrations/004_referrals_reviews.sql` (new) | New `leads` columns, unique code index, widened event kinds |
 | `lib/referrals/codes.ts` (new) | Pure: alphabet, `newReferralCode`, `normalizeCode`, `referralUrl`, `rewardStatus`, cookie name and parser, reward constant |
 | `lib/referrals/db.ts` (new) | server-only: `ensureReferralCode`, `findReferrer`, `listReferrals`, `markReferralPaid` |
 | `lib/reviews/eligibility.ts` (new) | Pure: `installDate`, `isDueForReview` |
@@ -57,7 +57,7 @@
 ### Task 1: Migration and referral code helpers
 
 **Files:**
-- Create: `db/migrations/003_referrals_reviews.sql`
+- Create: `db/migrations/004_referrals_reviews.sql`
 - Create: `lib/referrals/codes.ts`
 - Test: `tests/referrals/codes.test.ts`
 
@@ -73,7 +73,7 @@
 
 - [ ] **Step 1: Write the migration**
 
-`db/migrations/003_referrals_reviews.sql`:
+`db/migrations/004_referrals_reviews.sql`:
 
 ```sql
 -- Portal step 2: customer referral links, referral rewards, and review requests.
@@ -92,7 +92,7 @@ create index if not exists leads_referred_by_idx on leads (referred_by);
 -- 002 declared the check inline, so Postgres named it job_events_kind_check.
 alter table job_events drop constraint if exists job_events_kind_check;
 alter table job_events add constraint job_events_kind_check check (
-  kind in ('stage','note','edit','email','reward')
+  kind in ('stage','note','edit','email','reward','measure','file')
 );
 ```
 
@@ -242,7 +242,7 @@ Expected: PASS. In the byte-mapping test, 0→A, 1→B, 31→9, 32→A, 255→9 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add db/migrations/003_referrals_reviews.sql lib/referrals/codes.ts tests/referrals/codes.test.ts
+git add db/migrations/004_referrals_reviews.sql lib/referrals/codes.ts tests/referrals/codes.test.ts
 git commit -m "feat: referral code helpers and migration 003"
 ```
 

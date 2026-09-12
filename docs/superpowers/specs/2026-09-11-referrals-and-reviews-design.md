@@ -85,7 +85,7 @@ The reward amount ($100) is a constant in `lib/referrals/codes.ts`, not stored p
 
 ## 6. Data
 
-Migration `003_referrals_reviews.sql`, safe to re-run like `002`:
+Migration `004_referrals_reviews.sql`, safe to re-run like `002`:
 
 **`leads`, altered**
 - `referral_code text`, with a unique index where not null
@@ -94,7 +94,7 @@ Migration `003_referrals_reviews.sql`, safe to re-run like `002`:
 - `review_requested_at timestamptz`
 - `review_opt_out boolean not null default false`
 
-**`job_events`**: widen the `kind` check to `('stage','note','edit','email','reward')`.
+**`job_events`**: widen the `kind` check to `('stage','note','edit','email','reward','measure','file')`.
 
 ## 7. Code layout
 
