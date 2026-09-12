@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useTransition } from "react";
+import { useActionState, useState, useTransition } from "react";
 import { Button } from "@/components/ui/Button";
 import type { Job } from "@/lib/admin/jobs";
 import { formatWhen } from "@/lib/admin/time";
@@ -8,7 +8,9 @@ import { saveReviewOptOut, sendReviewNow, type FormState } from "../actions";
 
 export function ReviewSection({ job }: { job: Job }) {
   const [state, action, sending] = useActionState<FormState, FormData>(sendReviewNow.bind(null, job.id), {});
-  const [, startTransition] = useTransition();
+  const [isPending, startTransition] = useTransition();
+  const [optOut, setOptOut] = useState(job.reviewOptOut);
+  const [optOutError, setOptOutError] = useState<string | null>(null);
 
   return (
     <div className="flex flex-col gap-3 text-sm">
@@ -20,14 +22,26 @@ export function ReviewSection({ job }: { job: Job }) {
         <input
           id="review-opt-out"
           type="checkbox"
-          defaultChecked={job.reviewOptOut}
+          checked={optOut}
+          disabled={isPending}
           onChange={(event) => {
-            const optOut = event.target.checked;
-            startTransition(() => saveReviewOptOut(job.id, optOut));
+            const next = event.target.checked;
+            const previous = optOut;
+            setOptOut(next);
+            startTransition(async () => {
+              try {
+                await saveReviewOptOut(job.id, next);
+                setOptOutError(null);
+              } catch {
+                setOptOut(previous);
+                setOptOutError("Couldn't save that setting. Try again.");
+              }
+            });
           }}
         />
         Don&apos;t send a review request
       </label>
+      {optOutError ? <p role="alert">{optOutError}</p> : null}
       <form action={action} className="flex flex-wrap items-center gap-3">
         <Button type="submit" variant="outline" disabled={sending}>{sending ? "Sending…" : "Send now"}</Button>
         {state.error ? <p role="alert">{state.error}</p> : null}

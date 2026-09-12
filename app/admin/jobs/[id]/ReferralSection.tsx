@@ -9,6 +9,7 @@ import { createReferralLink, type FormState } from "../actions";
 export function ReferralSection({ job }: { job: Job }) {
   const [state, action, pending] = useActionState<FormState, FormData>(createReferralLink.bind(null, job.id), {});
   const [copied, setCopied] = useState(false);
+  const [copyError, setCopyError] = useState<string | null>(null);
 
   if (!job.referralCode) {
     return (
@@ -27,12 +28,18 @@ export function ReferralSection({ job }: { job: Job }) {
         type="button"
         variant="outline"
         onClick={async () => {
-          await navigator.clipboard.writeText(link);
-          setCopied(true);
+          try {
+            await navigator.clipboard.writeText(link);
+            setCopied(true);
+            setCopyError(null);
+          } catch {
+            setCopyError("Couldn't copy. Select the link and copy it by hand.");
+          }
         }}
       >
         {copied ? "Copied" : "Copy"}
       </Button>
+      {copyError ? <p role="alert">{copyError}</p> : null}
     </div>
   );
 }

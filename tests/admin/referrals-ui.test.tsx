@@ -4,7 +4,7 @@ import { describe, it, expect, vi } from "vitest";
 import type { Job } from "@/lib/admin/jobs";
 
 const sendReviewNow = vi.fn(async () => ({ error: "This job has no email address." }));
-const saveReviewOptOut = vi.fn(async () => {});
+const saveReviewOptOut: (id: string, optOut: boolean) => Promise<void> = vi.fn(async () => {});
 const createReferralLink = vi.fn(async () => ({ ok: true }));
 const payReferral = vi.fn(async () => ({ ok: true }));
 vi.mock("@/app/admin/jobs/actions", () => ({ sendReviewNow, saveReviewOptOut, createReferralLink, payReferral }));
@@ -41,6 +41,15 @@ describe("review section", () => {
     await userEvent.setup().click(screen.getByRole("checkbox", { name: /don't send/i }));
     expect(saveReviewOptOut).toHaveBeenCalledWith(job.id, true);
   });
+
+  it("reverts the checkbox and shows an error when the save fails", async () => {
+    vi.mocked(saveReviewOptOut).mockRejectedValueOnce(new Error("boom"));
+    render(<ReviewSection job={job} />);
+    const checkbox = screen.getByRole("checkbox", { name: /don't send/i });
+    await userEvent.setup().click(checkbox);
+    expect(await screen.findByRole("alert")).toHaveTextContent(/couldn't save/i);
+    expect(checkbox).not.toBeChecked();
+  });
 });
 
 describe("referral section", () => {
@@ -52,6 +61,22 @@ describe("referral section", () => {
   it("shows the link once the job has a code", () => {
     render(<ReferralSection job={{ ...job, referralCode: "K7M2QX" }} />);
     expect(screen.getByText(`${business.domain}/r/K7M2QX`)).toBeInTheDocument();
+  });
+
+  it("shows Copied when the clipboard write succeeds", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue(undefined);
+    render(<ReferralSection job={{ ...job, referralCode: "K7M2QX" }} />);
+    await user.click(screen.getByRole("button", { name: "Copy" }));
+    expect(await screen.findByRole("button", { name: "Copied" })).toBeInTheDocument();
+  });
+
+  it("shows an inline error when the clipboard write fails", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(navigator.clipboard, "writeText").mockRejectedValue(new Error("denied"));
+    render(<ReferralSection job={{ ...job, referralCode: "K7M2QX" }} />);
+    await user.click(screen.getByRole("button", { name: "Copy" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(/couldn't copy/i);
   });
 });
 
