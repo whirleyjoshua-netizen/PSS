@@ -46,6 +46,20 @@ describe("measurementSchema", () => {
     expect(measurementSchema.safeParse({ ...form, requirements: ["crane"] }).success).toBe(false);
   });
 
+  it("names which dimension failed, with a clear reason", () => {
+    const width = measurementSchema.safeParse({ ...form, widthIn: "601" });
+    expect(width.success).toBe(false);
+    if (!width.success) expect(width.error.issues[0].message).toContain("600");
+
+    const depth = measurementSchema.safeParse({ ...form, depthIn: "2.5" });
+    expect(depth.success).toBe(false);
+    if (!depth.success) expect(depth.error.issues[0].message).toContain("Depth");
+
+    const height = measurementSchema.safeParse({ ...form, heightIn: "-1" });
+    expect(height.success).toBe(false);
+    if (!height.success) expect(height.error.issues[0].message).toContain("Height");
+  });
+
   it("accepts a photo id only when it is a uuid", () => {
     expect(measurementSchema.parse({ ...form, photoFileId: PHOTO }).photoFileId).toBe(PHOTO);
     expect(measurementSchema.safeParse({ ...form, photoFileId: "x" }).success).toBe(false);
@@ -62,6 +76,13 @@ describe("measurements", () => {
     expect(statement).toContain("coalesce(max(position)");
     expect(statement).toContain("insert into job_events");
     expect(statement).toContain("from job_files");
+    expect(statement).toContain("kind = 'photo'");
+  });
+
+  it("orders windows by position, then created_at, then id", async () => {
+    sql.mockResolvedValue([]);
+    await m.listMeasurements(LEAD);
+    expect(text(sql.mock.calls[0])).toContain("order by position, created_at, id");
   });
 
   it("returns null for a missing or non-uuid job", async () => {
@@ -74,6 +95,7 @@ describe("measurements", () => {
     sql.mockResolvedValue([{ id: WIN, previous_photo_id: null, new_photo_id: PHOTO }]);
     expect(await m.updateMeasurement(LEAD, WIN, input, "o")).toBe(true);
     expect(text(sql.mock.calls[0])).toContain("update window_measurements");
+    expect(text(sql.mock.calls[0])).toContain("kind = 'photo'");
     expect(sql.mock.calls[0]).toEqual(expect.arrayContaining([LEAD, WIN]));
   });
 

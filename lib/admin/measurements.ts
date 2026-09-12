@@ -40,7 +40,7 @@ function toMeasurement(row: Record<string, unknown>): WindowMeasurement {
 
 export async function listMeasurements(leadId: string): Promise<WindowMeasurement[]> {
   if (!UUID.test(leadId)) return [];
-  const rows = await db()`select * from window_measurements where lead_id = ${leadId} order by position`;
+  const rows = await db()`select * from window_measurements where lead_id = ${leadId} order by position, created_at, id`;
   return rows.map(toMeasurement);
 }
 
@@ -58,7 +58,7 @@ export async function addMeasurement(leadId: string, input: MeasurementInput, ac
   if (!UUID.test(leadId)) return null;
   const rows = await db()`
     with job as (select id from leads where id = ${leadId}),
-    photo as (select id from job_files where id = ${input.photoFileId} and lead_id = ${leadId}),
+    photo as (select id from job_files where id = ${input.photoFileId} and lead_id = ${leadId} and kind = 'photo'),
     created as (
       insert into window_measurements (lead_id, measured_by, position, room, label, width_eighths,
         height_eighths, depth_eighths, mount, requirements, notes, photo_file_id)
@@ -88,7 +88,7 @@ export async function updateMeasurement(
   if (!UUID.test(leadId) || !UUID.test(windowId)) return false;
   const rows = await db()`
     with previous as (select photo_file_id from window_measurements where id = ${windowId} and lead_id = ${leadId}),
-    photo as (select id from job_files where id = ${input.photoFileId} and lead_id = ${leadId}),
+    photo as (select id from job_files where id = ${input.photoFileId} and lead_id = ${leadId} and kind = 'photo'),
     changed as (
       update window_measurements set
         room = ${input.room}, label = ${input.label}, width_eighths = ${input.widthEighths},

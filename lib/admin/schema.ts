@@ -58,7 +58,10 @@ export const newJobSchema = z.object({
   source: z.enum(HAND_SOURCES),
 });
 
-const inches = z.preprocess(blank, z.coerce.number().int("Whole inches only").min(0).max(600).optional());
+const inches = z.preprocess(
+  blank,
+  z.coerce.number().int("Use whole inches").min(0, "Inches can't be negative").optional(),
+);
 const eighth = z.coerce.number().int().min(0).max(7).default(0);
 const requirementValues = REQUIREMENTS.map((r) => r.value) as [Requirement, ...Requirement[]];
 const uuid = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, "Unknown photo");
@@ -97,9 +100,9 @@ export const measurementSchema = z
     const width = dimension("width", true).safeParse({ in: value.widthIn, eighth: value.widthEighth });
     const height = dimension("height", true).safeParse({ in: value.heightIn, eighth: value.heightEighth });
     const depth = dimension("depth", false).safeParse({ in: value.depthIn, eighth: value.depthEighth });
-    for (const part of [width, height, depth]) {
+    for (const [name, part] of [["Width", width], ["Height", height], ["Depth", depth]] as const) {
       if (!part.success) {
-        ctx.addIssue({ code: "custom", message: part.error.issues[0].message });
+        ctx.addIssue({ code: "custom", message: `${name}: ${part.error.issues[0].message}` });
         return z.NEVER;
       }
     }
