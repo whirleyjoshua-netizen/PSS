@@ -11,7 +11,12 @@ const referrals = { ensureReferralCode: vi.fn(), markReferralPaid: vi.fn() };
 vi.mock("@/lib/referrals/db", () => referrals);
 const sendReviewRequest = vi.fn();
 vi.mock("@/lib/reviews/send", () => ({ sendReviewRequest }));
-const reviewsDb = { setReviewOptOut: vi.fn() };
+const reviewsDb = {
+  setReviewOptOut: vi.fn(),
+  stampReviewRequested: vi.fn(),
+  restoreReviewRequested: vi.fn(),
+  releaseReview: vi.fn(),
+};
 vi.mock("@/lib/reviews/db", () => reviewsDb);
 
 const actions = await import("@/app/admin/jobs/actions");
@@ -33,6 +38,9 @@ beforeEach(() => {
   referrals.ensureReferralCode.mockResolvedValue("K7M2QX");
   referrals.markReferralPaid.mockResolvedValue(true);
   reviewsDb.setReviewOptOut.mockResolvedValue(true);
+  reviewsDb.stampReviewRequested.mockResolvedValue({ previous: null });
+  reviewsDb.restoreReviewRequested.mockResolvedValue(undefined);
+  reviewsDb.releaseReview.mockResolvedValue(undefined);
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
 
@@ -95,6 +103,30 @@ describe("referrals and reviews", () => {
   it("sends a review request now as the signed-in owner", async () => {
     expect(await actions.sendReviewNow(ID, {}, form({}))).toEqual({ ok: true });
     expect(sendReviewRequest).toHaveBeenCalledWith(expect.objectContaining({ id: ID }), "owner@example.com");
+  });
+
+  it("stamps review_requested_at before sending, so a crash never double-sends", async () => {
+    const order: string[] = [];
+    reviewsDb.stampReviewRequested.mockImplementation(async () => {
+      order.push("stamp");
+      return { previous: null };
+    });
+    sendReviewRequest.mockImplementation(async () => {
+      order.push("send");
+    });
+    await actions.sendReviewNow(ID, {}, form({}));
+    expect(reviewsDb.stampReviewRequested).toHaveBeenCalledWith(ID);
+    expect(order).toEqual(["stamp", "send"]);
+    expect(reviewsDb.restoreReviewRequested).not.toHaveBeenCalled();
+  });
+
+  it("restores the previous review_requested_at when the send fails", async () => {
+    const previous = new Date("2026-01-01T00:00:00Z");
+    reviewsDb.stampReviewRequested.mockResolvedValue({ previous });
+    sendReviewRequest.mockRejectedValue(new Error("GOOGLE_REVIEW_URL is not set"));
+    const state = await actions.sendReviewNow(ID, {}, form({}));
+    expect(state.error).toMatch(/could not send/i);
+    expect(reviewsDb.restoreReviewRequested).toHaveBeenCalledWith(ID, previous);
   });
 
   it("will not send to a job without an email", async () => {

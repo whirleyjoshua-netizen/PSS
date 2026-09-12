@@ -46,4 +46,29 @@ describe("review request records", () => {
     expect(await reviews.setReviewOptOut("../etc", true, "x")).toBe(false);
     expect(sql).not.toHaveBeenCalled();
   });
+
+  it("stamps the job as sent and returns the previous value", async () => {
+    sql.mockResolvedValueOnce([{ previous: null }]);
+    expect(await reviews.stampReviewRequested(ID)).toEqual({ previous: null });
+    const statement = text(sql.mock.calls[0]);
+    expect(statement).toContain("review_requested_at = now()");
+  });
+
+  it("stampReviewRequested is a no-op for a non-uuid", async () => {
+    expect(await reviews.stampReviewRequested("../etc")).toBeNull();
+    expect(sql).not.toHaveBeenCalled();
+  });
+
+  it("restores a previous review_requested_at", async () => {
+    const previous = new Date("2026-01-01T00:00:00Z");
+    await reviews.restoreReviewRequested(ID, previous);
+    const statement = text(sql.mock.calls[0]);
+    expect(statement).toContain("review_requested_at =");
+    expect(sql.mock.calls[0]).toEqual(expect.arrayContaining([previous]));
+  });
+
+  it("restoreReviewRequested is a no-op for a non-uuid", async () => {
+    await reviews.restoreReviewRequested("../etc", null);
+    expect(sql).not.toHaveBeenCalled();
+  });
 });

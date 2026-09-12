@@ -43,6 +43,28 @@ export async function recordReviewSent(id: string, actor: string): Promise<void>
     select id, ${actor}, 'email', 'Review request sent' from sent`;
 }
 
+/**
+ * "Send now" stamps the field before sending, in one statement, so a crash
+ * after the email goes out never leaves the job eligible for tomorrow's cron.
+ * Returns the previous value so a failed send can restore it.
+ */
+export async function stampReviewRequested(id: string): Promise<{ previous: Date | null } | null> {
+  if (!isUuid(id)) return null;
+  const rows = await db()`
+    with previous as (
+      select review_requested_at from leads where id = ${id}
+    )
+    update leads set review_requested_at = now()
+    where id = ${id}
+    returning (select review_requested_at from previous) as previous`;
+  return rows.length > 0 ? { previous: rows[0].previous } : null;
+}
+
+export async function restoreReviewRequested(id: string, previous: Date | null): Promise<void> {
+  if (!isUuid(id)) return;
+  await db()`update leads set review_requested_at = ${previous} where id = ${id}`;
+}
+
 export async function setReviewOptOut(id: string, optOut: boolean, actor: string): Promise<boolean> {
   if (!isUuid(id)) return false;
   const body = optOut ? "Turned off the review request" : "Turned the review request back on";

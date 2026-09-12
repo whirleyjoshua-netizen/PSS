@@ -7,7 +7,7 @@ import { addNote, createJob, getJob, setStage, updateDetails } from "@/lib/admin
 import { detailsSchema, lostSchema, newJobSchema, noteSchema } from "@/lib/admin/schema";
 import type { Stage } from "@/lib/admin/stages";
 import { ensureReferralCode, markReferralPaid } from "@/lib/referrals/db";
-import { setReviewOptOut } from "@/lib/reviews/db";
+import { releaseReview, restoreReviewRequested, setReviewOptOut, stampReviewRequested } from "@/lib/reviews/db";
 import { sendReviewRequest } from "@/lib/reviews/send";
 
 export type FormState = {
@@ -101,10 +101,17 @@ export async function sendReviewNow(id: string, _prev: FormState, _formData: For
   if (!job) return MISSING;
   if (!job.email) return { error: "This job has no email address." };
   if (job.reviewOptOut) return { error: "Review requests are turned off for this job." };
+  // Stamped before sending, so a crash after the email goes out never leaves
+  // the job eligible for tomorrow's cron too.
+  const stamped = await stampReviewRequested(id);
   try {
     await sendReviewRequest(job, email);
   } catch (error) {
     console.error("Review request failed", error);
+    if (stamped) {
+      if (stamped.previous === null) await releaseReview(id);
+      else await restoreReviewRequested(id, stamped.previous);
+    }
     return { error: "Could not send the review request. Check the settings and try again." };
   }
   refresh(id);
