@@ -71,4 +71,8 @@ describe("cookieValue", () => {
     expect(cookieValue("a=1", "pss_ref")).toBeUndefined();
     expect(cookieValue(null, "pss_ref")).toBeUndefined();
   });
+
+  it("is undefined when the value cannot be decoded", () => {
+    expect(cookieValue("pss_ref=%E0", "pss_ref")).toBeUndefined();
+  });
 });

@@ -69,4 +69,21 @@ describe("referral attribution", () => {
     await POST(request(body));
     expect(findReferrer).not.toHaveBeenCalled();
   });
+
+  it("still saves the lead when the referral cookie is malformed", async () => {
+    const response = await POST(request(body, "pss_ref=%E0"));
+    expect(response.status).toBe(201);
+    expect(insertLead).toHaveBeenCalled();
+  });
+
+  it("falls back to the cookie when the body code does not resolve", async () => {
+    findReferrer.mockImplementation(async (code: string) =>
+      code === "K7M2QX" ? { id: REFERRER, code: "K7M2QX", firstName: "Sarah" } : null,
+    );
+    const response = await POST(request({ ...body, referralCode: "ZZZZZZ" }, "pss_ref=K7M2QX"));
+    expect(response.status).toBe(201);
+    expect(findReferrer).toHaveBeenCalledWith("ZZZZZZ");
+    expect(findReferrer).toHaveBeenCalledWith("K7M2QX");
+    expect(insertLead).toHaveBeenCalledWith(expect.objectContaining({ referredBy: REFERRER }));
+  });
 });

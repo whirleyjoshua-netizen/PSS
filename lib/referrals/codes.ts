@@ -37,7 +37,13 @@ export function rewardStatus(job: { status: Stage; referralPaidAt: Date | null }
 export function cookieValue(header: string | null, name: string): string | undefined {
   for (const part of (header ?? "").split(";")) {
     const [key, ...rest] = part.trim().split("=");
-    if (key === name) return decodeURIComponent(rest.join("="));
+    if (key === name) {
+      try {
+        return decodeURIComponent(rest.join("="));
+      } catch {
+        return undefined;
+      }
+    }
   }
   return undefined;
 }

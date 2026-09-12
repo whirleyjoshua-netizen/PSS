@@ -48,13 +48,18 @@ export async function POST(request: Request) {
   }
 
   // A referral never blocks a lead: any lookup failure saves it unattributed.
-  const code = parsed.data.referralCode ?? cookieValue(request.headers.get("cookie"), REF_COOKIE);
-  const referrer = code
-    ? await findReferrer(code).catch((error) => {
-        console.error("Referral lookup failed", error);
-        return null;
-      })
-    : null;
+  const lookup = (code: string) =>
+    findReferrer(code).catch((error) => {
+      console.error("Referral lookup failed", error);
+      return null;
+    });
+  const cookieCode = cookieValue(request.headers.get("cookie"), REF_COOKIE);
+
+  // An unresolved body code falls back to the cookie, rather than overriding
+  // a valid one with nothing.
+  const referrer =
+    (parsed.data.referralCode ? await lookup(parsed.data.referralCode) : null) ??
+    (cookieCode ? await lookup(cookieCode) : null);
   const lead = {
     ...parsed.data,
     heardVia: parsed.data.heardVia ?? (referrer ? "Referral from a friend" : undefined),
