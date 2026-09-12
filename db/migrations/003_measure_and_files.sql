@@ -32,7 +32,8 @@ create table if not exists window_measurements (
 
 create index if not exists window_measurements_lead_idx on window_measurements (lead_id, position);
 
+-- The job_events kind list is shared with 004_referrals_reviews.sql (portal step 2 branch) and must stay identical in both files.
 alter table job_events drop constraint if exists job_events_kind_check;
 alter table job_events add constraint job_events_kind_check check (
-  kind in ('stage','note','edit','measure','file')
+  kind in ('stage','note','edit','email','reward','measure','file')
 );
