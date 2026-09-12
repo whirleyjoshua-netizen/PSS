@@ -27,11 +27,11 @@ Rejected:
 
 **Opening a link** (`app/(site)/r/[code]/route.ts`, a route handler):
 - The code is matched case-insensitively.
-- If it matches a job, the handler sets a `pss_ref` cookie (the code; `httpOnly`, `sameSite=lax`, `secure`, 30 days) and redirects to `/contact?r=<CODE>`.
+- If it matches a job, the handler sets a `pss_ref` cookie (the code; `httpOnly`, `sameSite=lax`, `secure`, 30 days) and redirects to `/contact?ref=friend&r=<CODE>&by=<First name>`.
 - If it matches nothing, it redirects to `/contact` with no cookie. No error is shown.
 
 **The consultation form.**
-- The contact page reads the code from `?r=`, falling back to the `pss_ref` cookie. If it resolves, "How did you hear about us?" is preselected to "Referral from a friend", and a short note reads "<First name> sent you." Only the referrer's first name is shown.
+- The contact page is statically rendered, so the form reads the query string on mount, the same way it already reads `?ref=flyer`. With `ref=friend`, "How did you hear about us?" is preselected to "Referral from a friend", and with `by`, a short note reads "<First name> sent you." Only the referrer's first name is shown.
 - The code travels in a hidden `referralCode` field. The API route also reads the `pss_ref` cookie, so a friend who books from the homepage hero form is still attributed. The body field wins over the cookie.
 - The API resolves the code to the referring job's id and stores it in `referred_by`. An unknown code is ignored; the lead is still saved. A lead never refers itself.
 
@@ -55,7 +55,7 @@ The 14-day window stops the first run after launch from emailing every past cust
 **The daily run.**
 - `app/api/cron/review-requests/route.ts`, a GET handler.
 - It rejects any request whose `Authorization` header is not `Bearer <CRON_SECRET>`.
-- Scheduled in `vercel.ts` at `0 17 * * *` (UTC). That is 10 a.m. Las Vegas time in summer and 9 a.m. in winter.
+- Scheduled in `vercel.json` at `0 17 * * *` (UTC). `vercel.json` rather than `vercel.ts`, so one line of config does not add the `@vercel/config` dependency. That is 10 a.m. Las Vegas time in summer and 9 a.m. in winter.
 - For each selected job, the handler claims the job first by setting `review_requested_at = now()` where it is still null, then sends. Two overlapping runs can never both send. If the send fails, it clears `review_requested_at` so the next run retries, and logs the error.
 - Each send writes a `job_events` row: `kind = 'email'`, actor `system`, body `Review request sent`.
 - It returns a JSON count of sent and failed emails.
@@ -106,7 +106,7 @@ Migration `003_referrals_reviews.sql`, safe to re-run like `002`:
 - `app/api/cron/review-requests/route.ts`: the daily run.
 - `app/api/consultation/route.ts` and `lib/leads/*`: accept and store `referralCode`.
 - `app/admin/jobs/[id]/…`: Review request, Referral link, Referred by, and Referrals sections, plus their Server Actions, each calling `requireAdmin()` first.
-- `vercel.ts`: the cron schedule.
+- `vercel.json`: the cron schedule.
 
 ## 8. Settings
 
