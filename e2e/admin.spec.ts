@@ -105,7 +105,7 @@ test("an owner measures a window with a photo", async ({ page, baseURL }) => {
 
   await page.getByRole("link", { name: "Finish" }).click();
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(name);
-  await expect(page.getByText("Kitchen")).toBeVisible();
+  await expect(page.getByRole("heading", { level: 4, name: "Kitchen" })).toBeVisible();
   await expect(page.getByText("35 ⅝″ × 48″")).toBeVisible();
 
   const photo = page.locator('img[src^="/admin/files/"]');
@@ -117,7 +117,18 @@ test("an owner measures a window with a photo", async ({ page, baseURL }) => {
   expect(okResponse.status()).toBe(200);
   expect(okResponse.headers()["content-type"]).toContain("image/jpeg");
 
-  await page.getByRole("button", { name: "Delete" }).click();
+  const row = page.locator("li", { hasText: "35 ⅝″ × 48″" });
+  await row.getByRole("link", { name: "Edit" }).click();
+  await expect(page.getByLabel("Width inches")).toHaveValue("35");
+  await expect(page.getByLabel(/^Room/)).toHaveValue("Kitchen");
+  await page.getByLabel("Height inches").fill("50");
+  await page.getByRole("button", { name: "Save window" }).click();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(name);
+  await expect(page.getByText("35 ⅝″ × 50″")).toBeVisible();
+
+  const editedRow = page.locator("li", { hasText: "35 ⅝″ × 50″" });
+  await editedRow.getByRole("button", { name: "Delete" }).click();
+  await editedRow.getByRole("button", { name: "Tap again to delete" }).click();
   await expect(page.getByText("No windows measured yet.")).toBeVisible();
 
   const goneResponse = await page.request.get(photoUrl);
