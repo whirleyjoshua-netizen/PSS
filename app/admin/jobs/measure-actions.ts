@@ -47,6 +47,7 @@ export async function saveMeasurement(jobId: string, windowId: string | null, fo
   if (!saved) return { error: "That job or window no longer exists." };
 
   revalidatePath(`/admin/jobs/${jobId}`);
+  revalidatePath("/admin");
   return { ok: true };
 }
 
@@ -54,6 +55,7 @@ export async function removeMeasurement(jobId: string, windowId: string): Promis
   const { email } = await requireAdmin();
   await deleteMeasurement(jobId, windowId, email);
   revalidatePath(`/admin/jobs/${jobId}`);
+  revalidatePath("/admin");
 }
 
 export async function removeFile(jobId: string, fileId: string): Promise<void> {
@@ -62,4 +64,5 @@ export async function removeFile(jobId: string, fileId: string): Promise<void> {
   if (!file || file.leadId !== jobId) return;
   await deleteFile(file.id, email);
   revalidatePath(`/admin/jobs/${jobId}`);
+  revalidatePath("/admin");
 }

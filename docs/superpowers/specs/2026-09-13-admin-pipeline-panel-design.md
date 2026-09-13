@@ -66,8 +66,8 @@ New:
 ## 5. The panel
 
 **Placement:**
-- From `md` up, the panel is a column on the right, about 28rem wide. The board keeps the remaining width and scrolls horizontally as it does today.
-- Below `md`, the panel covers the screen, and closing it returns to the board.
+- From `lg` up, the panel is a column on the right, about 28rem wide. The board keeps the remaining width and scrolls horizontally as it does today.
+- Below `lg`, the panel covers the screen, and closing it returns to the board. At tablet (`md`) widths the admin nav, board and panel together would leave the board too narrow to be usable side by side, so the overlay stays until `lg`.
 
 **Header:**
 - The client's name as a heading.

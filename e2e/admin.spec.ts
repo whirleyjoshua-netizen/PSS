@@ -170,3 +170,23 @@ test("an owner measures a window with a photo", async ({ page, baseURL }) => {
   const goneResponse = await page.request.get(photoUrl);
   expect(goneResponse.status()).toBe(404);
 });
+
+test("a job opens in the panel beside the board, survives a reload, and closes", async ({ page }) => {
+  const name = `E2E Tracker Panel ${Date.now()}`;
+  await sql()`insert into leads (name, phone, email, city, source, status)
+    values (${name}, '7025550102', 'e2e-panel@example.com', 'Henderson', 'phone', 'quoted')`;
+
+  await signIn(page);
+  await page.getByRole("link", { name: new RegExp(name) }).click();
+  await expect(page).toHaveURL(/\/admin\?job=/);
+  const panel = page.getByRole("complementary", { name: new RegExp(name) });
+  await expect(panel).toBeVisible();
+  await expect(panel.getByRole("region", { name: "Money" })).toBeVisible();
+
+  await page.reload();
+  await expect(page.getByRole("complementary", { name: new RegExp(name) })).toBeVisible();
+
+  await page.getByRole("complementary", { name: new RegExp(name) }).getByRole("link", { name: "Close" }).click();
+  await expect(page).toHaveURL(/\/admin$/);
+  await expect(page.getByRole("complementary", { name: new RegExp(name) })).toHaveCount(0);
+});

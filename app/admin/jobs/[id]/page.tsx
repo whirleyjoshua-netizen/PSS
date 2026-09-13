@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { formatPhone } from "@/lib/leads/schema";
 import { getEvents, getJob } from "@/lib/admin/jobs";
 import { listFiles } from "@/lib/admin/files";
+import { mapsHref } from "@/lib/admin/links";
 import { listMeasurements } from "@/lib/admin/measurements";
 import { formatCents } from "@/lib/admin/money";
 import { requireAdmin } from "@/lib/admin/session";
@@ -32,7 +33,7 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
   const soldIndex = STAGES.findIndex((s) => s.value === "sold");
   const soldOrLater = STAGES.findIndex((s) => s.value === job.status) >= soldIndex;
 
-  const mapHref = `https://maps.google.com/?q=${encodeURIComponent([job.address, job.city, "NV"].filter(Boolean).join(", "))}`;
+  const mapHref = mapsHref(job.address, job.city);
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-10">

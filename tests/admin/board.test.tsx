@@ -27,17 +27,31 @@ describe("board", () => {
     expect(groupByStage([], false).some((g) => g.stage === "lost")).toBe(false);
   });
 
-  it("shows the name, city, interests, and days in stage, and links to the job", () => {
-    render(<JobCard job={job({})} now={new Date("2026-09-10T00:00:00Z")} />);
+  it("shows the name, city, interests, and days in stage, and links to the given href", () => {
+    // Quoted for 3 days: the limit is 7, so not overdue.
+    render(<JobCard job={job({ status: "quoted" })} now={new Date("2026-09-10T00:00:00Z")} href="/admin?job=3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c" />);
     const link = screen.getByRole("link", { name: /dana reyes/i });
-    expect(link).toHaveAttribute("href", "/admin/jobs/3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c");
+    expect(link).toHaveAttribute("href", "/admin?job=3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c");
     expect(link).toHaveTextContent("Henderson");
     expect(link).toHaveTextContent("Shades, Shutters");
     expect(link).toHaveTextContent("3 days");
+    expect(link).not.toHaveTextContent("Overdue");
+    expect(link).not.toHaveAttribute("aria-current");
+  });
+
+  it("flags a job that is overdue in its stage", () => {
+    // New lead for 3 days: the limit is 1.
+    render(<JobCard job={job({ status: "new" })} now={new Date("2026-09-10T00:00:00Z")} href="/admin" />);
+    expect(screen.getByRole("link", { name: /dana reyes.*overdue/i })).toBeInTheDocument();
+  });
+
+  it("marks the card whose panel is open", () => {
+    render(<JobCard job={job({})} now={new Date("2026-09-10T00:00:00Z")} href="/admin" selected />);
+    expect(screen.getByRole("link", { name: /dana reyes/i })).toHaveAttribute("aria-current", "true");
   });
 
   it("marks referred jobs with a Referral badge", () => {
-    render(<JobCard job={job({ referredBy: "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6d" })} now={new Date("2026-09-10T00:00:00Z")} />);
+    render(<JobCard job={job({ referredBy: "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6d" })} now={new Date("2026-09-10T00:00:00Z")} href="/admin" />);
     expect(screen.getByRole("link", { name: /dana reyes/i })).toHaveTextContent("Referral");
   });
 });
