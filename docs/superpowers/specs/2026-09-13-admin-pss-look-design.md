@@ -130,6 +130,7 @@ These are added to `@theme` in `app/globals.css`.
 - `createJob` inserts that status and writes its `job_events` row as today ("Added by hand"), with `to_status` set to the chosen stage.
   - `stage_changed_at` defaults to now.
   - No other fields change.
+- A job created directly in Installed is saved with review_opt_out = true (the "Don't send a review request" box ticked), so entering a past customer never triggers the next morning's review email. The owner can untick it on the job page.
 - Opened from the sidebar or the header's New Job button (no `stage`), the page heading reads "New job". Opened from a column's add link, it reads "New job · <Stage>", for example "New job · Quoted".
 
 ## 8. Client panel, job page and other admin screens

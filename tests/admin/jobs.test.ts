@@ -132,6 +132,27 @@ describe("changing jobs", () => {
     expect(statement).toContain("status");
     expect(sql.mock.calls[0].filter((v: unknown) => v === "quoted")).toHaveLength(2);
   });
+
+  it("a job created as installed sets review_opt_out to true", async () => {
+    sql.mockResolvedValue([{ id: ID }]);
+    await jobs.createJob(
+      { name: "Dana Reyes", phone: "7025550134", city: "Henderson", source: "phone", stage: "installed" },
+      "owner@example.com",
+    );
+    const statement = text(sql.mock.calls[0]);
+    expect(statement).toContain("review_opt_out");
+    expect(sql.mock.calls[0]).toEqual(expect.arrayContaining([true]));
+  });
+
+  it("a job created as quoted sets review_opt_out to false", async () => {
+    sql.mockResolvedValue([{ id: ID }]);
+    await jobs.createJob(
+      { name: "Dana Reyes", phone: "7025550134", city: "Henderson", source: "phone", stage: "quoted" },
+      "owner@example.com",
+    );
+    expect(sql.mock.calls[0]).toEqual(expect.arrayContaining([false]));
+    expect(sql.mock.calls[0]).not.toEqual(expect.arrayContaining([true]));
+  });
 });
 
 describe("searching jobs", () => {

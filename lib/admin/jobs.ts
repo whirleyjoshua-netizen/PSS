@@ -179,11 +179,12 @@ export async function addNote(id: string, body: string, actor: string): Promise<
 }
 
 export async function createJob(input: NewJobInput, actor: string): Promise<string> {
+  // A job entered as already installed must not trigger tomorrow's review email; the owner can untick it.
   const rows = await db()`
     with created as (
-      insert into leads (name, phone, email, city, address, notes, source, status)
+      insert into leads (name, phone, email, city, address, notes, source, status, review_opt_out)
       values (${input.name}, ${input.phone}, ${input.email ?? null}, ${input.city},
-              ${input.address ?? null}, ${input.notes ?? null}, ${input.source}, ${input.stage})
+              ${input.address ?? null}, ${input.notes ?? null}, ${input.source}, ${input.stage}, ${input.stage === "installed"})
       returning id
     ),
     logged as (
