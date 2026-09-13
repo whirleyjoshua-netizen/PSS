@@ -2,13 +2,15 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Logo } from "@/components/brand/Logo";
+import { Icon, type IconName } from "@/components/admin/icons";
 import { signOut } from "./actions";
 
-const LINKS = [
-  { href: "/admin", label: "Jobs" },
-  { href: "/admin/jobs/new", label: "New job" },
-  { href: "/admin/settings", label: "Settings" },
-] as const;
+const LINKS: readonly { href: string; label: string; icon: IconName }[] = [
+  { href: "/admin", label: "Jobs", icon: "jobs" },
+  { href: "/admin/jobs/new", label: "New job", icon: "plus" },
+  { href: "/admin/settings", label: "Settings", icon: "settings" },
+];
 
 /** A job page belongs under Jobs; the new-job form has its own entry. */
 function isActive(href: string, pathname: string): boolean {
@@ -18,22 +20,31 @@ function isActive(href: string, pathname: string): boolean {
   return pathname === href;
 }
 
+/** "joshua.whirley@…" → "JW"; "owner@…" → "OW". */
+export function initialsFor(email: string): string {
+  const local = email.split("@")[0] ?? "";
+  const parts = local.split(/[._-]+/).filter(Boolean);
+  const letters = parts.length >= 2 ? parts[0][0] + parts[1][0] : local.slice(0, 2);
+  return letters.toUpperCase();
+}
+
 function NavLinks({ pathname }: { pathname: string }) {
   return (
     <ul className="flex flex-col gap-1">
-      {LINKS.map(({ href, label }) => {
+      {LINKS.map(({ href, label, icon }) => {
         const active = isActive(href, pathname);
         return (
           <li key={href}>
             <Link
               href={href}
               aria-current={active ? "page" : undefined}
-              className={`block border-l-2 px-3 py-2 text-sm transition-colors ${
+              className={`flex min-h-11 items-center gap-3 rounded-lg border-l-2 px-3 text-sm transition-colors ${
                 active
-                  ? "border-charcoal font-semibold text-charcoal"
-                  : "border-transparent text-ink-soft hover:text-charcoal"
+                  ? "border-champagne bg-champagne/15 font-semibold text-sidebar-ink"
+                  : "border-transparent text-sidebar-muted hover:bg-sidebar-ink/5 hover:text-sidebar-ink"
               }`}
             >
+              <Icon name={icon} className="size-5" />
               {label}
             </Link>
           </li>
@@ -43,42 +54,57 @@ function NavLinks({ pathname }: { pathname: string }) {
   );
 }
 
-function SignOut({ email }: { email: string }) {
+function Account({ email }: { email: string }) {
   return (
-    <form action={signOut} className="flex flex-col gap-1 px-3">
-      <span className="truncate text-xs text-ink-soft" title={email}>{email}</span>
-      <button type="submit" className="self-start text-sm text-charcoal underline underline-offset-4">
-        Sign out
-      </button>
+    <form action={signOut} className="flex items-center gap-3 border-t border-sidebar-ink/10 px-3 pt-4">
+      <span aria-hidden="true" className="flex size-10 shrink-0 items-center justify-center rounded-full bg-champagne text-sm font-semibold text-charcoal">
+        {initialsFor(email)}
+      </span>
+      <span className="flex min-w-0 flex-col gap-1">
+        <span className="truncate text-xs text-sidebar-muted" title={email}>{email}</span>
+        <button type="submit" className="flex items-center gap-1 self-start text-sm text-sidebar-ink underline underline-offset-4">
+          Sign out <Icon name="signout" className="size-4" />
+        </button>
+      </span>
     </form>
   );
 }
 
-/** Left column on desktop; a Menu button opening the same links on phones. */
+function Brand() {
+  return (
+    <div className="flex flex-col gap-1 px-3">
+      <Logo tone="dark" className="text-[1.15rem]" />
+      <span className="pl-[2.6rem] text-[0.6rem] tracking-[0.32em] text-sidebar-muted">OPERATIONS</span>
+    </div>
+  );
+}
+
+/** Dark left column on desktop; a dark header with a Menu on phones. */
 export function AdminNav({ email }: { email: string }) {
   const pathname = usePathname();
 
   return (
     <>
-      <aside className="hidden w-56 shrink-0 flex-col justify-between border-r border-rule py-6 md:flex">
-        <div className="flex flex-col gap-6">
-          <p className="px-3 text-base font-semibold">PSS Jobs</p>
+      <aside className="admin-sidebar hidden w-60 shrink-0 flex-col justify-between bg-sidebar px-3 py-6 text-sidebar-ink md:flex">
+        <div className="flex flex-col gap-8">
+          <Brand />
           <nav aria-label="Admin">
             <NavLinks pathname={pathname} />
           </nav>
         </div>
-        <SignOut email={email} />
+        <Account email={email} />
       </aside>
 
-      <details className="border-b border-rule md:hidden">
-        <summary className="flex min-h-12 cursor-pointer items-center justify-between px-4 text-base font-semibold">
-          PSS Jobs <span className="text-sm font-normal text-ink-soft">Menu</span>
+      <details className="admin-sidebar bg-sidebar text-sidebar-ink md:hidden">
+        <summary className="flex min-h-14 cursor-pointer items-center justify-between px-4">
+          <Logo tone="dark" className="text-[0.95rem]" />
+          <span className="text-sm text-sidebar-muted">Menu</span>
         </summary>
-        <div className="flex flex-col gap-4 pb-4">
+        <div className="flex flex-col gap-4 px-2 pb-4">
           <nav aria-label="Admin">
             <NavLinks pathname={pathname} />
           </nav>
-          <SignOut email={email} />
+          <Account email={email} />
         </div>
       </details>
     </>

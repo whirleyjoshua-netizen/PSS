@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Job } from "@/lib/admin/jobs";
 
@@ -15,7 +15,7 @@ const job: Job = {
 const jobSold: Job = { ...job, id: ID, status: "sold" };
 const jobB: Job = { ...job, id: ID_B, name: "Chris Lane", status: "quoted" };
 
-const jobs = { listJobs: vi.fn(), getJob: vi.fn() };
+const jobs = { listJobs: vi.fn(), getJob: vi.fn(), SEARCH_MAX: 100 };
 vi.mock("@/lib/admin/jobs", () => jobs);
 const listMeasurements = vi.fn();
 vi.mock("@/lib/admin/measurements", () => ({ listMeasurements }));
@@ -26,7 +26,7 @@ vi.mock("@/app/admin/jobs/actions", () => ({ moveStage: vi.fn(), markLost: vi.fn
 vi.mock("@/app/admin/jobs/measure-actions", () => ({ removeMeasurement: vi.fn(), removeFile: vi.fn() }));
 
 const { default: BoardPage } = await import("@/app/admin/page");
-const open = async (params: { lost?: string; job?: string }) =>
+const open = async (params: { lost?: string; job?: string; q?: string }) =>
   render(await BoardPage({ searchParams: Promise.resolve(params) }));
 
 beforeEach(() => {
@@ -81,5 +81,48 @@ describe("board page", () => {
     await open({ job: [ID, ID_B] } as unknown as { job?: string });
     expect(jobs.getJob).toHaveBeenCalledWith(ID);
     expect(screen.getByRole("complementary", { name: /dana reyes/i })).toBeInTheDocument();
+  });
+});
+
+describe("board look and conveniences", () => {
+  it("shows a tile per working stage linking to its column", async () => {
+    await open({});
+    const tiles = screen.getByRole("navigation", { name: "Stages" });
+    const links = within(tiles).getAllByRole("link");
+    expect(links).toHaveLength(7);
+    expect(links[3]).toHaveAttribute("href", "/admin#stage-quoted");
+    expect(links[3]).toHaveTextContent("Quoted");
+  });
+
+  it("has an add link in every working column, and none for lost", async () => {
+    await open({ lost: "1" });
+    expect(screen.getByRole("link", { name: "+ Add lead" })).toHaveAttribute("href", "/admin/jobs/new?stage=new");
+    expect(screen.getAllByRole("link", { name: "+ Add job" })).toHaveLength(6);
+    const lost = screen.getByRole("region", { name: /lost/i });
+    expect(within(lost).queryByRole("link", { name: /add/i })).toBeNull();
+  });
+
+  it("has a New Job button and a search box that keeps the lost toggle and open panel", async () => {
+    await open({ lost: "1", job: ID });
+    expect(screen.getByRole("link", { name: "New Job" })).toHaveAttribute("href", "/admin/jobs/new");
+    const search = screen.getByRole("search");
+    expect(within(search).getByRole("searchbox", { name: "Search jobs" })).toBeInTheDocument();
+    expect(search.querySelector('input[name="lost"]')).toHaveValue("1");
+    expect(search.querySelector('input[name="job"]')).toHaveValue(ID);
+  });
+
+  it("filters by ?q, keeps q in links, and offers to clear the search", async () => {
+    await open({ q: "reyes", job: ID });
+    expect(jobs.listJobs).toHaveBeenCalledWith({ includeLost: false, search: "reyes" });
+    expect(screen.getByText(/1 job matches "reyes"/i)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Clear search" })).toHaveAttribute("href", `/admin?job=${ID}`);
+    expect(screen.getByRole("link", { name: "Close" })).toHaveAttribute("href", "/admin?q=reyes");
+    expect(screen.getByRole("link", { name: /dana reyes/i, current: true })).toHaveAttribute("href", `/admin?q=reyes&job=${ID}`);
+  });
+
+  it("says when nothing matches", async () => {
+    jobs.listJobs.mockResolvedValue([]);
+    await open({ q: "zzz" });
+    expect(screen.getByText(/no jobs match "zzz"/i)).toBeInTheDocument();
   });
 });

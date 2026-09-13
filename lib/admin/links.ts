@@ -1,7 +1,8 @@
-/** The board URL, keeping the lost toggle and optionally opening a job's panel. */
-export function boardHref({ lost, job }: { lost: boolean; job?: string | null }): string {
+/** The board URL: keeps the lost toggle and search, and optionally opens a job's panel. */
+export function boardHref({ lost, job, q }: { lost: boolean; job?: string | null; q?: string | null }): string {
   const params = new URLSearchParams();
   if (lost) params.set("lost", "1");
+  if (q && q.trim()) params.set("q", q.trim());
   if (job) params.set("job", job);
   const query = params.toString().replace(/\+/g, "%20");
   return query ? `/admin?${query}` : "/admin";

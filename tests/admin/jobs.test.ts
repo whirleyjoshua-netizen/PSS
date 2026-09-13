@@ -115,10 +115,105 @@ describe("changing jobs", () => {
   it("creates a hand-entered job and returns its id", async () => {
     sql.mockResolvedValue([{ id: ID }]);
     const id = await jobs.createJob(
-      { name: "Dana Reyes", phone: "7025550134", city: "Henderson", source: "phone" },
+      { name: "Dana Reyes", phone: "7025550134", city: "Henderson", source: "phone", stage: "new" },
       "owner@example.com",
     );
     expect(id).toBe(ID);
     expect(text(sql.mock.calls[0])).toContain("insert into leads");
+  });
+
+  it("creates a hand-entered job in the chosen stage and logs it", async () => {
+    sql.mockResolvedValue([{ id: ID }]);
+    await jobs.createJob(
+      { name: "Dana Reyes", phone: "7025550134", city: "Henderson", source: "phone", stage: "quoted" },
+      "owner@example.com",
+    );
+    const statement = text(sql.mock.calls[0]);
+    expect(statement).toContain("status");
+    expect(sql.mock.calls[0].filter((v: unknown) => v === "quoted")).toHaveLength(2);
+  });
+
+  it("a job created as installed sets review_opt_out to true", async () => {
+    sql.mockResolvedValue([{ id: ID }]);
+    await jobs.createJob(
+      { name: "Dana Reyes", phone: "7025550134", city: "Henderson", source: "phone", stage: "installed" },
+      "owner@example.com",
+    );
+    const statement = text(sql.mock.calls[0]);
+    expect(statement).toContain("review_opt_out");
+    expect(sql.mock.calls[0]).toEqual(expect.arrayContaining([true]));
+  });
+
+  it("a job created as quoted sets review_opt_out to false", async () => {
+    sql.mockResolvedValue([{ id: ID }]);
+    await jobs.createJob(
+      { name: "Dana Reyes", phone: "7025550134", city: "Henderson", source: "phone", stage: "quoted" },
+      "owner@example.com",
+    );
+    expect(sql.mock.calls[0]).toEqual(expect.arrayContaining([false]));
+    expect(sql.mock.calls[0]).not.toEqual(expect.arrayContaining([true]));
+  });
+
+  it("a job created as installed logs that the review request is off", async () => {
+    sql.mockResolvedValue([{ id: ID }]);
+    await jobs.createJob(
+      { name: "Dana Reyes", phone: "7025550134", city: "Henderson", source: "phone", stage: "installed" },
+      "owner@example.com",
+    );
+    expect(sql.mock.calls[0]).toEqual(expect.arrayContaining(["Added by hand (review request off)"]));
+  });
+
+  it("a job created as quoted logs the plain 'Added by hand' body", async () => {
+    sql.mockResolvedValue([{ id: ID }]);
+    await jobs.createJob(
+      { name: "Dana Reyes", phone: "7025550134", city: "Henderson", source: "phone", stage: "quoted" },
+      "owner@example.com",
+    );
+    expect(sql.mock.calls[0]).toEqual(expect.arrayContaining(["Added by hand"]));
+    expect(sql.mock.calls[0]).not.toEqual(expect.arrayContaining(["Added by hand (review request off)"]));
+  });
+});
+
+describe("searching jobs", () => {
+  it("keeps the plain query when there is no search", async () => {
+    await jobs.listJobs({ includeLost: false, search: "   " });
+    expect(sql.query.mock.calls[0][1]).toEqual([false]);
+  });
+
+  it("matches name, email, city and address, and phone by digits, with parameters", async () => {
+    await jobs.listJobs({ includeLost: true, search: " Reyes 702 " });
+    const [statement, params] = sql.query.mock.calls[0];
+    expect(statement).toContain("name ilike $2");
+    expect(statement).toContain("email ilike $2");
+    expect(statement).toContain("city ilike $2");
+    expect(statement).toContain("address ilike $2");
+    expect(statement).toContain("phone like");
+    // "Reyes 702" contains letters, so it doesn't look like a phone number: $3 is "".
+    expect(params).toEqual([true, "%Reyes 702%", ""]);
+  });
+
+  it("does not treat digits inside an address-like term as a phone search", async () => {
+    await jobs.listJobs({ includeLost: false, search: "4521 Elm" });
+    const [, params] = sql.query.mock.calls[0];
+    expect(params).toEqual([false, "%4521 Elm%", ""]);
+  });
+
+  it("treats a phone-shaped term as a phone search", async () => {
+    await jobs.listJobs({ includeLost: false, search: "(702) 555-0134" });
+    const [, params] = sql.query.mock.calls[0];
+    expect(params).toEqual([false, "%(702) 555-0134%", "7025550134"]);
+  });
+
+  it("does not search by phone when there are fewer than 3 digits", async () => {
+    await jobs.listJobs({ includeLost: false, search: "55" });
+    const [, params] = sql.query.mock.calls[0];
+    expect(params).toEqual([false, "%55%", ""]);
+  });
+
+  it("escapes LIKE wildcards and caps the length", async () => {
+    await jobs.listJobs({ includeLost: false, search: `50%_off\\${"x".repeat(200)}` });
+    const [, params] = sql.query.mock.calls[0];
+    expect(params[1]).toMatch(/^%50\\%\\_off\\\\x+%$/);
+    expect((params[1] as string).length).toBeLessThanOrEqual(100 + 2 + 3);
   });
 });

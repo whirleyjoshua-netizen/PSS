@@ -84,10 +84,31 @@ export function toJob(row: Record<string, unknown>): Job {
   };
 }
 
-export async function listJobs({ includeLost }: { includeLost: boolean }): Promise<Job[]> {
+export const SEARCH_MAX = 100;
+
+/** `%`, `_` and `\` are LIKE wildcards; escape them so a search is literal. */
+const likePattern = (term: string) => `%${term.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+
+export async function listJobs({ includeLost, search }: { includeLost: boolean; search?: string }): Promise<Job[]> {
+  const term = (search ?? "").trim().slice(0, SEARCH_MAX);
+  if (!term) {
+    const rows = await db().query(
+      `select ${JOB_COLUMNS} from leads where ($1 or status <> 'lost') order by stage_changed_at desc`,
+      [includeLost],
+    );
+    return rows.map(toJob);
+  }
+  // Only treat the term as a phone search when it looks like one — otherwise a term like
+  // "4521 Elm" or "Apt 2" has enough digits to flood results with unrelated phone matches.
+  const digits = term.replace(/\D/g, "");
+  const phoneDigits = /^[\d\s().+-]+$/.test(term) && digits.length >= 3 ? digits : "";
   const rows = await db().query(
-    `select ${JOB_COLUMNS} from leads where ($1 or status <> 'lost') order by stage_changed_at desc`,
-    [includeLost],
+    `select ${JOB_COLUMNS} from leads
+     where ($1 or status <> 'lost')
+       and (name ilike $2 or email ilike $2 or city ilike $2 or address ilike $2
+            or ($3 <> '' and phone like '%' || $3 || '%'))
+     order by stage_changed_at desc`,
+    [includeLost, likePattern(term), phoneDigits],
   );
   return rows.map(toJob);
 }
@@ -161,16 +182,18 @@ export async function addNote(id: string, body: string, actor: string): Promise<
 }
 
 export async function createJob(input: NewJobInput, actor: string): Promise<string> {
+  // A job entered as already installed must not trigger tomorrow's review email; the owner can untick it.
+  const body = input.stage === "installed" ? "Added by hand (review request off)" : "Added by hand";
   const rows = await db()`
     with created as (
-      insert into leads (name, phone, email, city, address, notes, source)
+      insert into leads (name, phone, email, city, address, notes, source, status, review_opt_out)
       values (${input.name}, ${input.phone}, ${input.email ?? null}, ${input.city},
-              ${input.address ?? null}, ${input.notes ?? null}, ${input.source})
+              ${input.address ?? null}, ${input.notes ?? null}, ${input.source}, ${input.stage}, ${input.stage === "installed"})
       returning id
     ),
     logged as (
       insert into job_events (lead_id, actor, kind, to_status, body)
-      select id, ${actor}, 'stage', 'new', 'Added by hand' from created
+      select id, ${actor}, 'stage', ${input.stage}, ${body} from created
     )
     select id from created`;
   return rows[0].id as string;

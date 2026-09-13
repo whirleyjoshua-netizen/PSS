@@ -92,6 +92,14 @@ describe("with a session", () => {
     expect(redirect).toHaveBeenCalledWith(`/admin/jobs/${ID}`);
   });
 
+  it("adds a job in the chosen stage", async () => {
+    jobs.createJob.mockResolvedValue(ID);
+    await expect(
+      actions.addJob({}, form({ name: "Dana Reyes", phone: "7025550134", city: "Henderson", source: "phone", stage: "sold" })),
+    ).rejects.toThrow("NEXT_REDIRECT");
+    expect(jobs.createJob).toHaveBeenCalledWith(expect.objectContaining({ stage: "sold" }), "owner@example.com");
+  });
+
   it("reports a missing job when the note target no longer exists", async () => {
     jobs.addNote.mockResolvedValue(false);
     const state = await actions.saveNote(ID, {}, form({ body: "Hi" }));

@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { Button } from "@/components/ui/Button";
+import { Icon } from "@/components/admin/icons";
 import type { Job } from "@/lib/admin/jobs";
 import { ALL_STAGES, nextStage, stageLabel } from "@/lib/admin/stages";
 import { markLost, moveStage, type FormState } from "../actions";
@@ -22,7 +23,10 @@ export function StageControls({ job }: { job: Job }) {
 
       {next ? (
         <form action={moveStage.bind(null, job.id, next)}>
-          <Button type="submit" variant="solid" className="w-full sm:w-auto">Move to {stageLabel(next)}</Button>
+          <Button type="submit" variant="solid" className="w-full gap-2">
+            <Icon name="arrow" className="size-4" />
+            Move to {stageLabel(next)}
+          </Button>
         </form>
       ) : null}
 

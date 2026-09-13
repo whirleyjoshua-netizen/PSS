@@ -4,20 +4,20 @@ import type { Job } from "@/lib/admin/jobs";
 import type { WindowMeasurement } from "@/lib/admin/measurements";
 import { mapsHref } from "@/lib/admin/links";
 import { formatCents } from "@/lib/admin/money";
-import { daysInStage, isOverdue } from "@/lib/admin/overdue";
 import { formatWhen } from "@/lib/admin/time";
 import { formatPhone } from "@/lib/leads/schema";
+import { DaysInStage } from "./DaysInStage";
 import { JobFiles } from "./jobs/[id]/JobFiles";
 import { StageControls } from "./jobs/[id]/StageControls";
 
 const PANEL =
-  "fixed inset-0 z-40 flex flex-col gap-8 overflow-y-auto overscroll-contain bg-ivory p-4 lg:sticky lg:inset-auto lg:top-6 lg:z-auto lg:max-h-[calc(100dvh-3rem)] lg:w-[28rem] lg:shrink-0 lg:border lg:border-rule lg:p-6";
-const HEADING = "font-display text-xs uppercase tracking-[0.2em] text-champagne-ink";
+  "fixed inset-0 z-40 flex flex-col gap-6 overflow-y-auto overscroll-contain bg-ivory p-5 lg:sticky lg:inset-auto lg:top-6 lg:z-auto lg:max-h-[calc(100dvh-3rem)] lg:w-[28rem] lg:shrink-0 lg:rounded-2xl lg:border lg:border-rule lg:p-6 lg:shadow-lg";
+const HEADING = "text-sm font-semibold text-charcoal";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   const id = `panel-${title.toLowerCase().replace(/\W+/g, "-")}`;
   return (
-    <section aria-labelledby={id} className="flex flex-col gap-3">
+    <section aria-labelledby={id} className="flex flex-col gap-3 border-t border-rule pt-5">
       <h3 id={id} className={HEADING}>{title}</h3>
       {children}
     </section>
@@ -49,13 +49,12 @@ export function JobPanel({ job, measurements, files, now, closeHref }: {
     );
   }
 
-  const days = daysInStage(job.stageChangedAt, now);
   const balance = job.soldCents !== null && job.depositCents !== null ? job.soldCents - job.depositCents : null;
 
   return (
     <aside aria-label={`${job.name} details`} className={PANEL}>
       <header className="flex items-start justify-between gap-4">
-        <h2 className="font-display text-2xl font-light">{job.name}</h2>
+        <h2 className="text-2xl font-semibold text-charcoal">{job.name}</h2>
         <nav className="flex shrink-0 gap-4 text-sm">
           <Link href={`/admin/jobs/${job.id}`} className="underline underline-offset-4">Full page</Link>
           <Link href={closeHref} className="underline underline-offset-4">Close</Link>
@@ -88,9 +87,8 @@ export function JobPanel({ job, measurements, files, now, closeHref }: {
           <Row label="Order" value={job.orderedOn ?? "—"} />
           <Row label="Install" value={job.installOn ?? "—"} />
         </dl>
-        <p className="font-display text-xs uppercase tracking-[0.12em] text-champagne-ink">
-          {days === 1 ? "1 day" : `${days} days`} in stage
-          {isOverdue(job, now) ? <strong className="ml-2 text-charcoal">· Overdue</strong> : null}
+        <p className="flex items-center gap-1.5 font-display text-xs uppercase tracking-[0.12em] text-champagne-ink">
+          <DaysInStage job={job} now={now} />
         </p>
       </Section>
 

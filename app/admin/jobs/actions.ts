@@ -87,7 +87,7 @@ export async function saveNote(id: string, _prev: FormState, formData: FormData)
 
 export async function addJob(_prev: FormState, formData: FormData): Promise<FormState> {
   const { email } = await requireAdmin();
-  const values = captureValues(formData, ["name", "phone", "email", "city", "address", "source", "notes"]);
+  const values = captureValues(formData, ["name", "phone", "email", "city", "address", "source", "notes", "stage"]);
   const parsed = newJobSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: parsed.error.issues[0].message, values };
   const id = await createJob(parsed.data, email);
