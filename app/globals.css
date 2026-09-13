@@ -24,6 +24,22 @@
 
   --font-display: var(--font-jost), ui-sans-serif, system-ui, sans-serif;
   --font-body: var(--font-source-serif), Georgia, "Times New Roman", serif;
+
+  /* Owner admin — see docs/superpowers/specs/2026-09-13-admin-pss-look-design.md §4.
+     Stage colors are for edges, dots and icon tints only, never text (most are
+     under 4.5:1 on white). --color-overdue is 6.5:1 on white and may be text. */
+  --color-sidebar: #1E1E1E;
+  --color-sidebar-ink: #F7F5F0;
+  --color-sidebar-muted: #B3AAA0;
+  --color-admin-ground: #F3F0EA;
+  --color-stage-new: #C98A2E;
+  --color-stage-contacted: #6F8F72;
+  --color-stage-visit: #5B8DB8;
+  --color-stage-quoted: #8A6A9E;
+  --color-stage-sold: #5E9A5A;
+  --color-stage-ordered: #B07D4F;
+  --color-stage-installed: #1E1E1E;
+  --color-overdue: #B3261E;
 }
 
 html {
@@ -44,24 +60,14 @@ h1, h2, h3, h4 {
 }
 
 /*
- * The owner-only admin area is a working tool, not a page to market: plain
- * white and black with grey rules and a system sans-serif. Redefining the
- * tokens here, rather than restyling each component, keeps the shared form
- * fields and buttons working unchanged on the public site.
+ * The owner-only admin uses the brand palette (tokens above) with a system
+ * sans-serif for dense working screens and a slightly warmer ground.
  */
 .admin-theme {
-  --color-ivory: #FFFFFF;
-  --color-sand: #F4F4F5;
-  --color-charcoal: #0A0A0A;
-  --color-taupe: #71717A;
-  --color-champagne: #0A0A0A;
-  --color-champagne-ink: #0A0A0A;
-  --color-rule: #E4E4E7;
-  --color-ink-soft: #52525B;
   --font-display: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
   --font-body: var(--font-display);
 
-  background: var(--color-ivory);
+  background: var(--color-admin-ground);
   color: var(--color-charcoal);
   font-family: var(--font-body);
 }

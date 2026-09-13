@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { STAGES, ALL_STAGES, isStage, stageLabel, nextStage } from "@/lib/admin/stages";
+import { STAGES, ALL_STAGES, isStage, stageLabel, nextStage, WORKING_STAGES, STAGE_STYLE, parseWorkingStage } from "@/lib/admin/stages";
 
 describe("stages", () => {
   it("runs from new lead to installed, in order", () => {
@@ -30,5 +30,29 @@ describe("stages", () => {
     expect(isStage("sold")).toBe(true);
     expect(isStage("Sold")).toBe(false);
     expect(isStage(undefined)).toBe(false);
+  });
+});
+
+describe("working stages and styles", () => {
+  it("lists the seven working stages in board order", () => {
+    expect([...WORKING_STAGES]).toEqual(STAGES.map((s) => s.value));
+  });
+
+  it("parses only working stages", () => {
+    expect(parseWorkingStage("quoted")).toBe("quoted");
+    expect(parseWorkingStage("lost")).toBeNull();
+    expect(parseWorkingStage("nope")).toBeNull();
+    expect(parseWorkingStage(undefined)).toBeNull();
+  });
+
+  it("gives every stage an icon and literal color classes", () => {
+    for (const stage of ALL_STAGES) {
+      const style = STAGE_STYLE[stage];
+      expect(style.icon).toBeTruthy();
+      expect(style.edge).toMatch(/^border-t-/);
+      expect(style.dot).toMatch(/^bg-/);
+      expect(style.tint).toMatch(/^text-/);
+    }
+    expect(STAGE_STYLE.quoted.edge).toBe("border-t-stage-quoted");
   });
 });
