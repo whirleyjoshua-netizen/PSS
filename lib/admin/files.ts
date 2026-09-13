@@ -14,11 +14,13 @@ export type JobFile = {
   contentType: string;
   sizeBytes: number;
   blobPathname: string;
+  /** Set when an owner shares this photo with the customer. */
+  sharedAt?: Date | null;
 };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-function toFile(row: Record<string, unknown>): JobFile {
+export function toFile(row: Record<string, unknown>): JobFile {
   return {
     id: row.id as string,
     leadId: row.lead_id as string,
@@ -29,6 +31,7 @@ function toFile(row: Record<string, unknown>): JobFile {
     contentType: row.content_type as string,
     sizeBytes: Number(row.size_bytes),
     blobPathname: row.blob_pathname as string,
+    sharedAt: row.shared_at ? new Date(row.shared_at as string) : null,
   };
 }
 
@@ -107,4 +110,35 @@ export async function readFile(file: JobFile) {
   const result = await get(file.blobPathname, { access: "private" });
   if (!result || result.statusCode !== 200) return null;
   return { stream: result.stream, contentType: result.blob.contentType };
+}
+
+/**
+ * Shares or stops sharing a photo with the customer, and logs it in the same
+ * statement. Only photos on that job qualify; documents are never shared.
+ */
+export async function setShared(jobId: string, fileId: string, shared: boolean, actor: string): Promise<boolean> {
+  if (!UUID.test(jobId) || !UUID.test(fileId)) return false;
+  const rows = await db()`
+    with changed as (
+      update job_files
+      set shared_at = case when ${shared} then coalesce(shared_at, now()) else null end
+      where id = ${fileId} and lead_id = ${jobId} and kind = 'photo'
+      returning lead_id, name
+    )
+    insert into job_events (lead_id, actor, kind, body)
+    select lead_id, ${actor}, 'file',
+      ${shared ? "Shared photo " : "Stopped sharing photo "} || name || ${shared ? " with customer" : ""}
+    from changed
+    returning lead_id`;
+  return rows.length > 0;
+}
+
+/** The photos a customer may see for one job, newest first. */
+export async function listSharedPhotos(leadId: string): Promise<JobFile[]> {
+  if (!UUID.test(leadId)) return [];
+  const rows = await db()`
+    select * from job_files
+    where lead_id = ${leadId} and kind = 'photo' and shared_at is not null
+    order by created_at desc`;
+  return rows.map(toFile);
 }
