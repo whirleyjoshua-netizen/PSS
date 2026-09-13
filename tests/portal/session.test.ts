@@ -8,7 +8,7 @@ vi.mock("@/lib/portal/access", () => ({ visibleJobs }));
 const jar = new Map<string, string>();
 const cookieStore = {
   get: (name: string) => (jar.has(name) ? { name, value: jar.get(name)! } : undefined),
-  set: vi.fn((name: string, value: string, _options?: Record<string, unknown>) => jar.set(name, value)),
+  set: vi.fn((name: string, value: string) => jar.set(name, value)),
   delete: vi.fn((name: string | Record<string, unknown>) => jar.delete(typeof name === "string" ? name : String(name.name))),
 };
 vi.mock("next/headers", () => ({ cookies: async () => cookieStore }));
@@ -31,7 +31,7 @@ beforeEach(() => {
 describe("customer sessions", () => {
   it("sets a 30-day httpOnly cookie scoped to /project and stores only its hash", async () => {
     await createCustomerSession("maria@example.com");
-    const [name, value, options] = cookieStore.set.mock.calls[0];
+    const [name, value, options] = cookieStore.set.mock.calls[0] as unknown as [string, string, Record<string, unknown>];
     expect(name).toBe("pss_customer");
     expect(name).toBe(CUSTOMER_COOKIE);
     expect(options).toMatchObject({ httpOnly: true, sameSite: "lax", path: "/project", maxAge: 60 * 60 * 24 * 30 });

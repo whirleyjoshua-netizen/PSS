@@ -20,6 +20,7 @@ const row = {
   install_on: null, lost_reason: null, referral_code: null, referred_by: null, referral_paid_at: null,
   review_requested_at: null, review_opt_out: false, portal_invited_at: null,
 };
+const claimedRow = { ...row, claimed_at: "2026-09-13 10:00:00.123456" };
 const text = (call: unknown[]) => (call[0] as TemplateStringsArray).join("?");
 
 beforeEach(() => {
@@ -39,6 +40,11 @@ describe("inviteEmailText", () => {
     expect(body).toContain("This link works for 7 days. After that, sign in any time at premiershadesolutions.com/project with this email address.");
     expect(body).toContain(`Questions? Call us at ${business.phone.display} or just reply to this email.`);
     expect(body).not.toMatch(/\$\d/);
+  });
+
+  it("greets with 'Hi there,' when there is no name", () => {
+    const body = inviteEmailText({ firstName: "", link: "https://pss.test/project/auth?token=abc" });
+    expect(body).toContain("Hi there,");
   });
 });
 
@@ -73,12 +79,13 @@ describe("sendPortalInvite", () => {
 
 describe("autoInvite", () => {
   it("claims the job before sending, and only an uninvited portal-stage job with an email", async () => {
-    query.mockResolvedValue([row]);
+    query.mockResolvedValue([claimedRow]);
     await autoInvite(JOB);
     const [claim, params] = query.mock.calls[0];
     expect(claim).toContain("portal_invited_at is null");
     expect(claim).toContain("nullif(trim(email), '') is not null");
     expect(claim).toContain("status = any($2::text[])");
+    expect(claim).toContain("portal_invited_at::text as claimed_at");
     expect(params).toEqual([JOB, ["quoted", "sold", "ordered", "installed"]]);
     expect(send).toHaveBeenCalledTimes(1);
   });
@@ -90,11 +97,14 @@ describe("autoInvite", () => {
 
   it("releases the claim when the send fails, and never throws", async () => {
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
-    query.mockResolvedValue([row]);
+    query.mockResolvedValue([claimedRow]);
     send.mockResolvedValue({ error: { message: "down" } });
     await expect(autoInvite(JOB)).resolves.toBeUndefined();
     const release = sql.mock.calls.find((c) => text(c).includes("portal_invited_at = null"));
+    expect(text(release!)).toContain("portal_invited_at = null where id =");
+    expect(text(release!)).toContain("and portal_invited_at =");
     expect(release).toContain(JOB);
+    expect(release).toContain(claimedRow.claimed_at);
     consoleError.mockRestore();
   });
 

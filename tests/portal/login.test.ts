@@ -47,6 +47,13 @@ describe("issueCustomerLink", () => {
     vi.stubEnv("ADMIN_BASE_URL", "");
     expect(await issueCustomerLink("maria@example.com", 15)).toContain(`${business.domain}/project/auth?token=`);
   });
+
+  it("normalizes the email before storing it", async () => {
+    await issueCustomerLink(" Maria@Example.com ", 15);
+    const insert = sql.mock.calls[0];
+    expect(insert).toContain("maria@example.com");
+    expect(insert).not.toContain(" Maria@Example.com ");
+  });
 });
 
 describe("requestCustomerSignIn", () => {

@@ -23,7 +23,7 @@ const listFiles = vi.fn();
 vi.mock("@/lib/admin/files", () => ({ listFiles }));
 vi.mock("@/lib/admin/session", () => ({ requireAdmin: vi.fn(async () => ({ email: "owner@example.com" })) }));
 vi.mock("@/app/admin/jobs/actions", () => ({ moveStage: vi.fn(), markLost: vi.fn(async () => ({})) }));
-vi.mock("@/app/admin/jobs/measure-actions", () => ({ removeMeasurement: vi.fn(), removeFile: vi.fn() }));
+vi.mock("@/app/admin/jobs/measure-actions", () => ({ removeMeasurement: vi.fn(), removeFile: vi.fn(), setFileShared: vi.fn() }));
 
 const { default: BoardPage } = await import("@/app/admin/page");
 const open = async (params: { lost?: string; job?: string }) =>

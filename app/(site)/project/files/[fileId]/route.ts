@@ -13,7 +13,13 @@ export async function GET(_request: Request, { params }: { params: Promise<{ fil
   if (!file || file.kind !== "photo" || !file.sharedAt || !jobs.some((job) => job.id === file.leadId)) {
     return NOT_FOUND();
   }
-  const content = await readFile(file);
+  let content;
+  try {
+    content = await readFile(file);
+  } catch (error) {
+    console.error(`Could not read customer file ${fileId}`, error);
+    return NOT_FOUND();
+  }
   if (!content) return NOT_FOUND();
 
   return new Response(content.stream, {

@@ -45,7 +45,18 @@ describe("customer photo route", () => {
 
   it("404s when the blob is gone", async () => {
     files.readFile.mockResolvedValue(null);
-    expect((await call()).status).toBe(404);
+    const response = await call();
+    expect(response.status).toBe(404);
+    expect(await response.text()).toBe("Not found");
+  });
+
+  it("404s instead of 500ing when reading the blob throws", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    files.readFile.mockRejectedValue(new Error("blob storage down"));
+    const response = await call();
+    expect(response.status).toBe(404);
+    expect(await response.text()).toBe("Not found");
+    consoleError.mockRestore();
   });
 
   it("does nothing without a customer session", async () => {

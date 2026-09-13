@@ -33,6 +33,13 @@ describe("/project", () => {
     expect(screen.getByRole("link", { name: "12 Palm Way, Henderson" })).toHaveAttribute("href", "/project/a");
     expect(screen.getByRole("link", { name: "Las Vegas" })).toHaveAttribute("href", "/project/b");
   });
+
+  it("labels a job with neither address nor city 'Your project'", async () => {
+    const bare = { id: "c", address: null, city: null };
+    requireCustomer.mockResolvedValue({ email: "maria@example.com", jobs: [one, bare] });
+    render(await Home());
+    expect(screen.getByRole("link", { name: "Your project" })).toHaveAttribute("href", "/project/c");
+  });
 });
 
 describe("/project/[jobId]", () => {

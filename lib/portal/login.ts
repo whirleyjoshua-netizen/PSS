@@ -19,7 +19,7 @@ export async function issueCustomerLink(email: string, minutes: number): Promise
   const token = newToken();
   await db()`
     insert into customer_login_tokens (token_hash, email, expires_at)
-    values (${hashToken(token)}, ${email}, now() + ${`${minutes} minutes`}::interval)`;
+    values (${hashToken(token)}, ${normalizeEmail(email)}, now() + ${`${minutes} minutes`}::interval)`;
   return `${portalOrigin()}/project/auth?token=${token}`;
 }
 

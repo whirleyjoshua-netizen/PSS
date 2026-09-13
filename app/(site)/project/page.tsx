@@ -13,7 +13,7 @@ export default async function ProjectHome() {
         {jobs.map((job) => (
           <li key={job.id}>
             <Link href={`/project/${job.id}`} className="block min-h-11 p-4 underline-offset-4 hover:underline">
-              {[job.address, job.city].filter(Boolean).join(", ")}
+              {[job.address, job.city].filter(Boolean).join(", ") || "Your project"}
             </Link>
           </li>
         ))}

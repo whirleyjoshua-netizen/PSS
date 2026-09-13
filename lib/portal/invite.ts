@@ -12,7 +12,7 @@ const bareDomain = business.domain.replace(/^https?:\/\//, "");
 /** Plain text, like the other customer emails. */
 export function inviteEmailText(input: { firstName: string; link: string }): string {
   return [
-    `Hi ${input.firstName},`,
+    input.firstName ? `Hi ${input.firstName},` : "Hi there,",
     "",
     "Thanks for having us out. You can follow your project, from quote to install, on your own page:",
     "",
@@ -35,7 +35,7 @@ export async function sendPortalInvite(job: Job, actor: string): Promise<void> {
   if (!email) throw new Error("This job has no email address");
 
   const link = await issueCustomerLink(email, INVITE_MINUTES);
-  const firstName = job.name.trim().split(/\s+/)[0];
+  const firstName = job.name.trim().split(/\s+/)[0] || "";
   const { error } = await new Resend(apiKey).emails.send({
     from: `${business.name} <${from}>`,
     to: email,
@@ -71,7 +71,7 @@ export async function autoInvite(jobId: string): Promise<void> {
       `update leads set portal_invited_at = now()
        where id = $1 and portal_invited_at is null
          and nullif(trim(email), '') is not null and status = any($2::text[])
-       returning ${JOB_COLUMNS}`,
+       returning ${JOB_COLUMNS}, portal_invited_at::text as claimed_at`,
       [jobId, [...PORTAL_STAGES]],
     );
     if (!rows[0]) return;
@@ -80,7 +80,8 @@ export async function autoInvite(jobId: string): Promise<void> {
       await sendPortalInvite(toJob(rows[0]), "system");
     } catch (error) {
       console.error(`Portal invite failed for job ${jobId}`, error);
-      await db()`update leads set portal_invited_at = null where id = ${jobId}`;
+      const claimedAt = rows[0].claimed_at as string;
+      await db()`update leads set portal_invited_at = null where id = ${jobId} and portal_invited_at = ${claimedAt}::timestamptz`;
     }
   } catch (error) {
     console.error(`Portal invite could not run for job ${jobId}`, error);
