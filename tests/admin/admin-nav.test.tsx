@@ -5,7 +5,7 @@ const pathname = vi.fn(() => "/admin");
 vi.mock("next/navigation", () => ({ usePathname: () => pathname() }));
 vi.mock("@/app/admin/actions", () => ({ signOut: vi.fn(async () => {}) }));
 
-const { AdminNav } = await import("@/app/admin/AdminNav");
+const { AdminNav, initialsFor } = await import("@/app/admin/AdminNav");
 
 // The desktop column and the phone menu render the same links; check the column.
 const column = () => screen.getAllByRole("navigation", { name: "Admin" })[0];
@@ -43,5 +43,20 @@ describe("AdminNav", () => {
 
     expect(screen.getAllByText("owner@example.com").length).toBeGreaterThan(0);
     expect(screen.getAllByRole("button", { name: "Sign out" }).length).toBeGreaterThan(0);
+  });
+});
+
+describe("sidebar look", () => {
+  it("shows the Premier Shade Solutions logo and an initials badge", () => {
+    pathname.mockReturnValue("/admin");
+    render(<AdminNav email="joshua.whirley@example.com" />);
+    expect(screen.getAllByRole("img", { name: "Premier Shade Solutions" }).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("JW").length).toBeGreaterThan(0);
+  });
+
+  it("makes initials from the email's local part", () => {
+    expect(initialsFor("joshua.whirley@example.com")).toBe("JW");
+    expect(initialsFor("owner@example.com")).toBe("OW");
+    expect(initialsFor("a@example.com")).toBe("A");
   });
 });
