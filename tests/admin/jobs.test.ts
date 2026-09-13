@@ -122,3 +122,28 @@ describe("changing jobs", () => {
     expect(text(sql.mock.calls[0])).toContain("insert into leads");
   });
 });
+
+describe("searching jobs", () => {
+  it("keeps the plain query when there is no search", async () => {
+    await jobs.listJobs({ includeLost: false, search: "   " });
+    expect(sql.query.mock.calls[0][1]).toEqual([false]);
+  });
+
+  it("matches name, email, city and address, and phone by digits, with parameters", async () => {
+    await jobs.listJobs({ includeLost: true, search: " Reyes 702 " });
+    const [statement, params] = sql.query.mock.calls[0];
+    expect(statement).toContain("name ilike $2");
+    expect(statement).toContain("email ilike $2");
+    expect(statement).toContain("city ilike $2");
+    expect(statement).toContain("address ilike $2");
+    expect(statement).toContain("phone like");
+    expect(params).toEqual([true, "%Reyes 702%", "702"]);
+  });
+
+  it("escapes LIKE wildcards and caps the length", async () => {
+    await jobs.listJobs({ includeLost: false, search: `50%_off\\${"x".repeat(200)}` });
+    const [, params] = sql.query.mock.calls[0];
+    expect(params[1]).toMatch(/^%50\\%\\_off\\\\x+%$/);
+    expect((params[1] as string).length).toBeLessThanOrEqual(100 + 2 + 3);
+  });
+});

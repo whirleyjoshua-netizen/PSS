@@ -38,3 +38,7 @@ export const formatWhen = (date: Date): string =>
 /** The Las Vegas calendar date of an instant, as YYYY-MM-DD. */
 export const lasVegasDate = (date: Date): string =>
   new Intl.DateTimeFormat("en-CA", { timeZone: ZONE, year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
+
+/** "Sun, Sep 13, 2026" in Las Vegas time, for the board header. */
+export const formatDay = (date: Date): string =>
+  date.toLocaleDateString("en-US", { timeZone: ZONE, weekday: "short", month: "short", day: "numeric", year: "numeric" });

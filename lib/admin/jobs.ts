@@ -84,10 +84,28 @@ export function toJob(row: Record<string, unknown>): Job {
   };
 }
 
-export async function listJobs({ includeLost }: { includeLost: boolean }): Promise<Job[]> {
+const SEARCH_MAX = 100;
+
+/** `%`, `_` and `\` are LIKE wildcards; escape them so a search is literal. */
+const likePattern = (term: string) => `%${term.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+
+export async function listJobs({ includeLost, search }: { includeLost: boolean; search?: string }): Promise<Job[]> {
+  const term = (search ?? "").trim().slice(0, SEARCH_MAX);
+  if (!term) {
+    const rows = await db().query(
+      `select ${JOB_COLUMNS} from leads where ($1 or status <> 'lost') order by stage_changed_at desc`,
+      [includeLost],
+    );
+    return rows.map(toJob);
+  }
+  const digits = term.replace(/\D/g, "");
   const rows = await db().query(
-    `select ${JOB_COLUMNS} from leads where ($1 or status <> 'lost') order by stage_changed_at desc`,
-    [includeLost],
+    `select ${JOB_COLUMNS} from leads
+     where ($1 or status <> 'lost')
+       and (name ilike $2 or email ilike $2 or city ilike $2 or address ilike $2
+            or ($3 <> '' and phone like '%' || $3 || '%'))
+     order by stage_changed_at desc`,
+    [includeLost, likePattern(term), digits],
   );
   return rows.map(toJob);
 }

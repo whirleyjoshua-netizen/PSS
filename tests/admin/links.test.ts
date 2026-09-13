@@ -20,3 +20,11 @@ describe("mapsHref", () => {
     expect(mapsHref(null, "Henderson")).toBe("https://maps.google.com/?q=Henderson%2C%20NV");
   });
 });
+
+describe("boardHref with search", () => {
+  it("carries q between lost and job", () => {
+    expect(boardHref({ lost: true, q: "reyes smith", job: "abc" })).toBe("/admin?lost=1&q=reyes%20smith&job=abc");
+    expect(boardHref({ lost: false, q: "" })).toBe("/admin");
+    expect(boardHref({ lost: false, q: null, job: "abc" })).toBe("/admin?job=abc");
+  });
+});
