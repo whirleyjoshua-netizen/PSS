@@ -8,7 +8,8 @@ export const metadata: Metadata = {
 };
 
 /**
- * Owner-only area. Deliberately plain: it is a tool, not a page to market.
+ * Owner-only area. Uses the Premier Shade Solutions brand palette and logo, with a
+ * dark sidebar and warm ground — the owners' own tool, not a page to market.
  * Signed-in pages get the left column; sign-in and the link confirm page do not.
  * Each page still calls requireAdmin() itself — this lookup only picks the chrome.
  */

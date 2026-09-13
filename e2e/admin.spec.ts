@@ -212,5 +212,5 @@ test("search finds a job, and a column's add button starts a job in that stage",
 
   await page.getByRole("searchbox", { name: "Search jobs" }).fill(name.slice(-8));
   await page.getByRole("searchbox", { name: "Search jobs" }).press("Enter");
-  await expect(page.getByRole("link", { name: new RegExp(name) })).toBeVisible();
+  await expect(page.getByRole("region", { name: /quoted/i }).getByRole("link", { name: new RegExp(name) })).toBeVisible();
 });

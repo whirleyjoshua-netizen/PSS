@@ -118,7 +118,7 @@ These are added to `@theme` in `app/globals.css`.
   4. The interests, when set.
   5. A clock icon with "N days in stage".
 - **Overdue:** a warm border, plus "· OVERDUE" in `--color-overdue` beside the days. The accessible name still includes "overdue".
-- **Selected (panel open):** a champagne outline, with `aria-current="true"` kept.
+- **Selected (panel open):** a champagne-ink outline, with `aria-current="true"` kept.
 - Cards still link to the board URL with `job=<id>`, keeping `lost` and `q`.
 
 ## 7. New-job form (`app/admin/jobs/new`)
@@ -143,7 +143,7 @@ These are added to `@theme` in `app/globals.css`.
 ## 9. Code layout
 
 - `app/globals.css`: the §4 tokens, and a slimmed `.admin-theme` (system-sans type, `--color-admin-ground` background).
-- `components/admin/icons.tsx` (new): inline SVG icons (jobs, plus, settings, sign-out, search, pin, clock, and one per stage). Each is `aria-hidden` and sized with `1em`.
+- `components/admin/icons.tsx` (new): inline SVG icons (jobs, plus, settings, sign-out, search, pin, clock, and one per stage). Each is `aria-hidden` and sized by the caller's `size-*` class (default `size-4`).
 - `lib/admin/stages.ts`: an icon and color-token name per stage, kept next to the existing stage list so they stay in step.
 - `lib/admin/links.ts`: `boardHref` gains `q`.
 - `lib/admin/jobs.ts`: `listJobs({ includeLost, search })`, and `createJob` accepts `stage`.
@@ -184,7 +184,7 @@ These are added to `@theme` in `app/globals.css`.
   - It shows the three links with `aria-current`.
   - The initials badge.
 - The board:
-  - It renders six tiles linking to `#stage-*`.
+  - It renders seven tiles linking to `#stage-*`.
   - Each column has an add link to `/admin/jobs/new?stage=<value>`, and New lead's reads "+ Add lead".
   - The search form keeps `lost` and `job`, and the "N jobs match" line shows with a Clear link.
 - Cards keep their overdue and selected behavior, and all link parameters are preserved.
