@@ -18,6 +18,9 @@ const reviewsDb = {
   releaseReview: vi.fn(),
 };
 vi.mock("@/lib/reviews/db", () => reviewsDb);
+vi.mock("next/server", () => ({ after: (cb: () => unknown) => { cb(); } }));
+const invite = { autoInvite: vi.fn(), sendPortalInvite: vi.fn() };
+vi.mock("@/lib/portal/invite", () => invite);
 
 const actions = await import("@/app/admin/jobs/actions");
 const ID = "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c";
@@ -41,6 +44,7 @@ beforeEach(() => {
   reviewsDb.stampReviewRequested.mockResolvedValue({ previous: null });
   reviewsDb.restoreReviewRequested.mockResolvedValue(undefined);
   reviewsDb.releaseReview.mockResolvedValue(undefined);
+  Object.values(invite).forEach((fn) => fn.mockReset());
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
 

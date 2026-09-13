@@ -2,10 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import { requireAdmin } from "@/lib/admin/session";
 import { addNote, createJob, getJob, setStage, updateDetails } from "@/lib/admin/jobs";
 import { detailsSchema, lostSchema, newJobSchema, noteSchema } from "@/lib/admin/schema";
 import type { Stage } from "@/lib/admin/stages";
+import { autoInvite, sendPortalInvite } from "@/lib/portal/invite";
+import { isPortalStage } from "@/lib/portal/progress";
 import { ensureReferralCode, markReferralPaid } from "@/lib/referrals/db";
 import { releaseReview, restoreReviewRequested, setReviewOptOut, stampReviewRequested } from "@/lib/reviews/db";
 import { sendReviewRequest } from "@/lib/reviews/send";
@@ -39,7 +42,10 @@ function captureValues(formData: FormData, keys: string[]): Record<string, strin
 
 export async function moveStage(id: string, to: Stage): Promise<void> {
   const { email } = await requireAdmin();
-  await setStage(id, to, email);
+  const changed = await setStage(id, to, email);
+  // After the consultation, the customer gets their project page. autoInvite
+  // sends at most once per job and never throws.
+  if (changed && isPortalStage(to)) after(() => autoInvite(id));
   refresh(id);
 }
 
@@ -130,6 +136,22 @@ export async function createReferralLink(id: string, _prev: FormState, _formData
   await requireAdmin();
   const code = await ensureReferralCode(id);
   if (!code) return MISSING;
+  refresh(id);
+  return { ok: true };
+}
+
+export async function sendPortalInviteNow(id: string, _prev: FormState, _formData: FormData): Promise<FormState> {
+  const { email } = await requireAdmin();
+  const job = await getJob(id);
+  if (!job) return MISSING;
+  if (!job.email?.trim()) return { error: "This job has no email address." };
+  if (!isPortalStage(job.status)) return { error: "Customers can be invited once the job is Quoted." };
+  try {
+    await sendPortalInvite(job, email);
+  } catch (error) {
+    console.error("Portal invite failed", error);
+    return { error: "Could not send the invite. Check the settings and try again." };
+  }
   refresh(id);
   return { ok: true };
 }

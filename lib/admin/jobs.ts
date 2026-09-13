@@ -31,6 +31,8 @@ export type Job = {
   referralPaidAt: Date | null;
   reviewRequestedAt: Date | null;
   reviewOptOut: boolean;
+  /** When the customer was last sent a portal invite. Optional so older fixtures still type-check. */
+  portalInvitedAt?: Date | null;
 };
 
 export type JobEvent = {
@@ -50,7 +52,7 @@ export const isUuid = (id: string): boolean => UUID.test(id);
 export const JOB_COLUMNS = `id, created_at, name, phone, email, address, city, treatments, window_count,
   heard_via, notes, source, status, stage_changed_at, visit_at, quote_cents, sold_cents,
   deposit_cents, brands, ordered_on::text as ordered_on, install_on::text as install_on, lost_reason,
-  referral_code, referred_by, referral_paid_at, review_requested_at, review_opt_out`;
+  referral_code, referred_by, referral_paid_at, review_requested_at, review_opt_out, portal_invited_at`;
 
 export function toJob(row: Record<string, unknown>): Job {
   return {
@@ -81,6 +83,7 @@ export function toJob(row: Record<string, unknown>): Job {
     referralPaidAt: row.referral_paid_at ? new Date(row.referral_paid_at as string) : null,
     reviewRequestedAt: row.review_requested_at ? new Date(row.review_requested_at as string) : null,
     reviewOptOut: row.review_opt_out === true,
+    portalInvitedAt: row.portal_invited_at ? new Date(row.portal_invited_at as string) : null,
   };
 }
 
