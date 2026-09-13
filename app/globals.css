@@ -27,7 +27,15 @@
 
   /* Owner admin — see docs/superpowers/specs/2026-09-13-admin-pss-look-design.md §4.
      Stage colors are for edges, dots and icon tints only, never text (most are
-     under 4.5:1 on white). --color-overdue is 6.5:1 on white and may be text. */
+     under 4.5:1 on white). --color-overdue is 6.5:1 on white and may be text.
+
+     Contrast ratios recorded here (computed with the WCAG relative-luminance
+     formula):
+     - sidebar-muted on sidebar: ~7.3:1
+     - overdue on white: ~6.5:1; overdue on ivory: ~6.0:1
+     - ink-soft on sand/40 over the admin ground: ~6.0:1
+     - champagne-ink on the admin ground: ~5.3:1
+     - champagne (the sidebar focus ring) on sidebar: computed 8.62:1 */
   --color-sidebar: #1E1E1E;
   --color-sidebar-ink: #F7F5F0;
   --color-sidebar-muted: #B3AAA0;
@@ -75,6 +83,13 @@ h1, h2, h3, h4 {
 :focus-visible {
   outline: 2px solid var(--color-champagne-ink);
   outline-offset: 2px;
+}
+
+/* Unlayered (not @layer utilities) so it beats the champagne-ink default above on the
+   dark sidebar, where champagne-ink is only ~2.75:1 and fails WCAG 1.4.11. Moving this
+   into a layer, or relying on a Tailwind utility for it, would let the darker default win. */
+.admin-sidebar :focus-visible {
+  outline-color: var(--color-champagne);
 }
 
 /*

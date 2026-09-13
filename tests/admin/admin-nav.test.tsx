@@ -46,6 +46,15 @@ describe("AdminNav", () => {
   });
 });
 
+describe("sidebar focus ring", () => {
+  it("puts admin-sidebar on the desktop aside and the phone details, for the focus-ring override", () => {
+    pathname.mockReturnValue("/admin");
+    const { container } = render(<AdminNav email="owner@example.com" />);
+    expect(container.querySelector("aside")).toHaveClass("admin-sidebar");
+    expect(container.querySelector("details")).toHaveClass("admin-sidebar");
+  });
+});
+
 describe("sidebar look", () => {
   it("shows the Premier Shade Solutions logo and an initials badge", () => {
     pathname.mockReturnValue("/admin");

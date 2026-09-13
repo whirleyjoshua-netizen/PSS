@@ -38,7 +38,7 @@ function NavLinks({ pathname }: { pathname: string }) {
             <Link
               href={href}
               aria-current={active ? "page" : undefined}
-              className={`flex min-h-11 items-center gap-3 rounded-lg border-l-2 px-3 text-sm transition-colors focus-visible:outline-champagne ${
+              className={`flex min-h-11 items-center gap-3 rounded-lg border-l-2 px-3 text-sm transition-colors ${
                 active
                   ? "border-champagne bg-champagne/15 font-semibold text-sidebar-ink"
                   : "border-transparent text-sidebar-muted hover:bg-sidebar-ink/5 hover:text-sidebar-ink"
@@ -62,7 +62,7 @@ function Account({ email }: { email: string }) {
       </span>
       <span className="flex min-w-0 flex-col gap-1">
         <span className="truncate text-xs text-sidebar-muted" title={email}>{email}</span>
-        <button type="submit" className="flex items-center gap-1 self-start text-sm text-sidebar-ink underline underline-offset-4 focus-visible:outline-champagne">
+        <button type="submit" className="flex items-center gap-1 self-start text-sm text-sidebar-ink underline underline-offset-4">
           Sign out <Icon name="signout" className="size-4" />
         </button>
       </span>
@@ -85,7 +85,7 @@ export function AdminNav({ email }: { email: string }) {
 
   return (
     <>
-      <aside className="hidden w-60 shrink-0 flex-col justify-between bg-sidebar px-3 py-6 text-sidebar-ink md:flex">
+      <aside className="admin-sidebar hidden w-60 shrink-0 flex-col justify-between bg-sidebar px-3 py-6 text-sidebar-ink md:flex">
         <div className="flex flex-col gap-8">
           <Brand />
           <nav aria-label="Admin">
@@ -95,7 +95,7 @@ export function AdminNav({ email }: { email: string }) {
         <Account email={email} />
       </aside>
 
-      <details className="bg-sidebar text-sidebar-ink md:hidden">
+      <details className="admin-sidebar bg-sidebar text-sidebar-ink md:hidden">
         <summary className="flex min-h-14 cursor-pointer items-center justify-between px-4">
           <Logo tone="dark" className="text-[0.95rem]" />
           <span className="text-sm text-sidebar-muted">Menu</span>
