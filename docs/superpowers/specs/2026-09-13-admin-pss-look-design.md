@@ -55,6 +55,7 @@ These are added to `@theme` in `app/globals.css`.
 | `--color-stage-visit` | `#5B8DB8` | Visit booked: sky |
 | `--color-stage-quoted` | `#8A6A9E` | Quoted: plum |
 | `--color-stage-sold` | `#5E9A5A` | Sold: green |
+| `--color-stage-ordered` | `#B07D4F` | Ordered: copper |
 | `--color-stage-installed` | `#1E1E1E` | Installed: charcoal |
 | `--color-overdue` | `#B3261E` | Overdue text, and the overdue label's border |
 
@@ -96,7 +97,7 @@ These are added to `@theme` in `app/globals.css`.
   - Clear search removes `q`.
 
 ### Stage tiles
-- A row of six tiles, one per stage from New lead to Installed. Each shows the stage icon, the count and a chevron.
+- A row of seven tiles, one per working stage from New lead to Installed (including Ordered; the mockups showed six only because they had no Ordered stage). Each shows the stage icon, the count and a chevron.
 - Each tile is a link to its column (`#stage-<value>`), keeping all board parameters.
 - Tiles wrap to two or three per row on narrow screens.
 - They replace the plain "Jobs per stage" line.
