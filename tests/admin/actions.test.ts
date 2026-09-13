@@ -34,7 +34,7 @@ beforeEach(() => {
   jobs.updateDetails.mockResolvedValue(true);
   jobs.addNote.mockResolvedValue(true);
   [...Object.values(referrals), sendReviewRequest, ...Object.values(reviewsDb)].forEach((fn) => fn.mockReset());
-  jobs.getJob.mockResolvedValue({ id: ID, email: "dana@example.com", reviewOptOut: false });
+  jobs.getJob.mockResolvedValue({ id: ID, status: "installed", email: "dana@example.com", reviewOptOut: false });
   referrals.ensureReferralCode.mockResolvedValue("K7M2QX");
   referrals.markReferralPaid.mockResolvedValue(true);
   reviewsDb.setReviewOptOut.mockResolvedValue(true);
@@ -130,14 +130,21 @@ describe("referrals and reviews", () => {
   });
 
   it("will not send to a job without an email", async () => {
-    jobs.getJob.mockResolvedValue({ id: ID, email: null, reviewOptOut: false });
+    jobs.getJob.mockResolvedValue({ id: ID, status: "installed", email: null, reviewOptOut: false });
     expect((await actions.sendReviewNow(ID, {}, form({}))).error).toMatch(/no email/i);
     expect(sendReviewRequest).not.toHaveBeenCalled();
   });
 
   it("will not send when review requests are turned off", async () => {
-    jobs.getJob.mockResolvedValue({ id: ID, email: "dana@example.com", reviewOptOut: true });
+    jobs.getJob.mockResolvedValue({ id: ID, status: "installed", email: "dana@example.com", reviewOptOut: true });
     expect((await actions.sendReviewNow(ID, {}, form({}))).error).toMatch(/turned off/i);
+  });
+
+  it("will not send before the job is installed, and claims nothing", async () => {
+    jobs.getJob.mockResolvedValue({ id: ID, status: "sold", email: "dana@example.com", reviewOptOut: false });
+    expect((await actions.sendReviewNow(ID, {}, form({}))).error).toMatch(/installed/i);
+    expect(reviewsDb.stampReviewRequested).not.toHaveBeenCalled();
+    expect(sendReviewRequest).not.toHaveBeenCalled();
   });
 
   it("reports a failed send inline", async () => {

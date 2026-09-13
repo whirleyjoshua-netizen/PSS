@@ -63,7 +63,7 @@ The 14-day window stops the first run after launch from emailing every past cust
 **On the job page** (shown for jobs at Sold or later):
 - **Review request:** the send date, or "Not sent".
   - A "Don't send a review request" checkbox (`review_opt_out`).
-  - A "Send now" button, which ignores the date window but respects the opt-out and the missing-email check. The owner can use it to resend.
+  - A "Send now" button, shown only once the job is Installed (the email thanks the customer for the installation). Before that, the section says the request goes out the morning after installation. Send now ignores the date window but respects the opt-out and the missing-email check, and the server refuses it for a job that is not Installed. The owner can use it to resend.
 - **Referral link:** "Get referral link" creates the code if needed and shows the link with a copy button.
 
 ## 5. Referral tracking and rewards

@@ -50,6 +50,13 @@ describe("review section", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(/couldn't save/i);
     expect(checkbox).not.toBeChecked();
   });
+
+  it("offers no Send now before installation, and says when the request will go out", () => {
+    render(<ReviewSection job={{ ...job, status: "sold" }} />);
+    expect(screen.queryByRole("button", { name: "Send now" })).toBeNull();
+    expect(screen.getByText(/morning after installation/i)).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: /don't send/i })).toBeInTheDocument();
+  });
 });
 
 describe("referral section", () => {

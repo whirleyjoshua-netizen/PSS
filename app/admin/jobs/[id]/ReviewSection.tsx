@@ -42,11 +42,15 @@ export function ReviewSection({ job }: { job: Job }) {
         Don&apos;t send a review request
       </label>
       {optOutError ? <p role="alert">{optOutError}</p> : null}
-      <form action={action} className="flex flex-wrap items-center gap-3">
-        <Button type="submit" variant="outline" disabled={sending}>{sending ? "Sending…" : "Send now"}</Button>
-        {state.error ? <p role="alert">{state.error}</p> : null}
-        {state.ok ? <p role="status" className="text-ink-soft">Sent</p> : null}
-      </form>
+      {job.status === "installed" ? (
+        <form action={action} className="flex flex-wrap items-center gap-3">
+          <Button type="submit" variant="outline" disabled={sending}>{sending ? "Sending…" : "Send now"}</Button>
+          {state.error ? <p role="alert">{state.error}</p> : null}
+          {state.ok ? <p role="status" className="text-ink-soft">Sent</p> : null}
+        </form>
+      ) : (
+        <p className="text-ink-soft">The request goes out automatically the morning after installation.</p>
+      )}
     </div>
   );
 }

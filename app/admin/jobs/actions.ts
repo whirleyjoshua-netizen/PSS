@@ -101,6 +101,8 @@ export async function sendReviewNow(id: string, _prev: FormState, _formData: For
   if (!job) return MISSING;
   if (!job.email) return { error: "This job has no email address." };
   if (job.reviewOptOut) return { error: "Review requests are turned off for this job." };
+  // The email thanks the customer for the installation, so never send it early.
+  if (job.status !== "installed") return { error: "Review requests go out once the job is installed." };
   // Stamped before sending, so a crash after the email goes out never leaves
   // the job eligible for tomorrow's cron too.
   const stamped = await stampReviewRequested(id);
