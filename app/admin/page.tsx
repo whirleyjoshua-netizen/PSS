@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Icon } from "@/components/admin/icons";
 import { listFiles } from "@/lib/admin/files";
-import { getJob, listJobs } from "@/lib/admin/jobs";
+import { getJob, listJobs, SEARCH_MAX } from "@/lib/admin/jobs";
 import { boardHref } from "@/lib/admin/links";
 import { listMeasurements } from "@/lib/admin/measurements";
 import { requireAdmin } from "@/lib/admin/session";
@@ -32,7 +32,7 @@ export default async function BoardPage({
   const params = await searchParams;
   const includeLost = first(params.lost) === "1";
   const openId = first(params.job);
-  const q = (first(params.q) ?? "").trim().slice(0, 100);
+  const q = (first(params.q) ?? "").trim().slice(0, SEARCH_MAX);
   const [jobs, panel] = await Promise.all([
     listJobs({ includeLost, search: q }),
     openId ? loadPanel(openId) : Promise.resolve(null),
@@ -66,7 +66,7 @@ export default async function BoardPage({
               type="search"
               name="q"
               defaultValue={q}
-              maxLength={100}
+              maxLength={SEARCH_MAX}
               placeholder="Search jobs, customers, or addresses…"
               className="min-h-11 flex-1 bg-transparent text-sm outline-none"
             />

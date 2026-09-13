@@ -15,7 +15,7 @@ const job: Job = {
 const jobSold: Job = { ...job, id: ID, status: "sold" };
 const jobB: Job = { ...job, id: ID_B, name: "Chris Lane", status: "quoted" };
 
-const jobs = { listJobs: vi.fn(), getJob: vi.fn() };
+const jobs = { listJobs: vi.fn(), getJob: vi.fn(), SEARCH_MAX: 100 };
 vi.mock("@/lib/admin/jobs", () => jobs);
 const listMeasurements = vi.fn();
 vi.mock("@/lib/admin/measurements", () => ({ listMeasurements }));

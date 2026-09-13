@@ -2,7 +2,7 @@
 
 /** Shared field chrome so every input is labelled and styled identically. */
 
-const CONTROL =
+export const CONTROL =
   "w-full min-h-11 border border-rule bg-ivory px-4 py-3 text-charcoal " +
   "placeholder:text-taupe/60 focus:border-champagne-ink focus:outline-none";
 
