@@ -23,3 +23,11 @@ create table if not exists customer_sessions (
   created_at timestamptz not null default now(),
   expires_at timestamptz not null
 );
+
+-- Jobs already past the consultation at launch are invited by hand, not automatically.
+-- On later runs the column exists and has no nulls, so these statements change nothing.
+alter table leads add column if not exists portal_auto_invite boolean;
+update leads set portal_auto_invite = false where portal_auto_invite is null and status in ('quoted', 'sold', 'ordered', 'installed');
+update leads set portal_auto_invite = true where portal_auto_invite is null;
+alter table leads alter column portal_auto_invite set default true;
+alter table leads alter column portal_auto_invite set not null;

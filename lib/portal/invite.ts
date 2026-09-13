@@ -61,9 +61,11 @@ export async function sendPortalInvite(job: Job, actor: string): Promise<void> {
 
 /**
  * The automatic invite after a stage change. Claims the job first (only if
- * never invited, it has an email, and it is in a portal stage), so two quick
- * stage changes send one email. If the send fails the claim is released so
- * the owner's button can retry. Never throws: it runs in after().
+ * never invited, it has an email, it is in a portal stage, and it is flagged
+ * for automatic invites — jobs already past the consultation at launch are
+ * invited by hand instead), so two quick stage changes send one email. If
+ * the send fails the claim is released so the owner's button can retry.
+ * Never throws: it runs in after().
  */
 export async function autoInvite(jobId: string): Promise<void> {
   try {
@@ -71,6 +73,7 @@ export async function autoInvite(jobId: string): Promise<void> {
       `update leads set portal_invited_at = now()
        where id = $1 and portal_invited_at is null
          and nullif(trim(email), '') is not null and status = any($2::text[])
+         and portal_auto_invite
        returning ${JOB_COLUMNS}, portal_invited_at::text as claimed_at`,
       [jobId, [...PORTAL_STAGES]],
     );

@@ -85,6 +85,7 @@ describe("autoInvite", () => {
     expect(claim).toContain("portal_invited_at is null");
     expect(claim).toContain("nullif(trim(email), '') is not null");
     expect(claim).toContain("status = any($2::text[])");
+    expect(claim).toContain("and portal_auto_invite");
     expect(claim).toContain("portal_invited_at::text as claimed_at");
     expect(params).toEqual([JOB, ["quoted", "sold", "ordered", "installed"]]);
     expect(send).toHaveBeenCalledTimes(1);
