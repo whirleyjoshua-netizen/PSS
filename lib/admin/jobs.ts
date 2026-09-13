@@ -181,14 +181,14 @@ export async function addNote(id: string, body: string, actor: string): Promise<
 export async function createJob(input: NewJobInput, actor: string): Promise<string> {
   const rows = await db()`
     with created as (
-      insert into leads (name, phone, email, city, address, notes, source)
+      insert into leads (name, phone, email, city, address, notes, source, status)
       values (${input.name}, ${input.phone}, ${input.email ?? null}, ${input.city},
-              ${input.address ?? null}, ${input.notes ?? null}, ${input.source})
+              ${input.address ?? null}, ${input.notes ?? null}, ${input.source}, ${input.stage})
       returning id
     ),
     logged as (
       insert into job_events (lead_id, actor, kind, to_status, body)
-      select id, ${actor}, 'stage', 'new', 'Added by hand' from created
+      select id, ${actor}, 'stage', ${input.stage}, 'Added by hand' from created
     )
     select id from created`;
   return rows[0].id as string;

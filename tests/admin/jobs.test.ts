@@ -115,11 +115,22 @@ describe("changing jobs", () => {
   it("creates a hand-entered job and returns its id", async () => {
     sql.mockResolvedValue([{ id: ID }]);
     const id = await jobs.createJob(
-      { name: "Dana Reyes", phone: "7025550134", city: "Henderson", source: "phone" },
+      { name: "Dana Reyes", phone: "7025550134", city: "Henderson", source: "phone", stage: "new" },
       "owner@example.com",
     );
     expect(id).toBe(ID);
     expect(text(sql.mock.calls[0])).toContain("insert into leads");
+  });
+
+  it("creates a hand-entered job in the chosen stage and logs it", async () => {
+    sql.mockResolvedValue([{ id: ID }]);
+    await jobs.createJob(
+      { name: "Dana Reyes", phone: "7025550134", city: "Henderson", source: "phone", stage: "quoted" },
+      "owner@example.com",
+    );
+    const statement = text(sql.mock.calls[0]);
+    expect(statement).toContain("status");
+    expect(sql.mock.calls[0].filter((v: unknown) => v === "quoted")).toHaveLength(2);
   });
 });
 
