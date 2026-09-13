@@ -11,7 +11,7 @@ import { JobFiles } from "./jobs/[id]/JobFiles";
 import { StageControls } from "./jobs/[id]/StageControls";
 
 const PANEL =
-  "fixed inset-0 z-40 flex flex-col gap-8 overflow-y-auto bg-ivory p-4 md:sticky md:inset-auto md:top-6 md:z-auto md:max-h-[calc(100vh-3rem)] md:w-[28rem] md:shrink-0 md:border md:border-rule md:p-6";
+  "fixed inset-0 z-40 flex flex-col gap-8 overflow-y-auto overscroll-contain bg-ivory p-4 lg:sticky lg:inset-auto lg:top-6 lg:z-auto lg:max-h-[calc(100dvh-3rem)] lg:w-[28rem] lg:shrink-0 lg:border lg:border-rule lg:p-6";
 const HEADING = "font-display text-xs uppercase tracking-[0.2em] text-champagne-ink";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
