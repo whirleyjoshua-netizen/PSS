@@ -17,9 +17,8 @@ export default defineConfig({
 
   projects: [
     { name: "desktop", use: { ...devices["Desktop Chrome"] } },
-    // admin.spec.ts runs serially, desktop-only: its afterAll cleanup would
-    // otherwise race with a second project's copy of the same tests.
-    { name: "mobile", use: { ...devices["Pixel 7"] }, testIgnore: /admin\.spec\.ts/ },
+    // admin.spec.ts and portal.spec.ts run serially, desktop-only
+    { name: "mobile", use: { ...devices["Pixel 7"] }, testIgnore: /(admin|portal)\.spec\.ts/ },
   ],
 
   // Tests run against a production build, so what is verified is what ships.
@@ -33,7 +32,8 @@ export default defineConfig({
     env: process.env.E2E_POSTGRES_URL
       ? {
           POSTGRES_URL: process.env.E2E_POSTGRES_URL,
-          ADMIN_EMAILS: "e2e-owner@example.com",
+          // Each spec signs in as its own owner so their cleanups can't collide
+          ADMIN_EMAILS: "e2e-owner@example.com,e2e-portal-owner@example.com",
           ADMIN_BASE_URL: baseURL,
           // The e2e run posts real leads to the consultation API; this must
           // never send real email through Resend.

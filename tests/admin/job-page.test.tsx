@@ -10,6 +10,7 @@ const saveDetails = vi.fn<(...args: unknown[]) => Promise<FormState>>(async () =
 vi.mock("@/app/admin/jobs/actions", () => ({
   moveStage, saveNote, saveDetails,
   markLost: vi.fn(async () => ({})),
+  sendPortalInviteNow: vi.fn(),
 }));
 
 const { StageControls } = await import("@/app/admin/jobs/[id]/StageControls");

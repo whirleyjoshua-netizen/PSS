@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { deleteFile, getFile } from "@/lib/admin/files";
+import { deleteFile, getFile, setShared } from "@/lib/admin/files";
 import { addMeasurement, deleteMeasurement, updateMeasurement } from "@/lib/admin/measurements";
 import { measurementSchema } from "@/lib/admin/schema";
 import { requireAdmin } from "@/lib/admin/session";
@@ -63,6 +63,13 @@ export async function removeFile(jobId: string, fileId: string): Promise<void> {
   const file = await getFile(fileId);
   if (!file || file.leadId !== jobId) return;
   await deleteFile(file.id, email);
+  revalidatePath(`/admin/jobs/${jobId}`);
+  revalidatePath("/admin");
+}
+
+export async function setFileShared(jobId: string, fileId: string, shared: boolean): Promise<void> {
+  const { email } = await requireAdmin();
+  await setShared(jobId, fileId, shared, email);
   revalidatePath(`/admin/jobs/${jobId}`);
   revalidatePath("/admin");
 }

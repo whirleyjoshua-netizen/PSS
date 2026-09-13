@@ -9,8 +9,10 @@ import { formatCents } from "@/lib/admin/money";
 import { requireAdmin } from "@/lib/admin/session";
 import { STAGES, stageLabel } from "@/lib/admin/stages";
 import { formatWhen } from "@/lib/admin/time";
+import { isPortalStage } from "@/lib/portal/progress";
 import { listReferrals } from "@/lib/referrals/db";
 import { DetailsForm } from "./DetailsForm";
+import { InviteSection } from "./InviteSection";
 import { JobFiles } from "./JobFiles";
 import { NoteForm } from "./NoteForm";
 import { ReferralSection } from "./ReferralSection";
@@ -65,6 +67,16 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
       <section className="flex flex-col gap-4">
         <h2 className="font-display text-xs uppercase tracking-[0.2em] text-champagne-ink">Stage</h2>
         <StageControls job={job} />
+      </section>
+
+      <section className="flex flex-col gap-4">
+        <h2 className="font-display text-xs uppercase tracking-[0.2em] text-champagne-ink">Customer project page</h2>
+        <InviteSection
+          jobId={job.id}
+          hasEmail={Boolean(job.email?.trim())}
+          canInvite={isPortalStage(job.status)}
+          invitedLabel={job.portalInvitedAt ? formatWhen(job.portalInvitedAt) : null}
+        />
       </section>
 
       <section className="flex flex-col gap-4">

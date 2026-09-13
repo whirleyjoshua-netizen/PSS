@@ -9,6 +9,7 @@ vi.mock("@/app/admin/jobs/actions", () => ({
 vi.mock("@/app/admin/jobs/measure-actions", () => ({
   removeMeasurement: vi.fn(async () => {}),
   removeFile: vi.fn(async () => {}),
+  setFileShared: vi.fn(async () => {}),
 }));
 
 const { JobPanel } = await import("@/app/admin/JobPanel");
