@@ -2,7 +2,8 @@ import Link from "next/link";
 import { Icon } from "@/components/admin/icons";
 import type { Job } from "@/lib/admin/jobs";
 import { STAGES, stageLabel, type Stage } from "@/lib/admin/stages";
-import { daysInStage, isOverdue } from "@/lib/admin/overdue";
+import { isOverdue } from "@/lib/admin/overdue";
+import { DaysInStage } from "./DaysInStage";
 
 export function groupByStage(jobs: Job[], includeLost: boolean) {
   const stages: Stage[] = [...STAGES.map((s) => s.value), ...(includeLost ? (["lost"] as const) : [])];
@@ -19,7 +20,6 @@ export function JobCard({ job, now, href, selected = false }: {
   href: string;
   selected?: boolean;
 }) {
-  const days = daysInStage(job.stageChangedAt, now);
   const overdue = isOverdue(job, now);
   return (
     <Link
@@ -27,7 +27,7 @@ export function JobCard({ job, now, href, selected = false }: {
       aria-current={selected ? "true" : undefined}
       className={`flex flex-col gap-1.5 rounded-lg border bg-ivory p-3 text-sm shadow-sm transition-shadow hover:shadow-md ${
         overdue ? "border-overdue/50" : "border-rule"
-      } ${selected ? "outline outline-2 outline-offset-2 outline-champagne" : ""}`}
+      } ${selected ? "outline outline-2 outline-offset-2 outline-champagne-ink" : ""}`}
     >
       <span className="text-base font-semibold text-charcoal">{job.name}</span>
       {job.referredBy ? (
@@ -41,9 +41,7 @@ export function JobCard({ job, now, href, selected = false }: {
       </span>
       {job.treatments.length ? <span className="text-ink-soft">{job.treatments.join(", ")}</span> : null}
       <span className="flex items-center gap-1.5 text-xs uppercase tracking-[0.1em] text-ink-soft">
-        <Icon name="clock" className="size-4 shrink-0" />
-        {days === 1 ? "1 day" : `${days} days`} in stage
-        {overdue ? <strong className="font-semibold uppercase text-overdue">· Overdue</strong> : null}
+        <DaysInStage job={job} now={now} />
       </span>
     </Link>
   );

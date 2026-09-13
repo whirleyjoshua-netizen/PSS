@@ -50,7 +50,6 @@ describe("working stages and styles", () => {
       const style = STAGE_STYLE[stage];
       expect(style.icon).toBeTruthy();
       expect(style.edge).toMatch(/^border-t-/);
-      expect(style.dot).toMatch(/^bg-/);
       expect(style.tint).toMatch(/^text-/);
     }
     expect(STAGE_STYLE.quoted.edge).toBe("border-t-stage-quoted");

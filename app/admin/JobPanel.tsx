@@ -4,9 +4,9 @@ import type { Job } from "@/lib/admin/jobs";
 import type { WindowMeasurement } from "@/lib/admin/measurements";
 import { mapsHref } from "@/lib/admin/links";
 import { formatCents } from "@/lib/admin/money";
-import { daysInStage, isOverdue } from "@/lib/admin/overdue";
 import { formatWhen } from "@/lib/admin/time";
 import { formatPhone } from "@/lib/leads/schema";
+import { DaysInStage } from "./DaysInStage";
 import { JobFiles } from "./jobs/[id]/JobFiles";
 import { StageControls } from "./jobs/[id]/StageControls";
 
@@ -49,7 +49,6 @@ export function JobPanel({ job, measurements, files, now, closeHref }: {
     );
   }
 
-  const days = daysInStage(job.stageChangedAt, now);
   const balance = job.soldCents !== null && job.depositCents !== null ? job.soldCents - job.depositCents : null;
 
   return (
@@ -88,9 +87,8 @@ export function JobPanel({ job, measurements, files, now, closeHref }: {
           <Row label="Order" value={job.orderedOn ?? "—"} />
           <Row label="Install" value={job.installOn ?? "—"} />
         </dl>
-        <p className="font-display text-xs uppercase tracking-[0.12em] text-champagne-ink">
-          {days === 1 ? "1 day" : `${days} days`} in stage
-          {isOverdue(job, now) ? <strong className="ml-2 text-charcoal">· Overdue</strong> : null}
+        <p className="flex items-center gap-1.5 font-display text-xs uppercase tracking-[0.12em] text-champagne-ink">
+          <DaysInStage job={job} now={now} />
         </p>
       </Section>
 

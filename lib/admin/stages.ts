@@ -40,13 +40,13 @@ export const parseWorkingStage = (value: string | null | undefined): WorkingStag
  * Each stage's icon and color classes. The class names are complete literals so
  * Tailwind generates them; never build them by concatenation.
  */
-export const STAGE_STYLE: Record<Stage, { icon: IconName; edge: string; dot: string; tint: string }> = {
-  new: { icon: "lead", edge: "border-t-stage-new", dot: "bg-stage-new", tint: "text-stage-new" },
-  contacted: { icon: "phone", edge: "border-t-stage-contacted", dot: "bg-stage-contacted", tint: "text-stage-contacted" },
-  visit_booked: { icon: "calendar", edge: "border-t-stage-visit", dot: "bg-stage-visit", tint: "text-stage-visit" },
-  quoted: { icon: "document", edge: "border-t-stage-quoted", dot: "bg-stage-quoted", tint: "text-stage-quoted" },
-  sold: { icon: "cart", edge: "border-t-stage-sold", dot: "bg-stage-sold", tint: "text-stage-sold" },
-  ordered: { icon: "box", edge: "border-t-stage-ordered", dot: "bg-stage-ordered", tint: "text-stage-ordered" },
-  installed: { icon: "wrench", edge: "border-t-stage-installed", dot: "bg-stage-installed", tint: "text-stage-installed" },
-  lost: { icon: "lost", edge: "border-t-taupe", dot: "bg-taupe", tint: "text-taupe" },
+export const STAGE_STYLE: Record<Stage, { icon: IconName; edge: string; tint: string }> = {
+  new: { icon: "lead", edge: "border-t-stage-new", tint: "text-stage-new" },
+  contacted: { icon: "phone", edge: "border-t-stage-contacted", tint: "text-stage-contacted" },
+  visit_booked: { icon: "calendar", edge: "border-t-stage-visit", tint: "text-stage-visit" },
+  quoted: { icon: "document", edge: "border-t-stage-quoted", tint: "text-stage-quoted" },
+  sold: { icon: "cart", edge: "border-t-stage-sold", tint: "text-stage-sold" },
+  ordered: { icon: "box", edge: "border-t-stage-ordered", tint: "text-stage-ordered" },
+  installed: { icon: "wrench", edge: "border-t-stage-installed", tint: "text-stage-installed" },
+  lost: { icon: "lost", edge: "border-t-taupe", tint: "text-taupe" },
 };
