@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { consultationSchema } from "@/lib/leads/schema";
+import { WORKING_STAGES } from "./stages";
 import { MAX_EIGHTHS, REQUIREMENTS, toEighths, type Requirement } from "./measure-units";
 import { dollarsToCents } from "./money";
 import { fromLocalInput } from "./time";
@@ -56,6 +57,10 @@ export const newJobSchema = z.object({
   address: z.preprocess(blank, site.address),
   notes: z.preprocess(blank, site.notes),
   source: z.enum(HAND_SOURCES),
+  stage: z.preprocess(
+    (value) => (value === undefined || value === "" ? "new" : value),
+    z.enum(WORKING_STAGES, { error: "Pick a stage" }),
+  ),
 });
 
 const inches = z.preprocess(

@@ -25,4 +25,14 @@ describe("NewJobForm", () => {
     expect(screen.getByLabelText(/^phone$/i)).toHaveValue("abc");
     expect(screen.getByLabelText(/notes/i)).toHaveValue("Wants motorized");
   });
+
+  it("offers a stage picker, pre-set from the column the owner came from", () => {
+    render(<NewJobForm defaultStage="quoted" />);
+    expect(screen.getByLabelText("Stage")).toHaveValue("quoted");
+  });
+
+  it("defaults the stage to a new lead", () => {
+    render(<NewJobForm />);
+    expect(screen.getByLabelText("Stage")).toHaveValue("new");
+  });
 });

@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { newToken, hashToken } from "@/lib/admin/tokens";
 import { parseAllowlist, isAllowed } from "@/lib/admin/allowlist";
 import { dollarsToCents, formatCents } from "@/lib/admin/money";
-import { fromLocalInput, toLocalInput } from "@/lib/admin/time";
+import { fromLocalInput, toLocalInput, formatDay } from "@/lib/admin/time";
 
 describe("tokens", () => {
   it("are long, url-safe, and never repeat", () => {
@@ -67,5 +67,12 @@ describe("Las Vegas time", () => {
 
   it("round-trips back to the input format", () => {
     expect(toLocalInput(new Date("2026-12-15T22:30:00.000Z"))).toBe("2026-12-15T14:30");
+  });
+});
+
+describe("formatDay", () => {
+  it("names the Las Vegas day, not the UTC one", () => {
+    // 03:00 UTC Sep 14 is still Sep 13 in Las Vegas.
+    expect(formatDay(new Date("2026-09-14T03:00:00Z"))).toBe("Sun, Sep 13, 2026");
   });
 });

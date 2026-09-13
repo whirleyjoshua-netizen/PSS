@@ -1,6 +1,23 @@
 import { describe, it, expect } from "vitest";
 import { detailsSchema, newJobSchema, noteSchema, lostSchema } from "@/lib/admin/schema";
 
+describe("new job stage", () => {
+  const base = { name: "Dana Reyes", phone: "7025550134", city: "Henderson", source: "phone" };
+  it("defaults to a new lead", () => {
+    expect(newJobSchema.parse(base).stage).toBe("new");
+    expect(newJobSchema.parse({ ...base, stage: "" }).stage).toBe("new");
+  });
+  it("accepts any working stage", () => {
+    expect(newJobSchema.parse({ ...base, stage: "quoted" }).stage).toBe("quoted");
+  });
+  it("rejects lost and unknown stages", () => {
+    const lost = newJobSchema.safeParse({ ...base, stage: "lost" });
+    expect(lost.success).toBe(false);
+    expect(lost.error?.issues[0].message).toBe("Pick a stage");
+    expect(newJobSchema.safeParse({ ...base, stage: "shipped" }).success).toBe(false);
+  });
+});
+
 describe("detailsSchema", () => {
   it("turns form strings into typed values, with blanks as null", () => {
     const parsed = detailsSchema.parse({

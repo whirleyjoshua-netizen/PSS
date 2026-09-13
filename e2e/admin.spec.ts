@@ -64,7 +64,7 @@ test("opening the sign-in link alone does not use it", async ({ page }) => {
 test("an owner adds a job, advances it, and leaves a note", async ({ page }) => {
   await signIn(page);
 
-  await page.getByRole("link", { name: "New job" }).click();
+  await page.getByRole("link", { name: "New job", exact: true }).click();
   await page.getByLabel("Name", { exact: true }).fill(NAME);
   await page.getByLabel("Phone", { exact: true }).fill("(702) 555-0134");
   await page.getByRole("button", { name: "Add job" }).click();
@@ -124,7 +124,7 @@ test("an owner measures a window with a photo", async ({ page, baseURL }) => {
   const name = `${NAME} Measure`;
   await signIn(page);
 
-  await page.getByRole("link", { name: "New job" }).click();
+  await page.getByRole("link", { name: "New job", exact: true }).click();
   await page.getByLabel("Name", { exact: true }).fill(name);
   await page.getByLabel("Phone", { exact: true }).fill("(702) 555-0135");
   await page.getByRole("button", { name: "Add job" }).click();
@@ -190,4 +190,27 @@ test("a job opens in the panel beside the board, survives a reload, and closes",
   await page.getByRole("complementary", { name: new RegExp(name) }).getByRole("link", { name: "Close" }).click();
   await expect(page).toHaveURL(/\/admin$/);
   await expect(page.getByRole("complementary", { name: new RegExp(name) })).toHaveCount(0);
+});
+
+test("search finds a job, and a column's add button starts a job in that stage", async ({ page }) => {
+  const name = `E2E Tracker Search ${Date.now()}`;
+  await signIn(page);
+
+  await page.getByRole("region", { name: /quoted/i }).getByRole("link", { name: "+ Add job" }).click();
+  await expect(page.getByRole("heading", { name: "New job · Quoted" })).toBeVisible();
+  await expect(page.getByLabel("Stage")).toHaveValue("quoted");
+  await page.getByLabel("Name", { exact: true }).fill(name);
+  await page.getByLabel("Phone", { exact: true }).fill("(702) 555-0177");
+  await page.getByRole("button", { name: "Add job" }).click();
+  await expect(page.getByText("Stage:")).toContainText("Quoted");
+
+  await page.goto("/admin");
+  await page.getByRole("searchbox", { name: "Search jobs" }).fill("555 0177");
+  await page.getByRole("searchbox", { name: "Search jobs" }).press("Enter");
+  await expect(page).toHaveURL(/\/admin\?q=555/);
+  await expect(page.getByRole("region", { name: /quoted/i }).getByRole("link", { name: new RegExp(name) })).toBeVisible();
+
+  await page.getByRole("searchbox", { name: "Search jobs" }).fill(name.slice(-8));
+  await page.getByRole("searchbox", { name: "Search jobs" }).press("Enter");
+  await expect(page.getByRole("region", { name: /quoted/i }).getByRole("link", { name: new RegExp(name) })).toBeVisible();
 });

@@ -68,4 +68,11 @@ describe("job page", () => {
     expect(screen.getByLabelText(/quote/i)).toHaveValue("999999999");
     expect(screen.getByLabelText(/install date/i)).toHaveValue("2027-03-01");
   });
+
+  it("makes the next-stage button full width with a decorative icon", () => {
+    render(<StageControls job={job} />);
+    const button = screen.getByRole("button", { name: "Move to Sold" });
+    expect(button.className).toContain("w-full");
+    expect(button.querySelector('svg[aria-hidden="true"]')).not.toBeNull();
+  });
 });
