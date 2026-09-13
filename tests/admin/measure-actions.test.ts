@@ -7,7 +7,8 @@ vi.mock("@/lib/admin/measurements", () => measurements);
 const deleteFile = vi.fn();
 const getFile = vi.fn();
 vi.mock("@/lib/admin/files", () => ({ deleteFile, getFile }));
-vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+const revalidatePath = vi.fn();
+vi.mock("next/cache", () => ({ revalidatePath }));
 
 const actions = await import("@/app/admin/jobs/measure-actions");
 const LEAD = "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c";
@@ -25,6 +26,7 @@ beforeEach(() => {
   deleteFile.mockReset();
   getFile.mockReset();
   requireAdmin.mockReset().mockResolvedValue({ email: "owner@example.com" });
+  revalidatePath.mockReset();
 });
 
 describe("saveMeasurement", () => {
@@ -91,5 +93,17 @@ describe("deletes", () => {
     getFile.mockResolvedValue(null);
     await actions.removeFile(LEAD, WIN);
     expect(deleteFile).not.toHaveBeenCalled();
+  });
+});
+
+describe("keeping the board panel fresh", () => {
+  it("revalidates the board as well as the job page", async () => {
+    measurements.addMeasurement.mockResolvedValue(WIN);
+    await actions.saveMeasurement(LEAD, null, window());
+    await actions.removeMeasurement(LEAD, WIN);
+    getFile.mockResolvedValue({ id: WIN, leadId: LEAD });
+    await actions.removeFile(LEAD, WIN);
+    expect(revalidatePath.mock.calls.filter(([path]) => path === "/admin")).toHaveLength(3);
+    expect(revalidatePath).toHaveBeenCalledWith(`/admin/jobs/${LEAD}`);
   });
 });
