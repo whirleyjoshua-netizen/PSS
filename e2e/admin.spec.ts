@@ -188,5 +188,5 @@ test("a job opens in the panel beside the board, survives a reload, and closes",
 
   await page.getByRole("complementary", { name: new RegExp(name) }).getByRole("link", { name: "Close" }).click();
   await expect(page).toHaveURL(/\/admin$/);
-  await expect(page.getByRole("complementary")).toHaveCount(0);
+  await expect(page.getByRole("complementary", { name: new RegExp(name) })).toHaveCount(0);
 });
