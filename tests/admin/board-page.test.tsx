@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Job } from "@/lib/admin/jobs";
 
 const ID = "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c";
+const ID_B = "4a3c9d2f-9d63-4b64-8b2d-2e3f4a5b6c7d";
 const job: Job = {
   id: ID, createdAt: new Date("2026-09-01T00:00:00Z"), name: "Dana Reyes", phone: "7025550134",
   email: null, address: null, city: "Henderson", treatments: [], windowCount: null, heardVia: null,
@@ -11,6 +12,8 @@ const job: Job = {
   lostReason: null, referralCode: null, referredBy: null, referralPaidAt: null, reviewRequestedAt: null,
   reviewOptOut: false,
 };
+const jobSold: Job = { ...job, id: ID, status: "sold" };
+const jobB: Job = { ...job, id: ID_B, name: "Chris Lane", status: "quoted" };
 
 const jobs = { listJobs: vi.fn(), getJob: vi.fn() };
 vi.mock("@/lib/admin/jobs", () => jobs);
@@ -61,5 +64,22 @@ describe("board page", () => {
     await open({ job: "nope" });
     expect(screen.getByText("That job no longer exists.")).toBeInTheDocument();
     expect(listMeasurements).not.toHaveBeenCalled();
+  });
+
+  it("resets the panel's form state when switching jobs", async () => {
+    jobs.getJob.mockResolvedValueOnce(jobSold);
+    const { rerender } = render(await BoardPage({ searchParams: Promise.resolve({ job: ID }) }));
+    expect(screen.getByLabelText("Set stage")).toHaveValue("sold");
+
+    jobs.getJob.mockResolvedValueOnce(jobB);
+    rerender(await BoardPage({ searchParams: Promise.resolve({ job: ID_B }) }));
+    expect(screen.getByLabelText("Set stage")).toHaveValue("quoted");
+  });
+
+  it("opens the first job when ?job arrives as an array", async () => {
+    jobs.getJob.mockResolvedValue(job);
+    await open({ job: [ID, ID_B] } as unknown as { job?: string });
+    expect(jobs.getJob).toHaveBeenCalledWith(ID);
+    expect(screen.getByRole("complementary", { name: /dana reyes/i })).toBeInTheDocument();
   });
 });

@@ -15,13 +15,20 @@ async function loadPanel(id: string) {
   return { job, measurements, files };
 }
 
+/** `?job=a&job=b` arrives as an array; treat it as the first value. */
+function first(value: string | string[] | undefined): string | undefined {
+  return Array.isArray(value) ? value[0] : value;
+}
+
 export default async function BoardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ lost?: string; job?: string }>;
+  searchParams: Promise<{ lost?: string | string[]; job?: string | string[] }>;
 }) {
   await requireAdmin();
-  const { lost, job: openId } = await searchParams;
+  const params = await searchParams;
+  const lost = first(params.lost);
+  const openId = first(params.job);
   const includeLost = lost === "1";
   const [jobs, panel] = await Promise.all([
     listJobs({ includeLost }),
@@ -73,7 +80,14 @@ export default async function BoardPage({
         </div>
       </div>
 
-      {panel ? <JobPanel {...panel} now={now} closeHref={boardHref({ lost: includeLost })} /> : null}
+      {panel ? (
+        <JobPanel
+          {...panel}
+          now={now}
+          closeHref={boardHref({ lost: includeLost })}
+          key={panel.job ? `${panel.job.id}:${panel.job.status}` : `missing:${openId}`}
+        />
+      ) : null}
     </div>
   );
 }
