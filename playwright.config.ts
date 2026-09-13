@@ -38,6 +38,7 @@ export default defineConfig({
           // The e2e run posts real leads to the consultation API; this must
           // never send real email through Resend.
           RESEND_API_KEY: "",
+          BLOB_READ_WRITE_TOKEN: process.env.E2E_BLOB_READ_WRITE_TOKEN ?? "",
         }
       : {},
   },

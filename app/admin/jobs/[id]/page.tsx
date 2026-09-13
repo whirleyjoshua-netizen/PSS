@@ -2,12 +2,15 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { formatPhone } from "@/lib/leads/schema";
 import { getEvents, getJob } from "@/lib/admin/jobs";
+import { listFiles } from "@/lib/admin/files";
+import { listMeasurements } from "@/lib/admin/measurements";
 import { formatCents } from "@/lib/admin/money";
 import { requireAdmin } from "@/lib/admin/session";
 import { STAGES, stageLabel } from "@/lib/admin/stages";
 import { formatWhen } from "@/lib/admin/time";
 import { listReferrals } from "@/lib/referrals/db";
 import { DetailsForm } from "./DetailsForm";
+import { JobFiles } from "./JobFiles";
 import { NoteForm } from "./NoteForm";
 import { ReferralSection } from "./ReferralSection";
 import { ReferralsList } from "./ReferralsList";
@@ -19,10 +22,12 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
   const { id } = await params;
   const job = await getJob(id);
   if (!job) notFound();
-  const [events, referrals, referrer] = await Promise.all([
+  const [events, referrals, referrer, measurements, files] = await Promise.all([
     getEvents(id),
     listReferrals(id),
     job.referredBy ? getJob(job.referredBy) : Promise.resolve(null),
+    listMeasurements(id),
+    listFiles(id),
   ]);
   const soldIndex = STAGES.findIndex((s) => s.value === "sold");
   const soldOrLater = STAGES.findIndex((s) => s.value === job.status) >= soldIndex;
@@ -85,6 +90,11 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
           <ReferralsList referrerId={job.id} referrals={referrals} />
         </section>
       ) : null}
+
+      <section className="flex flex-col gap-4">
+        <h2 className="font-display text-xs uppercase tracking-[0.2em] text-champagne-ink">Files</h2>
+        <JobFiles jobId={job.id} measurements={measurements} files={files} />
+      </section>
 
       <section className="flex flex-col gap-4">
         <h2 className="font-display text-xs uppercase tracking-[0.2em] text-champagne-ink">Activity</h2>

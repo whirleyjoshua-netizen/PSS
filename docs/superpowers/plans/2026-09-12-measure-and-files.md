@@ -1749,4 +1749,4 @@ git commit -m "feat: iPhone measuring screen and the job Files section"
 - [ ] **Step 5 (confirm each with the user before running):**
   1. Apply `003_measure_and_files.sql` to production with `node scripts/migrate.mjs` (additive; the `job_events.kind` constraint is only widened).
   2. Deploy with `npx vercel --prod`.
-  3. On the live site, as the owner: open a job, measure one window with a photo from an iPhone, confirm it shows in Files and the photo opens; upload a small PDF and open it; delete both. If uploads fail with an authentication error from Blob, add `BLOB_READ_WRITE_TOKEN` to the project's Production environment in the Vercel dashboard and redeploy.
+  3. On the live site, as the owner: open a job, measure one window with a photo from an iPhone, confirm it shows in Files and the photo opens; upload a PDF larger than 10 MB and confirm it opens; delete both. If uploads fail with an authentication error from Blob, add `BLOB_READ_WRITE_TOKEN` to the project's Production environment in the Vercel dashboard and redeploy.

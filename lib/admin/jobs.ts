@@ -37,7 +37,7 @@ export type JobEvent = {
   id: string;
   createdAt: Date;
   actor: string;
-  kind: "stage" | "note" | "edit" | "email" | "reward";
+  kind: "stage" | "note" | "edit" | "email" | "reward" | "measure" | "file";
   fromStatus: Stage | null;
   toStatus: Stage | null;
   body: string | null;
