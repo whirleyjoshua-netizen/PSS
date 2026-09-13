@@ -120,7 +120,8 @@ Steps before the current one are shown done, the current one is highlighted, lat
 
 ## 8. Sharing photos (owner side)
 
-- `JobFiles` (used on the job page and in the board's client panel) gets a "Share with customer" switch on each photo. Documents have no switch.
+- **Add photo.** Today the only photos on a job come from the measuring screen; "Upload file" stores images as documents. `JobFiles` gains an "Add photo" button (any image, resized on the phone to a 2000 px JPEG like measuring photos, stored as `kind = 'photo'`) and a "Photos" list of the job's photos that are not attached to a measured window. This is how install and before/after photos get onto a job. (Added while planning: without it, the page could only ever show measuring photos.)
+- `JobFiles` (used on the job page and in the board's client panel) gets a "Share with customer" switch on each photo, both in the Photos list and on measured windows that have one. Documents have no switch.
 - Server action `setFileShared(jobId, fileId, shared)` sets or clears `job_files.shared_at`, only when the file belongs to that job and is a photo, and adds a `kind = 'file'` event: "Shared photo <name> with customer" / "Stopped sharing photo <name>".
 - A shared photo shows a small "Shared" label in the owner's list.
 - Deleting a file removes it from the customer page as well (the row is gone).
