@@ -32,7 +32,8 @@ export default defineConfig({
     env: process.env.E2E_POSTGRES_URL
       ? {
           POSTGRES_URL: process.env.E2E_POSTGRES_URL,
-          ADMIN_EMAILS: "e2e-owner@example.com",
+          // Each spec signs in as its own owner so their cleanups can't collide
+          ADMIN_EMAILS: "e2e-owner@example.com,e2e-portal-owner@example.com",
           ADMIN_BASE_URL: baseURL,
           // The e2e run posts real leads to the consultation API; this must
           // never send real email through Resend.

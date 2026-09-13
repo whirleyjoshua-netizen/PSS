@@ -10,12 +10,13 @@ test.describe.configure({ mode: "serial" });
 const sql = () => neon(url!);
 const NAME = `E2E Portal ${Date.now()}`;
 const CUSTOMER = `e2e-customer-${Date.now()}@example.com`;
+const OWNER = "e2e-portal-owner@example.com";
 const hash = (token: string) => createHash("sha256").update(token).digest("hex");
 
 async function signInOwner(page: Page) {
   const token = randomBytes(32).toString("base64url");
   await sql()`insert into admin_login_tokens (token_hash, email, expires_at)
-    values (${hash(token)}, 'e2e-owner@example.com', now() + interval '15 minutes')`;
+    values (${hash(token)}, ${OWNER}, now() + interval '15 minutes')`;
   await page.goto(`/admin/auth?token=${token}`);
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page.getByRole("heading", { name: "Jobs" })).toBeVisible();
@@ -47,8 +48,8 @@ test.afterAll(async () => {
   await sql()`delete from leads where name like 'E2E Portal %'`;
   await sql()`delete from customer_login_tokens where email like 'e2e-customer-%'`;
   await sql()`delete from customer_sessions where email like 'e2e-customer-%'`;
-  await sql()`delete from admin_login_tokens where email = 'e2e-owner@example.com'`;
-  await sql()`delete from admin_sessions where email = 'e2e-owner@example.com'`;
+  await sql()`delete from admin_login_tokens where email = ${OWNER}`;
+  await sql()`delete from admin_sessions where email = ${OWNER}`;
 });
 
 test("a stranger is sent to the customer sign-in", async ({ page }) => {
