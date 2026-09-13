@@ -45,7 +45,8 @@ test("a used sign-in link is refused", async ({ page }) => {
     values (${hash}, 'e2e-owner@example.com', now() + interval '15 minutes', now())`;
   await page.goto(`/admin/auth?token=${token}`);
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page.getByRole("alert")).toContainText(/expired or was already used/i);
+  // Next's route announcer is also role="alert", so find the page's own alert by its message.
+  await expect(page.getByRole("alert").filter({ hasText: /expired or was already used/i })).toBeVisible();
 });
 
 test("opening the sign-in link alone does not use it", async ({ page }) => {
