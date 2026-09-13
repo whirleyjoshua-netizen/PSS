@@ -21,6 +21,11 @@ export function JobCard({ job, now }: { job: Job; now: Date }) {
       className="flex flex-col gap-1 border border-rule bg-ivory p-3 text-sm transition-colors hover:border-champagne-ink"
     >
       <span className="font-display text-base text-charcoal">{job.name}</span>
+      {job.referredBy ? (
+        <span className="w-fit border border-champagne-ink px-1.5 font-display text-[0.65rem] uppercase tracking-[0.12em] text-champagne-ink">
+          Referral
+        </span>
+      ) : null}
       <span className="text-ink-soft">{job.city}</span>
       {job.treatments.length ? <span className="text-ink-soft">{job.treatments.join(", ")}</span> : null}
       <span className="font-display text-xs uppercase tracking-[0.12em] text-champagne-ink">

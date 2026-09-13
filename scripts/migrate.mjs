@@ -4,6 +4,10 @@
  * Reads .env.local directly rather than relying on `node --env-file`, whose
  * parser mishandles the quoted connection strings Vercel writes.
  *
+ * MIGRATE_DATABASE_URL, if set in the real environment, overrides everything
+ * else — use it to target a branch database without touching .env.local:
+ *   MIGRATE_DATABASE_URL=<branch url> node scripts/migrate.mjs
+ *
  * Usage: node scripts/migrate.mjs
  */
 import { readFileSync, readdirSync } from "node:fs";
@@ -27,9 +31,19 @@ function loadEnv(file = ".env.local") {
   return env;
 }
 
+// MIGRATE_DATABASE_URL always wins, so it can never silently fall through to
+// production. Otherwise .env.local is read before process.env — see
+// lib/db.ts for why a machine-wide DATABASE_URL must not win.
 const env = loadEnv();
-const url = env.DATABASE_URL ?? process.env.DATABASE_URL;
+let url = process.env.MIGRATE_DATABASE_URL;
+let source = "MIGRATE_DATABASE_URL";
+if (!url) {
+  url = env.DATABASE_URL ?? process.env.DATABASE_URL;
+  source = ".env.local";
+}
 if (!url) throw new Error("DATABASE_URL not found in .env.local");
+
+console.log(`Using ${source} -> ${new URL(url).host}`);
 
 const sql = neon(url);
 const dir = "db/migrations";

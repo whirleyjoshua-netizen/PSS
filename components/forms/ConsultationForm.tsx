@@ -19,19 +19,33 @@ import {
 export function ConsultationForm() {
   const { state, error, submit } = useConsultationForm("contact");
   const [heardVia, setHeardVia] = useState("");
+  const [referral, setReferral] = useState<{ code: string; by: string | null } | null>(null);
 
   // A printed QR code carries ?ref=flyer, which prefills this select so the
-  // lead arrives attributed. Read on mount rather than via useSearchParams:
-  // this page is statically rendered, and useSearchParams would opt it out.
+  // lead arrives attributed. A /r/<code> link additionally carries r= and by=,
+  // identifying the friend who sent them. Read on mount rather than via
+  // useSearchParams: this page is statically rendered, and useSearchParams
+  // would opt it out.
   useEffect(() => {
-    const ref = new URLSearchParams(window.location.search).get("ref");
-    const label = referralLabel(ref);
+    const params = new URLSearchParams(window.location.search);
+    const label = referralLabel(params.get("ref"));
     if (label) setHeardVia(label);
+    const code = params.get("r");
+    if (code) setReferral({ code: code.slice(0, 20), by: params.get("by")?.slice(0, 40) || null });
   }, []);
 
   return (
     <form onSubmit={submit} noValidate className="relative flex flex-col gap-6">
       <Honeypot />
+
+      {referral ? (
+        <>
+          <input type="hidden" name="referralCode" value={referral.code} />
+          {referral.by ? (
+            <p className="border-l-2 border-champagne pl-4 text-sm text-ink-soft">{referral.by} sent you.</p>
+          ) : null}
+        </>
+      ) : null}
 
       <div className="grid gap-6 sm:grid-cols-2">
         <TextField id="c-name" name="name" label="Name" autoComplete="name" required />

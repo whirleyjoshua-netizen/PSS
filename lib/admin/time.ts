@@ -34,3 +34,7 @@ export const formatWhen = (date: Date): string =>
     timeZone: ZONE, weekday: "short", month: "short", day: "numeric",
     hour: "numeric", minute: "2-digit",
   });
+
+/** The Las Vegas calendar date of an instant, as YYYY-MM-DD. */
+export const lasVegasDate = (date: Date): string =>
+  new Intl.DateTimeFormat("en-CA", { timeZone: ZONE, year: "numeric", month: "2-digit", day: "2-digit" }).format(date);

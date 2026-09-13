@@ -2,11 +2,22 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const requireAdmin = vi.fn();
 vi.mock("@/lib/admin/session", () => ({ requireAdmin }));
-const jobs = { setStage: vi.fn(), updateDetails: vi.fn(), addNote: vi.fn(), createJob: vi.fn() };
+const jobs = { setStage: vi.fn(), updateDetails: vi.fn(), addNote: vi.fn(), createJob: vi.fn(), getJob: vi.fn() };
 vi.mock("@/lib/admin/jobs", () => jobs);
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 const redirect = vi.fn(() => { throw new Error("NEXT_REDIRECT"); });
 vi.mock("next/navigation", () => ({ redirect }));
+const referrals = { ensureReferralCode: vi.fn(), markReferralPaid: vi.fn() };
+vi.mock("@/lib/referrals/db", () => referrals);
+const sendReviewRequest = vi.fn();
+vi.mock("@/lib/reviews/send", () => ({ sendReviewRequest }));
+const reviewsDb = {
+  setReviewOptOut: vi.fn(),
+  stampReviewRequested: vi.fn(),
+  restoreReviewRequested: vi.fn(),
+  releaseReview: vi.fn(),
+};
+vi.mock("@/lib/reviews/db", () => reviewsDb);
 
 const actions = await import("@/app/admin/jobs/actions");
 const ID = "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c";
@@ -22,6 +33,15 @@ beforeEach(() => {
   jobs.setStage.mockResolvedValue(true);
   jobs.updateDetails.mockResolvedValue(true);
   jobs.addNote.mockResolvedValue(true);
+  [...Object.values(referrals), sendReviewRequest, ...Object.values(reviewsDb)].forEach((fn) => fn.mockReset());
+  jobs.getJob.mockResolvedValue({ id: ID, email: "dana@example.com", reviewOptOut: false });
+  referrals.ensureReferralCode.mockResolvedValue("K7M2QX");
+  referrals.markReferralPaid.mockResolvedValue(true);
+  reviewsDb.setReviewOptOut.mockResolvedValue(true);
+  reviewsDb.stampReviewRequested.mockResolvedValue({ previous: null });
+  reviewsDb.restoreReviewRequested.mockResolvedValue(undefined);
+  reviewsDb.releaseReview.mockResolvedValue(undefined);
+  vi.spyOn(console, "error").mockImplementation(() => {});
 });
 
 describe("without a session", () => {
@@ -33,9 +53,14 @@ describe("without a session", () => {
     ["saveDetails", () => actions.saveDetails(ID, {}, form({}))],
     ["saveNote", () => actions.saveNote(ID, {}, form({ body: "x" }))],
     ["addJob", () => actions.addJob({}, form({ name: "Dana", phone: "7025550134", city: "Henderson", source: "phone" }))],
+    ["sendReviewNow", () => actions.sendReviewNow(ID, {}, form({}))],
+    ["saveReviewOptOut", () => actions.saveReviewOptOut(ID, true)],
+    ["createReferralLink", () => actions.createReferralLink(ID, {}, form({}))],
+    ["payReferral", () => actions.payReferral(ID, ID, {}, form({}))],
   ])("%s touches nothing", async (_name, run) => {
     await expect(run()).rejects.toThrow("NEXT_REDIRECT");
-    Object.values(jobs).forEach((fn) => expect(fn).not.toHaveBeenCalled());
+    [...Object.values(jobs), ...Object.values(referrals), sendReviewRequest, ...Object.values(reviewsDb)]
+      .forEach((fn) => expect(fn).not.toHaveBeenCalled());
   });
 });
 
@@ -71,5 +96,69 @@ describe("with a session", () => {
     jobs.addNote.mockResolvedValue(false);
     const state = await actions.saveNote(ID, {}, form({ body: "Hi" }));
     expect(state).toEqual({ error: "That job no longer exists." });
+  });
+});
+
+describe("referrals and reviews", () => {
+  it("sends a review request now as the signed-in owner", async () => {
+    expect(await actions.sendReviewNow(ID, {}, form({}))).toEqual({ ok: true });
+    expect(sendReviewRequest).toHaveBeenCalledWith(expect.objectContaining({ id: ID }), "owner@example.com");
+  });
+
+  it("stamps review_requested_at before sending, so a crash never double-sends", async () => {
+    const order: string[] = [];
+    reviewsDb.stampReviewRequested.mockImplementation(async () => {
+      order.push("stamp");
+      return { previous: null };
+    });
+    sendReviewRequest.mockImplementation(async () => {
+      order.push("send");
+    });
+    await actions.sendReviewNow(ID, {}, form({}));
+    expect(reviewsDb.stampReviewRequested).toHaveBeenCalledWith(ID);
+    expect(order).toEqual(["stamp", "send"]);
+    expect(reviewsDb.restoreReviewRequested).not.toHaveBeenCalled();
+  });
+
+  it("restores the previous review_requested_at when the send fails", async () => {
+    const previous = new Date("2026-01-01T00:00:00Z");
+    reviewsDb.stampReviewRequested.mockResolvedValue({ previous });
+    sendReviewRequest.mockRejectedValue(new Error("GOOGLE_REVIEW_URL is not set"));
+    const state = await actions.sendReviewNow(ID, {}, form({}));
+    expect(state.error).toMatch(/could not send/i);
+    expect(reviewsDb.restoreReviewRequested).toHaveBeenCalledWith(ID, previous);
+  });
+
+  it("will not send to a job without an email", async () => {
+    jobs.getJob.mockResolvedValue({ id: ID, email: null, reviewOptOut: false });
+    expect((await actions.sendReviewNow(ID, {}, form({}))).error).toMatch(/no email/i);
+    expect(sendReviewRequest).not.toHaveBeenCalled();
+  });
+
+  it("will not send when review requests are turned off", async () => {
+    jobs.getJob.mockResolvedValue({ id: ID, email: "dana@example.com", reviewOptOut: true });
+    expect((await actions.sendReviewNow(ID, {}, form({}))).error).toMatch(/turned off/i);
+  });
+
+  it("reports a failed send inline", async () => {
+    sendReviewRequest.mockRejectedValue(new Error("GOOGLE_REVIEW_URL is not set"));
+    expect((await actions.sendReviewNow(ID, {}, form({}))).error).toMatch(/could not send/i);
+  });
+
+  it("saves the opt-out as the signed-in owner", async () => {
+    await actions.saveReviewOptOut(ID, true);
+    expect(reviewsDb.setReviewOptOut).toHaveBeenCalledWith(ID, true, "owner@example.com");
+  });
+
+  it("creates the referral link", async () => {
+    expect(await actions.createReferralLink(ID, {}, form({}))).toEqual({ ok: true });
+    expect(referrals.ensureReferralCode).toHaveBeenCalledWith(ID);
+  });
+
+  it("marks a reward paid, or says it is not owed", async () => {
+    expect(await actions.payReferral("r1", ID, {}, form({}))).toEqual({ ok: true });
+    expect(referrals.markReferralPaid).toHaveBeenCalledWith("r1", "owner@example.com");
+    referrals.markReferralPaid.mockResolvedValue(false);
+    expect((await actions.payReferral("r1", ID, {}, form({}))).error).toMatch(/not owed/i);
   });
 });

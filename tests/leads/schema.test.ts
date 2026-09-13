@@ -77,4 +77,10 @@ describe("consultationSchema", () => {
       false,
     );
   });
+
+  it("drops an overlong referral code instead of failing the whole lead", () => {
+    const parsed = consultationSchema.safeParse({ ...valid, referralCode: "X".repeat(25) });
+    expect(parsed.success).toBe(true);
+    expect(parsed.success && parsed.data.referralCode).toBeUndefined();
+  });
 });

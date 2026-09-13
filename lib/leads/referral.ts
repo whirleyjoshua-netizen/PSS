@@ -17,6 +17,7 @@ export const REFERRAL_SOURCES: Record<string, string> = {
   yard: "Yard sign",
   door: "Door hanger",
   show: "Home show or event",
+  friend: "Referral from a friend",
 };
 
 /** Maps a ?ref= value to its form label, or undefined if unrecognized. */

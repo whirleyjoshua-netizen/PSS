@@ -78,3 +78,39 @@ test("an owner adds a job, advances it, and leaves a note", async ({ page }) => 
   await page.getByRole("link", { name: "← All jobs" }).click();
   await expect(page.getByRole("region", { name: /contacted/i }).getByRole("link", { name: new RegExp(NAME) })).toBeVisible();
 });
+
+test("a referral link attributes the friend and the reward can be paid", async ({ page }) => {
+  const referrerName = `E2E Tracker Referrer ${Date.now()}`;
+  const friendName = `E2E Tracker Friend ${Date.now()}`;
+  const code = `E${String(Date.now()).slice(-5).replace(/[01]/g, "9")}`;
+  await sql()`insert into leads (name, phone, email, city, source, status, referral_code)
+    values (${referrerName}, '7025550100', 'e2e-referrer@example.com', 'Henderson', 'phone', 'installed', ${code})`;
+
+  await page.goto(`/r/${code.toLowerCase()}`);
+  await expect(page).toHaveURL(/\/contact\?ref=friend/);
+  await expect(page.getByText("E2E sent you.")).toBeVisible();
+  await expect(page.getByLabel(/how did you hear/i)).toHaveValue("Referral from a friend");
+
+  await page.getByLabel("Name", { exact: true }).fill(friendName);
+  await page.getByLabel("Phone", { exact: true }).fill("(702) 555-0101");
+  await page.getByLabel("Email", { exact: true }).fill("e2e-friend@example.com");
+  await page.getByRole("button", { name: /request free consultation/i }).click();
+  await expect(page).toHaveURL(/\/thank-you$/);
+
+  await signIn(page);
+  const [referrer] = await sql()`select id from leads where referral_code = ${code}`;
+  await page.goto(`/admin/jobs/${referrer.id}`);
+  await expect(page.getByRole("link", { name: friendName })).toBeVisible();
+  await expect(page.getByText("Pending")).toBeVisible();
+
+  await page.getByRole("link", { name: friendName }).click();
+  await expect(page.getByRole("link", { name: referrerName })).toBeVisible();
+  await page.getByLabel("Set stage").selectOption("installed");
+  await page.getByRole("button", { name: "Set", exact: true }).click();
+  await expect(page.getByText("Stage:")).toContainText("Installed");
+
+  await page.getByRole("link", { name: referrerName }).click();
+  await page.getByRole("button", { name: "Mark paid" }).click();
+  await expect(page.getByText(/^Paid /)).toBeVisible();
+  await expect(page.getByText(`Referral reward paid for ${friendName}`)).toBeVisible();
+});
