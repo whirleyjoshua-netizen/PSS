@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { consultationSchema } from "@/lib/leads/schema";
+import { consultationSchema, WINDOW_COUNTS } from "@/lib/leads/schema";
+import { CALL_OUTCOMES, TREATMENT_NAMES, type CallInput } from "./call";
 import { BUDGET_TIERS } from "./budget";
 import { WORKING_STAGES } from "./stages";
 import { MAX_EIGHTHS, REQUIREMENTS, toEighths, type Requirement } from "./measure-units";
@@ -126,6 +127,31 @@ export const measurementSchema = z
       photoFileId: value.photoFileId ?? null,
     };
   });
+
+const LOCAL_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
+
+export const callSchema = z
+  .object({
+    outcome: z.enum(CALL_OUTCOMES, { error: "Pick how the call went" }),
+    treatments: z.array(z.string().refine((name) => TREATMENT_NAMES.includes(name), "Unknown treatment")).default([]),
+    windowCount: z.preprocess(blank, z.enum(WINDOW_COUNTS, { error: "Pick a window range" }).optional()),
+    budget: z.preprocess(blank, z.enum(BUDGET_TIERS, { error: "Pick a budget tier" }).optional()),
+    notes: z.preprocess(blank, z.string().trim().max(2000, "Keep notes under 2,000 characters").optional()),
+    visitAt: z.preprocess(blank, z.string().optional()),
+  })
+  .superRefine((value, ctx) => {
+    if (value.outcome === "booked" && !(value.visitAt && LOCAL_TIME.test(value.visitAt))) {
+      ctx.addIssue({ code: "custom", path: ["visitAt"], message: "Pick the visit date and time" });
+    }
+  })
+  .transform((value): CallInput => ({
+    outcome: value.outcome,
+    treatments: value.treatments,
+    windowCount: value.windowCount ?? null,
+    budgetTier: value.budget ?? null,
+    notes: value.notes ?? null,
+    visitAt: value.outcome === "booked" && value.visitAt ? fromLocalInput(value.visitAt) : null,
+  }));
 
 export type MeasurementInput = z.output<typeof measurementSchema>;
 
