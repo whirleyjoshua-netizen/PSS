@@ -76,4 +76,10 @@ describe("job page summary", () => {
     render(await JobPage({ params: Promise.resolve({ id: ID }) }));
     expect(budgetRow()).toHaveTextContent("—");
   });
+
+  it("offers a Call button under the name", async () => {
+    getJob.mockResolvedValue({ ...baseJob });
+    render(await JobPage({ params: Promise.resolve({ id: ID }) }));
+    expect(screen.getByRole("link", { name: "Log a call" })).toHaveAttribute("href", `/admin/jobs/${baseJob.id}/call`);
+  });
 });
