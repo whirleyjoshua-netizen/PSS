@@ -104,12 +104,20 @@ export async function saveSubscription(id: string | null, expiresAt: Date | null
     on conflict (id) do update set subscription_id = excluded.subscription_id, expires_at = excluded.expires_at, updated_at = now()`;
 }
 
+/**
+ * The daily catch-up's jobs: every recently dated open job, plus linked jobs whose event may need removing
+ * (lost, or the date cleared) or is in the same 30-day window. Links to long-past dates are left alone,
+ * which keeps the daily work bounded.
+ */
 export async function reconcileTargets(): Promise<string[]> {
   const rows = await db()`
     select id from leads
      where status <> 'lost'
        and (visit_at >= now() - interval '30 days' or install_on >= current_date - 30)
     union
-    select lead_id as id from job_calendar_events`;
+    select e.lead_id as id from job_calendar_events e join leads l on l.id = e.lead_id
+     where l.status = 'lost'
+        or (e.kind = 'visit' and (l.visit_at is null or l.visit_at >= now() - interval '30 days'))
+        or (e.kind = 'install' and (l.install_on is null or l.install_on >= current_date - 30))`;
   return rows.map((row) => row.id as string);
 }

@@ -18,7 +18,7 @@ async function saved(sub: Sub) {
 }
 
 async function renew(id: string): Promise<Response> {
-  return graphFetch(`subscriptions/${id}`, {
+  return graphFetch(`subscriptions/${encodeURIComponent(id)}`, {
     method: "PATCH", body: { expirationDateTime: new Date(Date.now() + LIFETIME).toISOString() },
   });
 }

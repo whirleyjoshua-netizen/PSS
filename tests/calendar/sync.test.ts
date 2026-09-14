@@ -61,6 +61,7 @@ describe("syncJobCalendar (tracker wins)", () => {
     await sync.syncJobCalendar(ID);
     expect(calls()).toEqual(["GET users/jobs@example.com/events/e1", "PATCH users/jobs@example.com/events/e1"]);
     expect(graphFetch.mock.calls[1][1].body.end.dateTime).toBe("2026-09-21T10:30:00");
+    expect(graphFetch.mock.calls[1][1].body.isAllDay).toBe(false);
     expect(store.saveLink).toHaveBeenCalledWith({ ...link, changeKey: "ck2" });
   });
 
@@ -199,5 +200,34 @@ describe("creating an event claims the link first", () => {
     expect(store.claimLink).toHaveBeenCalledWith(ID, "visit");
     expect(calls()).toEqual(["POST users/jobs@example.com/events"]);
     expect(store.saveLink).toHaveBeenCalledWith(link);
+  });
+});
+
+describe("Graph paths", () => {
+  it("encodes the event id in the path, leaving the mailbox alone", async () => {
+    const odd = { ...link, eventId: "AAMk/a+b=" };
+    store.getLinks.mockResolvedValue([odd]);
+    store.getCalendarJob.mockResolvedValue({ ...job, visitAt: new Date("2026-09-21T16:00:00Z") });
+    graphFetch.mockResolvedValueOnce(Response.json(event({ id: odd.eventId })))
+      .mockResolvedValueOnce(Response.json({ changeKey: "ck2" }));
+    await sync.syncJobCalendar(ID);
+    expect(calls()).toEqual([
+      "GET users/jobs@example.com/events/AAMk%2Fa%2Bb%3D", "PATCH users/jobs@example.com/events/AAMk%2Fa%2Bb%3D",
+    ]);
+  });
+});
+
+describe("a moved install", () => {
+  it("patches it as an all-day event", async () => {
+    const installLink = { ...link, kind: "install", eventId: "e2" };
+    store.getLinks.mockResolvedValue([installLink]);
+    store.getCalendarJob.mockResolvedValue({ ...job, visitAt: null, installOn: "2026-10-03" });
+    graphFetch.mockResolvedValueOnce(Response.json(event({
+      id: "e2", isAllDay: true, start: { dateTime: "2026-10-02T00:00:00.0000000", timeZone: PST },
+      end: { dateTime: "2026-10-03T00:00:00.0000000", timeZone: PST },
+    }))).mockResolvedValueOnce(Response.json({ changeKey: "ck2" }));
+    await sync.syncJobCalendar(ID, ["install"]);
+    expect(graphFetch.mock.calls[1][1].method).toBe("PATCH");
+    expect(graphFetch.mock.calls[1][1].body).toMatchObject({ isAllDay: true, start: { dateTime: "2026-10-03T00:00:00" } });
   });
 });

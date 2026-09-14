@@ -65,4 +65,14 @@ describe("calendar store", () => {
     ]);
     expect(text(sql.mock.calls[0])).toMatch(/synced_at/);
   });
+
+  it("reconciles linked jobs only when lost, undated, or within the same 30-day window", async () => {
+    sql.mockResolvedValue([{ id: ID }]);
+    expect(await store.reconcileTargets()).toEqual([ID]);
+    const q = text(sql.mock.calls[0]).replace(/\s+/g, " ");
+    expect(q).toMatch(/join leads l on l\.id = e\.lead_id/);
+    expect(q).toMatch(/l\.status = 'lost'/);
+    expect(q).toMatch(/e\.kind = 'visit' and \(l\.visit_at is null or l\.visit_at >= now\(\) - interval '30 days'\)/);
+    expect(q).toMatch(/e\.kind = 'install' and \(l\.install_on is null or l\.install_on >= current_date - 30\)/);
+  });
 });

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const store = {
   getCalendarJob: vi.fn(), getLinks: vi.fn(), getLinkByEvent: vi.fn(), saveLink: vi.fn(), deleteLink: vi.fn(), claimLink: vi.fn(),
@@ -39,8 +39,12 @@ beforeEach(() => {
   store.getCalendarJob.mockResolvedValue(job);
   store.getLinks.mockResolvedValue([]);
   store.claimLink.mockResolvedValue(true);
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-09-14T19:00:00Z")); // noon in Las Vegas, before the fixtures' dates
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
+
+afterEach(() => { vi.useRealTimers(); });
 
 describe("applyOutlookChange (Outlook wins when its changeKey moved)", () => {
   beforeEach(() => { store.getLinkByEvent.mockResolvedValue(link); store.getLinks.mockResolvedValue([link]); });
@@ -76,6 +80,35 @@ describe("applyOutlookChange (Outlook wins when its changeKey moved)", () => {
     await sync.applyOutlookChange("e1");
     expect(store.deleteLink).toHaveBeenCalledWith(ID, "visit");
     expect(store.setJobDate).toHaveBeenCalledWith(ID, "visit", null, "Visit removed in Outlook");
+  });
+
+  it("keeps a past visit's date when Outlook no longer has its event, and only drops the link", async () => {
+    store.getCalendarJob.mockResolvedValue({ ...job, visitAt: new Date("2026-09-14T15:00:00Z") }); // 8 AM today
+    graphFetch.mockResolvedValueOnce(new Response(null, { status: 404 }));
+    await sync.applyOutlookChange("e1");
+    expect(store.deleteLink).toHaveBeenCalledWith(ID, "visit");
+    expect(store.setJobDate).not.toHaveBeenCalled();
+  });
+
+  it("keeps a past install date (before today in Las Vegas) when its event is gone", async () => {
+    const installLink = { ...link, kind: "install", eventId: "e2" };
+    store.getLinkByEvent.mockResolvedValue(installLink);
+    store.getLinks.mockResolvedValue([installLink]);
+    store.getCalendarJob.mockResolvedValue({ ...job, visitAt: null, installOn: "2026-09-13" });
+    graphFetch.mockResolvedValueOnce(new Response(null, { status: 404 }));
+    await sync.applyOutlookChange("e2");
+    expect(store.deleteLink).toHaveBeenCalledWith(ID, "install");
+    expect(store.setJobDate).not.toHaveBeenCalled();
+  });
+
+  it("still clears today's install when its event is deleted in Outlook", async () => {
+    const installLink = { ...link, kind: "install", eventId: "e2" };
+    store.getLinkByEvent.mockResolvedValue(installLink);
+    store.getLinks.mockResolvedValue([installLink]);
+    store.getCalendarJob.mockResolvedValue({ ...job, visitAt: null, installOn: "2026-09-14" });
+    graphFetch.mockResolvedValueOnce(new Response(null, { status: 404 }));
+    await sync.applyOutlookChange("e2");
+    expect(store.setJobDate).toHaveBeenCalledWith(ID, "install", null, "Install removed in Outlook");
   });
 
   it("ignores Outlook events that are not job events", async () => {

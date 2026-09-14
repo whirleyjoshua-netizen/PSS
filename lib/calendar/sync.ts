@@ -1,5 +1,5 @@
 import "server-only";
-import { formatWhen } from "@/lib/admin/time";
+import { formatWhen, lasVegasDate } from "@/lib/admin/time";
 import { portalOrigin } from "@/lib/portal/login";
 import { calendarConfig, calendarEnabled } from "./config";
 import { movedTimes, newEventBody, sameValue, trackerValue, type GraphEvent, type Kind } from "./events";
@@ -15,6 +15,10 @@ export const jobUrl = (id: string): string => `${portalOrigin()}/admin?job=${id}
 
 const formatDate = (date: string): string =>
   new Date(`${date}T12:00:00Z`).toLocaleDateString("en-US", { timeZone: "UTC", weekday: "short", month: "short", day: "numeric" });
+
+/** A visit that has started, or an install before today in Las Vegas: history, not something to clear. */
+const isPast = (kind: Kind, value: Date | string): boolean =>
+  kind === "visit" ? (value as Date).getTime() < Date.now() : (value as string) < lasVegasDate(new Date());
 
 async function expectOk(response: Response, what: string): Promise<Response> {
   if (!response.ok) throw new GraphError(`Outlook ${what} failed (${response.status})`, response.status);
@@ -67,17 +71,21 @@ export async function reconcileJob(leadId: string, pushKinds: readonly Kind[] = 
       continue;
     }
 
-    const got = await graphFetch(`${events}/${link.eventId}`);
+    const eventPath = `${events}/${encodeURIComponent(link.eventId)}`;
+    const got = await graphFetch(eventPath);
     if (got.status === 404) {
       await store.deleteLink(leadId, kind);
       if (push) await create();
-      else if (current !== null) await store.setJobDate(leadId, kind, null, `${LABEL[kind]} removed in Outlook`);
+      // Outlook drops old appointments on its own; a past date stays in the tracker as history.
+      else if (current !== null && !isPast(kind, current)) {
+        await store.setJobDate(leadId, kind, null, `${LABEL[kind]} removed in Outlook`);
+      }
       continue;
     }
     const event = (await (await expectOk(got, "read")).json()) as GraphEvent;
 
     if (wanted === null) {
-      const removed = await graphFetch(`${events}/${link.eventId}`, { method: "DELETE" });
+      const removed = await graphFetch(eventPath, { method: "DELETE" });
       if (removed.status !== 404) await expectOk(removed, "delete");
       await store.deleteLink(leadId, kind);
       continue;
@@ -95,7 +103,7 @@ export async function reconcileJob(leadId: string, pushKinds: readonly Kind[] = 
 
     if (!sameValue(kind, trackerValue(kind, event), wanted)) {
       const patched = await expectOk(
-        await graphFetch(`${events}/${link.eventId}`, { method: "PATCH", body: movedTimes(kind, wanted, event) }), "update",
+        await graphFetch(eventPath, { method: "PATCH", body: movedTimes(kind, wanted, event) }), "update",
       );
       const { changeKey } = (await patched.json()) as { changeKey: string };
       await store.saveLink({ ...link, changeKey });

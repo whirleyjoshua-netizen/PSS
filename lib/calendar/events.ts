@@ -57,11 +57,16 @@ export function newEventBody(kind: Kind, job: EventJob, value: Date | string, jo
 }
 
 /** New start and end for a date moved in the tracker. A visit keeps its current length in Outlook. */
-export function movedTimes(kind: Kind, value: Date | string, current: GraphEvent): { start: GraphTime; end: GraphTime } {
-  if (kind === "install") return { start: midnight(value as string), end: midnight(nextDay(value as string)) };
-  const length = instantOf(current.end).getTime() - instantOf(current.start).getTime();
+export function movedTimes(
+  kind: Kind, value: Date | string, current: GraphEvent,
+): { isAllDay: boolean; start: GraphTime; end: GraphTime } {
+  // isAllDay is always sent, so an event someone changed in Outlook comes back to the right shape.
+  if (kind === "install") {
+    return { isAllDay: true, start: midnight(value as string), end: midnight(nextDay(value as string)) };
+  }
+  const length = current.isAllDay ? 0 : instantOf(current.end).getTime() - instantOf(current.start).getTime();
   const start = value as Date;
-  return { start: local(start), end: local(new Date(start.getTime() + (length > 0 ? length : HOUR))) };
+  return { isAllDay: false, start: local(start), end: local(new Date(start.getTime() + (length > 0 ? length : HOUR))) };
 }
 
 /** The tracker value an Outlook event implies: an instant for a visit, a date for an install. */

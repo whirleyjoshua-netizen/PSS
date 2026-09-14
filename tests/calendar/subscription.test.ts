@@ -35,6 +35,13 @@ describe("ensureSubscription", () => {
     expect(store.saveSubscription).toHaveBeenCalledWith("s1", new Date("2026-09-21T00:00:00Z"));
   });
 
+  it("encodes the subscription id in the renew path", async () => {
+    store.getSyncState.mockResolvedValue({ subscriptionId: "a/b=", expiresAt: new Date(Date.now() + DAY) });
+    graphFetch.mockResolvedValue(Response.json({ id: "a/b=", expirationDateTime: "2026-09-21T00:00:00Z" }));
+    await ensureSubscription();
+    expect(graphFetch.mock.calls[0][0]).toBe("subscriptions/a%2Fb%3D");
+  });
+
   it("creates a new subscription when the old one is gone", async () => {
     store.getSyncState.mockResolvedValue({ subscriptionId: "s1", expiresAt: new Date(Date.now() + DAY) });
     graphFetch.mockResolvedValueOnce(new Response(null, { status: 404 }))

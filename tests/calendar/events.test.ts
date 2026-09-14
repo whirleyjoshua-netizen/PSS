@@ -45,6 +45,7 @@ describe("movedTimes", () => {
   it("keeps the visit's current length in Outlook", () => {
     const current = ev("2026-09-20T10:00:00.0000000", "2026-09-20T11:30:00.0000000");
     expect(movedTimes("visit", new Date("2026-09-21T16:00:00Z"), current)).toEqual({
+      isAllDay: false,
       start: { dateTime: "2026-09-21T09:00:00", timeZone: PST },
       end: { dateTime: "2026-09-21T10:30:00", timeZone: PST },
     });
@@ -53,6 +54,7 @@ describe("movedTimes", () => {
   it("moves an install as a whole day", () => {
     const current = ev("2026-09-20T00:00:00.0000000", "2026-09-21T00:00:00.0000000", true);
     expect(movedTimes("install", "2026-10-02", current)).toEqual({
+      isAllDay: true,
       start: { dateTime: "2026-10-02T00:00:00", timeZone: PST },
       end: { dateTime: "2026-10-03T00:00:00", timeZone: PST },
     });
