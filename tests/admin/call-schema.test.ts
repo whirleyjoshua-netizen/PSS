@@ -26,6 +26,15 @@ describe("callSchema", () => {
     expect(result.success).toBe(false);
     expect(result.error!.issues[0].message).toBe("Pick the visit date and time");
   });
+  it("rejects a rolled-over impossible visit date like Feb 30", () => {
+    const result = callSchema.safeParse({ ...ok, outcome: "booked", visitAt: "2026-02-30T14:00" });
+    expect(result.success).toBe(false);
+    expect(result.error!.issues[0].message).toBe("Pick the visit date and time");
+  });
+  it("still accepts a valid visit date", () => {
+    expect(callSchema.parse({ ...ok, outcome: "booked", visitAt: "2026-10-14T14:00" }).visitAt)
+      .toEqual(new Date("2026-10-14T21:00:00Z"));
+  });
   it("rejects an unknown outcome, treatment, window range or budget", () => {
     expect(callSchema.safeParse({ ...ok, outcome: "voicemail" }).error!.issues[0].message).toBe("Pick how the call went");
     expect(callSchema.safeParse({ ...ok, treatments: ["Curtains"] }).success).toBe(false);

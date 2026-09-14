@@ -17,18 +17,28 @@ function DoneButton() {
 
 /** The job's next call-back. Self-contained so the job page redesign can place it anywhere. */
 export function FollowUpBox({ job }: { job: FollowUpJob }) {
-  const [state, action, pending] = useActionState<FormState, FormData>(saveFollowUp.bind(null, job.id), {});
-  const [editing, setEditing] = useState(Boolean(state.error));
+  const [editing, setEditing] = useState(false);
+  const [state, action, pending] = useActionState<FormState, FormData>(async (prev, fd) => {
+    const result = await saveFollowUp(job.id, prev, fd);
+    if (result.ok) setEditing(false);
+    return result;
+  }, {});
+  // A dismissed submission's error/values are hidden even though useActionState keeps them
+  // around until the next real submit — Cancel shouldn't resurrect a stale alert on reopen.
+  const [dismissed, setDismissed] = useState<FormState | null>(null);
+  const shown = state === dismissed ? {} : state;
   const [editorKey, setEditorKey] = useState(0);
   const savedAt = job.followUpAt ? toLocalInput(job.followUpAt) : "";
-  const initial = typeof state.values?.at === "string" ? state.values.at : savedAt;
+  const initial = typeof shown.values?.at === "string" ? shown.values.at : savedAt;
   const [at, setAt] = useState(initial);
   const [now] = useState(() => Date.now());
+  const [picks] = useState(() => quickPicks(new Date()));
   const followUpAt = job.followUpAt ?? null;
   const overdue = followUpAt ? followUpAt.getTime() < now : false;
 
   const cancel = () => {
     setAt(savedAt);
+    setDismissed(state);
     setEditorKey((key) => key + 1);
     setEditing(false);
   };
@@ -45,9 +55,9 @@ export function FollowUpBox({ job }: { job: FollowUpJob }) {
       )}
 
       {editing ? (
-        <form key={`${editorKey}:${state.values ? JSON.stringify(state.values) : "initial"}`} action={action} className="flex flex-col gap-3">
+        <form key={`${editorKey}:${shown.values ? JSON.stringify(shown.values) : "initial"}`} action={action} className="flex flex-col gap-3">
           <div className="flex flex-wrap gap-2">
-            {quickPicks(new Date()).map((pick) => (
+            {picks.map((pick) => (
               <button key={pick.label} type="button" onClick={() => setAt(pick.value)}
                 className="min-h-11 border border-rule px-3 text-sm hover:border-charcoal">
                 {pick.label}
@@ -62,14 +72,14 @@ export function FollowUpBox({ job }: { job: FollowUpJob }) {
           <label htmlFor="follow-up-note" className="flex flex-col gap-2 text-sm">
             Reason
             <input id="follow-up-note" name="note" type="text" maxLength={FOLLOW_UP_NOTE_MAX}
-              defaultValue={typeof state.values?.note === "string" ? state.values.note : job.followUpNote ?? ""}
+              defaultValue={typeof shown.values?.note === "string" ? shown.values.note : job.followUpNote ?? ""}
               className="min-h-11 w-full border border-rule bg-ivory px-4 py-3" />
           </label>
           <div className="flex flex-wrap gap-3">
             <Button type="submit" variant="solid" disabled={pending}>Save call-back</Button>
             <Button type="button" variant="outline" onClick={cancel}>Cancel</Button>
           </div>
-          {state.error ? <p role="alert" className="text-sm">{state.error}</p> : null}
+          {shown.error ? <p role="alert" className="text-sm">{shown.error}</p> : null}
         </form>
       ) : (
         <div className="flex flex-wrap gap-3">

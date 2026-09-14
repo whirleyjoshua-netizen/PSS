@@ -71,6 +71,19 @@ describe("changing jobs", () => {
     expect(statement).toContain("follow_up_at = case when");
   });
 
+  it("passes a typed boolean, not the stage value, into the follow-up clearing CASE", async () => {
+    sql.mockResolvedValue([{ id: ID }]);
+    await jobs.setStage(ID, "lost", "owner@example.com", "Went with a cheaper quote");
+    const statement = text(sql.mock.calls[0]);
+    expect(statement).toContain("::boolean then null else follow_up_at end");
+    expect(statement).toContain("::boolean then null else follow_up_note end");
+    expect(sql.mock.calls[0]).toEqual(expect.arrayContaining([true]));
+
+    sql.mockResolvedValue([{ id: ID }]);
+    await jobs.setStage(ID, "sold", "owner@example.com");
+    expect(sql.mock.calls[1]).toEqual(expect.arrayContaining([false]));
+  });
+
   it("returns false for a missing job or an unchanged stage, without a uuid check hitting the db first", async () => {
     sql.mockResolvedValue([]);
     expect(await jobs.setStage(ID, "sold", "owner@example.com")).toBe(false);

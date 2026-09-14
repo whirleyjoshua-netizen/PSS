@@ -42,7 +42,12 @@ export function dueLabel(at: Date, now: Date): { overdue: boolean; text: string 
 
 /** Why a typed call-back time is unusable, or null. Past times are fine; they show as overdue. */
 export function callBackProblem(value: string, now: Date): string | null {
-  if (!LOCAL_TIME.test(value) || Number.isNaN(new Date(`${value}:00Z`).getTime())) {
+  const d = new Date(`${value}:00Z`);
+  if (
+    !LOCAL_TIME.test(value) ||
+    Number.isNaN(d.getTime()) ||
+    d.toISOString().slice(0, 16) !== value
+  ) {
     return "Pick a valid call-back date and time";
   }
   if (fromLocalInput(value).getTime() - now.getTime() > YEAR_MS) return "Pick a call-back within a year";

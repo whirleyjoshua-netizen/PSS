@@ -140,7 +140,7 @@ const LOCAL_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
 function isValidLocalInput(value: string): boolean {
   if (!LOCAL_TIME.test(value)) return false;
   const d = new Date(`${value}:00Z`);
-  return !Number.isNaN(d.getTime());
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 16) === value;
 }
 
 export const callSchema = z

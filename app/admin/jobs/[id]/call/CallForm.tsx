@@ -24,7 +24,7 @@ export function CallForm({ job }: { job: CallJob }) {
   const [visit, setVisit] = useState(() => text("visitAt", job.visitAt ? toLocalInput(job.visitAt) : ""));
   const date = visit.slice(0, 10);
   const [callBack, setCallBack] = useState(() => text("callBackAt", ""));
-  const picks = quickPicks(new Date());
+  const [picks] = useState(() => quickPicks(new Date()));
 
   const checked = (name: string) => {
     const submitted = values?.treatments;

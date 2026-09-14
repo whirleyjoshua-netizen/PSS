@@ -52,4 +52,7 @@ describe("callBackProblem", () => {
     expect(callBackProblem("tomorrow", now)).toBe("Pick a valid call-back date and time");
     expect(callBackProblem("2027-11-01T10:00", now)).toBe("Pick a call-back within a year");
   });
+  it("rejects a rolled-over impossible date like Feb 30", () => {
+    expect(callBackProblem("2026-02-30T10:00", now)).toBe("Pick a valid call-back date and time");
+  });
 });

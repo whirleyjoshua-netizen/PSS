@@ -1,7 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 vi.mock("@/app/admin/jobs/follow-up-actions", () => ({ saveFollowUp: vi.fn(), clearFollowUpAction: vi.fn() }));
+const { saveFollowUp } = await import("@/app/admin/jobs/follow-up-actions");
 const { FollowUpBox } = await import("@/app/admin/jobs/[id]/FollowUpBox");
 const JOB = "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c";
 
@@ -51,5 +52,30 @@ describe("FollowUpBox", () => {
     fireEvent.click(screen.getByRole("button", { name: "Change" }));
     expect((screen.getByLabelText("Call-back date and time") as HTMLInputElement).value).toBe(savedAt);
     expect((screen.getByLabelText("Reason") as HTMLInputElement).value).toBe("checking with husband");
+  });
+
+  it("closes the editor after a successful save even when only the reason changed", async () => {
+    vi.mocked(saveFollowUp).mockResolvedValue({ ok: true });
+    render(
+      <FollowUpBox job={{ id: JOB, followUpAt: new Date("2099-10-16T17:00:00Z"), followUpNote: "checking with husband" }} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Change" }));
+    fireEvent.change(screen.getByLabelText("Reason"), { target: { value: "new reason" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save call-back" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Change" })).toBeInTheDocument());
+    expect(screen.queryByLabelText("Reason")).not.toBeInTheDocument();
+  });
+
+  it("does not show a stale error or typed reason after Cancel then reopening", async () => {
+    vi.mocked(saveFollowUp).mockResolvedValue({ error: "Pick a valid call-back date and time", values: { at: "bad", note: "typed reason" } });
+    render(<FollowUpBox job={{ id: JOB, followUpAt: null, followUpNote: null }} />);
+    fireEvent.click(screen.getByRole("button", { name: "Set call-back" }));
+    fireEvent.click(screen.getByRole("button", { name: "Next week 10 AM" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save call-back" }));
+    await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    fireEvent.click(screen.getByRole("button", { name: "Set call-back" }));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect((screen.getByLabelText("Reason") as HTMLInputElement).value).toBe("");
   });
 });

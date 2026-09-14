@@ -21,7 +21,10 @@ export function NextActionCard({ job, measurementCount }: { job: Job; measuremen
       {action.cta?.kind === "link" ? (
         <ButtonLink href={action.cta.href} variant="primary" className="w-full">{action.cta.label}</ButtonLink>
       ) : null}
-      <FollowUpBox key={job.followUpAt?.toISOString() ?? "none"} job={job} />
+      <FollowUpBox
+        key={job.followUpAt?.toISOString() ?? "none"}
+        job={{ id: job.id, followUpAt: job.followUpAt ?? null, followUpNote: job.followUpNote ?? null }}
+      />
       <StageControls job={job} parts={["move"]} />
     </section>
   );

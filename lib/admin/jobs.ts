@@ -153,12 +153,13 @@ export async function setStage(id: string, to: Stage, actor: string, reason?: st
   if (!isStage(to)) throw new Error(`Unknown stage: ${String(to)}`);
   if (!isUuid(id)) return false;
   const lostReason = to === "lost" ? (reason ?? null) : null;
+  const clearFollowUp = to === "lost";
   const rows = await db()`
     with prev as (select status from leads where id = ${id}),
     moved as (
       update leads set status = ${to}, lost_reason = ${lostReason},
-        follow_up_at = case when ${to} = 'lost' then null else follow_up_at end,
-        follow_up_note = case when ${to} = 'lost' then null else follow_up_note end,
+        follow_up_at = case when ${clearFollowUp}::boolean then null else follow_up_at end,
+        follow_up_note = case when ${clearFollowUp}::boolean then null else follow_up_note end,
         stage_changed_at = now(), updated_at = now()
       where id = ${id} and status <> ${to}
       returning id
