@@ -6,7 +6,9 @@ import { after } from "next/server";
 import { logCall } from "@/lib/admin/calls";
 import { callSchema } from "@/lib/admin/schema";
 import { requireAdmin } from "@/lib/admin/session";
+import type { DayScheduleResult } from "@/lib/calendar/day-schedule";
 import { syncJobCalendar } from "@/lib/calendar/sync";
+import { getDay } from "@/lib/calendar/week";
 import type { FormState } from "./actions";
 
 const FIELDS = ["outcome", "treatments", "windowCount", "budget", "notes", "visitAt"];
@@ -44,4 +46,27 @@ export async function logCallAction(jobId: string, _prev: FormState, formData: F
   revalidatePath("/admin");
   revalidatePath(`/admin/jobs/${jobId}`);
   redirect(`/admin/jobs/${jobId}`);
+}
+
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+// Calls requireAdmin() before reading its input.
+export async function callDaySchedule(jobId: string, date: string): Promise<DayScheduleResult> {
+  await requireAdmin();
+  if (!DATE_RE.test(date)) return { ok: false };
+  try {
+    const day = await getDay(date);
+    const items = day.items
+      .filter((item) => !(item.job?.id === jobId && item.job?.kind === "visit"))
+      .map((item) => ({
+        key: item.key, allDay: item.allDay,
+        start: item.start ? item.start.toISOString() : null,
+        end: item.end ? item.end.toISOString() : null,
+        title: item.title,
+      }));
+    return { ok: true, items, notice: day.notice };
+  } catch (error) {
+    console.error("Could not load that day's schedule", error);
+    return { ok: false };
+  }
 }

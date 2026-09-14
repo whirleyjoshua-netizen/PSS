@@ -7,7 +7,7 @@ import { nextDay, type GraphEvent } from "./events";
 import { graphJson } from "./graph";
 
 export type ScheduleItem = {
-  key: string; day: string; allDay: boolean; start: Date | null; title: string;
+  key: string; day: string; allDay: boolean; start: Date | null; end: Date | null; title: string;
   job: { id: string; name: string; city: string; status: Stage; kind: "visit" | "install" } | null;
 };
 export type Week = { days: string[]; items: ScheduleItem[]; source: "outlook" | "tracker"; notice: string | null };
@@ -44,33 +44,33 @@ const order = (a: ScheduleItem, b: ScheduleItem) =>
   a.day.localeCompare(b.day) || Number(b.allDay) - Number(a.allDay) || (a.start?.getTime() ?? 0) - (b.start?.getTime() ?? 0);
 
 async function trackerItems(days: string[], from: Date, to: Date): Promise<ScheduleItem[]> {
+  const last = days[days.length - 1];
   const rows = await db()`
     select id, name, city, status, visit_at, install_on::text as install_on from leads
      where status <> 'lost'
-       and ((visit_at >= ${from} and visit_at < ${to}) or install_on between ${days[0]}::date and ${days[6]}::date)`;
+       and ((visit_at >= ${from} and visit_at < ${to}) or install_on between ${days[0]}::date and ${last}::date)`;
   const items: ScheduleItem[] = [];
   for (const row of rows) {
     const base = { id: row.id as string, name: row.name as string, city: row.city as string, status: row.status as Stage };
     const visit = row.visit_at ? new Date(row.visit_at as string) : null;
     if (visit && visit >= from && visit < to) {
       items.push({ key: `${base.id}:visit`, day: lasVegasDate(visit), allDay: false, start: visit,
-        title: `Visit · ${base.name}`, job: { ...base, kind: "visit" } });
+        end: new Date(visit.getTime() + 3_600_000), title: `Visit · ${base.name}`, job: { ...base, kind: "visit" } });
     }
     const install = row.install_on as string | null;
-    if (install && install >= days[0] && install <= days[6]) {
-      items.push({ key: `${base.id}:install`, day: install, allDay: true, start: null,
+    if (install && install >= days[0] && install <= last) {
+      items.push({ key: `${base.id}:install`, day: install, allDay: true, start: null, end: null,
         title: `Install · ${base.name}`, job: { ...base, kind: "install" } });
     }
   }
   return items;
 }
 
-export async function getWeek(param: string | undefined, now = new Date()): Promise<Week> {
-  const days = weekDays(param, now);
+async function loadRange(days: string[]): Promise<{ items: ScheduleItem[]; source: "outlook" | "tracker"; notice: string | null }> {
   const from = fromLocalInput(`${days[0]}T00:00`);
-  const to = fromLocalInput(`${nextDay(days[6])}T00:00`);
+  const to = fromLocalInput(`${nextDay(days[days.length - 1])}T00:00`);
   const tracker = (await trackerItems(days, from, to)).sort(order);
-  if (!calendarEnabled()) return { days, items: tracker, source: "tracker", notice: "Outlook isn't connected yet." };
+  if (!calendarEnabled()) return { items: tracker, source: "tracker", notice: "Outlook isn't connected yet." };
   try {
     const mailbox = calendarConfig()!.mailbox;
     const { value } = await graphJson<{ value: GraphEvent[] }>(
@@ -90,14 +90,30 @@ export async function getWeek(param: string | undefined, now = new Date()): Prom
       return {
         key: event.id, day: event.start.dateTime.slice(0, 10), allDay,
         start: allDay ? null : fromLocalInput(event.start.dateTime.slice(0, 16)),
+        end: allDay ? null : fromLocalInput(event.end.dateTime.slice(0, 16)),
         title: event.subject || "(no title)",
         job: link ? { id: link.id as string, name: link.name as string, city: link.city as string,
           status: link.status as Stage, kind: link.kind as "visit" | "install" } : null,
       };
     });
-    return { days, items: items.sort(order), source: "outlook", notice: null };
+    return { items: items.sort(order), source: "outlook", notice: null };
   } catch (error) {
     console.error("Schedule could not read Outlook", error);
-    return { days, items: tracker, source: "tracker", notice: "Couldn't reach Outlook, showing tracker dates only." };
+    return { items: tracker, source: "tracker", notice: "Couldn't reach Outlook, showing tracker dates only." };
   }
+}
+
+export async function getWeek(param: string | undefined, now = new Date()): Promise<Week> {
+  const days = weekDays(param, now);
+  const { items, source, notice } = await loadRange(days);
+  return { days, items, source, notice };
+}
+
+/** All schedule items for a single YYYY-MM-DD date, tracker or Outlook. */
+export async function getDay(date: string): Promise<{ date: string; items: ScheduleItem[]; source: "outlook" | "tracker"; notice: string | null }> {
+  const parsed = /^\d{4}-\d{2}-\d{2}$/.test(date) ? noon(date) : null;
+  const valid = parsed && !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === date;
+  if (!valid) throw new Error("Invalid date");
+  const { items, source, notice } = await loadRange([date]);
+  return { date, items: items.filter((item) => item.day === date), source, notice };
 }

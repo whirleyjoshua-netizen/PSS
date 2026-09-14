@@ -43,6 +43,46 @@ describe("rangeLabel and addDays", () => {
   });
 });
 
+describe("getDay", () => {
+  const trackerRow = { id: ID, name: "Dana Reyes", city: "Henderson", status: "visit_booked",
+    visit_at: "2026-09-17T17:00:00Z", install_on: "2026-09-19" };
+
+  it("rejects an invalid date", async () => {
+    await expect(week.getDay("nope")).rejects.toThrow("Invalid date");
+    await expect(week.getDay("2026-13-45")).rejects.toThrow("Invalid date");
+  });
+
+  it("returns only tracker items for that day, with visit end times", async () => {
+    sql.mockResolvedValueOnce([trackerRow]);
+    const result = await week.getDay("2026-09-17");
+    expect(result.date).toBe("2026-09-17");
+    expect(result.source).toBe("tracker");
+    expect(result.notice).toBe("Outlook isn't connected yet.");
+    expect(result.items).toEqual([
+      expect.objectContaining({ day: "2026-09-17", allDay: false, end: new Date("2026-09-17T18:00:00Z") }),
+    ]);
+  });
+
+  it("uses Outlook events with their end time for that day, and windows the request to that one day", async () => {
+    enabled.mockReturnValue(true);
+    graphJson.mockResolvedValue({ value: [
+      { id: "e1", changeKey: "c", subject: "Visit · Dana Reyes", isAllDay: false,
+        start: { dateTime: "2026-09-17T10:00:00.0000000", timeZone: PST }, end: { dateTime: "2026-09-17T11:00:00.0000000", timeZone: PST } },
+    ] });
+    sql.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+    const result = await week.getDay("2026-09-17");
+    expect(result.source).toBe("outlook");
+    expect(result.items[0].end).toEqual(new Date("2026-09-17T18:00:00Z"));
+    expect(String(graphJson.mock.calls[0][0])).toMatch(/^users\/jobs@example.com\/calendar\/calendarView\?startDateTime=2026-09-17T07:00:00.000Z&endDateTime=2026-09-18T07:00:00.000Z/);
+  });
+
+  it("only returns items whose day matches", async () => {
+    sql.mockResolvedValueOnce([trackerRow]);
+    const result = await week.getDay("2026-09-19");
+    expect(result.items).toEqual([expect.objectContaining({ day: "2026-09-19", allDay: true })]);
+  });
+});
+
 describe("getWeek", () => {
   const trackerRow = { id: ID, name: "Dana Reyes", city: "Henderson", status: "visit_booked",
     visit_at: "2026-09-17T17:00:00Z", install_on: "2026-09-19" };
