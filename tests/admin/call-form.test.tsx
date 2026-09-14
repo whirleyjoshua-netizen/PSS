@@ -94,4 +94,25 @@ describe("CallForm", () => {
     await screen.findByText("Couldn't load that day's schedule.");
     expect(screen.getByRole("button", { name: "Save booked visit" })).toBeEnabled();
   });
+
+  it("offers an optional call-back with quick picks", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-14T16:00:00Z")); // 9 AM Las Vegas
+    render(<CallForm job={job} />);
+    const when = screen.getByLabelText("Call-back date and time");
+    expect(when).toHaveValue("");
+    expect(when).not.toBeRequired();
+    fireEvent.click(screen.getByRole("button", { name: "Tomorrow 10 AM" }));
+    expect(when).toHaveValue("2026-10-15T10:00");
+    expect(screen.getByLabelText("Reason")).toHaveAttribute("maxLength", "200");
+    vi.useRealTimers();
+    // The real DaySchedule component renders for the picked call-back date.
+    await waitFor(() => expect(callDaySchedule).toHaveBeenCalledWith(job.id, "2026-10-15"));
+  });
+
+  it("hides the call-back while booking a visit", () => {
+    render(<CallForm job={job} />);
+    fireEvent.click(screen.getByRole("button", { name: "Booked a visit" }));
+    expect(screen.queryByLabelText("Call-back date and time")).toBeNull();
+  });
 });
