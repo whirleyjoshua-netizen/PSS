@@ -41,6 +41,7 @@ describe("logCallAction", () => {
     ]))).rejects.toThrow(`NEXT_REDIRECT /admin/jobs/${JOB}`);
     expect(logCall).toHaveBeenCalledWith(JOB, {
       outcome: "talked", treatments: ["Shades", "Blinds"], windowCount: "1-5", budgetTier: "value", notes: "Fri pm", visitAt: null,
+      followUpAt: null, followUpNote: null,
     }, "owner@example.com");
   });
 

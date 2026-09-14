@@ -64,6 +64,13 @@ describe("changing jobs", () => {
     expect(sql.mock.calls[0]).toContain("Went with a cheaper quote");
   });
 
+  it("clears the follow-up when moving to lost", async () => {
+    sql.mockResolvedValue([{ id: ID }]);
+    await jobs.setStage(ID, "lost", "owner@example.com", "Went with a cheaper quote");
+    const statement = text(sql.mock.calls[0]);
+    expect(statement).toContain("follow_up_at = case when");
+  });
+
   it("returns false for a missing job or an unchanged stage, without a uuid check hitting the db first", async () => {
     sql.mockResolvedValue([]);
     expect(await jobs.setStage(ID, "sold", "owner@example.com")).toBe(false);
@@ -141,6 +148,13 @@ describe("changing jobs", () => {
     expect(jobs.toJob({ ...row, budget_tier: "premium" }).budgetTier).toBe("premium");
     expect(jobs.toJob({ ...row, budget_tier: "luxury" }).budgetTier).toBeNull();
     expect(jobs.toJob({ ...row }).budgetTier).toBeNull();
+  });
+
+  it("toJob maps follow_up_at and follow_up_note, and missing values to null", () => {
+    const at = new Date("2026-10-16T17:00:00Z");
+    expect(jobs.toJob({ ...row, follow_up_at: at, follow_up_note: "checking with husband" }))
+      .toMatchObject({ followUpAt: at, followUpNote: "checking with husband" });
+    expect(jobs.toJob({ ...row })).toMatchObject({ followUpAt: null, followUpNote: null });
   });
 
   it("creates a hand-entered job and returns its id", async () => {
