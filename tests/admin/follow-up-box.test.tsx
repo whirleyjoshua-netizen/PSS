@@ -29,4 +29,27 @@ describe("FollowUpBox", () => {
     expect((screen.getByLabelText("Call-back date and time") as HTMLInputElement).value).toMatch(/T10:00$/);
     expect(screen.getByRole("button", { name: "Save call-back" })).toBeInTheDocument();
   });
+  it("discards edits on Cancel when there was no saved call-back", () => {
+    render(<FollowUpBox job={{ id: JOB, followUpAt: null, followUpNote: null }} />);
+    fireEvent.click(screen.getByRole("button", { name: "Set call-back" }));
+    fireEvent.click(screen.getByRole("button", { name: "Next week 10 AM" }));
+    fireEvent.change(screen.getByLabelText("Reason"), { target: { value: "typed reason" } });
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    fireEvent.click(screen.getByRole("button", { name: "Set call-back" }));
+    expect((screen.getByLabelText("Call-back date and time") as HTMLInputElement).value).toBe("");
+    expect((screen.getByLabelText("Reason") as HTMLInputElement).value).toBe("");
+  });
+  it("discards edits on Cancel and restores the saved call-back", () => {
+    render(
+      <FollowUpBox job={{ id: JOB, followUpAt: new Date("2099-10-16T17:00:00Z"), followUpNote: "checking with husband" }} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Change" }));
+    const savedAt = (screen.getByLabelText("Call-back date and time") as HTMLInputElement).value;
+    fireEvent.click(screen.getByRole("button", { name: "Next week 10 AM" }));
+    fireEvent.change(screen.getByLabelText("Reason"), { target: { value: "typed reason" } });
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    fireEvent.click(screen.getByRole("button", { name: "Change" }));
+    expect((screen.getByLabelText("Call-back date and time") as HTMLInputElement).value).toBe(savedAt);
+    expect((screen.getByLabelText("Reason") as HTMLInputElement).value).toBe("checking with husband");
+  });
 });

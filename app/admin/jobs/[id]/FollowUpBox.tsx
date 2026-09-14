@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { useFormStatus } from "react-dom";
 import { Button } from "@/components/ui/Button";
 import { FOLLOW_UP_NOTE_MAX, formatFollowUp, quickPicks } from "@/lib/admin/follow-up";
 import { toLocalInput } from "@/lib/admin/time";
@@ -9,15 +10,28 @@ import type { FormState } from "../actions";
 
 type FollowUpJob = { id: string; followUpAt?: Date | null; followUpNote?: string | null };
 
+function DoneButton() {
+  const { pending } = useFormStatus();
+  return <Button type="submit" variant="outline" disabled={pending}>Done</Button>;
+}
+
 /** The job's next call-back. Self-contained so the job page redesign can place it anywhere. */
 export function FollowUpBox({ job }: { job: FollowUpJob }) {
   const [state, action, pending] = useActionState<FormState, FormData>(saveFollowUp.bind(null, job.id), {});
   const [editing, setEditing] = useState(Boolean(state.error));
-  const initial = typeof state.values?.at === "string" ? state.values.at : job.followUpAt ? toLocalInput(job.followUpAt) : "";
+  const [editorKey, setEditorKey] = useState(0);
+  const savedAt = job.followUpAt ? toLocalInput(job.followUpAt) : "";
+  const initial = typeof state.values?.at === "string" ? state.values.at : savedAt;
   const [at, setAt] = useState(initial);
   const [now] = useState(() => Date.now());
   const followUpAt = job.followUpAt ?? null;
   const overdue = followUpAt ? followUpAt.getTime() < now : false;
+
+  const cancel = () => {
+    setAt(savedAt);
+    setEditorKey((key) => key + 1);
+    setEditing(false);
+  };
 
   return (
     <div className="flex flex-col gap-3">
@@ -31,7 +45,7 @@ export function FollowUpBox({ job }: { job: FollowUpJob }) {
       )}
 
       {editing ? (
-        <form key={state.values ? JSON.stringify(state.values) : "initial"} action={action} className="flex flex-col gap-3">
+        <form key={`${editorKey}:${state.values ? JSON.stringify(state.values) : "initial"}`} action={action} className="flex flex-col gap-3">
           <div className="flex flex-wrap gap-2">
             {quickPicks(new Date()).map((pick) => (
               <button key={pick.label} type="button" onClick={() => setAt(pick.value)}
@@ -53,7 +67,7 @@ export function FollowUpBox({ job }: { job: FollowUpJob }) {
           </label>
           <div className="flex flex-wrap gap-3">
             <Button type="submit" variant="solid" disabled={pending}>Save call-back</Button>
-            <Button type="button" variant="outline" onClick={() => setEditing(false)}>Cancel</Button>
+            <Button type="button" variant="outline" onClick={cancel}>Cancel</Button>
           </div>
           {state.error ? <p role="alert" className="text-sm">{state.error}</p> : null}
         </form>
@@ -62,7 +76,7 @@ export function FollowUpBox({ job }: { job: FollowUpJob }) {
           <Button type="button" variant="outline" onClick={() => setEditing(true)}>{followUpAt ? "Change" : "Set call-back"}</Button>
           {followUpAt ? (
             <form action={clearFollowUpAction.bind(null, job.id)}>
-              <Button type="submit" variant="outline">Done</Button>
+              <DoneButton />
             </form>
           ) : null}
         </div>
