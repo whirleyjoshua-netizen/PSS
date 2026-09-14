@@ -82,4 +82,19 @@ describe("job page", () => {
     expect(button.className).toContain("w-full");
     expect(button.querySelector('svg[aria-hidden="true"]')).not.toBeNull();
   });
+
+  it("renders only the requested stage-control parts", () => {
+    render(<StageControls job={job} parts={["set", "lost"]} />);
+    expect(screen.queryByRole("button", { name: /^Move to/ })).toBeNull();
+    expect(screen.queryByText("Stage:")).toBeNull();
+    expect(screen.getByLabelText("Set stage")).toBeInTheDocument();
+    expect(screen.getByLabelText(/mark lost/i)).toBeInTheDocument();
+  });
+
+  it("still renders every stage-control part by default", () => {
+    render(<StageControls job={job} />);
+    expect(screen.getByText("Stage:")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Move to Sold" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Set stage")).toBeInTheDocument();
+  });
 });
