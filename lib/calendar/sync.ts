@@ -81,17 +81,48 @@ export async function reconcileJob(leadId: string, mode: "push" | "auto"): Promi
   }
 }
 
+async function record(error: unknown): Promise<void> {
+  console.error("Calendar sync failed", error);
+  try {
+    await store.recordError(error instanceof Error ? error.message : String(error));
+  } catch {
+    // Best effort: never let error recording throw into the caller.
+  }
+}
+
 /** Called after a tracker save. Never throws, and does nothing when Outlook is not connected. */
 export async function syncJobCalendar(leadId: string): Promise<void> {
   if (!calendarEnabled()) return;
   try {
     await reconcileJob(leadId, "push");
   } catch (error) {
-    console.error("Calendar sync failed", error);
+    await record(error);
+  }
+}
+
+/** A Graph notification for one event. Only job events matter; the rest are ignored. */
+export async function applyOutlookChange(eventId: string): Promise<void> {
+  try {
+    const link = await store.getLinkByEvent(eventId);
+    if (!link) return;
+    await reconcileJob(link.leadId, "auto");
+  } catch (error) {
+    await record(error);
+  }
+}
+
+/** The daily catch-up: every recently dated job and every linked one, one at a time. */
+export async function reconcileCalendar(): Promise<{ jobs: number; failed: number }> {
+  const ids = await store.reconcileTargets();
+  let failed = 0;
+  for (const id of ids) {
     try {
-      await store.recordError(error instanceof Error ? error.message : String(error));
-    } catch {
-      // Best effort: never let error recording throw into the caller.
+      await reconcileJob(id, "auto");
+    } catch (error) {
+      failed += 1;
+      await record(error);
     }
   }
+  if (failed === 0) await store.clearError();
+  return { jobs: ids.length, failed };
 }
