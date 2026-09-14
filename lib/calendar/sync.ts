@@ -19,14 +19,19 @@ async function expectOk(response: Response, what: string): Promise<Response> {
   return response;
 }
 
-/** Brings one job's visit and install events in line. "push": the tracker wins. "auto": the side whose changeKey moved wins. */
-export async function reconcileJob(leadId: string, mode: "push" | "auto"): Promise<void> {
+/**
+ * Brings one job's visit and install events in line. A kind in pushKinds is one the tracker just changed,
+ * so the tracker wins and a missing event is re-created. Every other kind is "auto": the side whose
+ * changeKey moved wins, and an event deleted in Outlook clears the tracker date.
+ */
+export async function reconcileJob(leadId: string, pushKinds: readonly Kind[] = []): Promise<void> {
   const mailbox = calendarConfig()!.mailbox;
   const events = `users/${mailbox}/events`;
   const job = await store.getCalendarJob(leadId);
   const links = await store.getLinks(leadId);
 
   for (const kind of KINDS) {
+    const push = pushKinds.includes(kind);
     const link = links.find((l) => l.kind === kind) ?? null;
     const current = kind === "visit" ? job?.visitAt ?? null : job?.installOn ?? null;
     const wanted = job && job.status !== "lost" ? current : null;
@@ -48,7 +53,7 @@ export async function reconcileJob(leadId: string, mode: "push" | "auto"): Promi
     const got = await graphFetch(`${events}/${link.eventId}`);
     if (got.status === 404) {
       await store.deleteLink(leadId, kind);
-      if (mode === "push") await create();
+      if (push) await create();
       else if (current !== null) await store.setJobDate(leadId, kind, null, `${LABEL[kind]} removed in Outlook`);
       continue;
     }
@@ -61,7 +66,7 @@ export async function reconcileJob(leadId: string, mode: "push" | "auto"): Promi
       continue;
     }
 
-    if (mode === "auto" && event.changeKey !== link.changeKey) {
+    if (!push && event.changeKey !== link.changeKey) {
       const value = trackerValue(kind, event);
       if (!sameValue(kind, value, current)) {
         const when = kind === "visit" ? formatWhen(value as Date) : formatDate(value as string);
@@ -90,11 +95,14 @@ async function record(error: unknown): Promise<void> {
   }
 }
 
-/** Called after a tracker save. Never throws, and does nothing when Outlook is not connected. */
-export async function syncJobCalendar(leadId: string): Promise<void> {
+/**
+ * Called after a tracker save. pushKinds lists the dates this save changed; only those override Outlook.
+ * Never throws, and does nothing when Outlook is not connected.
+ */
+export async function syncJobCalendar(leadId: string, pushKinds: Kind[] = []): Promise<void> {
   if (!calendarEnabled()) return;
   try {
-    await reconcileJob(leadId, "push");
+    await reconcileJob(leadId, pushKinds);
   } catch (error) {
     await record(error);
   }
@@ -105,7 +113,7 @@ export async function applyOutlookChange(eventId: string): Promise<void> {
   try {
     const link = await store.getLinkByEvent(eventId);
     if (!link) return;
-    await reconcileJob(link.leadId, "auto");
+    await reconcileJob(link.leadId);
   } catch (error) {
     await record(error);
   }
@@ -117,7 +125,7 @@ export async function reconcileCalendar(): Promise<{ jobs: number; failed: numbe
   let failed = 0;
   for (const id of ids) {
     try {
-      await reconcileJob(id, "auto");
+      await reconcileJob(id);
     } catch (error) {
       failed += 1;
       await record(error);

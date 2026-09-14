@@ -84,7 +84,7 @@ describe("syncJobCalendar (tracker wins)", () => {
     store.getLinks.mockResolvedValue([link]);
     graphFetch.mockResolvedValueOnce(new Response(null, { status: 404 }))
       .mockResolvedValueOnce(Response.json({ id: "e9", changeKey: "ck9" }, { status: 201 }));
-    await sync.syncJobCalendar(ID);
+    await sync.syncJobCalendar(ID, ["visit"]);
     expect(store.deleteLink).toHaveBeenCalledWith(ID, "visit");
     expect(store.saveLink).toHaveBeenCalledWith({ ...link, eventId: "e9", changeKey: "ck9" });
     expect(store.setJobDate).not.toHaveBeenCalled();
@@ -109,5 +109,48 @@ describe("syncJobCalendar (tracker wins)", () => {
     await sync.syncJobCalendar(ID);
     expect(graphFetch.mock.calls[0][1].body.isAllDay).toBe(true);
     expect(store.saveLink).toHaveBeenCalledWith({ leadId: ID, kind: "install", eventId: "e2", changeKey: "c" });
+  });
+});
+
+describe("syncJobCalendar push kinds (only a date the tracker just changed wins)", () => {
+  const movedInOutlook = () => event({
+    changeKey: "ck2", start: { dateTime: "2026-09-22T14:00:00.0000000", timeZone: PST },
+    end: { dateTime: "2026-09-22T15:00:00.0000000", timeZone: PST },
+  });
+  beforeEach(() => { store.getLinks.mockResolvedValue([link]); });
+
+  it("keeps an unsynced Outlook move when the save did not touch that date", async () => {
+    graphFetch.mockResolvedValueOnce(Response.json(movedInOutlook()));
+    await sync.syncJobCalendar(ID);
+    expect(store.setJobDate).toHaveBeenCalledWith(ID, "visit", new Date("2026-09-22T21:00:00Z"),
+      expect.stringMatching(/^Visit moved in Outlook/));
+    expect(calls().some((c) => c.startsWith("PATCH"))).toBe(false);
+    expect(store.saveLink).toHaveBeenCalledWith({ ...link, changeKey: "ck2" });
+  });
+
+  it("pushes the tracker's date when this save changed it, even if Outlook moved too", async () => {
+    graphFetch.mockResolvedValueOnce(Response.json(movedInOutlook()))
+      .mockResolvedValueOnce(Response.json({ id: "e1", changeKey: "ck3" }));
+    await sync.syncJobCalendar(ID, ["visit"]);
+    expect(calls()).toContain("PATCH users/jobs@example.com/events/e1");
+    expect(graphFetch.mock.calls[1][1].body.start.dateTime).toBe("2026-09-20T10:00:00");
+    expect(store.setJobDate).not.toHaveBeenCalled();
+    expect(store.saveLink).toHaveBeenCalledWith({ ...link, changeKey: "ck3" });
+  });
+
+  it("clears the date, rather than re-creating, when Outlook deleted an event the save did not touch", async () => {
+    graphFetch.mockResolvedValueOnce(new Response(null, { status: 404 }));
+    await sync.syncJobCalendar(ID);
+    expect(store.deleteLink).toHaveBeenCalledWith(ID, "visit");
+    expect(store.setJobDate).toHaveBeenCalledWith(ID, "visit", null, "Visit removed in Outlook");
+    expect(calls().some((c) => c.startsWith("POST"))).toBe(false);
+  });
+
+  it("re-creates a deleted event when this save changed its date", async () => {
+    graphFetch.mockResolvedValueOnce(new Response(null, { status: 404 }))
+      .mockResolvedValueOnce(Response.json({ id: "e9", changeKey: "ck9" }, { status: 201 }));
+    await sync.syncJobCalendar(ID, ["visit"]);
+    expect(calls()).toContain("POST users/jobs@example.com/events");
+    expect(store.setJobDate).not.toHaveBeenCalled();
   });
 });

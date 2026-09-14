@@ -36,7 +36,7 @@ beforeEach(() => {
   Object.values(jobs).forEach((fn) => fn.mockReset());
   requireAdmin.mockReset().mockResolvedValue({ email: "owner@example.com" });
   jobs.setStage.mockResolvedValue(true);
-  jobs.updateDetails.mockResolvedValue(true);
+  jobs.updateDetails.mockResolvedValue({ visitChanged: false, installChanged: false });
   jobs.addNote.mockResolvedValue(true);
   [...Object.values(referrals), sendReviewRequest, ...Object.values(reviewsDb)].forEach((fn) => fn.mockReset());
   jobs.getJob.mockResolvedValue({ id: ID, status: "installed", email: "dana@example.com", reviewOptOut: false });
@@ -186,13 +186,22 @@ describe("referrals and reviews", () => {
 });
 
 describe("Outlook calendar sync", () => {
-  it("syncs after details are saved", async () => {
+  it("pushes only the dates this save changed", async () => {
+    jobs.updateDetails.mockResolvedValue({ visitChanged: true, installChanged: false });
     await actions.saveDetails(ID, {}, form({ visitAt: "2026-09-20T10:00" }));
-    expect(syncJobCalendar).toHaveBeenCalledWith(ID);
+    expect(syncJobCalendar).toHaveBeenCalledWith(ID, ["visit"]);
+    jobs.updateDetails.mockResolvedValue({ visitChanged: true, installChanged: true });
+    await actions.saveDetails(ID, {}, form({ visitAt: "2026-09-20T10:00", installOn: "2026-10-02" }));
+    expect(syncJobCalendar).toHaveBeenLastCalledWith(ID, ["visit", "install"]);
+  });
+
+  it("syncs without pushing when a save left both dates alone", async () => {
+    await actions.saveDetails(ID, {}, form({ quote: "4500" }));
+    expect(syncJobCalendar).toHaveBeenCalledWith(ID, []);
   });
 
   it("does not sync when the details did not save", async () => {
-    jobs.updateDetails.mockResolvedValue(false);
+    jobs.updateDetails.mockResolvedValue(null);
     await actions.saveDetails(ID, {}, form({}));
     expect(syncJobCalendar).not.toHaveBeenCalled();
   });

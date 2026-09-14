@@ -161,10 +161,18 @@ export async function setStage(id: string, to: Stage, actor: string, reason?: st
   return rows.length > 0;
 }
 
-export async function updateDetails(id: string, input: DetailsInput, actor: string): Promise<boolean> {
-  if (!isUuid(id)) return false;
+/**
+ * Saves the details form and logs it, in one statement. Returns null when the job is gone, otherwise
+ * which dates this save changed: every CTE reads the row as it was before the update, so prev holds
+ * the old dates (Outlook should only be overridden for a date the owner actually changed).
+ */
+export async function updateDetails(
+  id: string, input: DetailsInput, actor: string,
+): Promise<{ visitChanged: boolean; installChanged: boolean } | null> {
+  if (!isUuid(id)) return null;
   const rows = await db()`
-    with changed as (
+    with prev as (select visit_at, install_on from leads where id = ${id}),
+    changed as (
       update leads set
         visit_at = ${input.visitAt}, quote_cents = ${input.quoteCents},
         sold_cents = ${input.soldCents}, deposit_cents = ${input.depositCents},
@@ -172,11 +180,17 @@ export async function updateDetails(id: string, input: DetailsInput, actor: stri
         install_on = ${input.installOn}::date, budget_tier = ${input.budgetTier}, updated_at = now()
       where id = ${id}
       returning id
+    ),
+    logged as (
+      insert into job_events (lead_id, actor, kind, body)
+      select id, ${actor}, 'edit', 'Updated job details' from changed
     )
-    insert into job_events (lead_id, actor, kind, body)
-    select id, ${actor}, 'edit', 'Updated job details' from changed
-    returning id`;
-  return rows.length > 0;
+    select prev.visit_at is distinct from ${input.visitAt}::timestamptz as visit_changed,
+           prev.install_on is distinct from ${input.installOn}::date as install_changed
+    from prev, changed`;
+  const row = rows[0];
+  if (!row) return null;
+  return { visitChanged: Boolean(row.visit_changed), installChanged: Boolean(row.install_changed) };
 }
 
 export async function addNote(id: string, body: string, actor: string): Promise<boolean> {

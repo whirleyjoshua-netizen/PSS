@@ -2,9 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import { logCall } from "@/lib/admin/calls";
 import { callSchema } from "@/lib/admin/schema";
 import { requireAdmin } from "@/lib/admin/session";
+import { syncJobCalendar } from "@/lib/calendar/sync";
 import type { FormState } from "./actions";
 
 const FIELDS = ["outcome", "treatments", "windowCount", "budget", "notes", "visitAt"];
@@ -35,6 +37,9 @@ export async function logCallAction(jobId: string, _prev: FormState, formData: F
 
   const saved = await logCall(jobId, parsed.data, email);
   if (!saved) return { error: "That job no longer exists." };
+  // A booked call sets the visit, so the tracker wins for it; otherwise Outlook just stays in step.
+  const booked = parsed.data.outcome === "booked";
+  after(() => syncJobCalendar(jobId, booked ? ["visit"] : []));
 
   revalidatePath("/admin");
   revalidatePath(`/admin/jobs/${jobId}`);

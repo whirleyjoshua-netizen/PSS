@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { after } from "next/server";
+import type { Kind } from "@/lib/calendar/events";
 import { syncJobCalendar } from "@/lib/calendar/sync";
 import { requireAdmin } from "@/lib/admin/session";
 import { addNote, createJob, getJob, setStage, updateDetails } from "@/lib/admin/jobs";
@@ -42,6 +43,7 @@ function captureValues(formData: FormData, keys: string[]): Record<string, strin
 // Every action calls requireAdmin() before reading its input.
 
 // Outlook follows the tracker's dates; syncJobCalendar never throws and is a no-op until Outlook is set up.
+// A stage move changes no date, so it pushes nothing: Lost still removes events and a reopened job gets them back.
 export async function moveStage(id: string, to: Stage): Promise<void> {
   const { email } = await requireAdmin();
   const changed = await setStage(id, to, email);
@@ -80,9 +82,13 @@ export async function saveDetails(id: string, _prev: FormState, formData: FormDa
     budget: formData.get("budget") ?? "",
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message, values };
-  const saved = await updateDetails(id, parsed.data, email);
-  if (!saved) return MISSING;
-  after(() => syncJobCalendar(id));
+  const result = await updateDetails(id, parsed.data, email);
+  if (!result) return MISSING;
+  // Only a date this save changed overrides Outlook; the rest keep any move made there.
+  const pushKinds: Kind[] = [];
+  if (result.visitChanged) pushKinds.push("visit");
+  if (result.installChanged) pushKinds.push("install");
+  after(() => syncJobCalendar(id, pushKinds));
   refresh(id);
   return { ok: true };
 }
