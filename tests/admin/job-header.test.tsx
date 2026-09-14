@@ -47,6 +47,15 @@ describe("JobHeader", () => {
     expect(within(menu).queryByRole("button", { name: /^Move to/ })).toBeNull();
   });
 
+  it("keeps the More-actions panel within the header row below sm", () => {
+    render(<JobHeader job={job} now={now} />);
+    const details = screen.getByLabelText("More actions").closest("details")!;
+    expect(details.className).toContain("sm:relative");
+    const panel = details.querySelector("div")!;
+    expect(panel.className).toContain("inset-x-0");
+    expect(panel.className).toContain("sm:right-0");
+  });
+
   it("shows a lost banner with the reason", () => {
     render(<JobHeader job={{ ...job, status: "lost", lostReason: "Went with another company" }} now={now} />);
     expect(screen.getByText("Lost — Went with another company")).toBeInTheDocument();

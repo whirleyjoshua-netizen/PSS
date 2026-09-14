@@ -34,7 +34,8 @@ export function OverviewTab({ job, editing, now, measurements, files, events, re
   const edit = editDetailsHref(job.id);
   const stageIndex = STAGES.findIndex((s) => s.value === job.status);
   const soldOrLater = stageIndex >= STAGES.findIndex((s) => s.value === "sold");
-  const photos = files.filter((file) => file.kind === "photo").slice(0, 6);
+  const windowPhotoIds = new Set(measurements.map((m) => m.photoFileId).filter(Boolean));
+  const photos = files.filter((file) => file.kind === "photo" && !windowPhotoIds.has(file.id)).slice(0, 6);
   const documents = files.filter((file) => file.kind === "document").length;
   const lastMeasured = measurements.reduce<Date | null>(
     (latest, m) => (!latest || m.updatedAt > latest ? m.updatedAt : latest), null,
@@ -67,79 +68,83 @@ export function OverviewTab({ job, editing, now, measurements, files, events, re
                 ...(measurements.length ? [{ label: "View all", href: tabHref(job.id, "measurements") }] : []),
               ]} />
             <StatusCard title="Order" value={job.orderedOn ? formatDateOnly(job.orderedOn) : null} empty="Not ordered"
-              actions={job.orderedOn ? [] : [{ label: "Set order date", href: edit }]} />
+              actions={job.orderedOn ? [] : [{ label: "Set order date", href: editDetailsHref(job.id, "orderedOn") }]} />
             <StatusCard title="Install" value={job.installOn ? formatDateOnly(job.installOn) : null} empty="Not scheduled"
-              actions={job.installOn ? [] : [{ label: "Set install date", href: edit }]} />
+              actions={job.installOn ? [] : [{ label: "Set install date", href: editDetailsHref(job.id, "installOn") }]} />
           </div>
         </>
       )}
 
-      <section aria-labelledby="portal-heading" className={CARD}>
-        <h2 id="portal-heading" className={HEADING}>Customer project page</h2>
-        <InviteSection
-          jobId={job.id}
-          hasEmail={Boolean(job.email?.trim())}
-          canInvite={isPortalStage(job.status)}
-          invitedLabel={job.portalInvitedAt ? formatWhen(job.portalInvitedAt) : null}
-        />
-      </section>
-      {soldOrLater ? (
-        <>
-          <section aria-labelledby="review-heading" className={CARD}>
-            <h2 id="review-heading" className={HEADING}>Review request</h2>
-            <ReviewSection job={job} />
-          </section>
-          <section aria-labelledby="referral-heading" className={CARD}>
-            <h2 id="referral-heading" className={HEADING}>Referral link</h2>
-            <ReferralSection job={job} />
-          </section>
-        </>
-      ) : null}
-      {referrals.length ? (
-        <section aria-labelledby="referrals-heading" className={`${CARD} lg:col-span-3`}>
-          <h2 id="referrals-heading" className={HEADING}>Referrals</h2>
-          <ReferralsList referrerId={job.id} referrals={referrals} />
+      <div className="grid gap-6 lg:col-span-3 lg:grid-cols-3">
+        <section aria-labelledby="portal-heading" className={CARD}>
+          <h2 id="portal-heading" className={HEADING}>Customer project page</h2>
+          <InviteSection
+            jobId={job.id}
+            hasEmail={Boolean(job.email?.trim())}
+            canInvite={isPortalStage(job.status)}
+            invitedLabel={job.portalInvitedAt ? formatWhen(job.portalInvitedAt) : null}
+          />
         </section>
-      ) : null}
-
-      <section aria-labelledby="recent-heading" className={`${CARD} lg:col-span-2`}>
-        <div className="flex items-center justify-between gap-3">
-          <h2 id="recent-heading" className={HEADING}>Recent activity</h2>
-          <div className="flex gap-4">
-            <Link href={tabHref(job.id, "activity")} className={TEXT_LINK}>Add note</Link>
-            <Link href={tabHref(job.id, "activity")} className={TEXT_LINK}>All activity</Link>
-          </div>
-        </div>
-        <EventList events={events.slice(0, 5)} now={now} />
-      </section>
-
-      <section aria-labelledby="files-heading" className={CARD}>
-        <div className="flex items-center justify-between gap-3">
-          <h2 id="files-heading" className={HEADING}>Files and photos</h2>
-          {files.length ? <Link href={tabHref(job.id, "files")} className={TEXT_LINK}>Files</Link> : null}
-        </div>
-        {files.length === 0 ? (
-          <p className="text-sm text-ink-soft">
-            No files yet. <Link href={tabHref(job.id, "files")} className={TEXT_LINK}>Upload</Link>
-          </p>
-        ) : (
+        {soldOrLater ? (
           <>
-            {photos.length ? (
-              <ul className="grid grid-cols-3 gap-2">
-                {photos.map((file) => (
-                  <li key={file.id}>
-                    <a href={`/admin/files/${file.id}`} target="_blank" rel="noreferrer">
-                      {/* eslint-disable-next-line @next/next/no-img-element -- private files are streamed by our own route, not the image optimizer */}
-                      <img src={`/admin/files/${file.id}`} alt={file.name} className="aspect-square w-full object-cover" />
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-            <p className="text-sm text-ink-soft">{plural(documents, "document")}</p>
+            <section aria-labelledby="review-heading" className={CARD}>
+              <h2 id="review-heading" className={HEADING}>Review request</h2>
+              <ReviewSection job={job} />
+            </section>
+            <section aria-labelledby="referral-heading" className={CARD}>
+              <h2 id="referral-heading" className={HEADING}>Referral link</h2>
+              <ReferralSection job={job} />
+            </section>
           </>
-        )}
-      </section>
+        ) : null}
+        {referrals.length ? (
+          <section aria-labelledby="referrals-heading" className={`${CARD} lg:col-span-3`}>
+            <h2 id="referrals-heading" className={HEADING}>Referrals</h2>
+            <ReferralsList referrerId={job.id} referrals={referrals} />
+          </section>
+        ) : null}
+      </div>
+
+      <div className="grid gap-6 lg:col-span-3 lg:grid-cols-3">
+        <section aria-labelledby="recent-heading" className={`${CARD} lg:col-span-2`}>
+          <div className="flex items-center justify-between gap-3">
+            <h2 id="recent-heading" className={HEADING}>Recent activity</h2>
+            <div className="flex gap-4">
+              <Link href={tabHref(job.id, "activity")} className={TEXT_LINK}>Add note</Link>
+              <Link href={tabHref(job.id, "activity")} className={TEXT_LINK}>All activity</Link>
+            </div>
+          </div>
+          <EventList events={events.slice(0, 5)} now={now} />
+        </section>
+
+        <section aria-labelledby="files-heading" className={CARD}>
+          <div className="flex items-center justify-between gap-3">
+            <h2 id="files-heading" className={HEADING}>Files and photos</h2>
+            {files.length ? <Link href={tabHref(job.id, "files")} className={TEXT_LINK}>Files</Link> : null}
+          </div>
+          {files.length === 0 ? (
+            <p className="text-sm text-ink-soft">
+              No files yet. <Link href={tabHref(job.id, "files")} className={TEXT_LINK}>Upload</Link>
+            </p>
+          ) : (
+            <>
+              {photos.length ? (
+                <ul className="grid grid-cols-3 gap-2">
+                  {photos.map((file) => (
+                    <li key={file.id}>
+                      <a href={`/admin/files/${file.id}`} target="_blank" rel="noreferrer">
+                        {/* eslint-disable-next-line @next/next/no-img-element -- private files are streamed by our own route, not the image optimizer */}
+                        <img src={`/admin/files/${file.id}`} alt={file.name} className="aspect-square w-full object-cover" />
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+              <p className="text-sm text-ink-soft">{plural(documents, "document")}</p>
+            </>
+          )}
+        </section>
+      </div>
     </div>
   );
 }

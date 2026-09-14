@@ -21,7 +21,7 @@ export function JobHeader({ job, now }: { job: Job; now: Date }) {
     <header className="flex flex-col gap-5">
       <Link href="/admin" className={`${TEXT_LINK} self-start`}>← All jobs</Link>
 
-      <div className="flex flex-wrap items-start justify-between gap-4">
+      <div className="relative flex flex-wrap items-start justify-between gap-4">
         <div className="flex min-w-0 flex-col gap-1">
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="font-display text-3xl font-light">{job.name}</h1>
@@ -40,11 +40,11 @@ export function JobHeader({ job, now }: { job: Job; now: Date }) {
           <a href={`sms:+1${job.phone}`} className={ACTION_LINK}>Text</a>
           {job.email ? <a href={`mailto:${job.email}`} className={ACTION_LINK}>Email</a> : null}
           <Link href={editDetailsHref(job.id, "visitAt")} className={ACTION_LINK}>Schedule</Link>
-          <details className="relative">
+          <details className="sm:relative">
             <summary aria-label="More actions" className={`${ACTION_LINK} cursor-pointer list-none [&::-webkit-details-marker]:hidden`}>
               <span aria-hidden="true">•••</span>
             </summary>
-            <div className="absolute right-0 z-20 mt-2 w-80 max-w-[calc(100vw-2rem)] border border-rule bg-ivory p-4 shadow-lg">
+            <div className="absolute inset-x-0 z-20 mt-2 border border-rule bg-ivory p-4 shadow-lg sm:left-auto sm:right-0 sm:w-80">
               <StageControls job={job} parts={["set", "lost"]} />
             </div>
           </details>

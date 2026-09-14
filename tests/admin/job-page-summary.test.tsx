@@ -77,7 +77,7 @@ describe("job page summary", () => {
     expect(budgetRow()).toHaveTextContent("—");
   });
 
-  it("offers a Call button under the name", async () => {
+  it("offers a Call button in the header", async () => {
     getJob.mockResolvedValue({ ...baseJob });
     render(await JobPage({ params: Promise.resolve({ id: ID }), searchParams: Promise.resolve({}) }));
     expect(screen.getByRole("link", { name: "Log a call" })).toHaveAttribute("href", `/admin/jobs/${baseJob.id}/call`);

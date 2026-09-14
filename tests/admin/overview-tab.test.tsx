@@ -39,7 +39,9 @@ describe("OverviewTab", () => {
     expect(screen.getByRole("region", { name: "Order" })).toHaveTextContent("Sep 18, 2026");
     const install = screen.getByRole("region", { name: "Install" });
     expect(install).toHaveTextContent("Not scheduled");
-    expect(within(install).getByRole("link", { name: "Set install date" })).toBeInTheDocument();
+    expect(within(install).getByRole("link", { name: "Set install date" })).toHaveAttribute(
+      "href", `/admin/jobs/${ID}?tab=overview&edit=details#installOn`,
+    );
     expect(screen.getByRole("region", { name: "Visit" })).toHaveTextContent("No visit booked");
   });
 
@@ -56,5 +58,32 @@ describe("OverviewTab", () => {
     expect(screen.getByText("No activity yet.")).toBeInTheDocument();
     expect(screen.getByText("No files yet.")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Upload" })).toHaveAttribute("href", `/admin/jobs/${ID}?tab=files`);
+  });
+
+  it("excludes window measurement photos from the overview thumbnails", () => {
+    const windowPhoto = { id: "photo-1", leadId: ID, kind: "photo" as const, name: "window.jpg", contentType: "image/jpeg", blobPathname: "photo-1", createdAt: now, sizeBytes: 100, uploadedBy: "x", sharedAt: null };
+    const generalPhoto = { id: "photo-2", leadId: ID, kind: "photo" as const, name: "before.jpg", contentType: "image/jpeg", blobPathname: "photo-2", createdAt: now, sizeBytes: 100, uploadedBy: "x", sharedAt: null };
+    render(<OverviewTab {...base}
+      files={[windowPhoto, generalPhoto]}
+      measurements={[{
+        id: "m1", jobId: ID, room: "Kitchen", label: null, widthEighths: 280, heightEighths: 384,
+        depthEighths: null, mount: "inside", requirements: [], notes: null, photoFileId: "photo-1",
+        updatedAt: now,
+      } as unknown as import("@/lib/admin/measurements").WindowMeasurement]}
+    />);
+    expect(screen.getByRole("link", { name: "before.jpg" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "window.jpg" })).toBeNull();
+  });
+
+  it("shows Review request and Referral link once sold", () => {
+    render(<OverviewTab {...base} job={{ ...job, status: "sold" }} />);
+    expect(screen.getByRole("region", { name: "Review request" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Referral link" })).toBeInTheDocument();
+  });
+
+  it("hides Review request and Referral link before sold", () => {
+    render(<OverviewTab {...base} job={{ ...job, status: "quoted" }} />);
+    expect(screen.queryByRole("region", { name: "Review request" })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Referral link" })).toBeNull();
   });
 });

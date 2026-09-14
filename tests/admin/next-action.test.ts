@@ -29,21 +29,27 @@ describe("nextAction", () => {
   });
   it("quotes a booked visit once measured", () => {
     expect(nextAction(job("visit_booked"), 3)).toMatchObject({
-      title: "Send the quote", cta: { label: "Enter quote", href: EDIT },
+      title: "Send the quote", cta: { label: "Enter quote", href: `${EDIT}#quote` },
     });
   });
   it("follows up a quote", () => {
-    expect(nextAction(job("quoted"), 0)).toMatchObject({ title: "Follow up and close", cta: { label: "Enter sold amount" } });
+    expect(nextAction(job("quoted"), 0)).toMatchObject({
+      title: "Follow up and close", cta: { label: "Enter sold amount", href: `${EDIT}#sold` },
+    });
   });
   it("orders a sold job", () => {
-    expect(nextAction(job("sold"), 0)).toMatchObject({ title: "Order the product", cta: { label: "Set order date" } });
+    expect(nextAction(job("sold"), 0)).toMatchObject({
+      title: "Order the product", cta: { label: "Set order date", href: `${EDIT}#orderedOn` },
+    });
   });
   it("schedules an ordered job", () => {
-    expect(nextAction(job("ordered"), 0)).toMatchObject({ title: "Schedule the install", cta: { label: "Set install date" } });
+    expect(nextAction(job("ordered"), 0)).toMatchObject({
+      title: "Schedule the install", cta: { label: "Set install date", href: `${EDIT}#installOn` },
+    });
   });
   it("collects an installed job's balance", () => {
     expect(nextAction(job("installed", 500000, 250000), 0)).toMatchObject({
-      title: "Collect the balance", detail: "$2,500 left to collect.", cta: { label: "Record payment", href: EDIT },
+      title: "Collect the balance", detail: "$2,500 left to collect.", cta: { label: "Record payment", href: `${EDIT}#deposit` },
     });
   });
   it("is complete when installed with nothing owed", () => {

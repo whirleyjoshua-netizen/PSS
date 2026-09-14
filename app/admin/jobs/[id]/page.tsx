@@ -11,6 +11,7 @@ import { JobTabs } from "./JobTabs";
 import { MeasurementsTab } from "./MeasurementsTab";
 import { OverviewTab } from "./OverviewTab";
 import { firstParam, parseJobTab } from "./tabs";
+import { HEADING } from "./ui";
 
 export default async function JobPage({ params, searchParams }: {
   params: Promise<{ id: string }>;
@@ -41,7 +42,12 @@ export default async function JobPage({ params, searchParams }: {
           events={events} referrals={referrals} referrer={referrer} />
       ) : null}
       {tab === "measurements" ? <MeasurementsTab jobId={job.id} measurements={measurements} files={files} /> : null}
-      {tab === "files" ? <JobFiles jobId={job.id} measurements={measurements} files={files} showMeasurements={false} /> : null}
+      {tab === "files" ? (
+        <div className="flex flex-col gap-4">
+          <h2 className={HEADING}>Files</h2>
+          <JobFiles jobId={job.id} measurements={measurements} files={files} showMeasurements={false} />
+        </div>
+      ) : null}
       {tab === "activity" ? <ActivityTab jobId={job.id} events={events} now={now} /> : null}
     </div>
   );
