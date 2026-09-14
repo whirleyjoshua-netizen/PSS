@@ -2,7 +2,6 @@ import { render, screen, within } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const ID = "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c";
-const ID2 = "4f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6d";
 const getWeek = vi.fn();
 const getMonth = vi.fn();
 vi.mock("@/lib/calendar/week", async () => ({
@@ -11,7 +10,13 @@ vi.mock("@/lib/calendar/week", async () => ({
 const requireAdmin = vi.fn(async () => ({ email: "owner@example.com" }));
 vi.mock("@/lib/admin/session", () => ({ requireAdmin }));
 const { default: SchedulePage } = await import("@/app/admin/schedule/page");
+const { MonthView } = await import("@/app/admin/schedule/MonthView");
 const days = ["2026-09-13", "2026-09-14", "2026-09-15", "2026-09-16", "2026-09-17", "2026-09-18", "2026-09-19"];
+const monthDays = ["2026-08-30", "2026-08-31", "2026-09-01", "2026-09-02", "2026-09-03", "2026-09-04", "2026-09-05",
+  "2026-09-06", "2026-09-07", "2026-09-08", "2026-09-09", "2026-09-10", "2026-09-11", "2026-09-12",
+  "2026-09-13", "2026-09-14", "2026-09-15", "2026-09-16", "2026-09-17", "2026-09-18", "2026-09-19",
+  "2026-09-20", "2026-09-21", "2026-09-22", "2026-09-23", "2026-09-24", "2026-09-25", "2026-09-26",
+  "2026-09-27", "2026-09-28", "2026-09-29", "2026-09-30", "2026-10-01", "2026-10-02", "2026-10-03"];
 const open = async (params: Record<string, string> = {}) => render(await SchedulePage({ searchParams: Promise.resolve(params) }));
 
 const NOW = new Date("2026-09-16T19:00:00Z"); // Wed Sep 16, noon in Las Vegas
@@ -28,11 +33,7 @@ beforeEach(() => {
   });
   getMonth.mockReset().mockResolvedValue({
     month: "2026-09",
-    days: ["2026-08-30", "2026-08-31", "2026-09-01", "2026-09-02", "2026-09-03", "2026-09-04", "2026-09-05",
-      "2026-09-06", "2026-09-07", "2026-09-08", "2026-09-09", "2026-09-10", "2026-09-11", "2026-09-12",
-      "2026-09-13", "2026-09-14", "2026-09-15", "2026-09-16", "2026-09-17", "2026-09-18", "2026-09-19",
-      "2026-09-20", "2026-09-21", "2026-09-22", "2026-09-23", "2026-09-24", "2026-09-25", "2026-09-26",
-      "2026-09-27", "2026-09-28", "2026-09-29", "2026-09-30", "2026-10-01", "2026-10-02", "2026-10-03"],
+    days: monthDays,
     source: "outlook", notice: null,
     items: [
       { key: "e1", day: "2026-09-17", allDay: false, start: new Date("2026-09-17T17:00:00Z"), title: "Visit · Dana Reyes",
@@ -82,7 +83,7 @@ describe("schedule page - week view", () => {
 
   it("passes the week parameter through", async () => {
     await open({ week: "2026-10-01" });
-    expect(getWeek).toHaveBeenCalledWith("2026-10-01");
+    expect(getWeek).toHaveBeenCalledWith("2026-10-01", NOW);
   });
 
   it("treats an unrecognized view value as the week view", async () => {
@@ -95,7 +96,7 @@ describe("schedule page - week view", () => {
 describe("schedule page - month view", () => {
   it("renders the month label and the 7 day headers, with the switch pointing back to the week", async () => {
     await open({ view: "month" });
-    expect(getMonth).toHaveBeenCalledWith(undefined);
+    expect(getMonth).toHaveBeenCalledWith(undefined, NOW);
     expect(screen.getByText("September 2026")).toBeInTheDocument();
     for (const name of ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]) {
       expect(screen.getByText(name)).toBeInTheDocument();
@@ -129,6 +130,7 @@ describe("schedule page - month view", () => {
     const cell = screen.getByRole("link", { name: /thu, sep 17/i });
     expect(within(cell).getByText("+1 more")).toBeInTheDocument();
     expect(within(cell).getByText(/8:00 AM · One/)).toBeInTheDocument();
+    expect(within(cell).queryByText(/Four/)).toBeNull();
   });
 
   it("shows the phone count text", async () => {
@@ -162,14 +164,40 @@ describe("schedule page - month view", () => {
     expect(screen.getByText("Nothing scheduled this month.")).toBeInTheDocument();
   });
 
-  it("falls back an invalid month to the call getMonth makes", async () => {
+  it("passes an invalid month value straight through to getMonth (the real fallback is in monthGrid's own tests)", async () => {
     await open({ view: "month", month: "nope" });
-    expect(getMonth).toHaveBeenCalledWith("nope");
+    expect(getMonth).toHaveBeenCalledWith("nope", NOW);
   });
 
   it("shows 'Nothing booked this day.' for a selected day with no items", async () => {
     getMonth.mockResolvedValue({ month: "2026-09", days: ["2026-09-20"], source: "outlook", notice: null, items: [] });
     await open({ view: "month", day: "2026-09-20" });
     expect(screen.getByText("Nothing booked this day.")).toBeInTheDocument();
+  });
+});
+
+describe("MonthView (direct render)", () => {
+  const baseProps = { month: "2026-09", days: monthDays, notice: null, now: NOW };
+
+  it("truncates cell lines and keeps cells from overflowing", () => {
+    render(
+      <MonthView
+        {...baseProps}
+        items={[
+          { key: "e1", day: "2026-09-17", allDay: false, start: new Date("2026-09-17T15:00:00Z"), end: null,
+            title: "A very long unbreakable Outlook subject line that should never widen the grid", job: null },
+        ]}
+      />,
+    );
+    const cell = screen.getByRole("link", { name: /thu, sep 17/i });
+    expect(cell.className).toMatch(/\bmin-w-0\b/);
+    expect(cell.className).toMatch(/\boverflow-hidden\b/);
+    const line = within(cell).getByText(/very long unbreakable/);
+    expect(line.className).toMatch(/\btruncate\b/);
+  });
+
+  it("renders nothing scheduled when there are no items", () => {
+    render(<MonthView {...baseProps} items={[]} />);
+    expect(screen.getByText("Nothing scheduled this month.")).toBeInTheDocument();
   });
 });

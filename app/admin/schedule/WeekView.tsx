@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Icon } from "@/components/admin/icons";
 import { lasVegasDate } from "@/lib/admin/time";
-import { addDays, getWeek, rangeLabel } from "@/lib/calendar/week";
+import { addDays, rangeLabel, type ScheduleItem } from "@/lib/calendar/week";
 import { ScheduleCard } from "./ScheduleCard";
 import { ViewSwitch } from "./ViewSwitch";
 
@@ -12,9 +12,12 @@ const dayName = (date: string) => {
   return `${weekday} ${dayNum}`;
 };
 
-export async function WeekView({ week }: { week?: string }) {
-  const { days, items, notice } = await getWeek(week);
-  const today = lasVegasDate(new Date());
+export function WeekView({
+  days, items, notice, now,
+}: {
+  days: string[]; items: ScheduleItem[]; notice: string | null; now: Date;
+}) {
+  const today = lasVegasDate(now);
   const monthOfWednesday = days[3].slice(0, 7);
 
   return (

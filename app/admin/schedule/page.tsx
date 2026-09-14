@@ -1,4 +1,5 @@
 import { requireAdmin } from "@/lib/admin/session";
+import { getMonth, getWeek } from "@/lib/calendar/week";
 import { MonthView } from "./MonthView";
 import { WeekView } from "./WeekView";
 
@@ -10,9 +11,13 @@ export default async function SchedulePage({ searchParams }: { searchParams: Pro
   await requireAdmin();
   const params = await searchParams;
   const view = pick(params.view);
+  const now = new Date();
 
   if (view === "month") {
-    return await MonthView({ month: pick(params.month), day: pick(params.day) });
+    const day = pick(params.day);
+    const data = await getMonth(pick(params.month), now);
+    return <MonthView {...data} day={day} now={now} />;
   }
-  return await WeekView({ week: pick(params.week) });
+  const data = await getWeek(pick(params.week), now);
+  return <WeekView {...data} now={now} />;
 }
