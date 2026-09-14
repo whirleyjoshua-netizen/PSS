@@ -1,5 +1,6 @@
 import "server-only";
 import { db } from "@/lib/db";
+import { isBudgetTier, type BudgetTier } from "./budget";
 import type { DetailsInput, NewJobInput } from "./schema";
 import { isStage, type Stage } from "./stages";
 
@@ -33,6 +34,8 @@ export type Job = {
   reviewOptOut: boolean;
   /** When the customer was last sent a portal invite. Optional so older fixtures still type-check. */
   portalInvitedAt?: Date | null;
+  /** Budget tier from the call screen or Job details. Optional so older fixtures still type-check. */
+  budgetTier?: BudgetTier | null;
 };
 
 export type JobEvent = {
@@ -52,7 +55,7 @@ export const isUuid = (id: string): boolean => UUID.test(id);
 export const JOB_COLUMNS = `id, created_at, name, phone, email, address, city, treatments, window_count,
   heard_via, notes, source, status, stage_changed_at, visit_at, quote_cents, sold_cents,
   deposit_cents, brands, ordered_on::text as ordered_on, install_on::text as install_on, lost_reason,
-  referral_code, referred_by, referral_paid_at, review_requested_at, review_opt_out, portal_invited_at`;
+  referral_code, referred_by, referral_paid_at, review_requested_at, review_opt_out, portal_invited_at, budget_tier`;
 
 export function toJob(row: Record<string, unknown>): Job {
   return {
@@ -84,6 +87,7 @@ export function toJob(row: Record<string, unknown>): Job {
     reviewRequestedAt: row.review_requested_at ? new Date(row.review_requested_at as string) : null,
     reviewOptOut: row.review_opt_out === true,
     portalInvitedAt: row.portal_invited_at ? new Date(row.portal_invited_at as string) : null,
+    budgetTier: isBudgetTier(row.budget_tier) ? row.budget_tier : null,
   };
 }
 
@@ -165,7 +169,7 @@ export async function updateDetails(id: string, input: DetailsInput, actor: stri
         visit_at = ${input.visitAt}, quote_cents = ${input.quoteCents},
         sold_cents = ${input.soldCents}, deposit_cents = ${input.depositCents},
         brands = ${input.brands}, ordered_on = ${input.orderedOn}::date,
-        install_on = ${input.installOn}::date, updated_at = now()
+        install_on = ${input.installOn}::date, budget_tier = ${input.budgetTier}, updated_at = now()
       where id = ${id}
       returning id
     )

@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { consultationSchema } from "@/lib/leads/schema";
 import { insertLead } from "@/lib/leads/db";
 import { sendCustomerConfirmation, sendLeadNotification } from "@/lib/leads/email";
@@ -7,10 +8,11 @@ import { REF_COOKIE, cookieValue } from "@/lib/referrals/codes";
 /**
  * The only dynamic endpoint on the site.
  *
- * Design rule: never lose a lead. The database write and the notification
- * email run concurrently and are settled independently, so a failure in one
- * does not prevent the other. The visitor sees an error only if both fail —
- * and then the form shows them the phone number instead.
+ * Design rule: never lose a lead. The id is created first, before either
+ * write, so the database write and the notification email — which links to
+ * that id in the tracker — can run concurrently and be settled independently.
+ * A failure in one does not prevent the other. The visitor sees an error only
+ * if both fail — and then the form shows them the phone number instead.
  */
 export async function POST(request: Request) {
   let payload: unknown;
@@ -60,15 +62,17 @@ export async function POST(request: Request) {
   const referrer =
     (parsed.data.referralCode ? await lookup(parsed.data.referralCode) : null) ??
     (cookieCode ? await lookup(cookieCode) : null);
+  const id = randomUUID();
   const lead = {
     ...parsed.data,
     heardVia: parsed.data.heardVia ?? (referrer ? "Referral from a friend" : undefined),
     referredBy: referrer?.id ?? null,
+    id,
   };
 
   const [stored, emailed] = await Promise.allSettled([
     insertLead(lead),
-    sendLeadNotification(lead),
+    sendLeadNotification(lead, id),
   ]);
 
   if (stored.status === "rejected") {

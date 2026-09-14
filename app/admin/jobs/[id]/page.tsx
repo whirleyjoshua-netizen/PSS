@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { formatPhone } from "@/lib/leads/schema";
+import { budgetLabel } from "@/lib/admin/budget";
 import { getEvents, getJob } from "@/lib/admin/jobs";
 import { listFiles } from "@/lib/admin/files";
 import { mapsHref } from "@/lib/admin/links";
@@ -19,6 +20,7 @@ import { ReferralSection } from "./ReferralSection";
 import { ReferralsList } from "./ReferralsList";
 import { ReviewSection } from "./ReviewSection";
 import { StageControls } from "./StageControls";
+import { CallButton } from "./CallButton";
 
 export default async function JobPage({ params }: { params: Promise<{ id: string }> }) {
   await requireAdmin();
@@ -43,6 +45,7 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
 
       <section className="flex flex-col gap-2">
         <h1 className="font-display text-3xl font-light">{job.name}</h1>
+        <CallButton jobId={job.id} name={job.name} phone={job.phone} />
         <a href={`tel:+1${job.phone}`} className="text-lg underline-offset-4 hover:underline">{formatPhone(job.phone)}</a>
         {job.email ? <a href={`mailto:${job.email}`} className="underline-offset-4 hover:underline">{job.email}</a> : null}
         <a href={mapHref} className="text-ink-soft underline-offset-4 hover:underline">
@@ -51,6 +54,7 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
         <dl className="mt-2 grid grid-cols-[9rem_1fr] gap-x-4 gap-y-1 text-sm text-ink-soft">
           <dt>Interested in</dt><dd>{job.treatments.join(", ") || "—"}</dd>
           <dt>Windows</dt><dd>{job.windowCount ?? "—"}</dd>
+          <dt>Budget</dt><dd>{budgetLabel(job.budgetTier)}</dd>
           <dt>Heard about us</dt><dd>{job.heardVia ?? "—"}</dd>
           <dt>Came in via</dt><dd>{job.source}</dd>
           {referrer ? (

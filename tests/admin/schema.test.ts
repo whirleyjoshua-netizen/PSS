@@ -28,12 +28,30 @@ describe("detailsSchema", () => {
       visitAt: new Date("2026-12-15T22:30:00.000Z"),
       quoteCents: 450000, soldCents: null, depositCents: 225000,
       brands: ["Alta Window Fashions"], orderedOn: null, installOn: "2027-01-10",
+      budgetTier: null,
     });
   });
 
   it("rejects an unknown brand and a nonsense amount", () => {
     expect(detailsSchema.safeParse({ brands: ["Acme"] }).success).toBe(false);
     expect(detailsSchema.safeParse({ quote: "lots" }).success).toBe(false);
+  });
+
+  it("rejects an impossible visit date without throwing", () => {
+    const result = detailsSchema.safeParse({ visitAt: "2026-13-45T25:99" });
+    expect(result.success).toBe(false);
+    expect(result.error!.issues[0].message).toBe("Pick a valid visit date and time");
+  });
+});
+
+describe("detailsSchema budget", () => {
+  it("accepts a tier and maps blank to null", () => {
+    expect(detailsSchema.parse({ budget: "premium" }).budgetTier).toBe("premium");
+    expect(detailsSchema.parse({ budget: "" }).budgetTier).toBeNull();
+    expect(detailsSchema.parse({}).budgetTier).toBeNull();
+  });
+  it("rejects an unknown tier", () => {
+    expect(detailsSchema.safeParse({ budget: "luxury" }).success).toBe(false);
   });
 });
 

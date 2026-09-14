@@ -1,5 +1,6 @@
 import { Resend } from "resend";
 import { business } from "@/content/business";
+import { adminOrigin } from "@/lib/admin/origin";
 import { formatPhone, type ConsultationInput } from "./schema";
 
 /**
@@ -11,6 +12,7 @@ import { formatPhone, type ConsultationInput } from "./schema";
  */
 export async function sendLeadNotification(
   input: ConsultationInput,
+  leadId: string,
 ): Promise<void> {
   const apiKey = process.env.RESEND_API_KEY;
   const to = process.env.LEAD_NOTIFICATION_EMAIL;
@@ -21,6 +23,8 @@ export async function sendLeadNotification(
   }
 
   const lines = [
+    `Open in tracker: ${adminOrigin()}/admin/jobs/${leadId}`,
+    "",
     `Name:       ${input.name}`,
     `Phone:      ${formatPhone(input.phone)}`,
     `Email:      ${input.email}`,

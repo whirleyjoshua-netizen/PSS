@@ -7,6 +7,7 @@ import { formatCents } from "@/lib/admin/money";
 import { formatWhen } from "@/lib/admin/time";
 import { formatPhone } from "@/lib/leads/schema";
 import { DaysInStage } from "./DaysInStage";
+import { CallButton } from "./jobs/[id]/CallButton";
 import { JobFiles } from "./jobs/[id]/JobFiles";
 import { StageControls } from "./jobs/[id]/StageControls";
 
@@ -62,6 +63,7 @@ export function JobPanel({ job, measurements, files, now, closeHref }: {
       </header>
 
       <Section title="Contact">
+        <CallButton jobId={job.id} name={job.name} phone={job.phone} />
         <div className="flex flex-col gap-1">
           <a href={`tel:+1${job.phone}`} className="underline-offset-4 hover:underline">{formatPhone(job.phone)}</a>
           {job.email ? <a href={`mailto:${job.email}`} className="underline-offset-4 hover:underline">{job.email}</a> : null}
