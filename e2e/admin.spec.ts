@@ -233,6 +233,31 @@ test("the schedule shows this week's visits from the tracker and opens the job",
   await expect(page.getByRole("complementary", { name: new RegExp(`${NAME} Schedule`) })).toBeVisible();
 });
 
+test("the schedule's month view shows a day's visit and opens the job", async ({ page }) => {
+  const future = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
+  const day = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Los_Angeles" }).format(future);
+  const [row] = await sql()`insert into leads (name, phone, email, city, source, status, visit_at)
+    values (${`${NAME} Month`}, '7025550189', 'sched-month@example.com', 'Henderson', 'phone', 'visit_booked',
+      ${`${day} 10:00 America/Los_Angeles`}::timestamptz)
+    returning id`;
+  await signIn(page);
+  await page.goto("/admin/schedule");
+  await page.getByRole("navigation", { name: "View" }).getByRole("link", { name: "Month", exact: true }).click();
+  await expect(page).toHaveURL(/view=month/);
+  const month = day.slice(0, 7);
+  await page.goto(`/admin/schedule?view=month&month=${month}`);
+  await expect(page.getByRole("heading", { level: 1, name: "Schedule" })).toBeVisible();
+  const cellName = new Date(`${day}T12:00:00Z`).toLocaleDateString("en-US", { timeZone: "UTC", weekday: "short", month: "short", day: "numeric" });
+  const cell = page.getByRole("link", { name: new RegExp(`^${cellName}, \\d+ booked`) });
+  await cell.click();
+  const dayHeading = new Date(`${day}T12:00:00Z`).toLocaleDateString("en-US", { timeZone: "UTC", weekday: "long", month: "long", day: "numeric" });
+  const section = page.getByRole("region", { name: dayHeading });
+  await expect(section.getByRole("link", { name: new RegExp(`${NAME} Month`) })).toBeVisible();
+  await section.getByRole("link", { name: new RegExp(`${NAME} Month`) }).click();
+  await expect(page).toHaveURL(new RegExp(`/admin\\?job=${row.id}`));
+  await expect(page.getByRole("complementary", { name: new RegExp(`${NAME} Month`) })).toBeVisible();
+});
+
 test("the call screen shows that day's calendar and flags a clash", async ({ page }) => {
   const future = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
   const day = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Los_Angeles" }).format(future);
