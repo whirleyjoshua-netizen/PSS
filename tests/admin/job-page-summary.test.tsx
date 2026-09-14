@@ -67,19 +67,19 @@ beforeEach(() => {
 describe("job page summary", () => {
   it("shows the budget tier in the summary", async () => {
     getJob.mockResolvedValue({ ...baseJob, budgetTier: "mid" });
-    render(await JobPage({ params: Promise.resolve({ id: ID }) }));
+    render(await JobPage({ params: Promise.resolve({ id: ID }), searchParams: Promise.resolve({}) }));
     expect(budgetRow()).toHaveTextContent("Mid-range");
   });
 
   it("shows a dash when no budget tier is set", async () => {
     getJob.mockResolvedValue({ ...baseJob, budgetTier: null });
-    render(await JobPage({ params: Promise.resolve({ id: ID }) }));
+    render(await JobPage({ params: Promise.resolve({ id: ID }), searchParams: Promise.resolve({}) }));
     expect(budgetRow()).toHaveTextContent("—");
   });
 
   it("offers a Call button under the name", async () => {
     getJob.mockResolvedValue({ ...baseJob });
-    render(await JobPage({ params: Promise.resolve({ id: ID }) }));
+    render(await JobPage({ params: Promise.resolve({ id: ID }), searchParams: Promise.resolve({}) }));
     expect(screen.getByRole("link", { name: "Log a call" })).toHaveAttribute("href", `/admin/jobs/${baseJob.id}/call`);
   });
 });
