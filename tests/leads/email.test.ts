@@ -7,7 +7,7 @@ vi.mock("resend", () => ({
   },
 }));
 
-const { sendCustomerConfirmation } = await import("@/lib/leads/email");
+const { sendCustomerConfirmation, sendLeadNotification } = await import("@/lib/leads/email");
 const { business } = await import("@/content/business");
 
 const input = {
@@ -45,5 +45,26 @@ describe("sendCustomerConfirmation", () => {
     send.mockResolvedValue({ error: { message: "domain not verified" } });
 
     await expect(sendCustomerConfirmation(input)).rejects.toThrow(/domain not verified/);
+  });
+});
+
+describe("sendLeadNotification", () => {
+  beforeEach(() => {
+    vi.stubEnv("LEAD_NOTIFICATION_EMAIL", "owners@example.com");
+    vi.stubEnv("ADMIN_BASE_URL", "https://pss.test/");
+  });
+
+  it("opens with a link straight to the job in the tracker", async () => {
+    await sendLeadNotification(input, "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c");
+    const lines = send.mock.calls[0][0].text.split("\n");
+    expect(lines[0]).toBe("Open in tracker: https://pss.test/admin/jobs/3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c");
+    expect(lines[1]).toBe("");
+    expect(lines[2]).toMatch(/^Name:\s+Dana Reyes$/);
+  });
+
+  it("falls back to the business domain", async () => {
+    vi.stubEnv("ADMIN_BASE_URL", "");
+    await sendLeadNotification(input, "abc");
+    expect(send.mock.calls[0][0].text.split("\n")[0]).toBe(`Open in tracker: ${business.domain}/admin/jobs/abc`);
   });
 });
