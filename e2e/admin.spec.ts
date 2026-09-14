@@ -233,6 +233,28 @@ test("the schedule shows this week's visits from the tracker and opens the job",
   await expect(page.getByRole("complementary", { name: new RegExp(`${NAME} Schedule`) })).toBeVisible();
 });
 
+test("the schedule's month view shows a day's visit and opens the job", async ({ page }) => {
+  const future = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
+  const day = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Los_Angeles" }).format(future);
+  const [row] = await sql()`insert into leads (name, phone, email, city, source, status, visit_at)
+    values (${`${NAME} Month`}, '7025550189', 'sched-month@example.com', 'Henderson', 'phone', 'visit_booked',
+      ${`${day} 10:00 America/Los_Angeles`}::timestamptz)
+    returning id`;
+  await signIn(page);
+  await page.goto("/admin/schedule");
+  await page.getByRole("link", { name: "Month" }).click();
+  await expect(page).toHaveURL(/view=month/);
+  const month = day.slice(0, 7);
+  await page.goto(`/admin/schedule?view=month&month=${month}&day=${day}`);
+  await expect(page.getByRole("heading", { level: 1, name: "Schedule" })).toBeVisible();
+  const cell = page.getByRole("link", { name: new RegExp(`booked`, "i") }).first();
+  await cell.click();
+  await expect(page.getByRole("link", { name: new RegExp(`${NAME} Month`) })).toBeVisible();
+  await page.getByRole("link", { name: new RegExp(`${NAME} Month`) }).click();
+  await expect(page).toHaveURL(new RegExp(`/admin\\?job=${row.id}`));
+  await expect(page.getByRole("complementary", { name: new RegExp(`${NAME} Month`) })).toBeVisible();
+});
+
 test("the call screen shows that day's calendar and flags a clash", async ({ page }) => {
   const future = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
   const day = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Los_Angeles" }).format(future);
