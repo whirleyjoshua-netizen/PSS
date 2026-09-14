@@ -71,7 +71,7 @@ describe("changing jobs", () => {
 
   it("setStage, updateDetails and addNote return false for a non-uuid id without querying", async () => {
     expect(await jobs.setStage("../etc", "sold", "owner@example.com")).toBe(false);
-    expect(await jobs.updateDetails("../etc", { visitAt: null, quoteCents: null, soldCents: null, depositCents: null, brands: [], orderedOn: null, installOn: null }, "owner@example.com")).toBe(false);
+    expect(await jobs.updateDetails("../etc", { visitAt: null, quoteCents: null, soldCents: null, depositCents: null, brands: [], orderedOn: null, installOn: null, budgetTier: null }, "owner@example.com")).toBe(false);
     expect(await jobs.addNote("../etc", "hi", "owner@example.com")).toBe(false);
     expect(sql).not.toHaveBeenCalled();
   });
@@ -95,7 +95,7 @@ describe("changing jobs", () => {
     sql.mockResolvedValue([{ id: ID }]);
     const ok = await jobs.updateDetails(
       ID,
-      { visitAt: null, quoteCents: 450000, soldCents: null, depositCents: 225000, brands: ["Alta Window Fashions"], orderedOn: null, installOn: "2027-01-10" },
+      { visitAt: null, quoteCents: 450000, soldCents: null, depositCents: 225000, brands: ["Alta Window Fashions"], orderedOn: null, installOn: "2027-01-10", budgetTier: null },
       "owner@example.com",
     );
     expect(ok).toBe(true);
@@ -106,10 +106,27 @@ describe("changing jobs", () => {
     sql.mockResolvedValue([]);
     const ok = await jobs.updateDetails(
       ID,
-      { visitAt: null, quoteCents: null, soldCents: null, depositCents: null, brands: [], orderedOn: null, installOn: null },
+      { visitAt: null, quoteCents: null, soldCents: null, depositCents: null, brands: [], orderedOn: null, installOn: null, budgetTier: null },
       "owner@example.com",
     );
     expect(ok).toBe(false);
+  });
+
+  it("updateDetails saves the budget tier", async () => {
+    sql.mockResolvedValue([{ id: ID }]);
+    await jobs.updateDetails(ID, {
+      visitAt: null, quoteCents: null, soldCents: null, depositCents: null,
+      brands: [], orderedOn: null, installOn: null, budgetTier: "mid",
+    }, "owner@example.com");
+    const call = sql.mock.calls.at(-1)!;
+    expect((call[0] as TemplateStringsArray).join("?")).toContain("budget_tier = ");
+    expect(call).toContain("mid");
+  });
+
+  it("toJob maps budget_tier, and unknown or missing values to null", () => {
+    expect(jobs.toJob({ ...row, budget_tier: "premium" }).budgetTier).toBe("premium");
+    expect(jobs.toJob({ ...row, budget_tier: "luxury" }).budgetTier).toBeNull();
+    expect(jobs.toJob({ ...row }).budgetTier).toBeNull();
   });
 
   it("creates a hand-entered job and returns its id", async () => {

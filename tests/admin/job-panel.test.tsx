@@ -38,6 +38,11 @@ describe("client panel", () => {
     expect(within(aside).getByRole("link", { name: "Full page" })).toHaveAttribute("href", `/admin/jobs/${ID}`);
   });
 
+  it("offers a Call button at the top of the Contact section", () => {
+    panel();
+    expect(screen.getByRole("link", { name: "Log a call" })).toHaveAttribute("href", `/admin/jobs/${ID}/call`);
+  });
+
   it("shows contact and address links", () => {
     panel();
     expect(screen.getByRole("link", { name: "(702) 555-0134" })).toHaveAttribute("href", "tel:+17025550134");

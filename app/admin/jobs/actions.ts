@@ -63,7 +63,7 @@ export async function markLost(id: string, _prev: FormState, formData: FormData)
 export async function saveDetails(id: string, _prev: FormState, formData: FormData): Promise<FormState> {
   const { email } = await requireAdmin();
   const values = captureValues(formData, [
-    "visitAt", "quote", "sold", "deposit", "brands", "orderedOn", "installOn",
+    "visitAt", "quote", "sold", "deposit", "brands", "orderedOn", "installOn", "budget",
   ]);
   const parsed = detailsSchema.safeParse({
     visitAt: formData.get("visitAt") ?? "",
@@ -73,6 +73,7 @@ export async function saveDetails(id: string, _prev: FormState, formData: FormDa
     brands: formData.getAll("brands"),
     orderedOn: formData.get("orderedOn") ?? "",
     installOn: formData.get("installOn") ?? "",
+    budget: formData.get("budget") ?? "",
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message, values };
   const saved = await updateDetails(id, parsed.data, email);

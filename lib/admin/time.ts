@@ -42,3 +42,13 @@ export const lasVegasDate = (date: Date): string =>
 /** "Sun, Sep 13, 2026" in Las Vegas time, for the board header. */
 export const formatDay = (date: Date): string =>
   date.toLocaleDateString("en-US", { timeZone: ZONE, weekday: "short", month: "short", day: "numeric", year: "numeric" });
+
+/** "Wed 10/14, 2:00 PM" in Las Vegas time, for the call log line. */
+export function formatCallVisit(date: Date): string {
+  const p = Object.fromEntries(
+    new Intl.DateTimeFormat("en-US", {
+      timeZone: ZONE, weekday: "short", month: "numeric", day: "numeric", hour: "numeric", minute: "2-digit",
+    }).formatToParts(date).map((part) => [part.type, part.value]),
+  );
+  return `${p.weekday} ${p.month}/${p.day}, ${p.hour}:${p.minute} ${p.dayPeriod}`;
+}

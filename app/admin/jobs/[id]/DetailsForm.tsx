@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { Button } from "@/components/ui/Button";
 import { TextField } from "@/components/forms/Field";
+import { BUDGET_OPTIONS } from "@/lib/admin/budget";
 import type { Job } from "@/lib/admin/jobs";
 import { BRANDS } from "@/lib/admin/schema";
 import { toLocalInput } from "@/lib/admin/time";
@@ -48,6 +49,13 @@ export function DetailsForm({ job }: { job: Job }) {
       <label htmlFor="installOn" className="flex flex-col gap-2 text-sm">
         Install date
         <input id="installOn" name="installOn" type="date" className={CONTROL} defaultValue={field("installOn", job.installOn ?? "")} />
+      </label>
+      <label htmlFor="budget" className="flex flex-col gap-2 text-sm">
+        Budget
+        <select id="budget" name="budget" className={CONTROL} defaultValue={field("budget", job.budgetTier ?? "")}>
+          <option value="">—</option>
+          {BUDGET_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+        </select>
       </label>
       <fieldset className="flex flex-col gap-2 sm:col-span-2">
         <legend className="text-sm">Brands on this job</legend>

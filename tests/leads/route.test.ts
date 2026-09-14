@@ -141,6 +141,15 @@ describe("POST /api/consultation", () => {
     expect(await response.json()).toMatchObject({ ok: false });
   });
 
+  describe("lead id", () => {
+    it("creates the id first and gives the same one to the database and the email", async () => {
+      await POST(request(body));
+      const stored = insertLead.mock.calls[0][0];
+      expect(stored.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+      expect(sendLeadNotification).toHaveBeenCalledWith(expect.objectContaining({ name: "Dana Reyes" }), stored.id);
+    });
+  });
+
   it("attempts both writes concurrently rather than short-circuiting", async () => {
     insertLead.mockRejectedValue(new Error("Neon down"));
 
