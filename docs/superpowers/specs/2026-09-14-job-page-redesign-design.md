@@ -94,7 +94,7 @@ There is still one form and one save action, so the calendar session's hook on `
 
 - `?edit=details` renders `DetailsForm` as a full-width card in place of rows 2 and 3.
 - The card has a "Done" link back to `?tab=overview`. Saving behaves as today.
-- `DetailsForm`'s visit input gets `id="visitAt"` so the `#visitAt` anchor lands on it.
+- `DetailsForm`'s visit input already has `id="visitAt"`, so the `#visitAt` anchor lands on it with no change to the form.
 - Nothing else in the form changes.
 
 ## 7. Next action
@@ -135,7 +135,6 @@ There is still one form and one save action, so the calendar session's hook on `
 - **Changed:**
   - `page.tsx`: rewritten as header plus tab switch
   - `StageControls.tsx`: optional parts prop
-  - `DetailsForm.tsx`: `id="visitAt"`
   - `lib/admin/time.ts`: a `dayLabel` helper and "days in stage"
 - **Not touched:**
   - `lib/admin/stages.ts`, including `STAGE_STYLE`, which the calendar session is extending
