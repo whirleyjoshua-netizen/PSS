@@ -12,8 +12,12 @@ type Notification = {
   resourceData?: { id?: string };
 };
 
-const same = (a: string, b: string) =>
-  a.length === b.length && timingSafeEqual(Buffer.from(a), Buffer.from(b));
+/** Constant-time compare. Byte lengths are checked first: timingSafeEqual throws on unequal lengths. */
+function same(a: string, b: string): boolean {
+  const x = Buffer.from(a);
+  const y = Buffer.from(b);
+  return x.length === y.length && timingSafeEqual(x, y);
+}
 
 /**
  * Microsoft Graph calls this when an event on the shared calendar changes. It must answer

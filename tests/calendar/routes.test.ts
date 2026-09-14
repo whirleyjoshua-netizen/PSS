@@ -55,6 +55,15 @@ describe("POST /api/calendar/notifications", () => {
     expect(sync.applyOutlookChange).not.toHaveBeenCalled();
   });
 
+  it("drops a non-ASCII clientState of the same length instead of failing", async () => {
+    const forged = "state-secreé"; // 12 characters like "state-secret", but 13 bytes
+    expect(forged.length).toBe("state-secret".length);
+    const res = await post("", { value: [note({ clientState: forged })] });
+    expect(res.status).toBe(202);
+    await runAfter();
+    expect(sync.applyOutlookChange).not.toHaveBeenCalled();
+  });
+
   it("renews on reauthorizationRequired and reconciles on missed", async () => {
     await post("", { value: [note({ lifecycleEvent: "reauthorizationRequired" }), note({ lifecycleEvent: "missed" })] });
     await runAfter();
