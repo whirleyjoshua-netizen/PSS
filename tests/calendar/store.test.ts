@@ -47,4 +47,22 @@ describe("calendar store", () => {
     await store.clearError();
     expect(text(sql.mock.calls[1])).toMatch(/last_error = null/);
   });
+
+  it("claims a link with a pending id, winning only when the row is new", async () => {
+    sql.mockResolvedValueOnce([{ "?column?": 1 }]);
+    expect(await store.claimLink(ID, "visit")).toBe(true);
+    const q = text(sql.mock.calls[0]);
+    expect(q).toMatch(/'pending:' \|\| gen_random_uuid\(\)/);
+    expect(q).toMatch(/on conflict \(lead_id, kind\) do nothing returning 1/);
+    sql.mockResolvedValueOnce([]);
+    expect(await store.claimLink(ID, "visit")).toBe(false);
+  });
+
+  it("reads each link's synced_at so an abandoned claim can be spotted", async () => {
+    sql.mockResolvedValue([{ lead_id: ID, kind: "visit", event_id: "pending:x", change_key: "", synced_at: "2026-09-14T10:00:00Z" }]);
+    expect(await store.getLinks(ID)).toEqual([
+      { leadId: ID, kind: "visit", eventId: "pending:x", changeKey: "", syncedAt: new Date("2026-09-14T10:00:00Z") },
+    ]);
+    expect(text(sql.mock.calls[0])).toMatch(/synced_at/);
+  });
 });

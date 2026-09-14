@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const store = {
-  getCalendarJob: vi.fn(), getLinks: vi.fn(), getLinkByEvent: vi.fn(), saveLink: vi.fn(), deleteLink: vi.fn(),
+  getCalendarJob: vi.fn(), getLinks: vi.fn(), getLinkByEvent: vi.fn(), saveLink: vi.fn(), deleteLink: vi.fn(), claimLink: vi.fn(),
   setJobDate: vi.fn(), recordError: vi.fn(), clearError: vi.fn(), reconcileTargets: vi.fn(),
 };
 vi.mock("@/lib/calendar/store", () => store);
@@ -38,6 +38,7 @@ beforeEach(() => {
   enabled.mockReturnValue(true);
   store.getCalendarJob.mockResolvedValue(job);
   store.getLinks.mockResolvedValue([]);
+  store.claimLink.mockResolvedValue(true);
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
 

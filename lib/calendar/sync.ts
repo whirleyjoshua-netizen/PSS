@@ -8,6 +8,8 @@ import * as store from "./store";
 
 const KINDS: Kind[] = ["visit", "install"];
 const LABEL: Record<Kind, string> = { visit: "Visit", install: "Install" };
+/** A claim older than this was left by a sync that died mid-create, so it may be taken over. */
+const CLAIM_TIMEOUT_MS = 10 * 60_000;
 
 export const jobUrl = (id: string): string => `${portalOrigin()}/admin?job=${id}`;
 
@@ -32,18 +34,33 @@ export async function reconcileJob(leadId: string, pushKinds: readonly Kind[] = 
 
   for (const kind of KINDS) {
     const push = pushKinds.includes(kind);
-    const link = links.find((l) => l.kind === kind) ?? null;
+    let link = links.find((l) => l.kind === kind) ?? null;
     const current = kind === "visit" ? job?.visitAt ?? null : job?.installOn ?? null;
     const wanted = job && job.status !== "lost" ? current : null;
 
+    // Only the sync that wins the claim creates the event; a failed create gives the claim back.
     const create = async () => {
       if (!job || wanted === null) return;
-      const response = await expectOk(
-        await graphFetch(events, { method: "POST", body: newEventBody(kind, job, wanted, jobUrl(job.id)) }), "create",
-      );
-      const created = (await response.json()) as { id: string; changeKey: string };
+      if (!(await store.claimLink(leadId, kind))) return;
+      let created: { id: string; changeKey: string };
+      try {
+        const response = await expectOk(
+          await graphFetch(events, { method: "POST", body: newEventBody(kind, job, wanted, jobUrl(job.id)) }), "create",
+        );
+        created = (await response.json()) as { id: string; changeKey: string };
+      } catch (error) {
+        await store.deleteLink(leadId, kind);
+        throw error;
+      }
       await store.saveLink({ leadId, kind, eventId: created.id, changeKey: created.changeKey });
     };
+
+    if (link?.eventId.startsWith("pending:")) {
+      const age = Date.now() - (link.syncedAt?.getTime() ?? 0);
+      if (age < CLAIM_TIMEOUT_MS) continue; // another sync is creating this event right now
+      await store.deleteLink(leadId, kind);
+      link = null;
+    }
 
     if (!link) {
       await create();

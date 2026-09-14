@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const store = {
-  getCalendarJob: vi.fn(), getLinks: vi.fn(), getLinkByEvent: vi.fn(), saveLink: vi.fn(), deleteLink: vi.fn(),
+  getCalendarJob: vi.fn(), getLinks: vi.fn(), getLinkByEvent: vi.fn(), saveLink: vi.fn(), deleteLink: vi.fn(), claimLink: vi.fn(),
   setJobDate: vi.fn(), recordError: vi.fn(), clearError: vi.fn(), reconcileTargets: vi.fn(),
 };
 vi.mock("@/lib/calendar/store", () => store);
@@ -38,6 +38,7 @@ beforeEach(() => {
   enabled.mockReturnValue(true);
   store.getCalendarJob.mockResolvedValue(job);
   store.getLinks.mockResolvedValue([]);
+  store.claimLink.mockResolvedValue(true);
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
 
@@ -152,5 +153,51 @@ describe("syncJobCalendar push kinds (only a date the tracker just changed wins)
     await sync.syncJobCalendar(ID, ["visit"]);
     expect(calls()).toContain("POST users/jobs@example.com/events");
     expect(store.setJobDate).not.toHaveBeenCalled();
+  });
+});
+
+describe("creating an event claims the link first", () => {
+  const MIN = 60_000;
+  const pending = (ageMs: number) => ({ ...link, eventId: "pending:abc", changeKey: "", syncedAt: new Date(Date.now() - ageMs) });
+
+  it("claims before posting, then stores the real event id", async () => {
+    graphFetch.mockResolvedValue(Response.json({ id: "e1", changeKey: "ck1" }, { status: 201 }));
+    await sync.syncJobCalendar(ID);
+    expect(store.claimLink).toHaveBeenCalledWith(ID, "visit");
+    expect(store.claimLink.mock.invocationCallOrder[0]).toBeLessThan(graphFetch.mock.invocationCallOrder[0]);
+    expect(store.saveLink).toHaveBeenCalledWith(link);
+  });
+
+  it("does not post when another sync holds the claim", async () => {
+    store.claimLink.mockResolvedValue(false);
+    await sync.syncJobCalendar(ID);
+    expect(graphFetch).not.toHaveBeenCalled();
+    expect(store.saveLink).not.toHaveBeenCalled();
+  });
+
+  it("releases the claim when the post fails", async () => {
+    graphFetch.mockResolvedValue(new Response("down", { status: 500 }));
+    await sync.syncJobCalendar(ID);
+    expect(store.deleteLink).toHaveBeenCalledWith(ID, "visit");
+    expect(store.saveLink).not.toHaveBeenCalled();
+    expect(store.recordError).toHaveBeenCalledWith(expect.stringMatching(/500/));
+  });
+
+  it("skips a kind whose event another sync is creating right now", async () => {
+    store.getLinks.mockResolvedValue([pending(1 * MIN)]);
+    await sync.syncJobCalendar(ID, ["visit"]);
+    expect(graphFetch).not.toHaveBeenCalled();
+    expect(store.deleteLink).not.toHaveBeenCalled();
+    expect(store.claimLink).not.toHaveBeenCalled();
+  });
+
+  it("takes over a claim abandoned for over 10 minutes", async () => {
+    store.getLinks.mockResolvedValue([pending(11 * MIN)]);
+    graphFetch.mockResolvedValue(Response.json({ id: "e1", changeKey: "ck1" }, { status: 201 }));
+    await sync.syncJobCalendar(ID);
+    expect(store.deleteLink).toHaveBeenCalledWith(ID, "visit");
+    expect(store.claimLink).toHaveBeenCalledWith(ID, "visit");
+    expect(calls()).toEqual(["POST users/jobs@example.com/events"]);
+    expect(store.saveLink).toHaveBeenCalledWith(link);
   });
 });

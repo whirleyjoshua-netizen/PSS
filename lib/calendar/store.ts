@@ -5,11 +5,13 @@ import type { Stage } from "@/lib/admin/stages";
 import type { EventJob, Kind } from "./events";
 
 export type CalendarJob = EventJob & { status: Stage; visitAt: Date | null; installOn: string | null };
-export type Link = { leadId: string; kind: Kind; eventId: string; changeKey: string };
+/** eventId starts with "pending:" while a sync holds the claim to create that event (see claimLink). */
+export type Link = { leadId: string; kind: Kind; eventId: string; changeKey: string; syncedAt?: Date };
 
 const toLink = (row: Record<string, unknown>): Link => ({
   leadId: row.lead_id as string, kind: row.kind as Kind,
   eventId: row.event_id as string, changeKey: row.change_key as string,
+  ...(row.synced_at ? { syncedAt: new Date(row.synced_at as string) } : {}),
 });
 
 export async function getCalendarJob(leadId: string): Promise<CalendarJob | null> {
@@ -30,7 +32,8 @@ export async function getCalendarJob(leadId: string): Promise<CalendarJob | null
 }
 
 export async function getLinks(leadId: string): Promise<Link[]> {
-  const rows = await db()`select lead_id, kind, event_id, change_key from job_calendar_events where lead_id = ${leadId}`;
+  const rows = await db()`
+    select lead_id, kind, event_id, change_key, synced_at from job_calendar_events where lead_id = ${leadId}`;
   return rows.map(toLink);
 }
 
@@ -45,6 +48,18 @@ export async function saveLink(link: Link): Promise<void> {
     values (${link.leadId}, ${link.kind}, ${link.eventId}, ${link.changeKey}, now())
     on conflict (lead_id, kind) do update
       set event_id = excluded.event_id, change_key = excluded.change_key, synced_at = now()`;
+}
+
+/**
+ * Claims the right to create one job date's Outlook event, so two syncs running at once never both create it.
+ * True when this call inserted the placeholder row; false when a link (real or claimed) already exists.
+ */
+export async function claimLink(leadId: string, kind: Kind): Promise<boolean> {
+  const rows = await db()`
+    insert into job_calendar_events (lead_id, kind, event_id, change_key, synced_at)
+    values (${leadId}, ${kind}, 'pending:' || gen_random_uuid(), '', now())
+    on conflict (lead_id, kind) do nothing returning 1`;
+  return rows.length > 0;
 }
 
 export async function deleteLink(leadId: string, kind: Kind): Promise<void> {
