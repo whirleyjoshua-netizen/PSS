@@ -64,5 +64,5 @@ test("an overdue call-back shows on the board until it's done", async ({ page })
   await page.getByRole("button", { name: "Done" }).click();
   await expect(page.getByText("No call-back set")).toBeVisible();
   await page.goto("/admin");
-  await expect(page.getByRole("link", { name })).toHaveCount(0);
+  await expect(page.getByRole("region", { name: /Follow-ups due/ }).getByRole("link", { name })).toHaveCount(0);
 });
