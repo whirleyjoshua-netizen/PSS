@@ -71,7 +71,7 @@ describe("changing jobs", () => {
 
   it("setStage, updateDetails and addNote return false for a non-uuid id without querying", async () => {
     expect(await jobs.setStage("../etc", "sold", "owner@example.com")).toBe(false);
-    expect(await jobs.updateDetails("../etc", { visitAt: null, quoteCents: null, soldCents: null, depositCents: null, brands: [], orderedOn: null, installOn: null, budgetTier: null }, "owner@example.com")).toBe(false);
+    expect(await jobs.updateDetails("../etc", { visitAt: null, quoteCents: null, soldCents: null, depositCents: null, brands: [], orderedOn: null, installOn: null, budgetTier: null }, "owner@example.com")).toBeNull();
     expect(await jobs.addNote("../etc", "hi", "owner@example.com")).toBe(false);
     expect(sql).not.toHaveBeenCalled();
   });
@@ -91,25 +91,39 @@ describe("changing jobs", () => {
     expect(await jobs.addNote(ID, "hi", "owner@example.com")).toBe(false);
   });
 
-  it("updateDetails returns true and saves the parsed values when the job exists", async () => {
-    sql.mockResolvedValue([{ id: ID }]);
-    const ok = await jobs.updateDetails(
+  it("updateDetails saves the parsed values and reports which dates changed", async () => {
+    sql.mockResolvedValue([{ visit_changed: false, install_changed: true }]);
+    const result = await jobs.updateDetails(
       ID,
       { visitAt: null, quoteCents: 450000, soldCents: null, depositCents: 225000, brands: ["Alta Window Fashions"], orderedOn: null, installOn: "2027-01-10", budgetTier: null },
       "owner@example.com",
     );
-    expect(ok).toBe(true);
+    expect(result).toEqual({ visitChanged: false, installChanged: true });
+    expect(sql).toHaveBeenCalledOnce();
     expect(sql.mock.calls[0]).toEqual(expect.arrayContaining([450000, 225000, ["Alta Window Fashions"]]));
   });
 
-  it("updateDetails returns false when the job does not exist", async () => {
+  it("updateDetails compares the dates against the row as it was, in the same statement", async () => {
+    sql.mockResolvedValue([{ visit_changed: true, install_changed: false }]);
+    const visitAt = new Date("2026-09-20T17:00:00Z");
+    expect(await jobs.updateDetails(ID, {
+      visitAt, quoteCents: null, soldCents: null, depositCents: null, brands: [], orderedOn: null, installOn: null, budgetTier: null,
+    }, "owner@example.com")).toEqual({ visitChanged: true, installChanged: false });
+    const statement = text(sql.mock.calls[0]);
+    expect(statement).toMatch(/with prev as \(select visit_at, install_on from leads where id = \?\)/);
+    expect(statement).toMatch(/prev\.visit_at is distinct from \?::timestamptz/);
+    expect(statement).toMatch(/prev\.install_on is distinct from \?::date/);
+    expect(statement).toContain("insert into job_events");
+  });
+
+  it("updateDetails returns null when the job does not exist", async () => {
     sql.mockResolvedValue([]);
-    const ok = await jobs.updateDetails(
+    const result = await jobs.updateDetails(
       ID,
       { visitAt: null, quoteCents: null, soldCents: null, depositCents: null, brands: [], orderedOn: null, installOn: null, budgetTier: null },
       "owner@example.com",
     );
-    expect(ok).toBe(false);
+    expect(result).toBeNull();
   });
 
   it("updateDetails saves the budget tier", async () => {
