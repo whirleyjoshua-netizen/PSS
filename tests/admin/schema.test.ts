@@ -36,6 +36,12 @@ describe("detailsSchema", () => {
     expect(detailsSchema.safeParse({ brands: ["Acme"] }).success).toBe(false);
     expect(detailsSchema.safeParse({ quote: "lots" }).success).toBe(false);
   });
+
+  it("rejects an impossible visit date without throwing", () => {
+    const result = detailsSchema.safeParse({ visitAt: "2026-13-45T25:99" });
+    expect(result.success).toBe(false);
+    expect(result.error!.issues[0].message).toBe("Pick a valid visit date and time");
+  });
 });
 
 describe("detailsSchema budget", () => {

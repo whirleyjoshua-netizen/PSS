@@ -21,6 +21,11 @@ describe("callSchema", () => {
   it("rejects a malformed visit time", () => {
     expect(callSchema.safeParse({ ...ok, outcome: "booked", visitAt: "tomorrow" }).success).toBe(false);
   });
+  it("rejects an impossible visit date without throwing", () => {
+    const result = callSchema.safeParse({ ...ok, outcome: "booked", visitAt: "2026-13-45T25:99" });
+    expect(result.success).toBe(false);
+    expect(result.error!.issues[0].message).toBe("Pick the visit date and time");
+  });
   it("rejects an unknown outcome, treatment, window range or budget", () => {
     expect(callSchema.safeParse({ ...ok, outcome: "voicemail" }).error!.issues[0].message).toBe("Pick how the call went");
     expect(callSchema.safeParse({ ...ok, treatments: ["Curtains"] }).success).toBe(false);

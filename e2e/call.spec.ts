@@ -51,6 +51,14 @@ test("logging a booked call from a computer moves the lead to Visit booked", asy
   await expect(page.getByText("Call: booked visit Wed 10/14, 2:00 PM · Shutters · 6-10 windows · Mid-range")).toBeVisible();
   const [row] = await sql()`select budget_tier, window_count, treatments from leads where id = ${id}`;
   expect(row).toMatchObject({ budget_tier: "mid", window_count: "6-10", treatments: ["Shutters"] });
+
+  const events = await sql()`select kind, from_status, to_status, body from job_events where lead_id = ${id} order by created_at`;
+  const stageEvents = events.filter((e) => e.kind === "stage");
+  expect(stageEvents).toHaveLength(1);
+  expect(stageEvents[0]).toMatchObject({ from_status: "new", to_status: "visit_booked" });
+  const noteEvents = events.filter((e) => e.kind === "note");
+  expect(noteEvents).toHaveLength(1);
+  expect(noteEvents[0].body).toMatch(/^Call: booked visit/);
 });
 
 test("a missed call is logged and the lead stays new", async ({ page }) => {
@@ -61,6 +69,12 @@ test("a missed call is logged and the lead stays new", async ({ page }) => {
   await expect(page).toHaveURL(new RegExp(`/admin/jobs/${id}$`));
   await expect(page.getByText("Stage:")).toContainText("New lead");
   await expect(page.getByText("Call: no answer")).toBeVisible();
+
+  const events = await sql()`select kind, from_status, to_status, body from job_events where lead_id = ${id} order by created_at`;
+  expect(events.filter((e) => e.kind === "stage")).toHaveLength(0);
+  const noteEvents = events.filter((e) => e.kind === "note");
+  expect(noteEvents).toHaveLength(1);
+  expect(noteEvents[0].body).toBe("Call: no answer");
 });
 
 test("a call never moves a job backwards", async ({ page }) => {
@@ -70,4 +84,7 @@ test("a call never moves a job backwards", async ({ page }) => {
   await page.getByRole("button", { name: "Talked, no visit yet" }).click();
   await expect(page.getByText("Stage:")).toContainText("Quoted");
   await expect(page.getByText("Call: talked, no visit yet")).toBeVisible();
+
+  const events = await sql()`select kind, from_status, to_status, body from job_events where lead_id = ${id} order by created_at`;
+  expect(events.filter((e) => e.kind === "stage")).toHaveLength(0);
 });

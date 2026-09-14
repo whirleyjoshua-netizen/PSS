@@ -73,7 +73,7 @@ describe("job page", () => {
   it("shows the budget tier in the details form", () => {
     render(<DetailsForm job={{ ...job, budgetTier: "mid" }} />);
     expect(screen.getByText("Budget")).toBeInTheDocument();
-    expect(screen.getByText("Mid-range")).toBeInTheDocument();
+    expect(screen.getByLabelText("Budget")).toHaveValue("mid");
   });
 
   it("makes the next-stage button full width with a decorative icon", () => {

@@ -20,7 +20,7 @@ describe("logCall", () => {
     expect(text).toContain("budget_tier = $4");
     expect(text).toContain("coalesce($5::timestamptz, visit_at)");
     expect(text).toContain("status = any($7::text[])");
-    expect(text).toContain("where updated.status <> prev.status");
+    expect(text).toContain("where updated.status = $6::text and prev.status <> $6::text");
     expect(text).toContain("'note'");
     expect(params).toEqual([
       JOB, ["Shutters"], "6-10", "mid", input.visitAt, "visit_booked", ["new", "contacted"], "owner@example.com",

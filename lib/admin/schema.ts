@@ -38,6 +38,11 @@ export const detailsSchema = z
     installOn: day,
     budget: z.preprocess(blank, z.enum(BUDGET_TIERS, { error: "Pick a budget tier" }).optional()),
   })
+  .superRefine((value, ctx) => {
+    if (value.visitAt !== undefined && !isValidLocalInput(value.visitAt)) {
+      ctx.addIssue({ code: "custom", path: ["visitAt"], message: "Pick a valid visit date and time" });
+    }
+  })
   .transform(({ visitAt, quote, sold, deposit, budget, ...rest }) => ({
     visitAt: visitAt ? fromLocalInput(visitAt) : null,
     quoteCents: quote,
@@ -130,6 +135,13 @@ export const measurementSchema = z
 
 const LOCAL_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
 
+/** True for a `datetime-local` value that both matches the shape and names a real calendar date/time. */
+function isValidLocalInput(value: string): boolean {
+  if (!LOCAL_TIME.test(value)) return false;
+  const d = new Date(`${value}:00Z`);
+  return !Number.isNaN(d.getTime());
+}
+
 export const callSchema = z
   .object({
     outcome: z.enum(CALL_OUTCOMES, { error: "Pick how the call went" }),
@@ -140,7 +152,7 @@ export const callSchema = z
     visitAt: z.preprocess(blank, z.string().optional()),
   })
   .superRefine((value, ctx) => {
-    if (value.outcome === "booked" && !(value.visitAt && LOCAL_TIME.test(value.visitAt))) {
+    if (value.outcome === "booked" && !(value.visitAt && isValidLocalInput(value.visitAt))) {
       ctx.addIssue({ code: "custom", path: ["visitAt"], message: "Pick the visit date and time" });
     }
   })

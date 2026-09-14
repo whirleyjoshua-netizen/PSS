@@ -7,7 +7,12 @@ import { isUuid } from "./jobs";
  * Saves a call in one statement: what was learned, the forward-only stage move
  * (with its usual 'stage' event) and a 'note' event with the call summary.
  * Every SET expression reads the row as it was, so the stage check and the
- * stage_changed_at update agree.
+ * stage_changed_at update agree. The 'stage' event is logged only when the
+ * UPDATE actually landed this call's intended move (updated.status = $6),
+ * not merely when the row's status differs from its pre-statement snapshot
+ * (prev.status) — under READ COMMITTED another request may have already
+ * moved the row between the snapshot and this UPDATE, which would otherwise
+ * log a spurious stage event for a move this call didn't make.
  */
 export async function logCall(jobId: string, input: CallInput, actor: string): Promise<boolean> {
   if (!isUuid(jobId)) return false;
@@ -28,7 +33,7 @@ export async function logCall(jobId: string, input: CallInput, actor: string): P
      moved as (
        insert into job_events (lead_id, actor, kind, from_status, to_status)
        select updated.id, $8, 'stage', prev.status, updated.status from prev, updated
-       where updated.status <> prev.status
+       where updated.status = $6::text and prev.status <> $6::text
      )
      insert into job_events (lead_id, actor, kind, body)
      select id, $8, 'note', $9 from updated
