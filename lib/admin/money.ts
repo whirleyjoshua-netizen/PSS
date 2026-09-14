@@ -21,3 +21,7 @@ export function formatCents(cents: number | null): string {
     minimumFractionDigits: cents % 100 === 0 ? 0 : 2,
   });
 }
+
+/** What the customer still owes: sold minus deposit, or null before there is a sale. */
+export const balanceCents = (sold: number | null, deposit: number | null): number | null =>
+  sold === null ? null : sold - (deposit ?? 0);

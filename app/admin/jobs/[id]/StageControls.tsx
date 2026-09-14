@@ -7,7 +7,16 @@ import type { Job } from "@/lib/admin/jobs";
 import { ALL_STAGES, nextStage, stageLabel } from "@/lib/admin/stages";
 import { markLost, moveStage, type FormState } from "../actions";
 
-export function StageControls({ job }: { job: Job }) {
+export type StagePart = "status" | "move" | "set" | "lost";
+const ALL_PARTS: readonly StagePart[] = ["status", "move", "set", "lost"];
+
+/**
+ * The stage line, next-stage button, set-stage select and mark-lost form.
+ * The board's side panel shows all four; the job page splits them between
+ * the Next action card and the header's More menu.
+ */
+export function StageControls({ job, parts = ALL_PARTS }: { job: Job; parts?: readonly StagePart[] }) {
+  const show = (part: StagePart) => parts.includes(part);
   const next = nextStage(job.status);
   const [lostState, lostAction, losing] = useActionState<FormState, FormData>(
     markLost.bind(null, job.id),
@@ -16,12 +25,14 @@ export function StageControls({ job }: { job: Job }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-sm text-ink-soft">
-        Stage: <span className="font-display text-charcoal">{stageLabel(job.status)}</span>
-        {job.lostReason ? ` — ${job.lostReason}` : null}
-      </p>
+      {show("status") ? (
+        <p className="text-sm text-ink-soft">
+          Stage: <span className="font-display text-charcoal">{stageLabel(job.status)}</span>
+          {job.lostReason ? ` — ${job.lostReason}` : null}
+        </p>
+      ) : null}
 
-      {next ? (
+      {show("move") && next ? (
         <form action={moveStage.bind(null, job.id, next)}>
           <Button type="submit" variant="solid" className="w-full gap-2">
             <Icon name="arrow" className="size-4" />
@@ -30,25 +41,27 @@ export function StageControls({ job }: { job: Job }) {
         </form>
       ) : null}
 
-      <form
-        action={async (formData) => {
-          const to = formData.get("stage");
-          if (typeof to === "string" && to !== job.status) await moveStage(job.id, to as Job["status"]);
-        }}
-        className="flex flex-wrap items-end gap-3"
-      >
-        <label htmlFor="set-stage" className="flex flex-col gap-1 text-sm">
-          Set stage
-          <select id="set-stage" name="stage" defaultValue={job.status} className="min-h-11 border border-rule bg-ivory px-3">
-            {ALL_STAGES.filter((stage) => stage !== "lost").map((stage) => (
-              <option key={stage} value={stage}>{stageLabel(stage)}</option>
-            ))}
-          </select>
-        </label>
-        <Button type="submit" variant="outline">Set</Button>
-      </form>
+      {show("set") ? (
+        <form
+          action={async (formData) => {
+            const to = formData.get("stage");
+            if (typeof to === "string" && to !== job.status) await moveStage(job.id, to as Job["status"]);
+          }}
+          className="flex flex-wrap items-end gap-3"
+        >
+          <label htmlFor="set-stage" className="flex flex-col gap-1 text-sm">
+            Set stage
+            <select id="set-stage" name="stage" defaultValue={job.status} className="min-h-11 border border-rule bg-ivory px-3">
+              {ALL_STAGES.filter((stage) => stage !== "lost").map((stage) => (
+                <option key={stage} value={stage}>{stageLabel(stage)}</option>
+              ))}
+            </select>
+          </label>
+          <Button type="submit" variant="outline">Set</Button>
+        </form>
+      ) : null}
 
-      {job.status !== "lost" ? (
+      {show("lost") && job.status !== "lost" ? (
         <form
           key={lostState.values ? JSON.stringify(lostState.values) : "initial"}
           action={lostAction}

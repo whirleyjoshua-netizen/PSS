@@ -90,7 +90,7 @@ export function MeasureForm({ jobId, window, defaultRoom }: {
         return;
       }
       if (window) {
-        router.push(`/admin/jobs/${jobId}`);
+        router.push(`/admin/jobs/${jobId}?tab=measurements`);
         return;
       }
       uploadedPhoto.current = null;

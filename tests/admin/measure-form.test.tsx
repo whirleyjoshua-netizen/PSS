@@ -109,7 +109,7 @@ describe("MeasureForm", () => {
     await waitFor(() => expect(saveMeasurement).toHaveBeenCalledOnce());
     const [jobId, windowId] = saveMeasurement.mock.calls[0];
     expect([jobId, windowId]).toEqual([LEAD, WIN]);
-    expect(push).toHaveBeenCalledWith(`/admin/jobs/${LEAD}`);
+    expect(push).toHaveBeenCalledWith(`/admin/jobs/${LEAD}?tab=measurements`);
   });
 
   it("removes an orphaned upload when a different photo replaces it after a failed save", async () => {

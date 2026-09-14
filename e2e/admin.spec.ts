@@ -71,8 +71,9 @@ test("an owner adds a job, advances it, and leaves a note", async ({ page }) => 
 
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(NAME);
   await page.getByRole("button", { name: "Move to Contacted" }).click();
-  await expect(page.getByText("Stage:")).toContainText("Contacted");
+  await expect(page.getByRole("list", { name: "Stage" }).locator('[aria-current="step"]')).toContainText("Contacted");
 
+  await page.getByRole("link", { name: "Activity", exact: true }).click();
   await page.getByLabel("Add a note").fill("Call back after 5pm");
   await page.getByRole("button", { name: "Add note" }).click();
   await expect(page.getByText("Call back after 5pm")).toBeVisible();
@@ -108,9 +109,10 @@ test("a referral link attributes the friend and the reward can be paid", async (
 
   await page.getByRole("link", { name: friendName }).click();
   await expect(page.getByRole("link", { name: referrerName })).toBeVisible();
+  await page.getByLabel("More actions").click();
   await page.getByLabel("Set stage").selectOption("installed");
   await page.getByRole("button", { name: "Set", exact: true }).click();
-  await expect(page.getByText("Stage:")).toContainText("Installed");
+  await expect(page.getByRole("list", { name: "Stage" }).locator('[aria-current="step"]')).toContainText("Installed");
 
   await page.getByRole("link", { name: referrerName }).click();
   await page.getByRole("button", { name: "Mark paid" }).click();
@@ -130,7 +132,7 @@ test("an owner measures a window with a photo", async ({ page, baseURL }) => {
   await page.getByRole("button", { name: "Add job" }).click();
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(name);
 
-  await page.getByRole("link", { name: "Measure" }).click();
+  await page.getByRole("link", { name: "Add measurement" }).click();
   await page.getByRole("button", { name: "Kitchen" }).click();
   await page.getByLabel("Width inches").fill("35");
   await page.getByLabel("Width eighths").selectOption({ label: "⅝" });
@@ -142,8 +144,10 @@ test("an owner measures a window with a photo", async ({ page, baseURL }) => {
 
   await page.getByRole("link", { name: "Finish" }).click();
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(name);
-  await expect(page.getByRole("heading", { level: 4, name: "Kitchen" })).toBeVisible();
-  await expect(page.getByText("35 ⅝″ × 48″")).toBeVisible();
+  await expect(page).toHaveURL(/\?tab=measurements$/);
+  const row = page.getByRole("row", { name: /Kitchen/ });
+  await expect(row).toContainText("35 ⅝″");
+  await expect(row).toContainText("48″");
 
   const photo = page.locator('img[src^="/admin/files/"]');
   await expect(photo).toBeVisible();
@@ -154,16 +158,14 @@ test("an owner measures a window with a photo", async ({ page, baseURL }) => {
   expect(okResponse.status()).toBe(200);
   expect(okResponse.headers()["content-type"]).toContain("image/jpeg");
 
-  const row = page.locator("li", { hasText: "35 ⅝″ × 48″" });
   await row.getByRole("link", { name: "Edit" }).click();
   await expect(page.getByLabel("Width inches")).toHaveValue("35");
   await expect(page.getByLabel(/^Room/)).toHaveValue("Kitchen");
   await page.getByLabel("Height inches").fill("50");
   await page.getByRole("button", { name: "Save window" }).click();
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(name);
-  await expect(page.getByText("35 ⅝″ × 50″")).toBeVisible();
-
-  const editedRow = page.locator("li", { hasText: "35 ⅝″ × 50″" });
+  await expect(page.getByRole("row", { name: /Kitchen/ })).toContainText("50″");
+  const editedRow = page.getByRole("row", { name: /Kitchen/ });
   await editedRow.getByRole("button", { name: "Delete" }).click();
   await editedRow.getByRole("button", { name: "Tap again to delete" }).click();
   await expect(page.getByText("No windows measured yet.")).toBeVisible();
@@ -202,7 +204,7 @@ test("search finds a job, and a column's add button starts a job in that stage",
   await page.getByLabel("Name", { exact: true }).fill(name);
   await page.getByLabel("Phone", { exact: true }).fill("(702) 555-0177");
   await page.getByRole("button", { name: "Add job" }).click();
-  await expect(page.getByText("Stage:")).toContainText("Quoted");
+  await expect(page.getByRole("list", { name: "Stage" }).locator('[aria-current="step"]')).toContainText("Quoted");
 
   await page.goto("/admin");
   await page.getByRole("searchbox", { name: "Search jobs" }).fill("555 0177");
