@@ -30,15 +30,15 @@ describe("moveStage invites", () => {
   it.each(["quoted", "sold", "ordered", "installed"] as const)("schedules an invite on a move to %s", async (to) => {
     jobs.setStage.mockResolvedValue(true);
     await moveStage(JOB, to);
-    expect(afterCallbacks).toHaveLength(1);
-    await afterCallbacks[0]();
+    await Promise.all(afterCallbacks.map((cb) => cb()));
     expect(invite.autoInvite).toHaveBeenCalledWith(JOB);
   });
 
   it.each(["new", "contacted", "visit_booked", "lost"] as const)("does not invite on a move to %s", async (to) => {
     jobs.setStage.mockResolvedValue(true);
     await moveStage(JOB, to);
-    expect(afterCallbacks).toHaveLength(0);
+    await Promise.all(afterCallbacks.map((cb) => cb()));
+    expect(invite.autoInvite).not.toHaveBeenCalled();
   });
 
   it("does not invite when nothing changed", async () => {

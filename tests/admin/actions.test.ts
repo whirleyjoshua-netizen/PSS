@@ -21,6 +21,8 @@ vi.mock("@/lib/reviews/db", () => reviewsDb);
 vi.mock("next/server", () => ({ after: (cb: () => unknown) => { cb(); } }));
 const invite = { autoInvite: vi.fn(), sendPortalInvite: vi.fn() };
 vi.mock("@/lib/portal/invite", () => invite);
+const syncJobCalendar = vi.fn();
+vi.mock("@/lib/calendar/sync", () => ({ syncJobCalendar }));
 
 const actions = await import("@/app/admin/jobs/actions");
 const ID = "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c";
@@ -45,6 +47,7 @@ beforeEach(() => {
   reviewsDb.restoreReviewRequested.mockResolvedValue(undefined);
   reviewsDb.releaseReview.mockResolvedValue(undefined);
   Object.values(invite).forEach((fn) => fn.mockReset());
+  syncJobCalendar.mockReset();
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
 
@@ -63,7 +66,7 @@ describe("without a session", () => {
     ["payReferral", () => actions.payReferral(ID, ID, {}, form({}))],
   ])("%s touches nothing", async (_name, run) => {
     await expect(run()).rejects.toThrow("NEXT_REDIRECT");
-    [...Object.values(jobs), ...Object.values(referrals), sendReviewRequest, ...Object.values(reviewsDb)]
+    [...Object.values(jobs), ...Object.values(referrals), sendReviewRequest, ...Object.values(reviewsDb), syncJobCalendar]
       .forEach((fn) => expect(fn).not.toHaveBeenCalled());
   });
 });
@@ -179,5 +182,34 @@ describe("referrals and reviews", () => {
     expect(referrals.markReferralPaid).toHaveBeenCalledWith("r1", "owner@example.com");
     referrals.markReferralPaid.mockResolvedValue(false);
     expect((await actions.payReferral("r1", ID, {}, form({}))).error).toMatch(/not owed/i);
+  });
+});
+
+describe("Outlook calendar sync", () => {
+  it("syncs after details are saved", async () => {
+    await actions.saveDetails(ID, {}, form({ visitAt: "2026-09-20T10:00" }));
+    expect(syncJobCalendar).toHaveBeenCalledWith(ID);
+  });
+
+  it("does not sync when the details did not save", async () => {
+    jobs.updateDetails.mockResolvedValue(false);
+    await actions.saveDetails(ID, {}, form({}));
+    expect(syncJobCalendar).not.toHaveBeenCalled();
+  });
+
+  it("syncs after a job is marked lost, so its events are removed", async () => {
+    await actions.markLost(ID, {}, form({ reason: "Went with another company" }));
+    expect(syncJobCalendar).toHaveBeenCalledWith(ID);
+  });
+
+  it("syncs after a stage move, so a reopened job gets its events back", async () => {
+    await actions.moveStage(ID, "quoted");
+    expect(syncJobCalendar).toHaveBeenCalledWith(ID);
+  });
+
+  it("does not sync a stage move that changed nothing", async () => {
+    jobs.setStage.mockResolvedValue(false);
+    await actions.moveStage(ID, "quoted");
+    expect(syncJobCalendar).not.toHaveBeenCalled();
   });
 });

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { after } from "next/server";
+import { syncJobCalendar } from "@/lib/calendar/sync";
 import { requireAdmin } from "@/lib/admin/session";
 import { addNote, createJob, getJob, setStage, updateDetails } from "@/lib/admin/jobs";
 import { detailsSchema, lostSchema, newJobSchema, noteSchema } from "@/lib/admin/schema";
@@ -40,12 +41,14 @@ function captureValues(formData: FormData, keys: string[]): Record<string, strin
 
 // Every action calls requireAdmin() before reading its input.
 
+// Outlook follows the tracker's dates; syncJobCalendar never throws and is a no-op until Outlook is set up.
 export async function moveStage(id: string, to: Stage): Promise<void> {
   const { email } = await requireAdmin();
   const changed = await setStage(id, to, email);
   // After the consultation, the customer gets their project page. autoInvite
   // sends at most once per job and never throws.
   if (changed && isPortalStage(to)) after(() => autoInvite(id));
+  if (changed) after(() => syncJobCalendar(id));
   refresh(id);
 }
 
@@ -56,6 +59,7 @@ export async function markLost(id: string, _prev: FormState, formData: FormData)
   if (!parsed.success) return { error: parsed.error.issues[0].message, values };
   const changed = await setStage(id, "lost", email, parsed.data.reason);
   if (!changed) return MISSING;
+  after(() => syncJobCalendar(id));
   refresh(id);
   return { ok: true };
 }
@@ -77,6 +81,7 @@ export async function saveDetails(id: string, _prev: FormState, formData: FormDa
   if (!parsed.success) return { error: parsed.error.issues[0].message, values };
   const saved = await updateDetails(id, parsed.data, email);
   if (!saved) return MISSING;
+  after(() => syncJobCalendar(id));
   refresh(id);
   return { ok: true };
 }
