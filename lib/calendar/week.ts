@@ -44,11 +44,12 @@ const order = (a: ScheduleItem, b: ScheduleItem) =>
   a.day.localeCompare(b.day) || Number(b.allDay) - Number(a.allDay) || (a.start?.getTime() ?? 0) - (b.start?.getTime() ?? 0);
 
 async function trackerItems(days: string[], from: Date, to: Date): Promise<ScheduleItem[]> {
+  const first = days[0];
   const last = days[days.length - 1];
   const rows = await db()`
     select id, name, city, status, visit_at, install_on::text as install_on from leads
      where status <> 'lost'
-       and ((visit_at >= ${from} and visit_at < ${to}) or install_on between ${days[0]}::date and ${last}::date)`;
+       and ((visit_at >= ${from} and visit_at < ${to}) or install_on between ${first}::date and ${last}::date)`;
   const items: ScheduleItem[] = [];
   for (const row of rows) {
     const base = { id: row.id as string, name: row.name as string, city: row.city as string, status: row.status as Stage };
@@ -58,7 +59,7 @@ async function trackerItems(days: string[], from: Date, to: Date): Promise<Sched
         end: new Date(visit.getTime() + 3_600_000), title: `Visit · ${base.name}`, job: { ...base, kind: "visit" } });
     }
     const install = row.install_on as string | null;
-    if (install && install >= days[0] && install <= last) {
+    if (install && install >= first && install <= last) {
       items.push({ key: `${base.id}:install`, day: install, allDay: true, start: null, end: null,
         title: `Install · ${base.name}`, job: { ...base, kind: "install" } });
     }
@@ -73,10 +74,17 @@ async function loadRange(days: string[]): Promise<{ items: ScheduleItem[]; sourc
   if (!calendarEnabled()) return { items: tracker, source: "tracker", notice: "Outlook isn't connected yet." };
   try {
     const mailbox = calendarConfig()!.mailbox;
-    const { value } = await graphJson<{ value: GraphEvent[] }>(
+    const value: GraphEvent[] = [];
+    let next: string | undefined =
       `users/${mailbox}/calendar/calendarView?startDateTime=${from.toISOString()}&endDateTime=${to.toISOString()}` +
-        "&$select=id,subject,start,end,isAllDay&$top=200&$orderby=start/dateTime",
-    );
+      "&$select=id,subject,start,end,isAllDay&$top=200&$orderby=start/dateTime";
+    let page = 0;
+    for (; page < 10 && next; page++) {
+      const result: { value: GraphEvent[]; "@odata.nextLink"?: string } = await graphJson(next);
+      value.push(...result.value);
+      next = result["@odata.nextLink"];
+    }
+    if (page === 10 && next) console.warn("Schedule: truncated Outlook paging at 10 pages");
     const ids = value.map((e) => e.id);
     const links = ids.length
       ? await db()`
@@ -101,6 +109,34 @@ async function loadRange(days: string[]): Promise<{ items: ScheduleItem[]; sourc
     console.error("Schedule could not read Outlook", error);
     return { items: tracker, source: "tracker", notice: "Couldn't reach Outlook, showing tracker dates only." };
   }
+}
+
+/** The Sunday-to-Saturday grid of days covering the given month, or the current Las Vegas month. */
+export function monthGrid(param: string | undefined, now: Date): { month: string; days: string[] } {
+  const valid = param && /^\d{4}-\d{2}$/.test(param) && Number(param.slice(5, 7)) >= 1 && Number(param.slice(5, 7)) <= 12;
+  const month = valid ? (param as string) : lasVegasDate(now).slice(0, 7);
+  const first = `${month}-01`;
+  const [y, m] = month.split("-").map(Number);
+  const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const last = `${month}-${String(lastDay).padStart(2, "0")}`;
+  const start = addDays(first, -noon(first).getUTCDay());
+  const end = addDays(last, 6 - noon(last).getUTCDay());
+  const days: string[] = [];
+  for (let d = start; d <= end; d = addDays(d, 1)) days.push(d);
+  return { month, days };
+}
+
+/** "September 2026" for a YYYY-MM month. */
+export function monthLabel(month: string): string {
+  return noon(`${month}-01`).toLocaleDateString("en-US", { timeZone: "UTC", month: "long", year: "numeric" });
+}
+
+export async function getMonth(
+  param: string | undefined, now = new Date(),
+): Promise<{ month: string; days: string[]; items: ScheduleItem[]; source: "outlook" | "tracker"; notice: string | null }> {
+  const { month, days } = monthGrid(param, now);
+  const { items, source, notice } = await loadRange(days);
+  return { month, days, items, source, notice };
 }
 
 export async function getWeek(param: string | undefined, now = new Date()): Promise<Week> {

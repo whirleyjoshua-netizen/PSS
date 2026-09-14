@@ -83,6 +83,90 @@ describe("getDay", () => {
   });
 });
 
+describe("monthGrid", () => {
+  it("Sep 2026 runs from 2026-08-30 to 2026-10-03 (35 days)", () => {
+    const { month, days } = week.monthGrid("2026-09", NOW);
+    expect(month).toBe("2026-09");
+    expect(days[0]).toBe("2026-08-30");
+    expect(days[days.length - 1]).toBe("2026-10-03");
+    expect(days).toHaveLength(35);
+  });
+
+  it("Feb 2026 runs from 2026-02-01 to 2026-02-28 (28 days)", () => {
+    const { days } = week.monthGrid("2026-02", NOW);
+    expect(days[0]).toBe("2026-02-01");
+    expect(days[days.length - 1]).toBe("2026-02-28");
+    expect(days).toHaveLength(28);
+  });
+
+  it("a 42-day month starts Sun Jul 26 and ends Sat Sep 5", () => {
+    const { days } = week.monthGrid("2026-08", NOW);
+    expect(days[0]).toBe("2026-07-26");
+    expect(days[days.length - 1]).toBe("2026-09-05");
+    expect(days).toHaveLength(42);
+  });
+
+  it("handles a leap February", () => {
+    const { days } = week.monthGrid("2028-02", NOW);
+    expect(days[0]).toBe("2028-01-30");
+    expect(days[days.length - 1]).toBe("2028-03-04");
+    expect(days.some((d) => d === "2028-02-29")).toBe(true);
+  });
+
+  it("falls back to the current Las Vegas month on invalid input", () => {
+    // 04:00Z Oct 1 is still Sep 30 evening in Las Vegas.
+    for (const bad of ["2026-13", "nope", ""]) {
+      const { month } = week.monthGrid(bad, new Date("2026-10-01T04:00:00Z"));
+      expect(month).toBe("2026-09");
+    }
+  });
+});
+
+describe("monthLabel", () => {
+  it("formats a YYYY-MM as a month name and year", () => {
+    expect(week.monthLabel("2026-09")).toBe("September 2026");
+  });
+});
+
+describe("getMonth", () => {
+  it("passes the month's grid range to Graph and merges paged results", async () => {
+    enabled.mockReturnValue(true);
+    graphJson.mockResolvedValueOnce({
+      value: [{ id: "e1", changeKey: "c", subject: "Page 1", isAllDay: false,
+        start: { dateTime: "2026-09-17T10:00:00.0000000", timeZone: PST }, end: { dateTime: "2026-09-17T11:00:00.0000000", timeZone: PST } }],
+      "@odata.nextLink": "https://graph.microsoft.com/v1.0/next-page",
+    }).mockResolvedValueOnce({
+      value: [{ id: "e2", changeKey: "c", subject: "Page 2", isAllDay: false,
+        start: { dateTime: "2026-09-18T10:00:00.0000000", timeZone: PST }, end: { dateTime: "2026-09-18T11:00:00.0000000", timeZone: PST } }],
+    });
+    sql.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+    const result = await week.getMonth("2026-09", NOW);
+    expect(result.month).toBe("2026-09");
+    expect(result.days[0]).toBe("2026-08-30");
+    expect(result.items.map((i) => i.title).sort()).toEqual(["Page 1", "Page 2"]);
+    expect(graphJson.mock.calls[1][0]).toBe("https://graph.microsoft.com/v1.0/next-page");
+    expect(String(graphJson.mock.calls[0][0])).toMatch(/^users\/jobs@example.com\/calendar\/calendarView\?startDateTime=2026-08-30T07:00:00.000Z&endDateTime=2026-10-04T07:00:00.000Z/);
+  });
+
+  it("stops paging Graph at 10 pages even when more remain", async () => {
+    enabled.mockReturnValue(true);
+    for (let i = 0; i < 11; i++) {
+      graphJson.mockResolvedValueOnce({
+        value: [{ id: `e${i}`, changeKey: "c", subject: `Page ${i}`, isAllDay: false,
+          start: { dateTime: "2026-09-17T10:00:00.0000000", timeZone: PST }, end: { dateTime: "2026-09-17T11:00:00.0000000", timeZone: PST } }],
+        "@odata.nextLink": `https://graph.microsoft.com/v1.0/page-${i + 1}`,
+      });
+    }
+    sql.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const result = await week.getMonth("2026-09", NOW);
+    expect(graphJson).toHaveBeenCalledTimes(10);
+    expect(result.items).toHaveLength(10);
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+});
+
 describe("getWeek", () => {
   const trackerRow = { id: ID, name: "Dana Reyes", city: "Henderson", status: "visit_booked",
     visit_at: "2026-09-17T17:00:00Z", install_on: "2026-09-19" };
