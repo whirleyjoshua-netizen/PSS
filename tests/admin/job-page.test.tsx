@@ -24,6 +24,7 @@ const job: Job = {
   visitAt: null, quoteCents: 450000, soldCents: null, depositCents: null, brands: ["Hunter Douglas"],
   orderedOn: null, installOn: null, lostReason: null,
   referralCode: null, referredBy: null, referralPaidAt: null, reviewRequestedAt: null, reviewOptOut: false,
+  budgetTier: null,
 };
 
 describe("job page", () => {
@@ -67,6 +68,12 @@ describe("job page", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(/under \$21,474,836/);
     expect(screen.getByLabelText(/quote/i)).toHaveValue("999999999");
     expect(screen.getByLabelText(/install date/i)).toHaveValue("2027-03-01");
+  });
+
+  it("shows the budget tier in the details form", () => {
+    render(<DetailsForm job={{ ...job, budgetTier: "mid" }} />);
+    expect(screen.getByText("Budget")).toBeInTheDocument();
+    expect(screen.getByText("Mid-range")).toBeInTheDocument();
   });
 
   it("makes the next-stage button full width with a decorative icon", () => {

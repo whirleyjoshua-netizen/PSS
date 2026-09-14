@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { consultationSchema } from "@/lib/leads/schema";
+import { BUDGET_TIERS } from "./budget";
 import { WORKING_STAGES } from "./stages";
 import { MAX_EIGHTHS, REQUIREMENTS, toEighths, type Requirement } from "./measure-units";
 import { dollarsToCents } from "./money";
@@ -34,12 +35,14 @@ export const detailsSchema = z
     brands: z.array(z.enum(BRANDS)).default([]),
     orderedOn: day,
     installOn: day,
+    budget: z.preprocess(blank, z.enum(BUDGET_TIERS, { error: "Pick a budget tier" }).optional()),
   })
-  .transform(({ visitAt, quote, sold, deposit, ...rest }) => ({
+  .transform(({ visitAt, quote, sold, deposit, budget, ...rest }) => ({
     visitAt: visitAt ? fromLocalInput(visitAt) : null,
     quoteCents: quote,
     soldCents: sold,
     depositCents: deposit,
+    budgetTier: budget ?? null,
     ...rest,
   }));
 
