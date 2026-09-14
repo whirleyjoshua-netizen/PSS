@@ -19,7 +19,7 @@ Follow the steps in order. Each value you need to copy is marked **Copy this**.
    - Name: **PSS Tracker**
    - Supported account types: single tenant
 2. Create a client secret with a **24-month** expiry.
-3. Write down these three values — you'll paste them into Vercel in Step 4:
+3. Write down these three values — you'll paste them into Vercel in Step 6:
    - **Copy this:** the **tenant ID**
    - **Copy this:** the **client ID** (application ID)
    - **Copy this:** the **client secret value** (shown only once, right after you create it)
@@ -27,24 +27,51 @@ Follow the steps in order. Each value you need to copy is marked **Copy this**.
    reminder is a good idea). When it expires, syncing will stop and the Settings page
    will show a sync error until a new secret is created and the `MS_CLIENT_SECRET`
    variable is updated.
-5. **Important:** do NOT add any Graph API permissions to this app registration. Leave
-   its API permissions empty. Access is granted separately, to this one mailbox only,
-   in Step 3.
+5. **Important:** do NOT add any Graph API permissions to this app registration. Access
+   is granted separately, to this one mailbox only, in Step 3.
+
+   Entra adds one permission on its own, called **User.Read** (type: Delegated). That's
+   normal and harmless — it doesn't mean anything went wrong. You can leave it or
+   remove it.
 
 ## Step 3: Grant access to just this mailbox (Exchange Online PowerShell)
 
-You'll need PowerShell with the Exchange Online module, connected as an admin
-(`Connect-ExchangeOnline`). Run these commands one at a time. Replace `<objectId>` with
-the app registration's **Object ID** (not the client/application ID — Entra shows both;
-use the Object ID of the Enterprise Application), and `<your domain>` with your real
-domain.
+### Before you start: open PowerShell and sign in
 
-1. Create the service principal:
+1. Open **PowerShell** on a Windows computer.
+2. The first time only, install Microsoft's Exchange Online tools (answer **Y** if it
+   asks whether to trust the source):
    ```powershell
-   New-ServicePrincipal
+   Install-Module ExchangeOnlineManagement
    ```
-   (Use the Enterprise Application's App ID and Object ID when prompted, or pass them as
-   parameters if you already know the exact syntax your PowerShell session expects.)
+3. Every time you come back to this step, sign in (a Microsoft sign-in window opens;
+   sign in as an admin):
+   ```powershell
+   Connect-ExchangeOnline
+   ```
+
+### Find the two IDs you need
+
+Go to **Microsoft Entra admin center → Enterprise applications → PSS Tracker** (search
+for "PSS Tracker" if it isn't listed). On its Overview page:
+
+- **Copy this:** the **Application ID** — below it's called `<Application ID>`
+- **Copy this:** the **Object ID** — below it's called `<Enterprise Object ID>`
+
+**Important:** copy both from **Enterprise applications**, NOT from App registrations.
+The App registrations page also shows an "Object ID", but it's a different number. If
+you use that one, the check in item 4 will say `InScope = False` no matter how long you
+wait.
+
+### Run these commands, one at a time
+
+In each command, replace `<Application ID>`, `<Enterprise Object ID>` and `<domain>` with
+your real values (leave out the `<` and `>`).
+
+1. Create the service principal (this tells Exchange about the app):
+   ```powershell
+   New-ServicePrincipal -AppId <Application ID> -ObjectId <Enterprise Object ID> -DisplayName "PSS Tracker"
+   ```
 
 2. Create a management scope limited to the PSS Jobs mailbox:
    ```powershell
@@ -53,20 +80,46 @@ domain.
 
 3. Grant the app calendar read/write access, but only within that scope:
    ```powershell
-   New-ManagementRoleAssignment -App <objectId> -Role "Application Calendars.ReadWrite" -CustomResourceScope "PSS Jobs only"
+   New-ManagementRoleAssignment -App <Enterprise Object ID> -Role "Application Calendars.ReadWrite" -CustomResourceScope "PSS Jobs only"
    ```
 
 4. Confirm it worked:
    ```powershell
-   Test-ServicePrincipalAuthorization -Identity <objectId> -Resource jobs@<domain>
+   Test-ServicePrincipalAuthorization -Identity <Enterprise Object ID> -Resource jobs@<domain>
    ```
-   You should see `InScope = True`. If you see `False`, wait and try again (see next step).
+   You should see `InScope = True`.
 
-5. **Wait 30 minutes to 2 hours.** Permissions like this take time to fully propagate
-   through Microsoft's systems before they work reliably. Don't be alarmed if the check
-   above doesn't show `InScope = True` right away — try again later.
+5. **If you see `InScope = False`:** first re-check that the Object ID you used came from
+   **Enterprise applications → PSS Tracker** (not App registrations). If it came from the
+   wrong page, run items 1, 3 and 4 again with the right one. If the ID is right, it's
+   just Microsoft being slow: permissions like this can take **30 minutes to 2 hours**
+   to take effect. Wait, then run item 4 again.
 
-## Step 4: Add the Vercel environment variables
+## Step 4: Update the database (done by your developer / Claude)
+
+Before any of the Outlook variables below are added to Vercel, the production database
+needs the two new calendar tables. Your developer (or Claude) runs this once, against
+the production database:
+
+```
+node scripts/migrate.mjs
+```
+
+Don't add the variables in Step 6 until this is done. If they're added first, the
+Settings page will say the calendar status couldn't be read.
+
+## Step 5: Check the site's address in Vercel
+
+Microsoft sends calendar updates to the site's address, and it won't follow a redirect.
+In the Vercel dashboard, check that the `ADMIN_BASE_URL` environment variable (production)
+is exactly the site's final address:
+
+- it starts with `https://`
+- it has no `/` at the end
+- it's the address that does NOT redirect. For example, if typing the bare domain in a
+  browser sends you to the `www.` address, use the `www.` address.
+
+## Step 6: Add the Vercel environment variables
 
 In the Vercel dashboard, add these to the **production** environment. Confirm each
 value with your developer before setting it, so there's no chance of a typo breaking
@@ -93,7 +146,7 @@ node -e "console.log(require('crypto').randomBytes(24).toString('base64url'))"
 The `CRON_SECRET` variable is already set up from earlier work — you don't need to add
 it again.
 
-## Step 5: Check it works
+## Step 7: Check it works
 
 1. Redeploy the site (or just wait for the next deploy) so the new environment
    variables take effect.

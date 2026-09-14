@@ -7,9 +7,18 @@ import { formatWhen } from "@/lib/admin/time";
 export default async function SettingsPage() {
   await requireAdmin();
   const enabled = calendarEnabled();
-  const { expiresAt, lastError, lastErrorAt } = enabled
-    ? await getSyncState()
-    : { expiresAt: null, lastError: null, lastErrorAt: null };
+  let state: Awaited<ReturnType<typeof getSyncState>> | null = null;
+  let unreadable = false;
+  if (enabled) {
+    try {
+      state = await getSyncState();
+    } catch (error) {
+      // Most likely the calendar tables are missing (migration 007 not applied); say so instead of a 500.
+      console.error("Could not read the calendar sync state", error);
+      unreadable = true;
+    }
+  }
+  const { expiresAt, lastError, lastErrorAt } = state ?? { expiresAt: null, lastError: null, lastErrorAt: null };
 
   return (
     <div className="flex max-w-xl flex-col gap-4">
@@ -21,6 +30,10 @@ export default async function SettingsPage() {
         {!enabled ? (
           <p className="text-ink-soft">
             Not connected. Follow docs/outlook-setup.md to connect the shared PSS Jobs calendar.
+          </p>
+        ) : unreadable ? (
+          <p className="text-overdue">
+            Connected, but the calendar status couldn&apos;t be read. Has migration 007 been applied?
           </p>
         ) : lastError ? (
           <p className="text-overdue">

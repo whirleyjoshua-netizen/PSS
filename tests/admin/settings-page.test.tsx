@@ -69,4 +69,14 @@ describe("settings page", () => {
       screen.getByText("Connected. Waiting for the first daily check to switch on updates from Outlook."),
     ).toBeInTheDocument();
   });
+
+  it("explains, rather than failing, when the calendar status cannot be read", async () => {
+    calendarEnabled.mockReturnValue(true);
+    getSyncState.mockRejectedValue(new Error('relation "calendar_sync_state" does not exist'));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    render(await SettingsPage());
+    expect(
+      screen.getByText("Connected, but the calendar status couldn't be read. Has migration 007 been applied?"),
+    ).toBeInTheDocument();
+  });
 });
