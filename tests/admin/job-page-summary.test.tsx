@@ -91,7 +91,7 @@ describe("job page summary", () => {
 
   it("says no call-back is set", async () => {
     getJob.mockResolvedValue({ ...baseJob });
-    render(await JobPage({ params: Promise.resolve({ id: ID }) }));
+    render(await JobPage({ params: Promise.resolve({ id: ID }), searchParams: Promise.resolve({}) }));
     expect(screen.getByText("No call-back set")).toBeInTheDocument();
   });
 });

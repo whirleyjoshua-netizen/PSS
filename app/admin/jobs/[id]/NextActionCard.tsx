@@ -2,6 +2,7 @@ import { ButtonLink } from "@/components/ui/Button";
 import type { Job } from "@/lib/admin/jobs";
 import { nextAction } from "@/lib/admin/next-action";
 import { CallButton } from "./CallButton";
+import { FollowUpBox } from "./FollowUpBox";
 import { StageControls } from "./StageControls";
 import { CARD, HEADING } from "./ui";
 
@@ -20,6 +21,7 @@ export function NextActionCard({ job, measurementCount }: { job: Job; measuremen
       {action.cta?.kind === "link" ? (
         <ButtonLink href={action.cta.href} variant="primary" className="w-full">{action.cta.label}</ButtonLink>
       ) : null}
+      <FollowUpBox key={job.followUpAt?.toISOString() ?? "none"} job={job} />
       <StageControls job={job} parts={["move"]} />
     </section>
   );
