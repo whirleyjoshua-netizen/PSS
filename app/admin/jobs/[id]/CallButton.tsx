@@ -17,7 +17,11 @@ export function CallButton({ jobId, name, phone }: { jobId: string; name: string
   return (
     <div className="flex">
       <a href={`tel:+1${phone}`}
-        onClick={() => { window.setTimeout(() => window.location.assign(screenHref), 300); }}
+        onClick={() => {
+          window.setTimeout(() => {
+            window.location.assign(new URL(screenHref, window.location.origin).href);
+          }, 300);
+        }}
         className={`hidden [@media(pointer:coarse)]:inline-flex ${BASE}`}>
         <Icon name="phone" className="size-4" />
         Call {first}

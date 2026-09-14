@@ -22,11 +22,11 @@ describe("CallButton", () => {
   it("opens the call screen after starting the call", () => {
     vi.useFakeTimers();
     const assign = vi.fn();
-    vi.stubGlobal("location", { ...window.location, assign });
+    vi.stubGlobal("location", { ...window.location, origin: "http://localhost", assign });
     render(<CallButton jobId={JOB} name="Maria Lopez" phone="7025550100" />);
     fireEvent.click(screen.getByRole("link", { name: "Call Maria" }));
     vi.runAllTimers();
-    expect(assign).toHaveBeenCalledWith(`/admin/jobs/${JOB}/call`);
+    expect(assign).toHaveBeenCalledWith(`http://localhost/admin/jobs/${JOB}/call`);
     vi.unstubAllGlobals();
     vi.useRealTimers();
   });
