@@ -15,8 +15,8 @@ export default async function MeasurePage({ params }: { params: Promise<{ id: st
   return (
     <div className="mx-auto flex max-w-xl flex-col gap-6">
       <div className="flex items-center justify-between gap-4">
-        <Link href={`/admin/jobs/${id}`} className="text-sm underline underline-offset-4">← {job.name}</Link>
-        <Link href={`/admin/jobs/${id}`} className="text-sm font-semibold underline underline-offset-4">Finish</Link>
+        <Link href={`/admin/jobs/${id}?tab=measurements`} className="text-sm underline underline-offset-4">← {job.name}</Link>
+        <Link href={`/admin/jobs/${id}?tab=measurements`} className="text-sm font-semibold underline underline-offset-4">Finish</Link>
       </div>
       <h1 className="text-2xl font-semibold">Measure</h1>
       <p className="text-sm text-ink-soft">{windows.length} {windows.length === 1 ? "window" : "windows"} so far</p>

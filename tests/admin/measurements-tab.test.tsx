@@ -1,0 +1,49 @@
+import { render, screen, within } from "@testing-library/react";
+import { describe, it, expect, vi } from "vitest";
+import type { JobFile } from "@/lib/admin/files";
+import type { WindowMeasurement } from "@/lib/admin/measurements";
+
+vi.mock("@/app/admin/jobs/measure-actions", () => ({ removeMeasurement: vi.fn(), removeFile: vi.fn(), setFileShared: vi.fn() }));
+const { MeasurementsTab } = await import("@/app/admin/jobs/[id]/MeasurementsTab");
+const { JobFiles } = await import("@/app/admin/jobs/[id]/JobFiles");
+
+const JOB = "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c";
+const WIN = "4a3c9d2f-9d63-4b64-8b2d-2e3f4a5b6c7d";
+const PHOTO = "5b4d0e3a-0e74-4c75-9c3e-3f4a5b6c7d8e";
+const m: WindowMeasurement = {
+  id: WIN, leadId: JOB, position: 1, room: "Kitchen", label: "Window 1", widthEighths: 35 * 8 + 5,
+  heightEighths: 48 * 8, depthEighths: null, mount: "inside", requirements: [], notes: "Over sink",
+  photoFileId: PHOTO, measuredBy: "joshua@example.com", createdAt: new Date(), updatedAt: new Date(),
+};
+const photo: JobFile = {
+  id: PHOTO, leadId: JOB, createdAt: new Date(), uploadedBy: "joshua@example.com", kind: "photo",
+  name: "window.jpg", contentType: "image/jpeg", sizeBytes: 1000, blobPathname: "x", sharedAt: null,
+};
+
+describe("MeasurementsTab", () => {
+  it("shows one row per window with its sizes", () => {
+    render(<MeasurementsTab jobId={JOB} measurements={[m]} files={[photo]} />);
+    const row = screen.getByRole("row", { name: /Kitchen/ });
+    expect(within(row).getByText("35 ⅝″")).toBeInTheDocument();
+    expect(within(row).getByText("48″")).toBeInTheDocument();
+    expect(within(row).getByText("Inside")).toBeInTheDocument();
+    expect(within(row).getByText("Over sink")).toBeInTheDocument();
+    expect(within(row).getByRole("link", { name: "Edit" })).toHaveAttribute("href", `/admin/jobs/${JOB}/measure/${WIN}`);
+    expect(screen.getByRole("link", { name: "Add measurement" })).toHaveAttribute("href", `/admin/jobs/${JOB}/measure`);
+  });
+
+  it("keeps today's empty state", () => {
+    render(<MeasurementsTab jobId={JOB} measurements={[]} files={[]} />);
+    expect(screen.getByText("No windows measured yet.")).toBeInTheDocument();
+    expect(screen.queryByRole("table")).toBeNull();
+  });
+});
+
+describe("JobFiles without measurements", () => {
+  it("hides the measurements block but still keeps window photos out of Photos", () => {
+    render(<JobFiles jobId={JOB} measurements={[m]} files={[photo]} showMeasurements={false} />);
+    expect(screen.queryByText(/^Measurements ·/)).toBeNull();
+    expect(screen.queryByRole("link", { name: "Measure" })).toBeNull();
+    expect(screen.getByText("Photos · 0")).toBeInTheDocument();
+  });
+});

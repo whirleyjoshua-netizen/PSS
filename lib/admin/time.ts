@@ -52,3 +52,34 @@ export function formatCallVisit(date: Date): string {
   );
   return `${p.weekday} ${p.month}/${p.day}, ${p.hour}:${p.minute} ${p.dayPeriod}`;
 }
+
+const DAY_MS = 86_400_000;
+/** Noon UTC on a YYYY-MM-DD date, so date arithmetic never crosses a day boundary. */
+const noonUtc = (ymd: string) => new Date(`${ymd}T12:00:00Z`);
+
+/** "Sep 11, 2026" in Las Vegas time. */
+export const formatShortDate = (date: Date): string =>
+  date.toLocaleDateString("en-US", { timeZone: ZONE, month: "short", day: "numeric", year: "numeric" });
+
+/** A date-only column value ("2026-10-12") as "Oct 12, 2026", with no time-zone shift. */
+export const formatDateOnly = (ymd: string): string =>
+  noonUtc(ymd).toLocaleDateString("en-US", { timeZone: "UTC", month: "short", day: "numeric", year: "numeric" });
+
+/** "10:31 AM" in Las Vegas time. */
+export const formatTime = (date: Date): string =>
+  date.toLocaleTimeString("en-US", { timeZone: ZONE, hour: "numeric", minute: "2-digit" });
+
+/** Whole Las Vegas calendar days from `from` to `now`; never negative. */
+export const daysBetween = (from: Date, now: Date): number =>
+  Math.max(0, Math.round((noonUtc(lasVegasDate(now)).getTime() - noonUtc(lasVegasDate(from)).getTime()) / DAY_MS));
+
+/** "Today", "Yesterday", "Sep 11", or "Dec 30, 2025" when not this year. */
+export function dayLabel(date: Date, now: Date): string {
+  const days = daysBetween(date, now);
+  if (days === 0) return "Today";
+  if (days === 1) return "Yesterday";
+  const sameYear = lasVegasDate(date).slice(0, 4) === lasVegasDate(now).slice(0, 4);
+  return date.toLocaleDateString("en-US", {
+    timeZone: ZONE, month: "short", day: "numeric", ...(sameYear ? {} : { year: "numeric" as const }),
+  });
+}

@@ -36,7 +36,7 @@ test("logging a booked call from a computer moves the lead to Visit booked", asy
   const id = await lead(`E2E Call Booked ${STAMP}`, "new");
   await signIn(page);
   await page.goto(`/admin/jobs/${id}`);
-  await page.getByRole("link", { name: "Log a call" }).click();
+  await page.locator("header").getByRole("link", { name: "Log a call" }).click();
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(`Call E2E Call Booked ${STAMP}`);
 
   await page.getByLabel("Shutters").check();
@@ -47,7 +47,7 @@ test("logging a booked call from a computer moves the lead to Visit booked", asy
   await page.getByRole("button", { name: "Save booked visit" }).click();
 
   await expect(page).toHaveURL(new RegExp(`/admin/jobs/${id}$`));
-  await expect(page.getByText("Stage:")).toContainText("Visit booked");
+  await expect(page.getByRole("list", { name: "Stage" }).locator('[aria-current="step"]')).toContainText("Visit booked");
   await expect(page.getByText("Call: booked visit Wed 10/14, 2:00 PM · Shutters · 6-10 windows · Mid-range")).toBeVisible();
   const [row] = await sql()`select budget_tier, window_count, treatments from leads where id = ${id}`;
   expect(row).toMatchObject({ budget_tier: "mid", window_count: "6-10", treatments: ["Shutters"] });
@@ -67,7 +67,7 @@ test("a missed call is logged and the lead stays new", async ({ page }) => {
   await page.goto(`/admin/jobs/${id}/call`);
   await page.getByRole("button", { name: "No answer" }).click();
   await expect(page).toHaveURL(new RegExp(`/admin/jobs/${id}$`));
-  await expect(page.getByText("Stage:")).toContainText("New lead");
+  await expect(page.getByRole("list", { name: "Stage" }).locator('[aria-current="step"]')).toContainText("New lead");
   await expect(page.getByText("Call: no answer")).toBeVisible();
 
   const events = await sql()`select kind, from_status, to_status, body from job_events where lead_id = ${id} order by created_at`;
@@ -82,7 +82,7 @@ test("a call never moves a job backwards", async ({ page }) => {
   await signIn(page);
   await page.goto(`/admin/jobs/${id}/call`);
   await page.getByRole("button", { name: "Talked, no visit yet" }).click();
-  await expect(page.getByText("Stage:")).toContainText("Quoted");
+  await expect(page.getByRole("list", { name: "Stage" }).locator('[aria-current="step"]')).toContainText("Quoted");
   await expect(page.getByText("Call: talked, no visit yet")).toBeVisible();
 
   const events = await sql()`select kind, from_status, to_status, body from job_events where lead_id = ${id} order by created_at`;
