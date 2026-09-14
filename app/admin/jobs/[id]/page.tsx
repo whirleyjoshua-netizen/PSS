@@ -21,6 +21,7 @@ import { ReferralsList } from "./ReferralsList";
 import { ReviewSection } from "./ReviewSection";
 import { StageControls } from "./StageControls";
 import { CallButton } from "./CallButton";
+import { FollowUpBox } from "./FollowUpBox";
 
 export default async function JobPage({ params }: { params: Promise<{ id: string }> }) {
   await requireAdmin();
@@ -71,6 +72,7 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
       <section className="flex flex-col gap-4">
         <h2 className="font-display text-xs uppercase tracking-[0.2em] text-champagne-ink">Stage</h2>
         <StageControls job={job} />
+        <FollowUpBox key={job.followUpAt?.toISOString() ?? "none"} job={job} />
       </section>
 
       <section className="flex flex-col gap-4">
