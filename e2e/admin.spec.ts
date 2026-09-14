@@ -216,3 +216,45 @@ test("search finds a job, and a column's add button starts a job in that stage",
   await page.getByRole("searchbox", { name: "Search jobs" }).press("Enter");
   await expect(page.getByRole("region", { name: /quoted/i }).getByRole("link", { name: new RegExp(name) })).toBeVisible();
 });
+
+test("the schedule shows this week's visits from the tracker and opens the job", async ({ page }) => {
+  const visit = new Date(Date.now() + 60 * 60 * 1000); // an hour from now is always this week or just into next
+  const [row] = await sql()`insert into leads (name, phone, email, city, source, status, visit_at)
+    values (${`${NAME} Schedule`}, '7025550188', 'sched@example.com', 'Henderson', 'phone', 'visit_booked', ${visit})
+    returning id`;
+  await signIn(page);
+  // Visiting the week that contains the visit keeps this stable on a Saturday night.
+  const day = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Los_Angeles" }).format(visit);
+  await page.goto(`/admin/schedule?week=${day}`);
+  await expect(page.getByRole("heading", { level: 1, name: "Schedule" })).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: "Outlook isn't connected yet." })).toBeVisible();
+  await page.getByRole("link", { name: new RegExp(`${NAME} Schedule`) }).click();
+  await expect(page).toHaveURL(new RegExp(`/admin\\?job=${row.id}`));
+  await expect(page.getByRole("complementary", { name: new RegExp(`${NAME} Schedule`) })).toBeVisible();
+});
+
+test("the call screen shows that day's calendar and flags a clash", async ({ page }) => {
+  const future = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
+  const day = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Los_Angeles" }).format(future);
+  const [booked] = await sql()`insert into leads (name, phone, email, city, source, status, visit_at)
+    values (${`${NAME} Booked`}, '7025550190', 'e2e-booked@example.com', 'Henderson', 'phone', 'visit_booked',
+      ${`${day} 10:00 America/Los_Angeles`}::timestamptz)
+    returning id`;
+  const [toCall] = await sql()`insert into leads (name, phone, email, city, source, status)
+    values (${`${NAME} ToCall`}, '7025550191', 'e2e-tocall@example.com', 'Henderson', 'phone', 'quoted')
+    returning id`;
+
+  await signIn(page);
+  await page.goto(`/admin/jobs/${toCall.id}/call`);
+  await page.getByRole("button", { name: "Booked a visit" }).click();
+  await page.getByLabel("Visit date and time").fill(`${day}T10:30`);
+
+  const panel = page.locator("#call-day-heading").locator("xpath=..");
+  await expect(panel.getByText("clashes with this time")).toBeVisible();
+  await expect(panel.getByText("Outlook isn't connected yet.")).toBeVisible();
+
+  await page.getByLabel("Visit date and time").fill(`${day}T13:00`);
+  await expect(panel.getByText("clashes with this time")).toHaveCount(0);
+
+  void booked;
+});

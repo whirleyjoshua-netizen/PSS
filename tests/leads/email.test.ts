@@ -67,4 +67,16 @@ describe("sendLeadNotification", () => {
     await sendLeadNotification(input, "abc");
     expect(send.mock.calls[0][0].text.split("\n")[0]).toBe(`Open in tracker: ${business.domain}/admin/jobs/abc`);
   });
+
+  it("sends to every owner in a comma-separated list", async () => {
+    vi.stubEnv("LEAD_NOTIFICATION_EMAIL", " owner@example.com, partner@example.com ,");
+    await sendLeadNotification(input, "abc");
+    expect(send.mock.calls[0][0].to).toEqual(["owner@example.com", "partner@example.com"]);
+  });
+
+  it("refuses to send when no owner address is configured", async () => {
+    vi.stubEnv("LEAD_NOTIFICATION_EMAIL", " , ");
+    await expect(sendLeadNotification(input, "abc")).rejects.toThrow(/not configured/);
+    expect(send).not.toHaveBeenCalled();
+  });
 });

@@ -4,10 +4,11 @@ import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { BUDGET_OPTIONS, type BudgetTier } from "@/lib/admin/budget";
 import { TREATMENT_NAMES } from "@/lib/admin/call";
-import { toLocalInput } from "@/lib/admin/time";
+import { fromLocalInput, toLocalInput } from "@/lib/admin/time";
 import { WINDOW_COUNTS } from "@/lib/leads/schema";
 import { logCallAction } from "../../call-actions";
 import type { FormState } from "../../actions";
+import { DaySchedule } from "./DaySchedule";
 
 type CallJob = { id: string; treatments: string[]; windowCount: string | null; budgetTier?: BudgetTier | null; visitAt: Date | null };
 
@@ -18,8 +19,10 @@ export function CallForm({ job }: { job: CallJob }) {
   const [state, action, pending] = useActionState<FormState, FormData>(logCallAction.bind(null, job.id), {});
   const values = state.values;
   const [booking, setBooking] = useState(values?.outcome === "booked");
-
   const text = (name: string, fallback: string) => (typeof values?.[name] === "string" ? (values[name] as string) : fallback);
+  const [visit, setVisit] = useState(() => text("visitAt", job.visitAt ? toLocalInput(job.visitAt) : ""));
+  const date = visit.slice(0, 10);
+
   const checked = (name: string) => {
     const submitted = values?.treatments;
     if (submitted === undefined) return job.treatments.includes(name);
@@ -85,9 +88,12 @@ export function CallForm({ job }: { job: CallJob }) {
           <label htmlFor="call-visit" className="flex flex-col gap-2 text-sm">
             Visit date and time
             <input id="call-visit" name="visitAt" type="datetime-local" required
-              defaultValue={text("visitAt", job.visitAt ? toLocalInput(job.visitAt) : "")}
+              value={visit} onChange={(e) => setVisit(e.target.value)}
               className="min-h-11 w-full border border-rule bg-ivory px-4 py-3" />
           </label>
+          {date ? (
+            <DaySchedule jobId={job.id} date={date} slotStart={visit.length === 16 ? fromLocalInput(visit) : null} />
+          ) : null}
           <div className="flex flex-wrap gap-3">
             <Button type="submit" name="outcome" value="booked" variant="solid" disabled={pending}>Save booked visit</Button>
             <Button type="button" variant="outline" onClick={() => setBooking(false)}>Cancel</Button>
