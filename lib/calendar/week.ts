@@ -78,11 +78,13 @@ async function loadRange(days: string[]): Promise<{ items: ScheduleItem[]; sourc
     let next: string | undefined =
       `users/${mailbox}/calendar/calendarView?startDateTime=${from.toISOString()}&endDateTime=${to.toISOString()}` +
       "&$select=id,subject,start,end,isAllDay&$top=200&$orderby=start/dateTime";
-    for (let page = 0; page < 10 && next; page++) {
+    let page = 0;
+    for (; page < 10 && next; page++) {
       const result: { value: GraphEvent[]; "@odata.nextLink"?: string } = await graphJson(next);
       value.push(...result.value);
       next = result["@odata.nextLink"];
     }
+    if (page === 10 && next) console.warn("Schedule: truncated Outlook paging at 10 pages");
     const ids = value.map((e) => e.id);
     const links = ids.length
       ? await db()`

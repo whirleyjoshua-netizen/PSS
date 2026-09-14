@@ -114,8 +114,9 @@ describe("monthGrid", () => {
   });
 
   it("falls back to the current Las Vegas month on invalid input", () => {
+    // 04:00Z Oct 1 is still Sep 30 evening in Las Vegas.
     for (const bad of ["2026-13", "nope", ""]) {
-      const { month } = week.monthGrid(bad, new Date("2026-09-20T04:00:00Z"));
+      const { month } = week.monthGrid(bad, new Date("2026-10-01T04:00:00Z"));
       expect(month).toBe("2026-09");
     }
   });
@@ -145,6 +146,24 @@ describe("getMonth", () => {
     expect(result.items.map((i) => i.title).sort()).toEqual(["Page 1", "Page 2"]);
     expect(graphJson.mock.calls[1][0]).toBe("https://graph.microsoft.com/v1.0/next-page");
     expect(String(graphJson.mock.calls[0][0])).toMatch(/^users\/jobs@example.com\/calendar\/calendarView\?startDateTime=2026-08-30T07:00:00.000Z&endDateTime=2026-10-04T07:00:00.000Z/);
+  });
+
+  it("stops paging Graph at 10 pages even when more remain", async () => {
+    enabled.mockReturnValue(true);
+    for (let i = 0; i < 11; i++) {
+      graphJson.mockResolvedValueOnce({
+        value: [{ id: `e${i}`, changeKey: "c", subject: `Page ${i}`, isAllDay: false,
+          start: { dateTime: "2026-09-17T10:00:00.0000000", timeZone: PST }, end: { dateTime: "2026-09-17T11:00:00.0000000", timeZone: PST } }],
+        "@odata.nextLink": `https://graph.microsoft.com/v1.0/page-${i + 1}`,
+      });
+    }
+    sql.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const result = await week.getMonth("2026-09", NOW);
+    expect(graphJson).toHaveBeenCalledTimes(10);
+    expect(result.items).toHaveLength(10);
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
   });
 });
 
