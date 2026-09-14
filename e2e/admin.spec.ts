@@ -214,3 +214,19 @@ test("search finds a job, and a column's add button starts a job in that stage",
   await page.getByRole("searchbox", { name: "Search jobs" }).press("Enter");
   await expect(page.getByRole("region", { name: /quoted/i }).getByRole("link", { name: new RegExp(name) })).toBeVisible();
 });
+
+test("the schedule shows this week's visits from the tracker and opens the job", async ({ page }) => {
+  const visit = new Date(Date.now() + 60 * 60 * 1000); // an hour from now is always this week or just into next
+  const [row] = await sql()`insert into leads (name, phone, email, city, source, status, visit_at)
+    values (${`${NAME} Schedule`}, '7025550188', 'sched@example.com', 'Henderson', 'phone', 'visit_booked', ${visit})
+    returning id`;
+  await signIn(page);
+  // Visiting the week that contains the visit keeps this stable on a Saturday night.
+  const day = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Los_Angeles" }).format(visit);
+  await page.goto(`/admin/schedule?week=${day}`);
+  await expect(page.getByRole("heading", { level: 1, name: "Schedule" })).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: "Outlook isn't connected yet." })).toBeVisible();
+  await page.getByRole("link", { name: new RegExp(`${NAME} Schedule`) }).click();
+  await expect(page).toHaveURL(new RegExp(`/admin\\?job=${row.id}`));
+  await expect(page.getByRole("complementary", { name: new RegExp(`${NAME} Schedule`) })).toBeVisible();
+});
