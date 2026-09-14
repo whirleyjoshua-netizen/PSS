@@ -15,10 +15,14 @@ export async function sendLeadNotification(
   leadId: string,
 ): Promise<void> {
   const apiKey = process.env.RESEND_API_KEY;
-  const to = process.env.LEAD_NOTIFICATION_EMAIL;
+  // Comma-separated, so both owners get every lead.
+  const to = (process.env.LEAD_NOTIFICATION_EMAIL ?? "")
+    .split(",")
+    .map((address) => address.trim())
+    .filter(Boolean);
   const from = process.env.LEAD_FROM_EMAIL ?? "leads@premiershadesolutions.com";
 
-  if (!apiKey || !to) {
+  if (!apiKey || to.length === 0) {
     throw new Error("Lead notification email is not configured");
   }
 
