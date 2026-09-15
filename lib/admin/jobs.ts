@@ -192,6 +192,7 @@ export async function setStage(id: string, to: Stage, actor: string, reason?: st
  * A date whose submitted value matches the value the form was loaded with was not edited, so the
  * stored date is kept: a stale form must never undo a move made in Outlook since it was opened.
  * Without the loaded value (an older form, or another caller) both dates are written as before.
+ * A New job whose visit date this save set moves to Appointment booked, with its stage entry, in the same statement.
  */
 export async function updateDetails(
   id: string, input: DetailsInput, actor: string,
@@ -200,8 +201,10 @@ export async function updateDetails(
   const visitEdited =
     input.visitAtLoaded === undefined || (input.visitAt ? toLocalInput(input.visitAt) : "") !== input.visitAtLoaded;
   const installEdited = input.installOnLoaded === undefined || (input.installOn ?? "") !== input.installOnLoaded;
+  // Only a visit date this save actually set books the appointment; a stale form or an Outlook sync never does.
+  const book = visitEdited && input.visitAt !== null;
   const rows = await db()`
-    with prev as (select visit_at, install_on from leads where id = ${id}),
+    with prev as (select status, visit_at, install_on from leads where id = ${id}),
     changed as (
       update leads set
         visit_at = case when ${visitEdited}::boolean then ${input.visitAt}::timestamptz else visit_at end,
@@ -211,13 +214,20 @@ export async function updateDetails(
         install_on = case when ${installEdited}::boolean then ${input.installOn}::date else install_on end,
         budget_tier = ${input.budgetTier},
         window_count_exact = ${input.windowCountExact}, treatment_types = ${input.treatmentTypes}::text[], motorized = ${input.motorized}, gate_code = ${input.gateCode},
+        status = case when ${book}::boolean and status = 'new' then 'visit_booked' else status end,
+        stage_changed_at = case when ${book}::boolean and status = 'new' then now() else stage_changed_at end,
         updated_at = now()
       where id = ${id}
-      returning id
+      returning id, status
     ),
     logged as (
       insert into job_events (lead_id, actor, kind, body)
       select id, ${actor}, 'edit', 'Updated job details' from changed
+    ),
+    booked as (
+      insert into job_events (lead_id, actor, kind, from_status, to_status)
+      select changed.id, ${actor}, 'stage', 'new', 'visit_booked' from prev, changed
+      where prev.status = 'new' and changed.status = 'visit_booked'
     )
     select prev.visit_at is distinct from ${input.visitAt}::timestamptz as visit_changed,
            prev.install_on is distinct from ${input.installOn}::date as install_changed

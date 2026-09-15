@@ -142,7 +142,7 @@ describe("changing jobs", () => {
       visitAt, quoteCents: null, soldCents: null, depositCents: null, brands: [], orderedOn: null, installOn: null, budgetTier: null, windowCountExact: null, treatmentTypes: [], motorized: false, gateCode: null,
     }, "owner@example.com")).toEqual({ visitChanged: true, installChanged: false });
     const statement = text(sql.mock.calls[0]);
-    expect(statement).toMatch(/with prev as \(select visit_at, install_on from leads where id = \?\)/);
+    expect(statement).toMatch(/with prev as \(select status, visit_at, install_on from leads where id = \?\)/);
     expect(statement).toMatch(/prev\.visit_at is distinct from \?::timestamptz/);
     expect(statement).toMatch(/prev\.install_on is distinct from \?::date/);
     expect(statement).toContain("insert into job_events");
@@ -191,6 +191,31 @@ describe("changing jobs", () => {
       expect(result).toEqual({ visitChanged: true, installChanged: true });
       const flags = dateFlags(sql.mock.calls[0]);
       expect(flags).not.toContain(false);
+    });
+  });
+
+  describe("updateDetails books the appointment", () => {
+    const blank = { quoteCents: null, soldCents: null, depositCents: null, brands: [], orderedOn: null, installOn: null,
+      budgetTier: null, windowCountExact: null, treatmentTypes: [], motorized: false, gateCode: null };
+    const visitAt = new Date("2026-09-20T17:00:00Z"); // 10:00 AM in Las Vegas
+    const flag = (call: unknown[]) => call.slice(1).filter((v) => typeof v === "boolean").at(-1);
+
+    it("moves a New job to Appointment booked in the same statement when the visit date was edited", async () => {
+      sql.mockResolvedValue([{ visit_changed: true, install_changed: false }]);
+      await jobs.updateDetails(ID, { ...blank, visitAt, visitAtLoaded: "" }, "owner@example.com");
+      const statement = text(sql.mock.calls[0]).replace(/\s+/g, " ");
+      expect(statement).toContain("status = case when ?::boolean and status = 'new' then 'visit_booked' else status end");
+      expect(statement).toContain("stage_changed_at = case when ?::boolean and status = 'new' then now() else stage_changed_at end");
+      expect(statement).toMatch(/insert into job_events \(lead_id, actor, kind, from_status, to_status\) select changed\.id, \?, 'stage', 'new', 'visit_booked' from prev, changed where prev\.status = 'new' and changed\.status = 'visit_booked'/);
+      expect(flag(sql.mock.calls[0])).toBe(true);
+    });
+
+    it("never books from an untouched visit date, a cleared date or an older form", async () => {
+      sql.mockResolvedValue([{ visit_changed: false, install_changed: false }]);
+      await jobs.updateDetails(ID, { ...blank, visitAt, visitAtLoaded: "2026-09-20T10:00" }, "owner@example.com");
+      expect(flag(sql.mock.calls[0])).toBe(false);
+      await jobs.updateDetails(ID, { ...blank, visitAt: null, visitAtLoaded: "2026-09-20T10:00" }, "owner@example.com");
+      expect(flag(sql.mock.calls[1])).toBe(false);
     });
   });
 
