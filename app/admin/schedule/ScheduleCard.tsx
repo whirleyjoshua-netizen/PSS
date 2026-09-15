@@ -1,12 +1,10 @@
 import Link from "next/link";
 import { STAGE_STYLE } from "@/lib/admin/stages";
+import { whenLabel } from "@/lib/calendar/labels";
 import type { ScheduleItem } from "@/lib/calendar/week";
 
-export const formatTime = (date: Date) =>
-  date.toLocaleTimeString("en-US", { timeZone: "America/Los_Angeles", hour: "numeric", minute: "2-digit" });
-
 export function ScheduleCard({ item }: { item: ScheduleItem }) {
-  const when = item.allDay || !item.start ? "All day" : formatTime(item.start);
+  const when = item.allDay || !item.start ? "All day" : whenLabel(item.start, item.end, item.day);
   if (!item.job) {
     return (
       <div className="rounded-lg border border-rule bg-ivory/60 p-2 text-xs text-ink-soft opacity-70">

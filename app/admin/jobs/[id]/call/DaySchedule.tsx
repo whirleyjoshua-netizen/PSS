@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { clashes, effectiveEnd } from "@/lib/calendar/clash";
 import type { DayScheduleItem } from "@/lib/calendar/day-schedule";
+import { spanLabel } from "@/lib/calendar/labels";
 import { callDaySchedule } from "../../call-actions";
 
 /** A fetched result, tagged with the job and date it belongs to, so a stale one is never shown. */
@@ -13,8 +14,6 @@ type Loaded =
 const dayLabel = (date: string) =>
   new Date(`${date}T12:00:00Z`).toLocaleDateString("en-US", { timeZone: "UTC", weekday: "short", month: "short", day: "numeric" });
 
-const timeLabel = (date: Date) =>
-  date.toLocaleTimeString("en-US", { timeZone: "America/Los_Angeles", hour: "numeric", minute: "2-digit" });
 
 const order = (a: DayScheduleItem, b: DayScheduleItem) =>
   Number(b.allDay) - Number(a.allDay) || (a.start ? new Date(a.start).getTime() : 0) - (b.start ? new Date(b.start).getTime() : 0);
@@ -59,7 +58,7 @@ export function DaySchedule({ jobId, date, slotStart }: { jobId: string; date: s
             const clash = clashed[i];
             const { start } = timed[i];
             const end = effectiveEnd(timed[i]);
-            const label = start && end ? `${timeLabel(start)} – ${timeLabel(end)} · ${item.title}` : `All day · ${item.title}`;
+            const label = start && end ? `${spanLabel(start, end, date)} · ${item.title}` : `All day · ${item.title}`;
             return (
               <li key={item.key} data-clash={clash ? "true" : undefined}
                 className={`text-sm ${clash ? "border-l-4 border-overdue pl-2 text-overdue" : ""}`}>

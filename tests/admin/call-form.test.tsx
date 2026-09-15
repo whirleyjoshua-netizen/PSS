@@ -115,6 +115,16 @@ describe("CallForm", () => {
     expect(await screen.findByText("10:00 AM – 11:00 AM · No End")).toBeInTheDocument();
   });
 
+  it("dates both ends of an event that runs through the selected day", async () => {
+    callDaySchedule.mockResolvedValue({
+      ok: true, notice: null,
+      // Sat Sep 19 9:00 AM to Mon Sep 21 10:00 AM in Las Vegas.
+      items: [{ key: "long", allDay: false, start: "2026-09-19T16:00:00.000Z", end: "2026-09-21T17:00:00.000Z", title: "Long" }],
+    });
+    bookVisit("2026-09-20T10:30");
+    expect(await screen.findByText("Sat 9:00 AM – Mon 10:00 AM · Long — clashes with this time")).toBeInTheDocument();
+  });
+
   it("shows the notice under the heading", async () => {
     callDaySchedule.mockResolvedValue({ ok: true, notice: "Outlook isn't connected yet.", items: [] });
     bookVisit("2026-09-20T10:30");

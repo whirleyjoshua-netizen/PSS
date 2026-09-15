@@ -212,6 +212,27 @@ describe("MonthView (direct render)", () => {
   });
 });
 
+describe("multi-day timed events", () => {
+  // Sun Sep 13 9:00 AM to Tue Sep 15 10:00 AM in Las Vegas; this is Monday's copy.
+  const middle = { key: "long:2026-09-14", day: "2026-09-14", allDay: false,
+    start: new Date("2026-09-13T16:00:00Z"), end: new Date("2026-09-15T17:00:00Z"), title: "Long job", job: null };
+
+  it("dates both ends on a week card for a middle-day copy", async () => {
+    const { WeekView } = await import("@/app/admin/schedule/WeekView");
+    render(<WeekView days={days} notice={null} now={NOW} items={[middle]} />);
+    const monday = within(screen.getByRole("listitem", { name: /mon 14/i }));
+    expect(monday.getByText("Sun 9:00 AM – Tue 10:00 AM")).toBeInTheDocument();
+  });
+
+  it("dates both ends on a month cell line and in the day list", () => {
+    render(<MonthView month="2026-09" days={monthDays} notice={null} now={NOW} day="2026-09-14" items={[middle]} />);
+    const cell = screen.getByRole("link", { name: /mon, sep 14/i });
+    expect(within(cell).getByText("Sun 9:00 AM – Tue 10:00 AM · Long job")).toBeInTheDocument();
+    const section = within(screen.getByRole("region", { name: "Monday, September 14" }));
+    expect(section.getByText("Sun 9:00 AM – Tue 10:00 AM")).toBeInTheDocument();
+  });
+});
+
 describe("WeekView (direct render)", () => {
   it("counts only items on the displayed days", async () => {
     const { WeekView } = await import("@/app/admin/schedule/WeekView");
