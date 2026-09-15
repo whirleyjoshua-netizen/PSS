@@ -37,18 +37,19 @@ describe("logCallAction", () => {
 
   it("saves the call as the owner and returns to the job", async () => {
     await expect(logCallAction(JOB, {}, form([
-      ["outcome", "talked"], ["treatments", "Shades"], ["treatments", "Blinds"], ["windowCount", "1-5"], ["budget", "value"], ["notes", "Fri pm"],
+      ["outcome", "talked"], ["treatmentTypes", "shutters"], ["treatmentTypes", "roller_shades"], ["motorized", "on"],
+      ["windowCountExact", "5"], ["gateCode", "#4321"], ["budget", "value"], ["notes", "Fri pm"],
     ]))).rejects.toThrow(`NEXT_REDIRECT /admin/jobs/${JOB}`);
     expect(logCall).toHaveBeenCalledWith(JOB, {
-      outcome: "talked", treatments: ["Shades", "Blinds"], windowCount: "1-5", budgetTier: "value", notes: "Fri pm", visitAt: null,
-      followUpAt: null, followUpNote: null,
+      outcome: "talked", treatmentTypes: ["shutters", "roller_shades"], motorized: true, windowCountExact: 5, gateCode: "#4321",
+      budgetTier: "value", notes: "Fri pm", visitAt: null, followUpAt: null, followUpNote: null,
     }, "owner@example.com");
   });
 
   it("keeps what was typed when validation fails", async () => {
-    const state = await logCallAction(JOB, {}, form([["outcome", "booked"], ["treatments", "Shutters"], ["notes", "x"]]));
+    const state = await logCallAction(JOB, {}, form([["outcome", "booked"], ["treatmentTypes", "shutters"], ["notes", "x"]]));
     expect(state.error).toBe("Pick the visit date and time");
-    expect(state.values).toMatchObject({ outcome: "booked", treatments: "Shutters", notes: "x" });
+    expect(state.values).toMatchObject({ outcome: "booked", treatmentTypes: "shutters", notes: "x" });
     expect(logCall).not.toHaveBeenCalled();
   });
 

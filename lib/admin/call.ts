@@ -1,18 +1,18 @@
-import { categories } from "@/content/products";
 import { budgetLabel, type BudgetTier } from "./budget";
 import type { Stage } from "./stages";
 import { formatCallVisit } from "./time";
+import { treatmentTypeLabels, type TreatmentType } from "@/lib/leads/treatment-types";
+import { windowsPhrase } from "@/lib/leads/window-count";
 
 export const CALL_OUTCOMES = ["booked", "talked", "no_answer"] as const;
 export type CallOutcome = (typeof CALL_OUTCOMES)[number];
 
-/** The same interest options as the website consultation form. */
-export const TREATMENT_NAMES: string[] = categories.map((category) => category.name);
-
 export type CallInput = {
   outcome: CallOutcome;
-  treatments: string[];
-  windowCount: string | null;
+  treatmentTypes: TreatmentType[];
+  motorized: boolean;
+  windowCountExact: number | null;
+  gateCode: string | null;
   budgetTier: BudgetTier | null;
   notes: string | null;
   visitAt: Date | null;
@@ -33,14 +33,15 @@ const OUTCOME_TEXT: Record<CallOutcome, string> = {
   no_answer: "no answer",
 };
 
-/** One activity line for the call. Empty parts are left out; notes are not included. */
+/** One activity line for the call. Empty parts are left out; notes are not included. Never includes the gate code. */
 export function callSummary(input: CallInput): string {
   const outcome = input.outcome === "booked" && input.visitAt
     ? `${OUTCOME_TEXT.booked} ${formatCallVisit(input.visitAt)}`
     : OUTCOME_TEXT[input.outcome];
   const parts = [
-    input.treatments.join(", "),
-    input.windowCount ? `${input.windowCount} windows` : "",
+    treatmentTypeLabels(input.treatmentTypes).join(", "),
+    input.motorized ? "Motorized" : "",
+    input.windowCountExact !== null ? windowsPhrase(input.windowCountExact) : "",
     input.budgetTier ? budgetLabel(input.budgetTier) : "",
   ].filter(Boolean);
   const callBack = input.followUpAt

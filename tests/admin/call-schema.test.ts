@@ -1,13 +1,15 @@
 import { describe, it, expect } from "vitest";
 import { callSchema } from "@/lib/admin/schema";
 
-const ok = { outcome: "talked", treatments: [], windowCount: "", budget: "", notes: "", visitAt: "" };
+const ok = { outcome: "talked", treatmentTypes: [], windowCountExact: "", gateCode: "", budget: "", notes: "", visitAt: "" };
 
 describe("callSchema", () => {
   it("parses a talked call to a clean input", () => {
-    expect(callSchema.parse({ ...ok, treatments: ["Shades"], windowCount: "11-20", budget: "premium", notes: " Call back " }))
-      .toEqual({ outcome: "talked", treatments: ["Shades"], windowCount: "11-20", budgetTier: "premium", notes: "Call back", visitAt: null, followUpAt: null, followUpNote: null });
+    expect(callSchema.parse({ ...ok, treatmentTypes: ["roman_shades"], motorized: true, windowCountExact: "11", gateCode: " 1234 ", budget: "premium", notes: " Call back " }))
+      .toEqual({ outcome: "talked", treatmentTypes: ["roman_shades"], motorized: true, windowCountExact: 11, gateCode: "1234", budgetTier: "premium",
+        notes: "Call back", visitAt: null, followUpAt: null, followUpNote: null });
   });
+  it("defaults motorized to false", () => expect(callSchema.parse(ok).motorized).toBe(false));
   it("requires a visit time only when booking", () => {
     const missing = callSchema.safeParse({ ...ok, outcome: "booked" });
     expect(missing.success).toBe(false);
@@ -35,10 +37,11 @@ describe("callSchema", () => {
     expect(callSchema.parse({ ...ok, outcome: "booked", visitAt: "2026-10-14T14:00" }).visitAt)
       .toEqual(new Date("2026-10-14T21:00:00Z"));
   });
-  it("rejects an unknown outcome, treatment, window range or budget", () => {
+  it("rejects an unknown outcome, treatment type, window count, gate code or budget", () => {
     expect(callSchema.safeParse({ ...ok, outcome: "voicemail" }).error!.issues[0].message).toBe("Pick how the call went");
-    expect(callSchema.safeParse({ ...ok, treatments: ["Curtains"] }).success).toBe(false);
-    expect(callSchema.safeParse({ ...ok, windowCount: "50" }).success).toBe(false);
+    expect(callSchema.safeParse({ ...ok, treatmentTypes: ["Shutters"] }).success).toBe(false);
+    expect(callSchema.safeParse({ ...ok, windowCountExact: "50" }).success).toBe(false);
+    expect(callSchema.safeParse({ ...ok, gateCode: "x".repeat(41) }).success).toBe(false);
     expect(callSchema.safeParse({ ...ok, budget: "luxury" }).success).toBe(false);
   });
   it("limits notes to 2,000 characters", () => {

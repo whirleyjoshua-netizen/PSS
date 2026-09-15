@@ -1,14 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { CALL_OUTCOMES, TREATMENT_NAMES, callStageMove, callSummary } from "@/lib/admin/call";
+import { CALL_OUTCOMES, callStageMove, callSummary } from "@/lib/admin/call";
 
-const base = { treatments: [], windowCount: null, budgetTier: null, notes: null, visitAt: null, followUpAt: null, followUpNote: null };
+const base = { treatmentTypes: [], motorized: false, windowCountExact: null, gateCode: null, budgetTier: null, notes: null, visitAt: null, followUpAt: null, followUpNote: null };
 
 describe("call outcomes", () => {
   it("are booked, talked and no answer", () => {
     expect(CALL_OUTCOMES).toEqual(["booked", "talked", "no_answer"]);
-  });
-  it("offer the website form's treatment categories", () => {
-    expect(TREATMENT_NAMES).toEqual(["Blinds", "Shades", "Shutters", "Outdoor Shading", "Motorization"]);
   });
 });
 
@@ -27,13 +24,13 @@ describe("callStageMove", () => {
 describe("callSummary", () => {
   it("describes a booked visit with everything learned", () => {
     expect(callSummary({
-      ...base, outcome: "booked", treatments: ["Shutters", "Shades"], windowCount: "6-10",
-      budgetTier: "mid", visitAt: new Date("2026-10-14T21:00:00Z"),
-    })).toBe("Call: booked visit Wed 10/14, 2:00 PM · Shutters, Shades · 6-10 windows · Mid-range");
+      ...base, outcome: "booked", treatmentTypes: ["cellular_shades", "shutters"], motorized: true, windowCountExact: 12,
+      gateCode: "#4321", budgetTier: "mid", visitAt: new Date("2026-10-14T21:00:00Z"),
+    })).toBe("Call: booked visit Wed 10/14, 2:00 PM · Shutters, Cellular shades · Motorized · 12 windows · Mid-range");
   });
-  it("leaves out what wasn't learned", () => {
-    expect(callSummary({ ...base, outcome: "talked", treatments: ["Blinds"], budgetTier: "value" }))
-      .toBe("Call: talked, no visit yet · Blinds · Value");
+  it("leaves out what wasn't learned, and never the gate code", () => {
+    expect(callSummary({ ...base, outcome: "talked", treatmentTypes: ["roller_shades"], budgetTier: "value", gateCode: "#4321" }))
+      .toBe("Call: talked, no visit yet · Roller shades · Value");
     expect(callSummary({ ...base, outcome: "no_answer" })).toBe("Call: no answer");
   });
   it("never includes the notes", () => {

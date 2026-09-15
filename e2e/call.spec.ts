@@ -40,7 +40,7 @@ test("logging a booked call from a computer moves the lead to Visit booked", asy
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(`Call E2E Call Booked ${STAMP}`);
 
   await page.getByLabel("Shutters").check();
-  await page.getByLabel("6-10").check();
+  await page.getByLabel("Windows", { exact: true }).selectOption("8");
   await page.getByLabel("Mid-range").check();
   await page.getByRole("button", { name: "Booked a visit" }).click();
   await page.getByLabel("Visit date and time").fill("2026-10-14T14:00");
@@ -48,9 +48,9 @@ test("logging a booked call from a computer moves the lead to Visit booked", asy
 
   await expect(page).toHaveURL(new RegExp(`/admin/jobs/${id}$`));
   await expect(page.getByRole("list", { name: "Stage" }).locator('[aria-current="step"]')).toContainText("Visit booked");
-  await expect(page.getByText("Call: booked visit Wed 10/14, 2:00 PM · Shutters · 6-10 windows · Mid-range")).toBeVisible();
-  const [row] = await sql()`select budget_tier, window_count, treatments from leads where id = ${id}`;
-  expect(row).toMatchObject({ budget_tier: "mid", window_count: "6-10", treatments: ["Shutters"] });
+  await expect(page.getByText("Call: booked visit Wed 10/14, 2:00 PM · Shutters · 8 windows · Mid-range")).toBeVisible();
+  const [row] = await sql()`select budget_tier, window_count_exact, treatment_types from leads where id = ${id}`;
+  expect(row).toMatchObject({ budget_tier: "mid", window_count_exact: 8, treatment_types: ["shutters"] });
 
   const events = await sql()`select kind, from_status, to_status, body from job_events where lead_id = ${id} order by created_at`;
   const stageEvents = events.filter((e) => e.kind === "stage");

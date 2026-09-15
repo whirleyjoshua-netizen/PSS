@@ -11,7 +11,7 @@ import { syncJobCalendar } from "@/lib/calendar/sync";
 import { getDay } from "@/lib/calendar/week";
 import type { FormState } from "./actions";
 
-const FIELDS = ["outcome", "treatments", "windowCount", "budget", "notes", "visitAt", "callBackAt", "callBackNote"];
+const FIELDS = ["outcome", "treatmentTypes", "motorized", "windowCountExact", "gateCode", "budget", "notes", "visitAt", "callBackAt", "callBackNote"];
 
 function captureValues(formData: FormData): Record<string, string | string[]> {
   const values: Record<string, string | string[]> = {};
@@ -29,8 +29,10 @@ export async function logCallAction(jobId: string, _prev: FormState, formData: F
   const values = captureValues(formData);
   const parsed = callSchema.safeParse({
     outcome: formData.get("outcome") ?? undefined,
-    treatments: formData.getAll("treatments").map(String),
-    windowCount: formData.get("windowCount") ?? "",
+    treatmentTypes: formData.getAll("treatmentTypes").map(String),
+    motorized: formData.get("motorized") === "on",
+    windowCountExact: formData.get("windowCountExact") ?? "",
+    gateCode: formData.get("gateCode") ?? "",
     budget: formData.get("budget") ?? "",
     notes: formData.get("notes") ?? "",
     visitAt: formData.get("visitAt") ?? "",

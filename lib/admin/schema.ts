@@ -1,6 +1,7 @@
 import { z } from "zod";
-import { consultationSchema, WINDOW_COUNTS } from "@/lib/leads/schema";
-import { CALL_OUTCOMES, TREATMENT_NAMES, type CallInput } from "./call";
+import { consultationSchema } from "@/lib/leads/schema";
+import { CALL_OUTCOMES, type CallInput } from "./call";
+import { gateCodeField, treatmentTypesField, windowCountExactField } from "@/lib/leads/questionnaire-schema";
 import { BUDGET_TIERS } from "./budget";
 import { WORKING_STAGES } from "./stages";
 import { MAX_EIGHTHS, REQUIREMENTS, toEighths, type Requirement } from "./measure-units";
@@ -149,8 +150,10 @@ function isValidLocalInput(value: string): boolean {
 export const callSchema = z
   .object({
     outcome: z.enum(CALL_OUTCOMES, { error: "Pick how the call went" }),
-    treatments: z.array(z.string().refine((name) => TREATMENT_NAMES.includes(name), "Unknown treatment")).default([]),
-    windowCount: z.preprocess(blank, z.enum(WINDOW_COUNTS, { error: "Pick a window range" }).optional()),
+    treatmentTypes: treatmentTypesField,
+    motorized: z.boolean().default(false),
+    windowCountExact: windowCountExactField,
+    gateCode: gateCodeField,
     budget: z.preprocess(blank, z.enum(BUDGET_TIERS, { error: "Pick a budget tier" }).optional()),
     notes: z.preprocess(blank, z.string().trim().max(2000, "Keep notes under 2,000 characters").optional()),
     visitAt: z.preprocess(blank, z.string().optional()),
@@ -168,8 +171,10 @@ export const callSchema = z
   })
   .transform((value): CallInput => ({
     outcome: value.outcome,
-    treatments: value.treatments,
-    windowCount: value.windowCount ?? null,
+    treatmentTypes: value.treatmentTypes,
+    motorized: value.motorized,
+    windowCountExact: value.windowCountExact,
+    gateCode: value.gateCode,
     budgetTier: value.budget ?? null,
     notes: value.notes ?? null,
     visitAt: value.outcome === "booked" && value.visitAt ? fromLocalInput(value.visitAt) : null,

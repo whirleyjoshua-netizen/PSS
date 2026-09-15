@@ -5,7 +5,7 @@ const callDaySchedule = vi.fn();
 vi.mock("@/app/admin/jobs/call-actions", () => ({ logCallAction: vi.fn(), callDaySchedule: (...args: unknown[]) => callDaySchedule(...args) }));
 const { CallForm } = await import("@/app/admin/jobs/[id]/call/CallForm");
 
-const job = { id: "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c", treatments: ["Shades"], windowCount: "6-10", budgetTier: "mid" as const, visitAt: null };
+const job = { id: "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c", treatmentTypes: ["cellular_shades" as const], motorized: true, windowCountExact: 12, gateCode: "#4321", budgetTier: "mid" as const, visitAt: null };
 
 beforeEach(() => {
   callDaySchedule.mockReset().mockResolvedValue({ ok: true, items: [], notice: null });
@@ -20,11 +20,21 @@ const bookVisit = (datetime: string) => {
 describe("CallForm", () => {
   it("is pre-filled from the job", () => {
     render(<CallForm job={job} />);
-    expect(screen.getByLabelText("Shades")).toBeChecked();
+    expect(screen.getByLabelText("Cellular shades")).toBeChecked();
     expect(screen.getByLabelText("Shutters")).not.toBeChecked();
-    expect(screen.getByLabelText("6-10")).toBeChecked();
+    expect(screen.getByLabelText("Motorized")).toBeChecked();
+    expect(screen.getByLabelText("Windows")).toHaveValue("12");
+    expect(screen.getByLabelText("Gate code")).toHaveValue("#4321");
     expect(screen.getByLabelText("Mid-range")).toBeChecked();
     expect(screen.getByLabelText("Notes")).toHaveValue("");
+  });
+  it("offers all eight treatment types and the exact window count", () => {
+    render(<CallForm job={{ ...job, treatmentTypes: [], motorized: false, windowCountExact: null, gateCode: null }} />);
+    expect(screen.getAllByRole("checkbox", { name: /blinds|shutters|shades|shadings|not sure/i })).toHaveLength(8);
+    const windows = screen.getByLabelText("Windows");
+    expect(windows).toHaveValue("");
+    expect(windows.querySelectorAll("option")).toHaveLength(32);
+    expect(screen.getByLabelText("Gate code")).toHaveAttribute("maxLength", "40");
   });
 
   it("offers talked and no answer as direct saves", () => {
