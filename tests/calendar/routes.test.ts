@@ -68,7 +68,9 @@ describe("POST /api/calendar/notifications", () => {
     await post("", { value: [note({ lifecycleEvent: "reauthorizationRequired" }), note({ lifecycleEvent: "missed" })] });
     await runAfter();
     expect(ensureSubscription).toHaveBeenCalledWith(true);
-    expect(sync.reconcileCalendar).toHaveBeenCalled();
+    expect(sync.reconcileCalendar).toHaveBeenCalledTimes(1);
+    // A missed-notifications catch-up must not wipe an error the daily cron recorded.
+    expect(sync.reconcileCalendar).not.toHaveBeenCalledWith(expect.objectContaining({ clearErrorWhenClean: true }));
   });
 
   it("is 404 when Outlook is not configured", async () => {
@@ -99,6 +101,7 @@ describe("GET /api/cron/calendar", () => {
     const res = await get("Bearer s3cret");
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ subscriptionExpires: "2026-09-21T00:00:00.000Z", jobs: 3, failed: 0 });
+    expect(sync.reconcileCalendar).toHaveBeenCalledWith({ clearErrorWhenClean: true });
   });
 
   it("fails the run when anything failed", async () => {

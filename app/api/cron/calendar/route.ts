@@ -22,7 +22,7 @@ export async function GET(request: Request) {
     console.error("Calendar subscription failed", error);
     subscriptionError = error instanceof Error ? error.message : String(error);
   }
-  const { jobs, failed } = await reconcileCalendar();
+  const { jobs, failed } = await reconcileCalendar({ clearErrorWhenClean: true });
   // Recorded after the reconcile, whose clean run clears last_error, so this failure stays visible.
   if (subscriptionError) await recordError(subscriptionError);
   return Response.json({ subscriptionExpires, jobs, failed }, { status: subscriptionError || failed > 0 ? 500 : 200 });

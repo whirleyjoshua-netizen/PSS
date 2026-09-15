@@ -153,8 +153,14 @@ export async function applyOutlookChange(eventId: string): Promise<void> {
   }
 }
 
-/** The daily catch-up: every recently dated job and every linked one, one at a time. */
-export async function reconcileCalendar(): Promise<{ jobs: number; failed: number }> {
+/**
+ * The catch-up: every recently dated job and every linked one, one at a time. Only the daily cron passes
+ * clearErrorWhenClean, since it is the run that owns the recorded error; another caller (the webhook's
+ * "missed" catch-up) must not wipe an error such as a subscription failure the cron recorded.
+ */
+export async function reconcileCalendar(
+  { clearErrorWhenClean = false }: { clearErrorWhenClean?: boolean } = {},
+): Promise<{ jobs: number; failed: number }> {
   const ids = await store.reconcileTargets();
   let failed = 0;
   for (const id of ids) {
@@ -165,6 +171,6 @@ export async function reconcileCalendar(): Promise<{ jobs: number; failed: numbe
       await record(error);
     }
   }
-  if (failed === 0) await store.clearError();
+  if (failed === 0 && clearErrorWhenClean) await store.clearError();
   return { jobs: ids.length, failed };
 }

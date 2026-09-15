@@ -130,9 +130,17 @@ describe("reconcileCalendar", () => {
     store.getLinks.mockResolvedValue([link]);
     store.getCalendarJob.mockResolvedValue({ ...job, visitAt: new Date("2026-09-21T16:00:00Z") });
     graphFetch.mockResolvedValueOnce(Response.json(event())).mockResolvedValueOnce(Response.json({ changeKey: "ck2" }));
-    expect(await sync.reconcileCalendar()).toEqual({ jobs: 1, failed: 0 });
+    expect(await sync.reconcileCalendar({ clearErrorWhenClean: true })).toEqual({ jobs: 1, failed: 0 });
     expect(calls()).toContain("PATCH users/jobs@example.com/events/e1");
     expect(store.clearError).toHaveBeenCalled();
+  });
+
+  it("leaves a recorded error alone after a clean run unless asked to clear it", async () => {
+    store.reconcileTargets.mockResolvedValue([ID]);
+    store.getLinks.mockResolvedValue([link]);
+    graphFetch.mockResolvedValueOnce(Response.json(event()));
+    expect(await sync.reconcileCalendar()).toEqual({ jobs: 1, failed: 0 });
+    expect(store.clearError).not.toHaveBeenCalled();
   });
 
   it("creates events for dated jobs that have none", async () => {
