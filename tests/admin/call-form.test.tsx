@@ -72,6 +72,30 @@ describe("CallForm", () => {
     expect(callDaySchedule).toHaveBeenCalledTimes(2);
   });
 
+  it("never shows a late answer for a date that is no longer selected", async () => {
+    let answerFirst: (value: unknown) => void = () => {};
+    callDaySchedule
+      .mockReturnValueOnce(new Promise((resolve) => { answerFirst = resolve; }))
+      .mockResolvedValueOnce({ ok: true, notice: null, items: [] });
+    bookVisit("2026-09-20T10:30");
+    await waitFor(() => expect(callDaySchedule).toHaveBeenCalledTimes(1));
+    fireEvent.change(screen.getByLabelText("Visit date and time"), { target: { value: "2026-09-21T10:30" } });
+    await screen.findByText("Nothing else booked that day.");
+    answerFirst({ ok: true, notice: null,
+      items: [{ key: "old", allDay: false, start: "2026-09-20T17:00:00.000Z", end: null, title: "Stale Item" }] });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(screen.queryByText(/Stale Item/)).toBeNull();
+  });
+
+  it("shows loading again while a newly chosen date is fetched", async () => {
+    callDaySchedule.mockResolvedValueOnce({ ok: true, notice: null, items: [] }).mockReturnValueOnce(new Promise(() => {}));
+    bookVisit("2026-09-20T10:30");
+    await screen.findByText("Nothing else booked that day.");
+    fireEvent.change(screen.getByLabelText("Visit date and time"), { target: { value: "2026-09-21T10:30" } });
+    expect(await screen.findByText("Loading that day…")).toBeInTheDocument();
+    expect(screen.queryByText("Nothing else booked that day.")).toBeNull();
+  });
+
   it("shows the overlap line and per-item clash text on a clash", async () => {
     callDaySchedule.mockResolvedValue({
       ok: true, notice: null,

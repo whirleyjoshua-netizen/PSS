@@ -5,8 +5,10 @@ import { clashes } from "@/lib/calendar/clash";
 import type { DayScheduleItem } from "@/lib/calendar/day-schedule";
 import { callDaySchedule } from "../../call-actions";
 
-type Status = "loading" | "ok" | "error";
-type Loaded = { items: DayScheduleItem[]; notice: string | null };
+/** A fetched result, tagged with the job and date it belongs to, so a stale one is never shown. */
+type Loaded =
+  | { jobId: string; date: string; ok: true; items: DayScheduleItem[]; notice: string | null }
+  | { jobId: string; date: string; ok: false };
 
 const dayLabel = (date: string) =>
   new Date(`${date}T12:00:00Z`).toLocaleDateString("en-US", { timeZone: "UTC", weekday: "short", month: "short", day: "numeric" });
@@ -18,23 +20,24 @@ const order = (a: DayScheduleItem, b: DayScheduleItem) =>
   Number(b.allDay) - Number(a.allDay) || (a.start ? new Date(a.start).getTime() : 0) - (b.start ? new Date(b.start).getTime() : 0);
 
 export function DaySchedule({ jobId, date, slotStart }: { jobId: string; date: string; slotStart: Date | null }) {
-  const [status, setStatus] = useState<Status>("loading");
-  const [loaded, setLoaded] = useState<Loaded | null>(null);
+  const [result, setResult] = useState<Loaded | null>(null);
 
+  // State is only set in the promise callbacks; "loading" is derived from having no result for this date yet.
   useEffect(() => {
     let ignore = false;
-    setStatus("loading");
-    setLoaded(null);
-    callDaySchedule(jobId, date).then((result) => {
-      if (ignore) return;
-      if (!result.ok) { setStatus("error"); return; }
-      setLoaded({ items: result.items, notice: result.notice });
-      setStatus("ok");
-    });
+    callDaySchedule(jobId, date).then(
+      (day) => {
+        if (ignore) return;
+        setResult(day.ok ? { jobId, date, ok: true, items: day.items, notice: day.notice } : { jobId, date, ok: false });
+      },
+      () => { if (!ignore) setResult({ jobId, date, ok: false }); },
+    );
     return () => { ignore = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jobId, date]);
 
+  const current = result && result.jobId === jobId && result.date === date ? result : null;
+  const status = !current ? "loading" : current.ok ? "ok" : "error";
+  const loaded = current?.ok ? current : null;
   const items = loaded ? [...loaded.items].sort(order) : [];
   const clashed = slotStart
     ? items.map((item) => clashes({ allDay: item.allDay, start: item.start ? new Date(item.start) : null, end: item.end ? new Date(item.end) : null }, slotStart))
