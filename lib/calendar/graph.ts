@@ -44,7 +44,7 @@ function retryDelay(header: string | null): number {
   const value = header?.trim() ?? "";
   let wait = RETRY_FALLBACK_MS;
   if (/^\d+(\.\d+)?$/.test(value)) {
-    wait = Number(value) > 0 ? Number(value) * 1000 : RETRY_FALLBACK_MS;
+    wait = Number(value) * 1000; // 0 means retry now
   } else if (value) {
     const at = Date.parse(value);
     if (!Number.isNaN(at)) wait = Math.max(0, at - Date.now());

@@ -105,6 +105,19 @@ describe("graphFetch", () => {
     vi.useRealTimers();
   });
 
+  it("retries at once for Retry-After: 0", async () => {
+    vi.useFakeTimers();
+    fetchMock.mockResolvedValueOnce(token())
+      .mockResolvedValueOnce(new Response(null, { status: 429, headers: { "Retry-After": "0" } }))
+      .mockResolvedValueOnce(Response.json({}));
+    let done = false;
+    const pending = graph.graphFetch("me").then((r) => { done = true; return r; });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(done).toBe(true);
+    expect((await pending).status).toBe(200);
+    vi.useRealTimers();
+  });
+
   it("graphJson throws GraphError with the status on failure", async () => {
     fetchMock.mockResolvedValueOnce(token()).mockResolvedValueOnce(new Response("nope", { status: 404 }));
     await expect(graph.graphJson("x")).rejects.toMatchObject({ name: "GraphError", status: 404 });
