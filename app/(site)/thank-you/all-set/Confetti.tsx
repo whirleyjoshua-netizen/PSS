@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 
 const reducedMotion = () =>
   typeof window !== "undefined" && Boolean(window.matchMedia?.("(prefers-reduced-motion: reduce)").matches);
@@ -38,15 +38,18 @@ function makePiece(width: number): Piece {
 
 /**
  * A short confetti burst on mount. Falls in champagne, sand and charcoal, then
- * clears itself after ~2s so there is no lingering overlay. Renders nothing
- * under reduced motion, and never throws if canvas isn't available (jsdom).
+ * clears itself after ~2s so there is no lingering overlay. Always renders the
+ * same aria-hidden, pointer-events-none canvas on the server and the first
+ * client render (avoiding a hydration mismatch); the reduced-motion check runs
+ * inside the effect, before any animation starts, so reduced-motion visitors
+ * get an empty canvas and no listeners. Never throws if canvas isn't
+ * available (jsdom).
  */
 export function Confetti() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const [skip] = useState(reducedMotion);
 
   useEffect(() => {
-    if (skip) return;
+    if (reducedMotion()) return;
 
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -116,9 +119,7 @@ export function Confetti() {
       window.removeEventListener("resize", resize);
       ctx.clearRect(0, 0, width, height);
     };
-  }, [skip]);
-
-  if (skip) return null;
+  }, []);
 
   return (
     <canvas

@@ -21,7 +21,8 @@ function captureValues(formData: FormData): Record<string, string | string[]> {
 }
 
 // The lead is identified only by the pss_q cookie, never by anything in the form.
-// Submitted values come back on success too, so the form keeps showing them.
+// On success the visitor is sent to the all-set page; on failure the submitted
+// values come back so the form keeps them.
 export async function submitQuestionnaire(_prev: QuestionnaireState, formData: FormData): Promise<QuestionnaireState> {
   const key = (await cookies()).get(QUESTIONNAIRE_COOKIE)?.value;
   if (!key) return { error: QUESTIONNAIRE_EXPIRED };

@@ -1,4 +1,7 @@
+import { act } from "react";
 import { render, cleanup } from "@testing-library/react";
+import { renderToString } from "react-dom/server";
+import { hydrateRoot } from "react-dom/client";
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { Confetti } from "@/app/(site)/thank-you/all-set/Confetti";
 
@@ -21,10 +24,14 @@ afterEach(() => {
 });
 
 describe("Confetti", () => {
-  it("renders nothing under reduced motion", () => {
+  it("renders an aria-hidden canvas but starts no animation under reduced motion", () => {
     mockMatchMedia(true);
+    const rafSpy = vi.spyOn(window, "requestAnimationFrame");
     const { container } = render(<Confetti />);
-    expect(container.querySelector("canvas")).toBeNull();
+    const canvas = container.querySelector("canvas");
+    expect(canvas).not.toBeNull();
+    expect(canvas).toHaveAttribute("aria-hidden", "true");
+    expect(rafSpy).not.toHaveBeenCalled();
   });
 
   it("renders an aria-hidden canvas otherwise", () => {
@@ -41,5 +48,33 @@ describe("Confetti", () => {
     HTMLCanvasElement.prototype.getContext = (() => null) as typeof original;
     expect(() => render(<Confetti />)).not.toThrow();
     HTMLCanvasElement.prototype.getContext = original;
+  });
+
+  it("hydrates cleanly under reduced motion with no mismatch", () => {
+    mockMatchMedia(true);
+    const html = renderToString(<Confetti />);
+    expect(html).toContain("<canvas");
+
+    const container = document.createElement("div");
+    container.innerHTML = html;
+    document.body.appendChild(container);
+
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    let root: ReturnType<typeof hydrateRoot> | null = null;
+    act(() => {
+      root = hydrateRoot(container, <Confetti />);
+    });
+
+    const hydrationErrors = errorSpy.mock.calls.filter(([message]) =>
+      typeof message === "string" && /hydrat|mismatch/i.test(message),
+    );
+    expect(hydrationErrors).toHaveLength(0);
+
+    act(() => {
+      root?.unmount();
+    });
+    errorSpy.mockRestore();
+    document.body.removeChild(container);
   });
 });
