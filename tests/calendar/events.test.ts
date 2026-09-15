@@ -14,7 +14,7 @@ const ev = (start: string, end: string, isAllDay = false): GraphEvent => ({
 describe("newEventBody", () => {
   it("builds a 1-hour visit in Las Vegas time with contact details", () => {
     // 17:00Z in September is 10:00 in Las Vegas (UTC-7).
-    const body = newEventBody("visit", job, new Date("2026-09-20T17:00:00Z"), URL_) as Record<string, any>;
+    const body = newEventBody("visit", job, new Date("2026-09-20T17:00:00Z"), URL_);
     expect(body.subject).toBe("Visit · Dana Reyes");
     expect(body.isAllDay).toBe(false);
     expect(body.start).toEqual({ dateTime: "2026-09-20T10:00:00", timeZone: PST });
@@ -28,7 +28,7 @@ describe("newEventBody", () => {
   });
 
   it("builds an all-day install ending the next midnight", () => {
-    const body = newEventBody("install", job, "2026-12-31", URL_) as Record<string, any>;
+    const body = newEventBody("install", job, "2026-12-31", URL_);
     expect(body.subject).toBe("Install · Dana Reyes");
     expect(body.isAllDay).toBe(true);
     expect(body.start).toEqual({ dateTime: "2026-12-31T00:00:00", timeZone: PST });
@@ -36,7 +36,7 @@ describe("newEventBody", () => {
   });
 
   it("uses the city alone when there is no address", () => {
-    const body = newEventBody("visit", { ...job, address: null }, new Date("2026-09-20T17:00:00Z"), URL_) as Record<string, any>;
+    const body = newEventBody("visit", { ...job, address: null }, new Date("2026-09-20T17:00:00Z"), URL_);
     expect(body.location).toEqual({ displayName: "Henderson" });
   });
 });
