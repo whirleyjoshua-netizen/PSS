@@ -1,0 +1,59 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+
+const cookieGet = vi.fn();
+vi.mock("next/headers", () => ({ cookies: async () => ({ get: cookieGet }) }));
+const saveQuestionnaire = vi.fn();
+vi.mock("@/lib/leads/questionnaire", () => ({ saveQuestionnaire }));
+const { submitQuestionnaire } = await import("@/app/(site)/thank-you/actions");
+
+const EXPIRED = "This form has expired — call us and we'll take it from here.";
+const form = (entries: [string, string][]) => { const d = new FormData(); for (const [k, v] of entries) d.append(k, v); return d; };
+
+beforeEach(() => {
+  cookieGet.mockReset().mockImplementation((name: string) => (name === "pss_q" ? { value: "the-key" } : undefined));
+  saveQuestionnaire.mockReset().mockResolvedValue(true);
+});
+
+describe("submitQuestionnaire", () => {
+  it("saves the answers against the cookie's key", async () => {
+    const state = await submitQuestionnaire({}, form([
+      ["windowCountExact", "12"], ["treatmentTypes", "shutters"], ["treatmentTypes", "cellular_shades"], ["motorized", "on"],
+      ["address", "12 Sample St"], ["gateCode", "#4321"], ["finish", "luxury"],
+    ]));
+    expect(state.ok).toBe(true);
+    expect(saveQuestionnaire).toHaveBeenCalledWith("the-key", {
+      windowCountExact: 12, treatmentTypes: ["shutters", "cellular_shades"], motorized: true,
+      address: "12 Sample St", gateCode: "#4321", finish: "luxury",
+    });
+  });
+  it("ignores any key sent in the form", async () => {
+    await submitQuestionnaire({}, form([["key", "attacker"], ["pss_q", "attacker"], ["windowCountExact", "3"]]));
+    expect(saveQuestionnaire.mock.calls[0][0]).toBe("the-key");
+  });
+  it("says the form expired without a cookie, and saves nothing", async () => {
+    cookieGet.mockReturnValue(undefined);
+    expect(await submitQuestionnaire({}, form([["windowCountExact", "3"]]))).toMatchObject({ error: EXPIRED });
+    expect(saveQuestionnaire).not.toHaveBeenCalled();
+  });
+  it("says the form expired when the key no longer matches", async () => {
+    saveQuestionnaire.mockResolvedValue(false);
+    expect(await submitQuestionnaire({}, form([["windowCountExact", "3"]]))).toMatchObject({ error: EXPIRED });
+  });
+  it("thanks an empty submit without saving", async () => {
+    expect(await submitQuestionnaire({}, form([]))).toMatchObject({ ok: true });
+    expect(saveQuestionnaire).not.toHaveBeenCalled();
+  });
+  it("keeps what was typed when validation fails", async () => {
+    const state = await submitQuestionnaire({}, form([["gateCode", "x".repeat(41)], ["treatmentTypes", "shutters"]]));
+    expect(state.error).toBe("Keep the gate code under 40 characters");
+    expect(state.values).toMatchObject({ gateCode: "x".repeat(41), treatmentTypes: "shutters" });
+    expect(saveQuestionnaire).not.toHaveBeenCalled();
+  });
+  it("reports a failed save without losing the answers", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    saveQuestionnaire.mockRejectedValue(new Error("Neon down"));
+    const state = await submitQuestionnaire({}, form([["windowCountExact", "3"]]));
+    expect(state.error).toMatch(/couldn't save/i);
+    expect(state.values).toMatchObject({ windowCountExact: "3" });
+  });
+});

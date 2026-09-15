@@ -1,13 +1,20 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import { Section } from "@/components/ui/Section";
 import { ButtonLink } from "@/components/ui/Button";
 import { PageHero } from "@/components/product/ProductParts";
 import { business } from "@/content/business";
+import { findQuestionnaire } from "@/lib/leads/questionnaire";
+import { QUESTIONNAIRE_COOKIE } from "@/lib/leads/questionnaire-cookie";
+import { Questionnaire } from "./Questionnaire";
 
 /**
  * Where both consultation forms land after a successful submit. Kept out of
  * search results and the sitemap: it only makes sense after a request, and a
  * single URL gives ads and analytics one clean conversion to count.
+ *
+ * Reading the questionnaire cookie makes it render per request. The key never
+ * appears in the URL, so analytics never sees it.
  */
 export const metadata: Metadata = {
   title: "Thank You | Premier Shade Solutions",
@@ -36,7 +43,19 @@ const PREP = [
   "Having everyone who is deciding at home for the visit.",
 ];
 
-export default function ThankYouPage() {
+/** The visitor's questionnaire, if their cookie holds a live key. A lookup failure just hides it. */
+async function loadQuestionnaire() {
+  const key = (await cookies()).get(QUESTIONNAIRE_COOKIE)?.value;
+  try {
+    return await findQuestionnaire(key);
+  } catch (error) {
+    console.error("Questionnaire lookup failed", error);
+    return null;
+  }
+}
+
+export default async function ThankYouPage() {
+  const questionnaire = await loadQuestionnaire();
   return (
     <>
       <PageHero
@@ -65,6 +84,8 @@ export default function ThankYouPage() {
                 </li>
               ))}
             </ol>
+
+            {questionnaire ? <Questionnaire initial={questionnaire.answers} windowRange={questionnaire.windowRange} /> : null}
 
             <div>
               <h2 className="font-display text-xs font-medium uppercase tracking-[0.2em] text-champagne-ink">
