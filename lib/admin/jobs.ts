@@ -120,13 +120,10 @@ export const SEARCH_MAX = 100;
 /** `%`, `_` and `\` are LIKE wildcards; escape them so a search is literal. */
 const likePattern = (term: string) => `%${term.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
 
-export async function listJobs({ includeLost, search }: { includeLost: boolean; search?: string }): Promise<Job[]> {
+export async function listJobs({ search }: { search?: string }): Promise<Job[]> {
   const term = (search ?? "").trim().slice(0, SEARCH_MAX);
   if (!term) {
-    const rows = await db().query(
-      `select ${JOB_COLUMNS} from leads where ($1 or status <> 'lost') order by stage_changed_at desc`,
-      [includeLost],
-    );
+    const rows = await db().query(`select ${JOB_COLUMNS} from leads order by stage_changed_at desc`);
     return rows.map(toJob);
   }
   // Only treat the term as a phone search when it looks like one — otherwise a term like
@@ -135,11 +132,10 @@ export async function listJobs({ includeLost, search }: { includeLost: boolean; 
   const phoneDigits = /^[\d\s().+-]+$/.test(term) && digits.length >= 3 ? digits : "";
   const rows = await db().query(
     `select ${JOB_COLUMNS} from leads
-     where ($1 or status <> 'lost')
-       and (name ilike $2 or email ilike $2 or city ilike $2 or address ilike $2
-            or ($3 <> '' and phone like '%' || $3 || '%'))
+     where (name ilike $1 or email ilike $1 or city ilike $1 or address ilike $1
+            or ($2 <> '' and phone like '%' || $2 || '%'))
      order by stage_changed_at desc`,
-    [includeLost, likePattern(term), phoneDigits],
+    [likePattern(term), phoneDigits],
   );
   return rows.map(toJob);
 }

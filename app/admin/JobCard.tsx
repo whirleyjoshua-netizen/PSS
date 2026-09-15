@@ -1,12 +1,11 @@
 import Link from "next/link";
 import { Icon } from "@/components/admin/icons";
 import type { Job } from "@/lib/admin/jobs";
-import { STAGES, stageLabel, type Stage } from "@/lib/admin/stages";
+import { stageLabel, type Stage } from "@/lib/admin/stages";
 import { isOverdue } from "@/lib/admin/overdue";
 import { DaysInStage } from "./DaysInStage";
 
-export function groupByStage(jobs: Job[], includeLost: boolean) {
-  const stages: Stage[] = [...STAGES.map((s) => s.value), ...(includeLost ? (["lost"] as const) : [])];
+export function groupByStage(jobs: Job[], stages: readonly Stage[]) {
   return stages.map((stage) => ({
     stage,
     label: stageLabel(stage),

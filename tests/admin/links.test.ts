@@ -3,12 +3,13 @@ import { boardHref, mapsHref } from "@/lib/admin/links";
 
 describe("boardHref", () => {
   it("is the plain board with nothing set", () => {
-    expect(boardHref({ lost: false })).toBe("/admin");
+    expect(boardHref({})).toBe("/admin");
   });
-  it("opens a panel and keeps the lost toggle", () => {
-    expect(boardHref({ lost: false, job: "abc" })).toBe("/admin?job=abc");
-    expect(boardHref({ lost: true, job: "abc" })).toBe("/admin?lost=1&job=abc");
-    expect(boardHref({ lost: true, job: null })).toBe("/admin?lost=1");
+  it("carries the search, the list filter and the open job, in that order", () => {
+    expect(boardHref({ job: "abc" })).toBe("/admin?job=abc");
+    expect(boardHref({ list: "completed", job: "abc" })).toBe("/admin?list=completed&job=abc");
+    expect(boardHref({ q: "reyes smith", list: "lost", job: "abc" })).toBe("/admin?q=reyes%20smith&list=lost&job=abc");
+    expect(boardHref({ q: "", list: null, job: null })).toBe("/admin");
   });
 });
 
@@ -18,13 +19,5 @@ describe("mapsHref", () => {
   });
   it("works without a street address", () => {
     expect(mapsHref(null, "Henderson")).toBe("https://maps.google.com/?q=Henderson%2C%20NV");
-  });
-});
-
-describe("boardHref with search", () => {
-  it("carries q between lost and job", () => {
-    expect(boardHref({ lost: true, q: "reyes smith", job: "abc" })).toBe("/admin?lost=1&q=reyes%20smith&job=abc");
-    expect(boardHref({ lost: false, q: "" })).toBe("/admin");
-    expect(boardHref({ lost: false, q: null, job: "abc" })).toBe("/admin?job=abc");
   });
 });

@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { describe, it, expect } from "vitest";
 import { JobCard, groupByStage } from "@/app/admin/JobCard";
 import type { Job } from "@/lib/admin/jobs";
+import { BOARD_STAGES } from "@/lib/admin/stages";
 
 const job = (overrides: Partial<Job>): Job => ({
   id: "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c", createdAt: new Date("2026-09-01T00:00:00Z"),
@@ -14,17 +15,12 @@ const job = (overrides: Partial<Job>): Job => ({
 });
 
 describe("board", () => {
-  it("groups jobs into the six stages, in order, even when empty", () => {
-    const groups = groupByStage([job({ status: "sold" })], false);
+  it("groups jobs into the given stages, in order, even when empty", () => {
+    const groups = groupByStage([job({ status: "sold" }), job({ status: "completed" })], BOARD_STAGES);
     expect(groups.map((g) => g.label)).toEqual([
       "New lead", "Appointment booked", "Quoted", "Sold", "Ordered", "Installed",
     ]);
     expect(groups.find((g) => g.stage === "sold")!.jobs).toHaveLength(1);
-  });
-
-  it("adds a Lost group only when asked", () => {
-    expect(groupByStage([], true).at(-1)!.label).toBe("Lost");
-    expect(groupByStage([], false).some((g) => g.stage === "lost")).toBe(false);
   });
 
   it("shows the name, city, interests, and days in stage, and links to the given href", () => {
