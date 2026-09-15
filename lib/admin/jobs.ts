@@ -54,9 +54,9 @@ export type JobEvent = {
   id: string;
   createdAt: Date;
   actor: string;
-  kind: "stage" | "note" | "edit" | "email" | "reward" | "measure" | "file";
-  fromStatus: Stage | null;
-  toStatus: Stage | null;
+  kind: "stage" | "note" | "edit" | "email" | "reward" | "measure" | "file" | "contact";
+  fromStatus: string | null;
+  toStatus: string | null;
   body: string | null;
 };
 
@@ -156,8 +156,8 @@ export async function getEvents(id: string): Promise<JobEvent[]> {
     createdAt: new Date(row.created_at as string),
     actor: row.actor as string,
     kind: row.kind as JobEvent["kind"],
-    fromStatus: (row.from_status as Stage | null) ?? null,
-    toStatus: (row.to_status as Stage | null) ?? null,
+    fromStatus: (row.from_status as string | null) ?? null,
+    toStatus: (row.to_status as string | null) ?? null,
     body: (row.body as string | null) ?? null,
   }));
 }
