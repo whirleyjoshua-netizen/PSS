@@ -45,7 +45,8 @@ export async function saveQuestionnaire(key: string, a: QuestionnaireAnswers): P
         window_count_exact = ${a.windowCountExact}, treatment_types = ${a.treatmentTypes}::text[],
         motorized = ${a.motorized}, gate_code = ${a.gateCode}, finish = ${a.finish},
         address = coalesce(${a.address}::text, address),
-        budget_tier = coalesce(${tierForFinish(a.finish)}::text, budget_tier),
+        budget_tier = case when ${a.finish}::text is distinct from finish
+          then coalesce(${tierForFinish(a.finish)}::text, budget_tier) else budget_tier end,
         updated_at = now()
       where questionnaire_token_hash = ${hashToken(key)} and questionnaire_expires_at > now()
       returning id

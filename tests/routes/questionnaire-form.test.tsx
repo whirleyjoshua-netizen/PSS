@@ -34,4 +34,11 @@ describe("Questionnaire", () => {
     expect(screen.getByLabelText(/^Gate or community code/)).toHaveValue("#4321");
     expect(screen.getByRole("radio", { name: "Not sure yet" })).toBeChecked();
   });
+
+  it("has no trailing space in the not-sure-yet label", () => {
+    render(<Questionnaire initial={blank} windowRange={null} />);
+    const radio = screen.getByRole("radio", { name: "Not sure yet" });
+    expect(radio).toBeInTheDocument();
+    expect(radio.closest("label")?.textContent).toBe("Not sure yet");
+  });
 });

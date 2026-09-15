@@ -85,8 +85,8 @@ export function Questionnaire({ initial, windowRange }: { initial: Questionnaire
                 <input id={`q-finish-${option.value}`} type="radio" name="finish" value={option.value}
                   defaultChecked={finish === option.value} className={BOX} />
                 <span>
-                  {option.label}{" "}
-                  {option.description ? <span className="text-ink-soft">— {option.description}</span> : null}
+                  {option.label}
+                  {option.description ? <>{" "}<span className="text-ink-soft">— {option.description}</span></> : null}
                 </span>
               </label>
             ))}

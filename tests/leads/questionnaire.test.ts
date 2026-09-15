@@ -43,7 +43,8 @@ describe("saveQuestionnaire", () => {
     const statement = text(call);
     expect(statement).toContain("where questionnaire_token_hash = ? and questionnaire_expires_at > now()");
     expect(statement).toContain("address = coalesce(?::text, address)");
-    expect(statement).toContain("budget_tier = coalesce(?::text, budget_tier)");
+    expect(statement).toContain("budget_tier = case when ?::text is distinct from finish then coalesce(?::text, budget_tier) else budget_tier end");
+    expect(statement).toContain("is distinct from finish");
     expect(statement).toContain("'note'");
     expect(statement).not.toContain("status");
     expect(call).toContain(HASH);

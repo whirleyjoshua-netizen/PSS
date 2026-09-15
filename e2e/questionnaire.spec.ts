@@ -65,6 +65,7 @@ test("a new lead answers the questionnaire and the owner sees it", async ({ page
   await signIn(page);
   await page.goto(`/admin/jobs/${lead.id}`);
   const project = page.getByRole("region", { name: "Project details" });
-  for (const text of ["12", "Shutters", "Cellular shades", "#4321", "Luxury → Premium"]) await expect(project).toContainText(text);
+  await expect(project.locator("dt", { hasText: /^Exact windows$/ }).locator("xpath=following-sibling::dd[1]")).toHaveText("12");
+  for (const text of ["Shutters", "Cellular shades", "#4321", "Luxury → Premium"]) await expect(project).toContainText(text);
   await expect(page.getByText("Customer added details: 12 windows · Shutters, Cellular shades · Motorized · Luxury")).toBeVisible();
 });

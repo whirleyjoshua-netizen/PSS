@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { TREATMENT_TYPE_KEYS, isTreatmentType, treatmentTypeLabels } from "@/lib/leads/treatment-types";
 import { WINDOW_EXACT_OPTIONS, windowCountLabel, windowsPhrase } from "@/lib/leads/window-count";
-import { FINISH_OPTIONS, finishBudgetLabel, tierForFinish } from "@/lib/leads/finish";
+import { FINISH_OPTIONS, finishBudgetLabel, finishLabel, isFinish, tierForFinish } from "@/lib/leads/finish";
 
 describe("treatment types", () => {
   it("are the eight keys in order", () => {
@@ -15,6 +15,11 @@ describe("treatment types", () => {
   it("recognise only the keys", () => {
     expect(isTreatmentType("roman_shades")).toBe(true);
     expect(isTreatmentType("Roman shades")).toBe(false);
+  });
+  it("rejects non-strings", () => {
+    expect(isTreatmentType(null)).toBe(false);
+    expect(isTreatmentType(42)).toBe(false);
+    expect(isTreatmentType(undefined)).toBe(false);
   });
 });
 
@@ -48,6 +53,15 @@ describe("finish", () => {
       "Luxury — top-tier fabrics and premium brands",
       "Not sure yet",
     ]);
+  });
+  it("recognises only the finish keys", () => {
+    expect(isFinish("luxury")).toBe(true);
+    expect(isFinish("premium")).toBe(false);
+    expect(isFinish(null)).toBe(false);
+  });
+  it("labels finishes", () => {
+    expect(finishLabel("designer")).toBe("Designer");
+    expect(finishLabel("not_sure")).toBe("Not sure yet");
   });
   it("shows the customer's finish beside the tier only while they still match", () => {
     expect(finishBudgetLabel("luxury", "premium")).toBe("Luxury → Premium");
