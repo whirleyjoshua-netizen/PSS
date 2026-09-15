@@ -10,7 +10,7 @@ import { addNote, createJob, getJob, setStage, updateDetails } from "@/lib/admin
 import { detailsSchema, lostSchema, newJobSchema, noteSchema } from "@/lib/admin/schema";
 import { isInstalled, type Stage } from "@/lib/admin/stages";
 import { autoInvite, sendPortalInvite } from "@/lib/portal/invite";
-import { isPortalStage } from "@/lib/portal/progress";
+import { isPortalStatus } from "@/lib/portal/progress";
 import { ensureReferralCode, markReferralPaid } from "@/lib/referrals/db";
 import { releaseReview, restoreReviewRequested, setReviewOptOut, stampReviewRequested } from "@/lib/reviews/db";
 import { sendReviewRequest } from "@/lib/reviews/send";
@@ -49,7 +49,7 @@ export async function moveStage(id: string, to: Stage): Promise<void> {
   const changed = await setStage(id, to, email);
   // After the consultation, the customer gets their project page. autoInvite
   // sends at most once per job and never throws.
-  if (changed && isPortalStage(to)) after(() => autoInvite(id));
+  if (changed && isPortalStatus(to)) after(() => autoInvite(id));
   if (changed) after(() => syncJobCalendar(id));
   refresh(id);
 }
@@ -164,7 +164,7 @@ export async function sendPortalInviteNow(id: string, _prev: FormState, _formDat
   const job = await getJob(id);
   if (!job) return MISSING;
   if (!job.email?.trim()) return { error: "This job has no email address." };
-  if (!isPortalStage(job.status)) return { error: "Customers can be invited once the job is Quoted." };
+  if (!isPortalStatus(job.status)) return { error: "Customers can be invited once the job is Quoted." };
   try {
     await sendPortalInvite(job, email);
   } catch (error) {

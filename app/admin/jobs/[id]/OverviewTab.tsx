@@ -5,7 +5,7 @@ import type { WindowMeasurement } from "@/lib/admin/measurements";
 import { editDetailsHref } from "@/lib/admin/next-action";
 import { STAGES } from "@/lib/admin/stages";
 import { formatDateOnly, formatWhen } from "@/lib/admin/time";
-import { isPortalStage } from "@/lib/portal/progress";
+import { isPortalStatus } from "@/lib/portal/progress";
 import type { listReferrals } from "@/lib/referrals/db";
 import { DetailsForm } from "./DetailsForm";
 import { EventList } from "./EventList";
@@ -79,7 +79,7 @@ export function OverviewTab({ job, editing, now, measurements, files, events, re
           <InviteSection
             jobId={job.id}
             hasEmail={Boolean(job.email?.trim())}
-            canInvite={isPortalStage(job.status)}
+            canInvite={isPortalStatus(job.status)}
             invitedLabel={job.portalInvitedAt ? formatWhen(job.portalInvitedAt) : null}
           />
         </section>

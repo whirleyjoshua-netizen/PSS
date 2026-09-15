@@ -35,7 +35,7 @@ describe("visibleJobs", () => {
     const [text, params] = query.mock.calls[0];
     expect(text).toContain("lower(trim(email)) = $1");
     expect(text).toContain("status = any($2::text[])");
-    expect(params).toEqual(["maria@example.com", ["quoted", "sold", "ordered", "installed"]]);
+    expect(params).toEqual(["maria@example.com", ["quoted", "sold", "ordered", "installed", "completed"]]);
     expect(jobs.map((j) => j.id)).toEqual(["3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c"]);
   });
 
@@ -56,5 +56,11 @@ describe("toProject", () => {
       city: "Henderson", status: "quoted", installOn: "2026-10-13",
     });
     expect(JSON.stringify(project)).not.toMatch(/cents|4500|notes|gate code/);
+  });
+
+  it("shows a completed job to the customer as installed", async () => {
+    query.mockResolvedValue([row({ status: "completed" })]);
+    const [job] = await visibleJobs("maria@example.com");
+    expect(toProject(job).status).toBe("installed");
   });
 });

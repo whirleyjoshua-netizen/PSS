@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 import { JOB_COLUMNS, toJob, type Job } from "@/lib/admin/jobs";
 import { normalizeEmail } from "./access";
 import { INVITE_MINUTES, issueCustomerLink } from "./login";
-import { PORTAL_STAGES } from "./progress";
+import { PORTAL_STATUSES } from "./progress";
 
 const bareDomain = business.domain.replace(/^https?:\/\//, "");
 
@@ -75,7 +75,7 @@ export async function autoInvite(jobId: string): Promise<void> {
          and nullif(trim(email), '') is not null and status = any($2::text[])
          and portal_auto_invite
        returning ${JOB_COLUMNS}, portal_invited_at::text as claimed_at`,
-      [jobId, [...PORTAL_STAGES]],
+      [jobId, [...PORTAL_STATUSES]],
     );
     if (!rows[0]) return;
 

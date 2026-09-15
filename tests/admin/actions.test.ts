@@ -169,6 +169,12 @@ describe("referrals and reviews", () => {
     expect(sendReviewRequest).not.toHaveBeenCalled();
   });
 
+  it("sends a review request for a completed job", async () => {
+    jobs.getJob.mockResolvedValue({ id: ID, status: "completed", email: "dana@example.com", reviewOptOut: false });
+    expect(await actions.sendReviewNow(ID, {}, form({}))).toEqual({ ok: true });
+    expect(sendReviewRequest).toHaveBeenCalledWith(expect.objectContaining({ id: ID }), "owner@example.com");
+  });
+
   it("reports a failed send inline", async () => {
     sendReviewRequest.mockRejectedValue(new Error("GOOGLE_REVIEW_URL is not set"));
     expect((await actions.sendReviewNow(ID, {}, form({}))).error).toMatch(/could not send/i);

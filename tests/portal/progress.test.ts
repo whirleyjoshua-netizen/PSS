@@ -1,16 +1,20 @@
 import { describe, it, expect } from "vitest";
-import { formatInstallDay, isPortalStage, progressSteps, PORTAL_STAGES } from "@/lib/portal/progress";
+import { formatInstallDay, isPortalStatus, progressSteps, PORTAL_STAGES, PORTAL_STATUSES, toPortalStage } from "@/lib/portal/progress";
 
 describe("portal stages", () => {
   it("are quoted through installed, in order", () => {
     expect(PORTAL_STAGES).toEqual(["quoted", "sold", "ordered", "installed"]);
   });
 
-  it("exclude every earlier stage and lost", () => {
-    for (const stage of ["new", "visit_booked", "lost"] as const) {
-      expect(isPortalStage(stage)).toBe(false);
-    }
-    for (const stage of PORTAL_STAGES) expect(isPortalStage(stage)).toBe(true);
+  it("show a customer quoted through completed, never earlier stages or lost", () => {
+    expect(PORTAL_STATUSES).toEqual(["quoted", "sold", "ordered", "installed", "completed"]);
+    for (const stage of ["new", "visit_booked", "lost"] as const) expect(isPortalStatus(stage)).toBe(false);
+    for (const stage of PORTAL_STATUSES) expect(isPortalStatus(stage)).toBe(true);
+  });
+
+  it("show a completed job as installed", () => {
+    expect(toPortalStage("completed")).toBe("installed");
+    expect(toPortalStage("sold")).toBe("sold");
   });
 });
 

@@ -4,8 +4,15 @@ import type { Stage } from "@/lib/admin/stages";
 export const PORTAL_STAGES = ["quoted", "sold", "ordered", "installed"] as const;
 export type PortalStage = (typeof PORTAL_STAGES)[number];
 
-export const isPortalStage = (stage: Stage): stage is PortalStage =>
-  (PORTAL_STAGES as readonly string[]).includes(stage);
+/** The statuses whose jobs a customer may see. Completed shows as the Installed step. */
+export const PORTAL_STATUSES = [...PORTAL_STAGES, "completed"] as const;
+
+export const isPortalStatus = (status: Stage): boolean =>
+  (PORTAL_STATUSES as readonly string[]).includes(status);
+
+/** Only call with a portal status. Customers never see the word Completed. */
+export const toPortalStage = (status: Stage): PortalStage =>
+  status === "completed" ? "installed" : (status as PortalStage);
 
 /** The only place the customer-facing stage words live. */
 const LABELS: Record<PortalStage, string> = {
