@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { ButtonLink } from "@/components/ui/Button";
-import { budgetLabel } from "@/lib/admin/budget";
 import type { Job } from "@/lib/admin/jobs";
 import { mapsHref } from "@/lib/admin/links";
 import { formatPhone } from "@/lib/leads/schema";
+import { finishBudgetLabel } from "@/lib/leads/finish";
+import { treatmentTypeLabels } from "@/lib/leads/treatment-types";
+import { windowCountLabel } from "@/lib/leads/window-count";
 import { CARD, HEADING, TEXT_LINK } from "./ui";
 
 const DL = "grid grid-cols-[8rem_1fr] gap-x-4 gap-y-2 text-sm";
@@ -48,7 +50,19 @@ export function ProjectCard({ job, editHref }: { job: Job; editHref: string }) {
             : "—"}
         </dd>
         <dt className="text-ink-soft">Windows</dt><dd>{job.windowCount ?? "—"}</dd>
-        <dt className="text-ink-soft">Budget</dt><dd>{budgetLabel(job.budgetTier)}</dd>
+        <dt className="text-ink-soft">Exact windows</dt>
+        <dd>{job.windowCountExact ? windowCountLabel(job.windowCountExact) : "—"}</dd>
+        <dt className="text-ink-soft">Treatment types</dt>
+        <dd className="flex flex-wrap gap-1.5">
+          {job.treatmentTypes?.length
+            ? treatmentTypeLabels(job.treatmentTypes).map((label) => (
+                <span key={label} className="border border-rule bg-sand px-2 py-0.5 text-xs">{label}</span>
+              ))
+            : "—"}
+        </dd>
+        <dt className="text-ink-soft">Motorized</dt><dd>{job.motorized ? "Yes" : "No"}</dd>
+        <dt className="text-ink-soft">Gate code</dt><dd>{job.gateCode ?? "—"}</dd>
+        <dt className="text-ink-soft">Budget</dt><dd>{finishBudgetLabel(job.finish, job.budgetTier)}</dd>
         <dt className="text-ink-soft">Brands</dt><dd>{job.brands.join(", ") || "—"}</dd>
       </dl>
       {job.notes ? <p className="whitespace-pre-line border-l-2 border-champagne pl-4 text-sm">{job.notes}</p> : null}
