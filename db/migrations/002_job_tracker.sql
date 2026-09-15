@@ -5,7 +5,7 @@
 
 alter table leads drop constraint if exists leads_status_check;
 alter table leads add constraint leads_status_check check (
-  status in ('new','contacted','visit_booked','quoted','sold','ordered','installed','lost')
+  status in ('new','contacted','visit_booked','quoted','sold','ordered','installed','completed','lost')
 );
 
 -- Hand-entered jobs (a phone call, a referral) may arrive without an email.

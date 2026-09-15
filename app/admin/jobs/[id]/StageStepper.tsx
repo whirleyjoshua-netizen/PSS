@@ -9,6 +9,7 @@ const FILL: Record<WorkingStage, string> = {
   sold: "bg-stage-sold",
   ordered: "bg-stage-ordered",
   installed: "bg-stage-installed",
+  completed: "bg-stage-completed",
 };
 
 export function StageStepper({ status }: { status: Stage }) {

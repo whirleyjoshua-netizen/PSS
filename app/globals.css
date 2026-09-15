@@ -46,6 +46,7 @@
   --color-stage-sold: #5E9A5A;
   --color-stage-ordered: #B07D4F;
   --color-stage-installed: #1E1E1E;
+  --color-stage-completed: #3F7D6B;
   --color-overdue: #B3261E;
 }
 

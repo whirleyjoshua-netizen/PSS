@@ -33,8 +33,13 @@ describe("job page", () => {
     expect(screen.getByLabelText("Set stage")).toBeInTheDocument();
   });
 
-  it("offers no next step once a job is installed", () => {
+  it("offers Completed as the next step once a job is installed", () => {
     render(<StageControls job={{ ...job, status: "installed" }} />);
+    expect(screen.getByRole("button", { name: /^Move to Completed/ })).toBeInTheDocument();
+  });
+
+  it("offers no next step once a job is completed", () => {
+    render(<StageControls job={{ ...job, status: "completed" }} />);
     expect(screen.queryByRole("button", { name: /^Move to/ })).toBeNull();
   });
 

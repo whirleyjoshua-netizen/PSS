@@ -17,7 +17,7 @@ describe("migration 011", () => {
     const check = all.findIndex((s) => s.includes("add constraint leads_status_check"));
     expect(move).toBeGreaterThanOrEqual(0);
     expect(check).toBeGreaterThan(move);
-    expect(all[check]).toContain("status in ('new','visit_booked','quoted','sold','ordered','installed','lost')");
+    expect(all[check]).toContain("status in ('new','visit_booked','quoted','sold','ordered','installed','completed','lost')");
     expect(all[check]).not.toContain("contacted");
   });
 

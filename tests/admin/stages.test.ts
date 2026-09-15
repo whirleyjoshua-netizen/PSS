@@ -1,10 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { STAGES, ALL_STAGES, isStage, stageLabel, nextStage, WORKING_STAGES, STAGE_STYLE, parseWorkingStage } from "@/lib/admin/stages";
+import { STAGES, ALL_STAGES, isStage, stageLabel, nextStage, WORKING_STAGES, STAGE_STYLE, parseWorkingStage, BOARD_STAGES, INSTALLED_STATUSES, isInstalled } from "@/lib/admin/stages";
 
 describe("stages", () => {
-  it("runs from new lead to installed, in order", () => {
+  it("runs from new lead to completed, in order", () => {
     expect(STAGES.map((s) => s.value)).toEqual([
-      "new", "visit_booked", "quoted", "sold", "ordered", "installed",
+      "new", "visit_booked", "quoted", "sold", "ordered", "installed", "completed",
     ]);
   });
 
@@ -13,16 +13,18 @@ describe("stages", () => {
     expect(STAGES.map((s) => s.value)).not.toContain("lost");
   });
 
-  it("advances one stage at a time and stops at installed", () => {
+  it("advances one stage at a time and stops at completed", () => {
     expect(nextStage("new")).toBe("visit_booked");
     expect(nextStage("ordered")).toBe("installed");
-    expect(nextStage("installed")).toBeNull();
+    expect(nextStage("installed")).toBe("completed");
+    expect(nextStage("completed")).toBeNull();
     expect(nextStage("lost")).toBeNull();
   });
 
   it("labels stages the way the owners read them", () => {
     expect(stageLabel("new")).toBe("New lead");
     expect(stageLabel("visit_booked")).toBe("Appointment booked");
+    expect(stageLabel("completed")).toBe("Completed");
     expect(stageLabel("lost")).toBe("Lost");
   });
 
@@ -39,7 +41,7 @@ describe("stages", () => {
 });
 
 describe("working stages and styles", () => {
-  it("lists the six working stages in board order", () => {
+  it("lists the working stages in stage order", () => {
     expect([...WORKING_STAGES]).toEqual(STAGES.map((s) => s.value));
   });
 
@@ -59,5 +61,25 @@ describe("working stages and styles", () => {
       expect(style.left).toMatch(/^border-l-/);
     }
     expect(STAGE_STYLE.quoted.edge).toBe("border-t-stage-quoted");
+  });
+});
+
+describe("board and installed stages", () => {
+  it("puts only current work on the board", () => {
+    expect([...BOARD_STAGES]).toEqual(["new", "visit_booked", "quoted", "sold", "ordered", "installed"]);
+  });
+
+  it("counts installed and completed as installed", () => {
+    expect([...INSTALLED_STATUSES]).toEqual(["installed", "completed"]);
+    expect(isInstalled("installed")).toBe(true);
+    expect(isInstalled("completed")).toBe(true);
+    expect(isInstalled("ordered")).toBe(false);
+    expect(isInstalled("lost")).toBe(false);
+  });
+
+  it("styles completed with its own token", () => {
+    expect(STAGE_STYLE.completed).toEqual({
+      icon: "check", edge: "border-t-stage-completed", tint: "text-stage-completed", left: "border-l-stage-completed",
+    });
   });
 });
