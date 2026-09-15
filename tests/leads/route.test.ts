@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const insertLead = vi.fn();
@@ -166,5 +167,39 @@ describe("POST /api/consultation", () => {
     expect(response.status).toBe(201);
     expect(insertLead).not.toHaveBeenCalled();
     expect(sendLeadNotification).not.toHaveBeenCalled();
+  });
+});
+
+describe("questionnaire key", () => {
+  const cookieValue = (header: string | null) => header?.match(/^pss_q=([^;]+)/)?.[1];
+
+  it("is set as an httpOnly cookie for /thank-you, and only its hash is stored", async () => {
+    const response = await POST(request(body));
+    const header = response.headers.get("set-cookie");
+    expect(header).toMatch(/^pss_q=[A-Za-z0-9_-]{43}; Path=\/thank-you; Max-Age=86400; HttpOnly; SameSite=Lax$/);
+    const key = cookieValue(header)!;
+    const stored = insertLead.mock.calls[0][0];
+    expect(stored.questionnaireTokenHash).toBe(createHash("sha256").update(key).digest("hex"));
+    expect(JSON.stringify(insertLead.mock.calls[0])).not.toContain(key);
+    expect(JSON.stringify(sendLeadNotification.mock.calls[0])).not.toContain(key);
+  });
+
+  it("is Secure in production", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    const response = await POST(request(body));
+    expect(response.headers.get("set-cookie")).toMatch(/; Secure$/);
+    vi.unstubAllEnvs();
+  });
+
+  it("is not set when the lead insert failed", async () => {
+    insertLead.mockRejectedValue(new Error("Neon down"));
+    const response = await POST(request(body));
+    expect(response.status).toBe(201);
+    expect(response.headers.get("set-cookie")).toBeNull();
+  });
+
+  it("is not set for a honeypot submission", async () => {
+    const response = await POST(request({ ...body, company: "spam" }));
+    expect(response.headers.get("set-cookie")).toBeNull();
   });
 });

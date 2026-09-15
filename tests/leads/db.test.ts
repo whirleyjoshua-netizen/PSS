@@ -13,4 +13,15 @@ describe("insertLead", () => {
     expect((call[0] as TemplateStringsArray).join("?")).toMatch(/insert into leads\s*\(\s*id,/);
     expect(call).toContain("3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c");
   });
+
+  it("stores the questionnaire key's hash with a one-day expiry", async () => {
+    sql.mockClear().mockResolvedValue([{ id: "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c" }]);
+    await insertLead({ id: "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c", name: "Dana", phone: "7025550134",
+      email: "d@example.com", city: "Henderson", source: "hero", questionnaireTokenHash: "abc123" });
+    const call = sql.mock.calls[0];
+    const text = (call[0] as TemplateStringsArray).join("?");
+    expect(text).toContain("questionnaire_token_hash, questionnaire_expires_at");
+    expect(text).toContain("now() + interval '24 hours'");
+    expect(call).toContain("abc123");
+  });
 });

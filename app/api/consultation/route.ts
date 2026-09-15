@@ -1,7 +1,9 @@
 import { randomUUID } from "node:crypto";
+import { hashToken, newToken } from "@/lib/admin/tokens";
 import { consultationSchema } from "@/lib/leads/schema";
 import { insertLead } from "@/lib/leads/db";
 import { sendCustomerConfirmation, sendLeadNotification } from "@/lib/leads/email";
+import { questionnaireCookie } from "@/lib/leads/questionnaire-cookie";
 import { findReferrer } from "@/lib/referrals/db";
 import { REF_COOKIE, cookieValue } from "@/lib/referrals/codes";
 
@@ -63,11 +65,13 @@ export async function POST(request: Request) {
     (parsed.data.referralCode ? await lookup(parsed.data.referralCode) : null) ??
     (cookieCode ? await lookup(cookieCode) : null);
   const id = randomUUID();
+  const key = newToken();
   const lead = {
     ...parsed.data,
     heardVia: parsed.data.heardVia ?? (referrer ? "Referral from a friend" : undefined),
     referredBy: referrer?.id ?? null,
     id,
+    questionnaireTokenHash: hashToken(key),
   };
 
   const [stored, emailed] = await Promise.allSettled([
@@ -100,5 +104,7 @@ export async function POST(request: Request) {
     console.error("Customer confirmation email failed", error);
   }
 
-  return Response.json({ ok: true }, { status: 201 });
+  // The questionnaire key goes only to a visitor whose lead was actually stored.
+  const headers = stored.status === "fulfilled" ? { "set-cookie": questionnaireCookie(key) } : undefined;
+  return Response.json({ ok: true }, { status: 201, headers });
 }
