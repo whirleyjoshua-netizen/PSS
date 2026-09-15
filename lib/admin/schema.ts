@@ -4,6 +4,7 @@ import { CALL_OUTCOMES, TREATMENT_NAMES, type CallInput } from "./call";
 import { BUDGET_TIERS } from "./budget";
 import { WORKING_STAGES } from "./stages";
 import { MAX_EIGHTHS, REQUIREMENTS, toEighths, type Requirement } from "./measure-units";
+import { callBackProblem, FOLLOW_UP_NOTE_MAX } from "./follow-up";
 import { dollarsToCents } from "./money";
 import { fromLocalInput } from "./time";
 
@@ -139,7 +140,7 @@ const LOCAL_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
 function isValidLocalInput(value: string): boolean {
   if (!LOCAL_TIME.test(value)) return false;
   const d = new Date(`${value}:00Z`);
-  return !Number.isNaN(d.getTime());
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 16) === value;
 }
 
 export const callSchema = z
@@ -150,10 +151,16 @@ export const callSchema = z
     budget: z.preprocess(blank, z.enum(BUDGET_TIERS, { error: "Pick a budget tier" }).optional()),
     notes: z.preprocess(blank, z.string().trim().max(2000, "Keep notes under 2,000 characters").optional()),
     visitAt: z.preprocess(blank, z.string().optional()),
+    callBackAt: z.preprocess(blank, z.string().optional()),
+    callBackNote: z.preprocess(blank, z.string().trim().max(FOLLOW_UP_NOTE_MAX, "Keep the reason under 200 characters").optional()),
   })
   .superRefine((value, ctx) => {
     if (value.outcome === "booked" && !(value.visitAt && isValidLocalInput(value.visitAt))) {
       ctx.addIssue({ code: "custom", path: ["visitAt"], message: "Pick the visit date and time" });
+    }
+    if (value.callBackAt) {
+      const problem = callBackProblem(value.callBackAt, new Date());
+      if (problem) ctx.addIssue({ code: "custom", path: ["callBackAt"], message: problem });
     }
   })
   .transform((value): CallInput => ({
@@ -163,7 +170,20 @@ export const callSchema = z
     budgetTier: value.budget ?? null,
     notes: value.notes ?? null,
     visitAt: value.outcome === "booked" && value.visitAt ? fromLocalInput(value.visitAt) : null,
+    followUpAt: value.outcome !== "booked" && value.callBackAt ? fromLocalInput(value.callBackAt) : null,
+    followUpNote: value.outcome !== "booked" && value.callBackAt ? (value.callBackNote ?? null) : null,
   }));
+
+export const followUpSchema = z
+  .object({
+    at: z.string({ error: "Pick a valid call-back date and time" }),
+    note: z.preprocess(blank, z.string().trim().max(FOLLOW_UP_NOTE_MAX, "Keep the reason under 200 characters").optional()),
+  })
+  .superRefine((value, ctx) => {
+    const problem = callBackProblem(value.at, new Date());
+    if (problem) ctx.addIssue({ code: "custom", path: ["at"], message: problem });
+  })
+  .transform((value) => ({ at: fromLocalInput(value.at), note: value.note ?? null }));
 
 export type MeasurementInput = z.output<typeof measurementSchema>;
 

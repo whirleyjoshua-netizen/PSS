@@ -41,6 +41,7 @@ describe("logCallAction", () => {
     ]))).rejects.toThrow(`NEXT_REDIRECT /admin/jobs/${JOB}`);
     expect(logCall).toHaveBeenCalledWith(JOB, {
       outcome: "talked", treatments: ["Shades", "Blinds"], windowCount: "1-5", budgetTier: "value", notes: "Fri pm", visitAt: null,
+      followUpAt: null, followUpNote: null,
     }, "owner@example.com");
   });
 
@@ -74,6 +75,21 @@ describe("logCallAction", () => {
     await logCallAction(JOB, {}, form([["outcome", "booked"], ["visitAt", "2026-09-20T10:00"]]));
     await runAfter();
     expect(syncJobCalendar).not.toHaveBeenCalled();
+  });
+
+  it("passes the call-back to the save", async () => {
+    await expect(logCallAction(JOB, {}, form([
+      ["outcome", "no_answer"], ["callBackAt", "2026-10-16T10:00"], ["callBackNote", "checking with husband"],
+    ]))).rejects.toThrow(`NEXT_REDIRECT /admin/jobs/${JOB}`);
+    expect(logCall).toHaveBeenCalledWith(JOB, expect.objectContaining({
+      outcome: "no_answer", followUpAt: new Date("2026-10-16T17:00:00Z"), followUpNote: "checking with husband",
+    }), "owner@example.com");
+  });
+
+  it("keeps the typed call-back when validation fails", async () => {
+    const state = await logCallAction(JOB, {}, form([["outcome", "talked"], ["callBackAt", "2026-13-45T25:99"], ["callBackNote", "x"]]));
+    expect(state.error).toBe("Pick a valid call-back date and time");
+    expect(state.values).toMatchObject({ callBackAt: "2026-13-45T25:99", callBackNote: "x" });
   });
 });
 

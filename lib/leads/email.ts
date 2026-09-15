@@ -3,6 +3,11 @@ import { business } from "@/content/business";
 import { adminOrigin } from "@/lib/admin/origin";
 import { formatPhone, type ConsultationInput } from "./schema";
 
+/** Every owner address in LEAD_NOTIFICATION_EMAIL (comma-separated). */
+export function ownerRecipients(): string[] {
+  return (process.env.LEAD_NOTIFICATION_EMAIL ?? "").split(",").map((address) => address.trim()).filter(Boolean);
+}
+
 /**
  * Sends the "you have a new consultation request" email.
  *
@@ -15,11 +20,7 @@ export async function sendLeadNotification(
   leadId: string,
 ): Promise<void> {
   const apiKey = process.env.RESEND_API_KEY;
-  // Comma-separated, so both owners get every lead.
-  const to = (process.env.LEAD_NOTIFICATION_EMAIL ?? "")
-    .split(",")
-    .map((address) => address.trim())
-    .filter(Boolean);
+  const to = ownerRecipients();
   const from = process.env.LEAD_FROM_EMAIL ?? "leads@premiershadesolutions.com";
 
   if (!apiKey || to.length === 0) {

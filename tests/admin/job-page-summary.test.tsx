@@ -39,6 +39,11 @@ vi.mock("@/app/admin/jobs/measure-actions", () => ({
   removeMeasurement: vi.fn(async () => {}),
 }));
 
+vi.mock("@/app/admin/jobs/follow-up-actions", () => ({
+  saveFollowUp: vi.fn(async () => ({})),
+  clearFollowUpAction: vi.fn(async () => {}),
+}));
+
 const JobPage = (await import("@/app/admin/jobs/[id]/page")).default;
 
 const ID = "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c";
@@ -51,6 +56,7 @@ const baseJob: Job = {
   orderedOn: null, installOn: null, lostReason: null,
   referralCode: null, referredBy: null, referralPaidAt: null, reviewRequestedAt: null,
   reviewOptOut: false, portalInvitedAt: null, budgetTier: null,
+  followUpAt: null, followUpNote: null,
 };
 
 const budgetRow = () => {
@@ -81,5 +87,11 @@ describe("job page summary", () => {
     getJob.mockResolvedValue({ ...baseJob });
     render(await JobPage({ params: Promise.resolve({ id: ID }), searchParams: Promise.resolve({}) }));
     expect(screen.getByRole("link", { name: "Log a call" })).toHaveAttribute("href", `/admin/jobs/${baseJob.id}/call`);
+  });
+
+  it("says no call-back is set", async () => {
+    getJob.mockResolvedValue({ ...baseJob });
+    render(await JobPage({ params: Promise.resolve({ id: ID }), searchParams: Promise.resolve({}) }));
+    expect(screen.getByText("No call-back set")).toBeInTheDocument();
   });
 });
