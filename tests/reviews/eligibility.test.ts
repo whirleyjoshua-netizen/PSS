@@ -23,6 +23,9 @@ describe("installDate", () => {
   it("falls back to the Las Vegas day the job moved to Installed", () => {
     expect(installDate(job({ installOn: null, stageChangedAt: new Date("2026-09-11T03:00:00Z") }))).toBe("2026-09-10");
   });
+  it("has no fallback once the job is completed, since the stage change is the completion", () => {
+    expect(installDate(job({ status: "completed", installOn: null }))).toBeNull();
+  });
 });
 
 describe("isDueForReview", () => {
@@ -31,6 +34,15 @@ describe("isDueForReview", () => {
   });
   it("is due for a completed job too", () => {
     expect(isDueForReview(job({ status: "completed" }), NOW)).toBe(true);
+  });
+  it("is not due for a completed job with no install date that was just completed", () => {
+    expect(isDueForReview(job({ status: "completed", installOn: null, stageChangedAt: new Date("2026-09-11T20:00:00Z") }), NOW)).toBe(false);
+  });
+  it("is due for a completed job with a recent install date", () => {
+    expect(isDueForReview(job({ status: "completed", installOn: "2026-09-10", stageChangedAt: new Date("2026-09-11T20:00:00Z") }), NOW)).toBe(true);
+  });
+  it("is due for an installed job with no install date, from the day it moved to Installed", () => {
+    expect(isDueForReview(job({ installOn: null, stageChangedAt: new Date("2026-09-11T20:00:00Z") }), NOW)).toBe(true);
   });
   it("is not due on installation day", () => {
     expect(isDueForReview(job({ installOn: "2026-09-12" }), NOW)).toBe(false);

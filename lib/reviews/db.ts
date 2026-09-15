@@ -11,7 +11,7 @@ export async function listReviewCandidates(): Promise<Job[]> {
     `select ${JOB_COLUMNS} from leads
      where status in ('installed','completed') and email is not null
        and review_requested_at is null and not review_opt_out
-       and coalesce(install_on, stage_changed_at::date) >= current_date - 16`,
+       and coalesce(install_on, case when status = 'installed' then stage_changed_at::date end) >= current_date - 16`,
   );
   return rows.map(toJob);
 }

@@ -21,6 +21,14 @@ describe("review request records", () => {
     expect(statement).toContain("not review_opt_out");
   });
 
+  it("uses the stage change as the install date only while the job is installed", async () => {
+    await reviews.listReviewCandidates();
+    const statement = sql.query.mock.calls[0][0] as string;
+    expect(statement).toContain(
+      "coalesce(install_on, case when status = 'installed' then stage_changed_at::date end) >= current_date - 16",
+    );
+  });
+
   it("claims a job only if nobody else has", async () => {
     sql.mockResolvedValueOnce([{ id: ID }]);
     expect(await reviews.claimReview(ID)).toBe(true);
