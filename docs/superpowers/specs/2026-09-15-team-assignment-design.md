@@ -61,13 +61,13 @@ Removing a person therefore unassigns their jobs automatically. Activity entries
 ## 5. Assigning a job
 
 **Data:**
-- `Job` gains `assignedTo: string | null`, `assignedName: string | null` and `assignedRole: TeamRole | null`.
+- `Job` gains optional `assignedTo`, `assignedName` and `assignedRole` (each `… | null`, optional like `lastContactAt` so existing fixtures stay valid).
 - `JOB_COLUMNS` selects `assigned_to` plus the member's name and role through a correlated subquery, keeping `from leads` unchanged for every existing query.
 
 **`assignJob(id, memberId | null, actor)`** in lib/admin/jobs.ts:
 - It sets `assigned_to` and `updated_at` and logs an `edit` event in the same statement.
 - The event body is "Assigned to Shade (Designer)", or "Unassigned".
-- It returns false when the job does not exist, when the member id is not a current team member, or when the value is unchanged. Nothing is logged in those cases.
+- It returns `"ok"`, or `"missing"` (no such job), `"unknown-member"` (not a current team member) or `"unchanged"` (same value). Nothing is logged except on `"ok"`.
 
 **Server action `assignJob(jobId, formData)`** in app/admin/jobs/actions.ts:
 - It calls `requireAdmin()` first.
