@@ -70,14 +70,14 @@ export async function listReferrals(referrerId: string): Promise<Referral[]> {
 
 /**
  * Marks the reward for a referred job paid, and logs it on the referrer's job.
- * Refuses (returns false) unless the job is installed, unpaid, and referred.
+ * Refuses (returns false) unless the job is installed (or completed), unpaid, and referred.
  */
 export async function markReferralPaid(referredId: string, actor: string): Promise<boolean> {
   if (!isUuid(referredId)) return false;
   const rows = await db()`
     with paid as (
       update leads set referral_paid_at = now(), updated_at = now()
-      where id = ${referredId} and status = 'installed'
+      where id = ${referredId} and status in ('installed','completed')
         and referral_paid_at is null and referred_by is not null
       returning referred_by, name
     )

@@ -2,7 +2,7 @@ import "server-only";
 import { db } from "@/lib/db";
 import { isBudgetTier, type BudgetTier } from "./budget";
 import type { DetailsInput, NewJobInput } from "./schema";
-import { isStage, type Stage } from "./stages";
+import { isInstalled, isStage, type Stage } from "./stages";
 import { toLocalInput } from "./time";
 import { isFinish, type Finish } from "@/lib/leads/finish";
 import { isTreatmentType, type TreatmentType } from "@/lib/leads/treatment-types";
@@ -263,13 +263,14 @@ export async function addContact(id: string, body: string, actor: string): Promi
 }
 
 export async function createJob(input: NewJobInput, actor: string): Promise<string> {
-  // A job entered as already installed must not trigger tomorrow's review email; the owner can untick it.
-  const body = input.stage === "installed" ? "Added by hand (review request off)" : "Added by hand";
+  // A job entered as already installed (or completed) must not trigger tomorrow's review email; the owner can untick it.
+  const installed = isInstalled(input.stage);
+  const body = installed ? "Added by hand (review request off)" : "Added by hand";
   const rows = await db()`
     with created as (
       insert into leads (name, phone, email, city, address, notes, source, status, review_opt_out)
       values (${input.name}, ${input.phone}, ${input.email ?? null}, ${input.city},
-              ${input.address ?? null}, ${input.notes ?? null}, ${input.source}, ${input.stage}, ${input.stage === "installed"})
+              ${input.address ?? null}, ${input.notes ?? null}, ${input.source}, ${input.stage}, ${installed})
       returning id
     ),
     logged as (

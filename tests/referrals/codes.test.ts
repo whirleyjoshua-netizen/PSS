@@ -52,6 +52,9 @@ describe("rewardStatus", () => {
   it("is owed once installed and unpaid", () => {
     expect(rewardStatus({ status: "installed", referralPaidAt: null })).toBe("owed");
   });
+  it("is owed once completed and unpaid", () => {
+    expect(rewardStatus({ status: "completed", referralPaidAt: null })).toBe("owed");
+  });
   it("is paid once marked paid", () => {
     expect(rewardStatus({ status: "installed", referralPaidAt: new Date() })).toBe("paid");
   });

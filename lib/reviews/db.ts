@@ -9,7 +9,7 @@ import { JOB_COLUMNS, isUuid, toJob, type Job } from "@/lib/admin/jobs";
 export async function listReviewCandidates(): Promise<Job[]> {
   const rows = await db().query(
     `select ${JOB_COLUMNS} from leads
-     where status = 'installed' and email is not null
+     where status in ('installed','completed') and email is not null
        and review_requested_at is null and not review_opt_out
        and coalesce(install_on, stage_changed_at::date) >= current_date - 16`,
   );

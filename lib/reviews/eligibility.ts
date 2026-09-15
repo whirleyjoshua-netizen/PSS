@@ -1,4 +1,5 @@
 import type { Job } from "@/lib/admin/jobs";
+import { isInstalled } from "@/lib/admin/stages";
 import { lasVegasDate } from "@/lib/admin/time";
 
 export const REVIEW_WINDOW_DAYS = 14;
@@ -19,7 +20,7 @@ function daysBefore(day: string, days: number): string {
 
 /** Whether the daily run should email this job today. */
 export function isDueForReview(job: ReviewCandidate, now: Date): boolean {
-  if (job.status !== "installed" || !job.email || job.reviewRequestedAt || job.reviewOptOut) return false;
+  if (!isInstalled(job.status) || !job.email || job.reviewRequestedAt || job.reviewOptOut) return false;
   const today = lasVegasDate(now);
   const installed = installDate(job);
   return installed < today && installed >= daysBefore(today, REVIEW_WINDOW_DAYS);

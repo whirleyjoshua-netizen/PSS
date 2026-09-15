@@ -2,7 +2,9 @@ import type { IconName } from "@/components/admin/icons";
 
 /**
  * The one definition of the job stages. The database enforces the same list
- * with a check constraint (011_stages_contact_log.sql); keep the two in step.
+ * with the leads_status_check constraint (012_completed_stage.sql); keep the two
+ * in step. 002, 011 and 012 all set that constraint and migrate.mjs re-applies
+ * every file, so those three must stay in step too.
  */
 export const STAGES = [
   { value: "new", label: "New lead" },

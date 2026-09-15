@@ -29,6 +29,9 @@ describe("isDueForReview", () => {
   it("is due the morning after installation", () => {
     expect(isDueForReview(job({}), NOW)).toBe(true);
   });
+  it("is due for a completed job too", () => {
+    expect(isDueForReview(job({ status: "completed" }), NOW)).toBe(true);
+  });
   it("is not due on installation day", () => {
     expect(isDueForReview(job({ installOn: "2026-09-12" }), NOW)).toBe(false);
   });

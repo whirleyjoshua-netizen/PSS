@@ -16,7 +16,7 @@ describe("review request records", () => {
   it("lists only installed, unsent, emailable jobs from the last few weeks", async () => {
     await reviews.listReviewCandidates();
     const statement = sql.query.mock.calls[0][0] as string;
-    expect(statement).toContain("status = 'installed'");
+    expect(statement).toContain("status in ('installed','completed')");
     expect(statement).toContain("review_requested_at is null");
     expect(statement).toContain("not review_opt_out");
   });

@@ -75,7 +75,7 @@ describe("markReferralPaid", () => {
     sql.mockResolvedValueOnce([{ id: "event" }]);
     expect(await referrals.markReferralPaid(ID, "owner@example.com")).toBe(true);
     const statement = text(sql.mock.calls[0]);
-    expect(statement).toContain("status = 'installed'");
+    expect(statement).toContain("status in ('installed','completed')");
     expect(statement).toContain("referral_paid_at is null");
     expect(statement).toContain("insert into job_events");
   });

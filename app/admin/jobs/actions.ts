@@ -8,7 +8,7 @@ import { syncJobCalendar } from "@/lib/calendar/sync";
 import { requireAdmin } from "@/lib/admin/session";
 import { addNote, createJob, getJob, setStage, updateDetails } from "@/lib/admin/jobs";
 import { detailsSchema, lostSchema, newJobSchema, noteSchema } from "@/lib/admin/schema";
-import type { Stage } from "@/lib/admin/stages";
+import { isInstalled, type Stage } from "@/lib/admin/stages";
 import { autoInvite, sendPortalInvite } from "@/lib/portal/invite";
 import { isPortalStage } from "@/lib/portal/progress";
 import { ensureReferralCode, markReferralPaid } from "@/lib/referrals/db";
@@ -127,7 +127,7 @@ export async function sendReviewNow(id: string, _prev: FormState, _formData: For
   if (!job.email) return { error: "This job has no email address." };
   if (job.reviewOptOut) return { error: "Review requests are turned off for this job." };
   // The email thanks the customer for the installation, so never send it early.
-  if (job.status !== "installed") return { error: "Review requests go out once the job is installed." };
+  if (!isInstalled(job.status)) return { error: "Review requests go out once the job is installed." };
   // Stamped before sending, so a crash after the email goes out never leaves
   // the job eligible for tomorrow's cron too.
   const stamped = await stampReviewRequested(id);

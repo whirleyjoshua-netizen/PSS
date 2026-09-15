@@ -1,5 +1,5 @@
 import { business } from "@/content/business";
-import type { Stage } from "@/lib/admin/stages";
+import { isInstalled, type Stage } from "@/lib/admin/stages";
 
 /** 32 characters with no 0/O or 1/I, so a code read aloud or retyped survives. */
 export const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -30,7 +30,7 @@ export type RewardStatus = "pending" | "owed" | "paid" | "none";
 export function rewardStatus(job: { status: Stage; referralPaidAt: Date | null }): RewardStatus {
   if (job.referralPaidAt) return "paid";
   if (job.status === "lost") return "none";
-  return job.status === "installed" ? "owed" : "pending";
+  return isInstalled(job.status) ? "owed" : "pending";
 }
 
 /** One cookie from a raw Cookie header. Route handlers get a plain Request in tests. */

@@ -3,6 +3,7 @@
 import { useActionState, useState, useTransition } from "react";
 import { Button } from "@/components/ui/Button";
 import type { Job } from "@/lib/admin/jobs";
+import { isInstalled } from "@/lib/admin/stages";
 import { formatWhen } from "@/lib/admin/time";
 import { saveReviewOptOut, sendReviewNow, type FormState } from "../actions";
 
@@ -42,7 +43,7 @@ export function ReviewSection({ job }: { job: Job }) {
         Don&apos;t send a review request
       </label>
       {optOutError ? <p role="alert">{optOutError}</p> : null}
-      {job.status === "installed" ? (
+      {isInstalled(job.status) ? (
         <form action={action} className="flex flex-wrap items-center gap-3">
           <Button type="submit" variant="outline" disabled={sending}>{sending ? "Sending…" : "Send now"}</Button>
           {state.error ? <p role="alert">{state.error}</p> : null}

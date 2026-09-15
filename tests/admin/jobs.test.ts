@@ -331,6 +331,15 @@ describe("changing jobs", () => {
     expect(sql.mock.calls[0]).toEqual(expect.arrayContaining(["Added by hand (review request off)"]));
   });
 
+  it("a job created as completed turns the review request off and says so", async () => {
+    sql.mockResolvedValue([{ id: ID }]);
+    await jobs.createJob(
+      { name: "Dana Reyes", phone: "7025550134", city: "Henderson", source: "phone", stage: "completed" },
+      "owner@example.com",
+    );
+    expect(sql.mock.calls[0]).toEqual(expect.arrayContaining([true, "Added by hand (review request off)"]));
+  });
+
   it("a job created as quoted logs the plain 'Added by hand' body", async () => {
     sql.mockResolvedValue([{ id: ID }]);
     await jobs.createJob(
