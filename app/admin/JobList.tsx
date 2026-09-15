@@ -46,12 +46,13 @@ export function JobList({ jobs, now, filter, q, openId }: {
                 const style = STAGE_STYLE[job.status];
                 const selected = job.id === openId;
                 return (
-                  <tr key={job.id} className={`border-b border-rule last:border-0 ${selected ? "bg-sand/60" : "hover:bg-sand/30"}`}>
+                  <tr key={job.id} className={`relative border-b border-rule last:border-0 ${selected ? "bg-sand/60" : "hover:bg-sand/30"}`}>
                     <td className="px-4 py-3">
+                      {/* One link per row; its overlay makes the whole row clickable. */}
                       <Link
                         href={boardHref({ q, list: filter, job: job.id })}
                         aria-current={selected ? "true" : undefined}
-                        className="font-semibold text-charcoal underline-offset-4 hover:underline"
+                        className="font-semibold text-charcoal underline-offset-4 after:absolute after:inset-0 hover:underline"
                       >
                         {job.name}
                       </Link>
@@ -80,7 +81,7 @@ export function JobList({ jobs, now, filter, q, openId }: {
         </div>
       ) : (
         <p className="rounded-xl border border-rule bg-ivory p-6 text-center text-sm text-ink-soft">
-          {q ? "No jobs match" : "No jobs in this stage"}
+          {q ? "No jobs match" : filter ? "No jobs in this stage" : "No jobs yet"}
         </p>
       )}
     </section>

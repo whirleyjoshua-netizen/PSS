@@ -34,6 +34,22 @@ describe("JobList", () => {
     expect(link).toHaveAttribute("aria-current", "true");
   });
 
+  it("makes the whole row one link", () => {
+    render(<JobList jobs={[base]} now={NOW} filter={null} q="" openId={undefined} />);
+    const row = screen.getAllByRole("row")[1];
+    expect(within(row).getAllByRole("link")).toHaveLength(1);
+    expect(row.className).toContain("relative");
+    expect(within(row).getByRole("link").className).toContain("after:absolute");
+    expect(within(row).getByRole("link").className).toContain("after:inset-0");
+  });
+
+  it("tags a referred job", () => {
+    render(<JobList jobs={[{ ...base, referredBy: "PSS-AB12" }, lost]} now={NOW} filter={null} q="" openId={undefined} />);
+    const rows = screen.getAllByRole("row").slice(1);
+    expect(rows[0]).toHaveTextContent("Referral");
+    expect(rows[1]).not.toHaveTextContent("Referral");
+  });
+
   it("has a stage dropdown in a GET form that keeps the search and open job", () => {
     render(<JobList jobs={[]} now={NOW} filter="lost" q="reyes" openId={base.id} />);
     const select = screen.getByLabelText("Stage");
@@ -48,8 +64,10 @@ describe("JobList", () => {
     expect(within(form).getByRole("button", { name: "Show" })).toBeInTheDocument();
   });
 
-  it("says when a stage has no jobs, and when a search matches none", () => {
-    const { rerender } = render(<JobList jobs={[]} now={NOW} filter="completed" q="" openId={undefined} />);
+  it("says when there are no jobs, a stage has none, or a search matches none", () => {
+    const { rerender } = render(<JobList jobs={[]} now={NOW} filter={null} q="" openId={undefined} />);
+    expect(screen.getByText("No jobs yet")).toBeInTheDocument();
+    rerender(<JobList jobs={[]} now={NOW} filter="completed" q="" openId={undefined} />);
     expect(screen.getByText("No jobs in this stage")).toBeInTheDocument();
     rerender(<JobList jobs={[]} now={NOW} filter={null} q="zzz" openId={undefined} />);
     expect(screen.getByText("No jobs match")).toBeInTheDocument();

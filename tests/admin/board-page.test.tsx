@@ -152,7 +152,16 @@ describe("board look and conveniences", () => {
   });
 
   it("treats an unknown ?list as all jobs", async () => {
-    await open({ list: "bogus" });
+    await open({ list: "bogus", job: ID });
     expect(screen.getByLabelText("Stage")).toHaveValue("");
+    const card = within(screen.getByRole("region", { name: "Board" })).getByRole("link", { name: /dana reyes/i });
+    const row = within(screen.getByRole("region", { name: /all jobs/i })).getByRole("link", { name: /dana reyes/i });
+    const close = screen.getByRole("link", { name: "Close" });
+    expect(card).toHaveAttribute("href", `/admin?job=${ID}`);
+    expect(row).toHaveAttribute("href", `/admin?job=${ID}`);
+    expect(close).toHaveAttribute("href", "/admin");
+    for (const link of screen.getAllByRole("link")) {
+      expect(link.getAttribute("href") ?? "").not.toContain("list=bogus");
+    }
   });
 });
