@@ -235,6 +235,16 @@ describe("creating an event claims the link first", () => {
   });
 });
 
+describe("a missing Outlook config", () => {
+  it("records 'Outlook is not configured' instead of crashing on a null config", async () => {
+    enabled.mockReturnValue(false);
+    store.getLinkByEvent.mockResolvedValue(link);
+    await sync.applyOutlookChange("e1");
+    expect(store.recordError).toHaveBeenCalledWith("Outlook is not configured");
+    expect(graphFetch).not.toHaveBeenCalled();
+  });
+});
+
 describe("Graph paths", () => {
   it("encodes the event id in the path, leaving the mailbox alone", async () => {
     const odd = { ...link, eventId: "AAMk/a+b=" };

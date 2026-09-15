@@ -31,8 +31,9 @@ async function expectOk(response: Response, what: string): Promise<Response> {
  * changeKey moved wins, and an event deleted in Outlook clears the tracker date.
  */
 export async function reconcileJob(leadId: string, pushKinds: readonly Kind[] = []): Promise<void> {
-  const mailbox = calendarConfig()!.mailbox;
-  const events = `users/${mailbox}/events`;
+  const config = calendarConfig();
+  if (!config) throw new GraphError("Outlook is not configured", 0);
+  const events = `users/${config.mailbox}/events`;
   const job = await store.getCalendarJob(leadId);
   const links = await store.getLinks(leadId);
 

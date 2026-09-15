@@ -34,7 +34,9 @@ export async function POST(request: Request) {
   } catch {
     return new Response("Bad request", { status: 400 });
   }
-  const { clientState } = calendarConfig()!;
+  const config = calendarConfig();
+  if (!config) return new Response("Not found", { status: 404 });
+  const { clientState } = config;
   const { subscriptionId } = await getSyncState();
   const valid = (payload.value ?? []).filter(
     (n) => typeof n.clientState === "string" && same(n.clientState, clientState) && n.subscriptionId === subscriptionId,

@@ -68,6 +68,43 @@ describe("graphFetch", () => {
     vi.useRealTimers();
   });
 
+  it("honors a Retry-After given as an HTTP date", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-14T19:00:00.000Z"));
+    fetchMock.mockResolvedValueOnce(token())
+      .mockResolvedValueOnce(new Response(null, { status: 503, headers: { "Retry-After": "Mon, 14 Sep 2026 19:00:05 GMT" } }))
+      .mockResolvedValueOnce(Response.json({}));
+    let done = false;
+    const pending = graph.graphFetch("me").then((r) => { done = true; return r; });
+    await vi.advanceTimersByTimeAsync(4_900);
+    expect(done).toBe(false);
+    await vi.advanceTimersByTimeAsync(200);
+    expect((await pending).status).toBe(200);
+    vi.useRealTimers();
+  });
+
+  it("does not wait for a Retry-After date already past, and caps a far one at 10 seconds", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-14T19:00:00.000Z"));
+    fetchMock.mockResolvedValueOnce(token())
+      .mockResolvedValueOnce(new Response(null, { status: 429, headers: { "Retry-After": "Mon, 14 Sep 2026 18:59:00 GMT" } }))
+      .mockResolvedValueOnce(Response.json({}))
+      .mockResolvedValueOnce(new Response(null, { status: 429, headers: { "Retry-After": "Mon, 14 Sep 2026 20:00:00 GMT" } }))
+      .mockResolvedValueOnce(Response.json({}));
+    let first = false;
+    const a = graph.graphFetch("me").then((r) => { first = true; return r; });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(first).toBe(true);
+    await a;
+    let second = false;
+    const b = graph.graphFetch("me").then((r) => { second = true; return r; });
+    await vi.advanceTimersByTimeAsync(9_900);
+    expect(second).toBe(false);
+    await vi.advanceTimersByTimeAsync(200);
+    expect((await b).status).toBe(200);
+    vi.useRealTimers();
+  });
+
   it("graphJson throws GraphError with the status on failure", async () => {
     fetchMock.mockResolvedValueOnce(token()).mockResolvedValueOnce(new Response("nope", { status: 404 }));
     await expect(graph.graphJson("x")).rejects.toMatchObject({ name: "GraphError", status: 404 });

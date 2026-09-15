@@ -3,9 +3,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const afterCbs: (() => unknown)[] = [];
 vi.mock("next/server", () => ({ after: (cb: () => unknown) => { afterCbs.push(cb); } }));
 const enabled = vi.fn(() => true);
-vi.mock("@/lib/calendar/config", () => ({
-  calendarEnabled: () => enabled(), calendarConfig: () => (enabled() ? { clientState: "state-secret" } : null),
-}));
+const config = vi.fn<() => { clientState: string } | null>();
+vi.mock("@/lib/calendar/config", () => ({ calendarEnabled: () => enabled(), calendarConfig: () => config() }));
 const store = { getSyncState: vi.fn(), recordError: vi.fn() };
 vi.mock("@/lib/calendar/store", () => store);
 const sync = { applyOutlookChange: vi.fn(), reconcileCalendar: vi.fn() };
@@ -27,6 +26,7 @@ const note = (over: Record<string, unknown> = {}) => ({
 beforeEach(() => {
   afterCbs.length = 0;
   enabled.mockReturnValue(true);
+  config.mockReset().mockImplementation(() => (enabled() ? { clientState: "state-secret" } : null));
   [store.getSyncState, store.recordError, sync.applyOutlookChange, sync.reconcileCalendar, ensureSubscription].forEach((f) => f.mockReset());
   store.getSyncState.mockResolvedValue({ subscriptionId: "s1" });
   vi.stubEnv("CRON_SECRET", "s3cret");
@@ -76,6 +76,14 @@ describe("POST /api/calendar/notifications", () => {
   it("is 404 when Outlook is not configured", async () => {
     enabled.mockReturnValue(false);
     expect((await post("?validationToken=x")).status).toBe(404);
+  });
+
+  it("is 404, not a crash, when the config can't be read after the enabled check", async () => {
+    config.mockReturnValue(null);
+    const res = await post("", { value: [note()] });
+    expect(res.status).toBe(404);
+    await runAfter();
+    expect(sync.applyOutlookChange).not.toHaveBeenCalled();
   });
 
   it("rejects a body that is not JSON", async () => {

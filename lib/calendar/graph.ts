@@ -36,6 +36,22 @@ async function accessToken(): Promise<string> {
   return access_token;
 }
 
+const RETRY_FALLBACK_MS = 2_000;
+const RETRY_CAP_MS = 10_000;
+
+/** How long to wait for a Retry-After of either seconds or an HTTP date, capped at 10 seconds. */
+function retryDelay(header: string | null): number {
+  const value = header?.trim() ?? "";
+  let wait = RETRY_FALLBACK_MS;
+  if (/^\d+(\.\d+)?$/.test(value)) {
+    wait = Number(value) > 0 ? Number(value) * 1000 : RETRY_FALLBACK_MS;
+  } else if (value) {
+    const at = Date.parse(value);
+    if (!Number.isNaN(at)) wait = Math.max(0, at - Date.now());
+  }
+  return Math.min(wait, RETRY_CAP_MS);
+}
+
 /** One Graph request. Retries once on 429/503, honoring Retry-After. Callers check the status. */
 export async function graphFetch(path: string, init: { method?: string; body?: unknown } = {}): Promise<Response> {
   const url = path.startsWith("https://") ? path : GRAPH + path.replace(/^\/+/, "");
@@ -52,7 +68,7 @@ export async function graphFetch(path: string, init: { method?: string; body?: u
     });
   const first = await send();
   if (first.status !== 429 && first.status !== 503) return first;
-  const wait = Math.min(Number(first.headers.get("Retry-After")) || 2, 10) * 1000;
+  const wait = retryDelay(first.headers.get("Retry-After"));
   await new Promise((resolve) => setTimeout(resolve, wait));
   return send();
 }

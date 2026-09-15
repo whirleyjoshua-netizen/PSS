@@ -49,6 +49,14 @@ describe("settings page", () => {
     expect(message).toHaveClass("text-overdue");
   });
 
+  it("shows the last sync error without a time when none was recorded", async () => {
+    calendarEnabled.mockReturnValue(true);
+    getSyncState.mockResolvedValue({ subscriptionId: "sub1", expiresAt: null, lastError: "Graph returned 401", lastErrorAt: null });
+    render(await SettingsPage());
+    const message = screen.getByText("Connected, but the last sync failed: Graph returned 401");
+    expect(message).toHaveClass("text-overdue");
+  });
+
   it("shows the expiry time when connected with no error", async () => {
     calendarEnabled.mockReturnValue(true);
     getSyncState.mockResolvedValue({
