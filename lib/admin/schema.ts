@@ -9,6 +9,7 @@ import { callBackProblem, FOLLOW_UP_NOTE_MAX } from "./follow-up";
 import { CONTACT_METHOD_KEYS, CONTACT_NOTE_MAX, type ContactMethod } from "./contact";
 import { dollarsToCents } from "./money";
 import { fromLocalInput } from "./time";
+import { TEAM_ROLES, type TeamRole } from "./team-roles";
 
 export const BRANDS = ["Superior Blinds MFG", "Alta Window Fashions", "Hunter Douglas"] as const;
 export const HAND_SOURCES = ["phone", "referral", "walk-in", "other"] as const;
@@ -206,6 +207,13 @@ export const contactSchema = z.object({
   note: z
     .preprocess(blank, z.string().trim().max(CONTACT_NOTE_MAX, "Keep the note under 500 characters").optional())
     .transform((value) => value ?? null),
+});
+
+const TEAM_ROLE_VALUES = TEAM_ROLES.map((role) => role.value) as [TeamRole, ...TeamRole[]];
+
+export const teamMemberSchema = z.object({
+  name: z.string().trim().min(1, "Enter a name").max(60, "Keep the name under 60 characters"),
+  role: z.enum(TEAM_ROLE_VALUES, { error: "Pick Designer or Installer" }),
 });
 
 export type MeasurementInput = z.output<typeof measurementSchema>;

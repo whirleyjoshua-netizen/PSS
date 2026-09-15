@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { detailsSchema, newJobSchema, noteSchema, lostSchema } from "@/lib/admin/schema";
+import { detailsSchema, newJobSchema, noteSchema, lostSchema, teamMemberSchema } from "@/lib/admin/schema";
+import { TEAM_ROLES } from "@/lib/admin/team-roles";
 
 describe("new job stage", () => {
   const base = { name: "Dana Reyes", phone: "7025550134", city: "Henderson", source: "phone" };
@@ -88,5 +89,22 @@ describe("notes and lost reasons", () => {
     expect(noteSchema.safeParse({ body: "  " }).success).toBe(false);
     expect(lostSchema.safeParse({ reason: "" }).success).toBe(false);
     expect(lostSchema.parse({ reason: " Went with a cheaper quote " }).reason).toBe("Went with a cheaper quote");
+  });
+});
+
+describe("teamMemberSchema", () => {
+  it("trims the name and accepts a role", () => {
+    expect(teamMemberSchema.parse({ name: "  Shade ", role: "designer" })).toEqual({ name: "Shade", role: "designer" });
+  });
+  it("explains a missing name, a long name and a missing role", () => {
+    expect(teamMemberSchema.safeParse({ name: " ", role: "designer" }).error?.issues[0].message).toBe("Enter a name");
+    expect(teamMemberSchema.safeParse({ name: "x".repeat(61), role: "designer" }).error?.issues[0].message).toBe("Keep the name under 60 characters");
+    expect(teamMemberSchema.safeParse({ name: "Shade", role: "" }).error?.issues[0].message).toBe("Pick Designer or Installer");
+  });
+  it("accepts exactly the roles the team list offers", () => {
+    for (const role of TEAM_ROLES) {
+      expect(teamMemberSchema.safeParse({ name: "Shade", role: role.value }).success).toBe(true);
+    }
+    expect(teamMemberSchema.safeParse({ name: "Shade", role: "owner" }).success).toBe(false);
   });
 });
