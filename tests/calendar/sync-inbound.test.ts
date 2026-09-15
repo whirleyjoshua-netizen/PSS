@@ -38,7 +38,7 @@ beforeEach(() => {
   enabled.mockReturnValue(true);
   store.getCalendarJob.mockResolvedValue(job);
   store.getLinks.mockResolvedValue([]);
-  store.claimLink.mockResolvedValue(true);
+  store.claimLink.mockResolvedValue("pending:new");
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(new Date("2026-09-14T19:00:00Z")); // noon in Las Vegas, before the fixtures' dates
   vi.spyOn(console, "error").mockImplementation(() => {});
@@ -78,7 +78,7 @@ describe("applyOutlookChange (Outlook wins when its changeKey moved)", () => {
   it("clears the visit when the event was deleted in Outlook", async () => {
     graphFetch.mockResolvedValueOnce(new Response(null, { status: 404 }));
     await sync.applyOutlookChange("e1");
-    expect(store.deleteLink).toHaveBeenCalledWith(ID, "visit");
+    expect(store.deleteLink).toHaveBeenCalledWith(ID, "visit", "e1");
     expect(store.setJobDate).toHaveBeenCalledWith(ID, "visit", null, "Visit removed in Outlook");
   });
 
@@ -86,7 +86,7 @@ describe("applyOutlookChange (Outlook wins when its changeKey moved)", () => {
     store.getCalendarJob.mockResolvedValue({ ...job, visitAt: new Date("2026-09-14T15:00:00Z") }); // 8 AM today
     graphFetch.mockResolvedValueOnce(new Response(null, { status: 404 }));
     await sync.applyOutlookChange("e1");
-    expect(store.deleteLink).toHaveBeenCalledWith(ID, "visit");
+    expect(store.deleteLink).toHaveBeenCalledWith(ID, "visit", "e1");
     expect(store.setJobDate).not.toHaveBeenCalled();
   });
 
@@ -97,7 +97,7 @@ describe("applyOutlookChange (Outlook wins when its changeKey moved)", () => {
     store.getCalendarJob.mockResolvedValue({ ...job, visitAt: null, installOn: "2026-09-13" });
     graphFetch.mockResolvedValueOnce(new Response(null, { status: 404 }));
     await sync.applyOutlookChange("e2");
-    expect(store.deleteLink).toHaveBeenCalledWith(ID, "install");
+    expect(store.deleteLink).toHaveBeenCalledWith(ID, "install", "e2");
     expect(store.setJobDate).not.toHaveBeenCalled();
   });
 
@@ -130,9 +130,17 @@ describe("reconcileCalendar", () => {
     store.getLinks.mockResolvedValue([link]);
     store.getCalendarJob.mockResolvedValue({ ...job, visitAt: new Date("2026-09-21T16:00:00Z") });
     graphFetch.mockResolvedValueOnce(Response.json(event())).mockResolvedValueOnce(Response.json({ changeKey: "ck2" }));
-    expect(await sync.reconcileCalendar()).toEqual({ jobs: 1, failed: 0 });
+    expect(await sync.reconcileCalendar({ clearErrorWhenClean: true })).toEqual({ jobs: 1, failed: 0 });
     expect(calls()).toContain("PATCH users/jobs@example.com/events/e1");
     expect(store.clearError).toHaveBeenCalled();
+  });
+
+  it("leaves a recorded error alone after a clean run unless asked to clear it", async () => {
+    store.reconcileTargets.mockResolvedValue([ID]);
+    store.getLinks.mockResolvedValue([link]);
+    graphFetch.mockResolvedValueOnce(Response.json(event()));
+    expect(await sync.reconcileCalendar()).toEqual({ jobs: 1, failed: 0 });
+    expect(store.clearError).not.toHaveBeenCalled();
   });
 
   it("creates events for dated jobs that have none", async () => {

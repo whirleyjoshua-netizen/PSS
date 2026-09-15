@@ -1,44 +1,47 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { clashes } from "@/lib/calendar/clash";
+import { clashes, effectiveEnd } from "@/lib/calendar/clash";
 import type { DayScheduleItem } from "@/lib/calendar/day-schedule";
+import { spanLabel } from "@/lib/calendar/labels";
 import { callDaySchedule } from "../../call-actions";
 
-type Status = "loading" | "ok" | "error";
-type Loaded = { items: DayScheduleItem[]; notice: string | null };
+/** A fetched result, tagged with the job and date it belongs to, so a stale one is never shown. */
+type Loaded =
+  | { jobId: string; date: string; ok: true; items: DayScheduleItem[]; notice: string | null }
+  | { jobId: string; date: string; ok: false };
 
 const dayLabel = (date: string) =>
   new Date(`${date}T12:00:00Z`).toLocaleDateString("en-US", { timeZone: "UTC", weekday: "short", month: "short", day: "numeric" });
 
-const timeLabel = (iso: string) =>
-  new Date(iso).toLocaleTimeString("en-US", { timeZone: "America/Los_Angeles", hour: "numeric", minute: "2-digit" });
 
 const order = (a: DayScheduleItem, b: DayScheduleItem) =>
   Number(b.allDay) - Number(a.allDay) || (a.start ? new Date(a.start).getTime() : 0) - (b.start ? new Date(b.start).getTime() : 0);
 
 export function DaySchedule({ jobId, date, slotStart }: { jobId: string; date: string; slotStart: Date | null }) {
-  const [status, setStatus] = useState<Status>("loading");
-  const [loaded, setLoaded] = useState<Loaded | null>(null);
+  const [result, setResult] = useState<Loaded | null>(null);
 
+  // State is only set in the promise callbacks; "loading" is derived from having no result for this date yet.
   useEffect(() => {
     let ignore = false;
-    setStatus("loading");
-    setLoaded(null);
-    callDaySchedule(jobId, date).then((result) => {
-      if (ignore) return;
-      if (!result.ok) { setStatus("error"); return; }
-      setLoaded({ items: result.items, notice: result.notice });
-      setStatus("ok");
-    });
+    callDaySchedule(jobId, date).then(
+      (day) => {
+        if (ignore) return;
+        setResult(day.ok ? { jobId, date, ok: true, items: day.items, notice: day.notice } : { jobId, date, ok: false });
+      },
+      () => { if (!ignore) setResult({ jobId, date, ok: false }); },
+    );
     return () => { ignore = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jobId, date]);
 
+  const current = result && result.jobId === jobId && result.date === date ? result : null;
+  const status = !current ? "loading" : current.ok ? "ok" : "error";
+  const loaded = current?.ok ? current : null;
   const items = loaded ? [...loaded.items].sort(order) : [];
-  const clashed = slotStart
-    ? items.map((item) => clashes({ allDay: item.allDay, start: item.start ? new Date(item.start) : null, end: item.end ? new Date(item.end) : null }, slotStart))
-    : items.map(() => false);
+  const timed = items.map((item) => ({
+    allDay: item.allDay, start: item.start ? new Date(item.start) : null, end: item.end ? new Date(item.end) : null,
+  }));
+  const clashed = timed.map((item) => (slotStart ? clashes(item, slotStart) : false));
   const anyClash = clashed.some(Boolean);
 
   return (
@@ -53,9 +56,9 @@ export function DaySchedule({ jobId, date, slotStart }: { jobId: string; date: s
         <ul className="flex flex-col gap-1">
           {items.map((item, i) => {
             const clash = clashed[i];
-            const label = item.allDay
-              ? `All day · ${item.title}`
-              : `${timeLabel(item.start!)} – ${timeLabel(item.end ?? new Date(new Date(item.start!).getTime() + 3_600_000).toISOString())} · ${item.title}`;
+            const { start } = timed[i];
+            const end = effectiveEnd(timed[i]);
+            const label = start && end ? `${spanLabel(start, end, date)} · ${item.title}` : `All day · ${item.title}`;
             return (
               <li key={item.key} data-clash={clash ? "true" : undefined}
                 className={`text-sm ${clash ? "border-l-4 border-overdue pl-2 text-overdue" : ""}`}>

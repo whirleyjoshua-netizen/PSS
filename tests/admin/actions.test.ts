@@ -195,6 +195,22 @@ describe("Outlook calendar sync", () => {
     expect(syncJobCalendar).toHaveBeenLastCalledWith(ID, ["visit", "install"]);
   });
 
+  it("passes the dates the form was loaded with through to the save", async () => {
+    await actions.saveDetails(ID, {}, form({
+      visitAt: "2026-09-20T10:00", visitAtLoaded: "2026-09-20T10:00", installOn: "", installOnLoaded: "2026-10-02",
+    }));
+    expect(jobs.updateDetails).toHaveBeenCalledWith(
+      ID, expect.objectContaining({ visitAtLoaded: "2026-09-20T10:00", installOnLoaded: "2026-10-02" }), "owner@example.com",
+    );
+  });
+
+  it("leaves the loaded dates out when an older form did not send them", async () => {
+    await actions.saveDetails(ID, {}, form({ visitAt: "2026-09-20T10:00" }));
+    const input = jobs.updateDetails.mock.calls[0][1];
+    expect(input.visitAtLoaded).toBeUndefined();
+    expect(input.installOnLoaded).toBeUndefined();
+  });
+
   it("syncs without pushing when a save left both dates alone", async () => {
     await actions.saveDetails(ID, {}, form({ quote: "4500" }));
     expect(syncJobCalendar).toHaveBeenCalledWith(ID, []);

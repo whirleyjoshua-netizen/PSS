@@ -34,6 +34,9 @@ export function DetailsForm({ job }: { job: Job }) {
       action={action}
       className="grid gap-4 sm:grid-cols-2"
     >
+      {/* What the dates were when this form was rendered, so an untouched date never overwrites an Outlook move. */}
+      <input type="hidden" name="visitAtLoaded" defaultValue={job.visitAt ? toLocalInput(job.visitAt) : ""} />
+      <input type="hidden" name="installOnLoaded" defaultValue={job.installOn ?? ""} />
       <label htmlFor="visitAt" className="flex flex-col gap-2 text-sm">
         Visit date and time
         <input id="visitAt" name="visitAt" type="datetime-local" className={CONTROL}

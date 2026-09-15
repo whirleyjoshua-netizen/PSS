@@ -200,4 +200,48 @@ describe("MonthView (direct render)", () => {
     render(<MonthView {...baseProps} items={[]} />);
     expect(screen.getByText("Nothing scheduled this month.")).toBeInTheDocument();
   });
+
+  it("counts only items on the displayed days", () => {
+    render(
+      <MonthView
+        {...baseProps}
+        items={[{ key: "x", day: "2026-11-02", allDay: true, start: null, end: null, title: "Elsewhere", job: null }]}
+      />,
+    );
+    expect(screen.getByText("Nothing scheduled this month.")).toBeInTheDocument();
+  });
+});
+
+describe("multi-day timed events", () => {
+  // Sun Sep 13 9:00 AM to Tue Sep 15 10:00 AM in Las Vegas; this is Monday's copy.
+  const middle = { key: "long:2026-09-14", day: "2026-09-14", allDay: false,
+    start: new Date("2026-09-13T16:00:00Z"), end: new Date("2026-09-15T17:00:00Z"), title: "Long job", job: null };
+
+  it("dates both ends on a week card for a middle-day copy", async () => {
+    const { WeekView } = await import("@/app/admin/schedule/WeekView");
+    render(<WeekView days={days} notice={null} now={NOW} items={[middle]} />);
+    const monday = within(screen.getByRole("listitem", { name: /mon 14/i }));
+    expect(monday.getByText("Sun 9:00 AM – Tue 10:00 AM")).toBeInTheDocument();
+  });
+
+  it("shows 'Continues' on a later-day month cell line but the full span in the day list", () => {
+    render(<MonthView month="2026-09" days={monthDays} notice={null} now={NOW} day="2026-09-14" items={[middle]} />);
+    const cell = screen.getByRole("link", { name: /mon, sep 14/i });
+    expect(within(cell).getByText("Continues · Long job")).toBeInTheDocument();
+    const section = within(screen.getByRole("region", { name: "Monday, September 14" }));
+    expect(section.getByText("Sun 9:00 AM – Tue 10:00 AM")).toBeInTheDocument();
+  });
+});
+
+describe("WeekView (direct render)", () => {
+  it("counts only items on the displayed days", async () => {
+    const { WeekView } = await import("@/app/admin/schedule/WeekView");
+    render(
+      <WeekView
+        days={days} notice={null} now={NOW}
+        items={[{ key: "x", day: "2026-09-12", allDay: true, start: null, end: null, title: "Last week", job: null }]}
+      />,
+    );
+    expect(screen.getByText("Nothing scheduled this week.")).toBeInTheDocument();
+  });
 });

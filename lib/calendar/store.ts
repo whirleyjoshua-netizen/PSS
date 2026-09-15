@@ -52,18 +52,27 @@ export async function saveLink(link: Link): Promise<void> {
 
 /**
  * Claims the right to create one job date's Outlook event, so two syncs running at once never both create it.
- * True when this call inserted the placeholder row; false when a link (real or claimed) already exists.
+ * Returns this claim's pending event id when this call inserted the placeholder row; null when a link
+ * (real or claimed) already exists.
  */
-export async function claimLink(leadId: string, kind: Kind): Promise<boolean> {
+export async function claimLink(leadId: string, kind: Kind): Promise<string | null> {
   const rows = await db()`
     insert into job_calendar_events (lead_id, kind, event_id, change_key, synced_at)
     values (${leadId}, ${kind}, 'pending:' || gen_random_uuid(), '', now())
-    on conflict (lead_id, kind) do nothing returning 1`;
-  return rows.length > 0;
+    on conflict (lead_id, kind) do nothing returning event_id`;
+  return rows[0] ? (rows[0].event_id as string) : null;
 }
 
-export async function deleteLink(leadId: string, kind: Kind): Promise<void> {
-  await db()`delete from job_calendar_events where lead_id = ${leadId} and kind = ${kind}`;
+/**
+ * Removes a job date's link. With an eventId, removes it only while it still holds that event,
+ * so a sync never drops a link (or claim) another sync wrote in the meantime.
+ */
+export async function deleteLink(leadId: string, kind: Kind, eventId?: string): Promise<void> {
+  if (eventId === undefined) {
+    await db()`delete from job_calendar_events where lead_id = ${leadId} and kind = ${kind}`;
+  } else {
+    await db()`delete from job_calendar_events where lead_id = ${leadId} and kind = ${kind} and event_id = ${eventId}`;
+  }
 }
 
 /** Changes a job date from Outlook and logs it, in one statement. */

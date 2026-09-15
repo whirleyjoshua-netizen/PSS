@@ -36,7 +36,17 @@ const instantOf = (time: GraphTime): Date => fromLocalInput(time.dateTime.slice(
 const formatPhone = (digits: string) =>
   digits.length === 10 ? `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}` : digits;
 
-export function newEventBody(kind: Kind, job: EventJob, value: Date | string, jobUrl: string): object {
+/** The Graph request body for a new job event. */
+export type EventBody = {
+  subject: string;
+  isAllDay: boolean;
+  start: GraphTime;
+  end: GraphTime;
+  location: { displayName: string };
+  body: { contentType: "text"; content: string };
+};
+
+export function newEventBody(kind: Kind, job: EventJob, value: Date | string, jobUrl: string): EventBody {
   const lines = [
     `Phone: ${formatPhone(job.phone)}`,
     job.email ? `Email: ${job.email}` : null,

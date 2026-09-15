@@ -38,12 +38,16 @@ Follow the steps in order. Each value you need to copy is marked **Copy this**.
 
 ### Before you start: open PowerShell and sign in
 
-1. Open **PowerShell** on a Windows computer.
-2. The first time only, install Microsoft's Exchange Online tools (answer **Y** if it
-   asks whether to trust the source):
+1. Open **PowerShell** on a Windows computer. A normal window is fine — you don't need
+   to "Run as administrator".
+2. The first time only, install Microsoft's Exchange Online tools, just for your own
+   Windows account:
    ```powershell
-   Install-Module ExchangeOnlineManagement
+   Install-Module ExchangeOnlineManagement -Scope CurrentUser
    ```
+   The first time you run this, PowerShell may ask two questions. Answer **Y** to both:
+   - whether to install the **NuGet provider** (a small helper it needs to download tools)
+   - whether to trust the **PSGallery** repository (Microsoft's official download source)
 3. Every time you come back to this step, sign in (a Microsoft sign-in window opens;
    sign in as an admin):
    ```powershell
@@ -99,7 +103,15 @@ your real values (leave out the `<` and `>`).
 
 Before any of the Outlook variables below are added to Vercel, the production database
 needs the two new calendar tables. Your developer (or Claude) runs this once, against
-the production database:
+the production database, putting the production database's address in place of
+`<production database URL>`:
+
+```
+MIGRATE_DATABASE_URL=<production database URL> node scripts/migrate.mjs
+```
+
+Or, from a copy of the code whose `.env.local` file already points at the production
+database, just run:
 
 ```
 node scripts/migrate.mjs

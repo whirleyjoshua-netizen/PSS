@@ -48,14 +48,22 @@ describe("calendar store", () => {
     expect(text(sql.mock.calls[1])).toMatch(/last_error = null/);
   });
 
-  it("claims a link with a pending id, winning only when the row is new", async () => {
-    sql.mockResolvedValueOnce([{ "?column?": 1 }]);
-    expect(await store.claimLink(ID, "visit")).toBe(true);
+  it("claims a link with a pending id, returning that id only when the row is new", async () => {
+    sql.mockResolvedValueOnce([{ event_id: "pending:abc" }]);
+    expect(await store.claimLink(ID, "visit")).toBe("pending:abc");
     const q = text(sql.mock.calls[0]);
     expect(q).toMatch(/'pending:' \|\| gen_random_uuid\(\)/);
-    expect(q).toMatch(/on conflict \(lead_id, kind\) do nothing returning 1/);
+    expect(q).toMatch(/on conflict \(lead_id, kind\) do nothing returning event_id/);
     sql.mockResolvedValueOnce([]);
-    expect(await store.claimLink(ID, "visit")).toBe(false);
+    expect(await store.claimLink(ID, "visit")).toBeNull();
+  });
+
+  it("deletes a link unconditionally, or only while it still holds a given event id", async () => {
+    await store.deleteLink(ID, "visit");
+    expect(text(sql.mock.calls[0])).not.toMatch(/event_id/);
+    await store.deleteLink(ID, "visit", "pending:abc");
+    expect(text(sql.mock.calls[1])).toMatch(/where lead_id = \? and kind = \? and event_id = \?/);
+    expect(sql.mock.calls[1]).toEqual(expect.arrayContaining([ID, "visit", "pending:abc"]));
   });
 
   it("reads each link's synced_at so an abandoned claim can be spotted", async () => {

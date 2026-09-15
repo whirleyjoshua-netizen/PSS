@@ -37,7 +37,9 @@ export default async function SettingsPage() {
           </p>
         ) : lastError ? (
           <p className="text-overdue">
-            Connected, but the last sync failed on {formatWhen(lastErrorAt!)}: {lastError}
+            {lastErrorAt
+              ? `Connected, but the last sync failed on ${formatWhen(lastErrorAt)}: ${lastError}`
+              : `Connected, but the last sync failed: ${lastError}`}
           </p>
         ) : expiresAt ? (
           <p className="text-ink-soft">Connected. Updates from Outlook are on until {formatWhen(expiresAt)}.</p>

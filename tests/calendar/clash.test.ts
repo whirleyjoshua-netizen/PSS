@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { clashes } from "@/lib/calendar/clash";
+import { clashes, effectiveEnd } from "@/lib/calendar/clash";
 
 const slotStart = new Date("2026-09-20T17:00:00Z"); // slot [17:00, 18:00) UTC
 
@@ -19,6 +19,16 @@ describe("clashes", () => {
 
   it("all-day items never clash", () => {
     expect(clashes({ allDay: true, start: null, end: null }, slotStart)).toBe(false);
+  });
+
+  it("effectiveEnd keeps a real end, falls back to start + minutes, and is null for all-day or startless items", () => {
+    const start = new Date("2026-09-20T17:00:00Z");
+    const end = new Date("2026-09-20T17:45:00Z");
+    expect(effectiveEnd({ allDay: false, start, end })).toEqual(end);
+    expect(effectiveEnd({ allDay: false, start, end: null })).toEqual(new Date("2026-09-20T18:00:00Z"));
+    expect(effectiveEnd({ allDay: false, start, end: null }, 30)).toEqual(new Date("2026-09-20T17:30:00Z"));
+    expect(effectiveEnd({ allDay: true, start: null, end: null })).toBeNull();
+    expect(effectiveEnd({ allDay: false, start: null, end: null })).toBeNull();
   });
 
   it("treats a null end as 60 minutes", () => {

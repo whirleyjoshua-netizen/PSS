@@ -31,8 +31,9 @@ async function expectOk(response: Response, what: string): Promise<Response> {
  * changeKey moved wins, and an event deleted in Outlook clears the tracker date.
  */
 export async function reconcileJob(leadId: string, pushKinds: readonly Kind[] = []): Promise<void> {
-  const mailbox = calendarConfig()!.mailbox;
-  const events = `users/${mailbox}/events`;
+  const config = calendarConfig();
+  if (!config) throw new GraphError("Outlook is not configured", 0);
+  const events = `users/${config.mailbox}/events`;
   const job = await store.getCalendarJob(leadId);
   const links = await store.getLinks(leadId);
 
@@ -42,10 +43,12 @@ export async function reconcileJob(leadId: string, pushKinds: readonly Kind[] = 
     const current = kind === "visit" ? job?.visitAt ?? null : job?.installOn ?? null;
     const wanted = job && job.status !== "lost" ? current : null;
 
-    // Only the sync that wins the claim creates the event; a failed create gives the claim back.
+    // Only the sync that wins the claim creates the event. A failed create gives back only its own claim,
+    // never a link another sync has written since.
     const create = async () => {
       if (!job || wanted === null) return;
-      if (!(await store.claimLink(leadId, kind))) return;
+      const pendingId = await store.claimLink(leadId, kind);
+      if (pendingId === null) return;
       let created: { id: string; changeKey: string };
       try {
         const response = await expectOk(
@@ -53,16 +56,23 @@ export async function reconcileJob(leadId: string, pushKinds: readonly Kind[] = 
         );
         created = (await response.json()) as { id: string; changeKey: string };
       } catch (error) {
-        await store.deleteLink(leadId, kind);
+        await store.deleteLink(leadId, kind, pendingId).catch((e) => console.error("Calendar claim release failed", e));
         throw error;
       }
-      await store.saveLink({ leadId, kind, eventId: created.id, changeKey: created.changeKey });
+      try {
+        await store.saveLink({ leadId, kind, eventId: created.id, changeKey: created.changeKey });
+      } catch (error) {
+        // Nothing would point at the new event, so the next sync would create a duplicate: remove it first.
+        await graphFetch(`${events}/${encodeURIComponent(created.id)}`, { method: "DELETE" }).catch(() => {});
+        await store.deleteLink(leadId, kind, pendingId).catch((e) => console.error("Calendar claim release failed", e));
+        throw error;
+      }
     };
 
     if (link?.eventId.startsWith("pending:")) {
       const age = Date.now() - (link.syncedAt?.getTime() ?? 0);
       if (age < CLAIM_TIMEOUT_MS) continue; // another sync is creating this event right now
-      await store.deleteLink(leadId, kind);
+      await store.deleteLink(leadId, kind, link.eventId);
       link = null;
     }
 
@@ -74,7 +84,7 @@ export async function reconcileJob(leadId: string, pushKinds: readonly Kind[] = 
     const eventPath = `${events}/${encodeURIComponent(link.eventId)}`;
     const got = await graphFetch(eventPath);
     if (got.status === 404) {
-      await store.deleteLink(leadId, kind);
+      await store.deleteLink(leadId, kind, link.eventId);
       if (push) await create();
       // Outlook drops old appointments on its own; a past date stays in the tracker as history.
       else if (current !== null && !isPast(kind, current)) {
@@ -87,7 +97,7 @@ export async function reconcileJob(leadId: string, pushKinds: readonly Kind[] = 
     if (wanted === null) {
       const removed = await graphFetch(eventPath, { method: "DELETE" });
       if (removed.status !== 404) await expectOk(removed, "delete");
-      await store.deleteLink(leadId, kind);
+      await store.deleteLink(leadId, kind, link.eventId);
       continue;
     }
 
@@ -144,8 +154,14 @@ export async function applyOutlookChange(eventId: string): Promise<void> {
   }
 }
 
-/** The daily catch-up: every recently dated job and every linked one, one at a time. */
-export async function reconcileCalendar(): Promise<{ jobs: number; failed: number }> {
+/**
+ * The catch-up: every recently dated job and every linked one, one at a time. Only the daily cron passes
+ * clearErrorWhenClean, since it is the run that owns the recorded error; another caller (the webhook's
+ * "missed" catch-up) must not wipe an error such as a subscription failure the cron recorded.
+ */
+export async function reconcileCalendar(
+  { clearErrorWhenClean = false }: { clearErrorWhenClean?: boolean } = {},
+): Promise<{ jobs: number; failed: number }> {
   const ids = await store.reconcileTargets();
   let failed = 0;
   for (const id of ids) {
@@ -156,6 +172,6 @@ export async function reconcileCalendar(): Promise<{ jobs: number; failed: numbe
       await record(error);
     }
   }
-  if (failed === 0) await store.clearError();
+  if (failed === 0 && clearErrorWhenClean) await store.clearError();
   return { jobs: ids.length, failed };
 }

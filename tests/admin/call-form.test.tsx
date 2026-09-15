@@ -72,6 +72,30 @@ describe("CallForm", () => {
     expect(callDaySchedule).toHaveBeenCalledTimes(2);
   });
 
+  it("never shows a late answer for a date that is no longer selected", async () => {
+    let answerFirst: (value: unknown) => void = () => {};
+    callDaySchedule
+      .mockReturnValueOnce(new Promise((resolve) => { answerFirst = resolve; }))
+      .mockResolvedValueOnce({ ok: true, notice: null, items: [] });
+    bookVisit("2026-09-20T10:30");
+    await waitFor(() => expect(callDaySchedule).toHaveBeenCalledTimes(1));
+    fireEvent.change(screen.getByLabelText("Visit date and time"), { target: { value: "2026-09-21T10:30" } });
+    await screen.findByText("Nothing else booked that day.");
+    answerFirst({ ok: true, notice: null,
+      items: [{ key: "old", allDay: false, start: "2026-09-20T17:00:00.000Z", end: null, title: "Stale Item" }] });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(screen.queryByText(/Stale Item/)).toBeNull();
+  });
+
+  it("shows loading again while a newly chosen date is fetched", async () => {
+    callDaySchedule.mockResolvedValueOnce({ ok: true, notice: null, items: [] }).mockReturnValueOnce(new Promise(() => {}));
+    bookVisit("2026-09-20T10:30");
+    await screen.findByText("Nothing else booked that day.");
+    fireEvent.change(screen.getByLabelText("Visit date and time"), { target: { value: "2026-09-21T10:30" } });
+    expect(await screen.findByText("Loading that day…")).toBeInTheDocument();
+    expect(screen.queryByText("Nothing else booked that day.")).toBeNull();
+  });
+
   it("shows the overlap line and per-item clash text on a clash", async () => {
     callDaySchedule.mockResolvedValue({
       ok: true, notice: null,
@@ -80,6 +104,25 @@ describe("CallForm", () => {
     bookVisit("2026-09-20T10:30");
     await screen.findByText("This time overlaps something already booked.");
     expect(screen.getByText(/Visit · Other Job — clashes with this time/)).toBeTruthy();
+  });
+
+  it("labels an item with no end as lasting an hour", async () => {
+    callDaySchedule.mockResolvedValue({
+      ok: true, notice: null,
+      items: [{ key: "x", allDay: false, start: "2026-09-20T17:00:00.000Z", end: null, title: "No End" }],
+    });
+    bookVisit("2026-09-20T08:00");
+    expect(await screen.findByText("10:00 AM – 11:00 AM · No End")).toBeInTheDocument();
+  });
+
+  it("dates both ends of an event that runs through the selected day", async () => {
+    callDaySchedule.mockResolvedValue({
+      ok: true, notice: null,
+      // Sat Sep 19 9:00 AM to Mon Sep 21 10:00 AM in Las Vegas.
+      items: [{ key: "long", allDay: false, start: "2026-09-19T16:00:00.000Z", end: "2026-09-21T17:00:00.000Z", title: "Long" }],
+    });
+    bookVisit("2026-09-20T10:30");
+    expect(await screen.findByText("Sat 9:00 AM – Mon 10:00 AM · Long — clashes with this time")).toBeInTheDocument();
   });
 
   it("shows the notice under the heading", async () => {
