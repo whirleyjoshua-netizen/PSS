@@ -80,6 +80,8 @@ export async function saveDetails(id: string, _prev: FormState, formData: FormDa
     orderedOn: formData.get("orderedOn") ?? "",
     installOn: formData.get("installOn") ?? "",
     budget: formData.get("budget") ?? "",
+    visitAtLoaded: formData.get("visitAtLoaded") ?? undefined,
+    installOnLoaded: formData.get("installOnLoaded") ?? undefined,
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message, values };
   const result = await updateDetails(id, parsed.data, email);

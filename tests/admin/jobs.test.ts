@@ -116,6 +116,51 @@ describe("changing jobs", () => {
     expect(statement).toContain("insert into job_events");
   });
 
+  describe("updateDetails with the dates the form was loaded with", () => {
+    const base = { quoteCents: null, soldCents: null, depositCents: null, brands: [], orderedOn: null, budgetTier: null };
+    const visitAt = new Date("2026-09-20T17:00:00Z"); // 10:00 AM in Las Vegas
+
+    it("leaves an unedited date alone, even when the stored one has moved, and reports no change", async () => {
+      // The stored dates differ (Outlook moved them after the form was opened).
+      sql.mockResolvedValue([{ visit_changed: true, install_changed: true }]);
+      const result = await jobs.updateDetails(ID, {
+        ...base, visitAt, visitAtLoaded: "2026-09-20T10:00", installOn: "2026-10-02", installOnLoaded: "2026-10-02",
+      }, "owner@example.com");
+      expect(result).toEqual({ visitChanged: false, installChanged: false });
+      const statement = text(sql.mock.calls[0]).replace(/\s+/g, " ");
+      expect(statement).toMatch(/visit_at = case when \?::boolean then \?::timestamptz else visit_at end/);
+      expect(statement).toMatch(/install_on = case when \?::boolean then \?::date else install_on end/);
+      expect(sql.mock.calls[0].slice(1).filter((value: unknown) => typeof value === "boolean")).not.toContain(true);
+    });
+
+    it("writes and reports a date the owner edited", async () => {
+      sql.mockResolvedValue([{ visit_changed: true, install_changed: false }]);
+      const result = await jobs.updateDetails(ID, {
+        ...base, visitAt, visitAtLoaded: "2026-09-19T09:00", installOn: null, installOnLoaded: "",
+      }, "owner@example.com");
+      expect(result).toEqual({ visitChanged: true, installChanged: false });
+      const flags = sql.mock.calls[0].slice(1).filter((value: unknown) => typeof value === "boolean");
+      expect(flags).toContain(true); // visit is written
+      expect(flags).toContain(false); // install was not edited
+    });
+
+    it("treats a cleared date as an edit", async () => {
+      sql.mockResolvedValue([{ visit_changed: true, install_changed: false }]);
+      const result = await jobs.updateDetails(ID, {
+        ...base, visitAt: null, visitAtLoaded: "2026-09-20T10:00", installOn: null, installOnLoaded: "",
+      }, "owner@example.com");
+      expect(result).toEqual({ visitChanged: true, installChanged: false });
+    });
+
+    it("writes both dates, as before, when the loaded values are absent", async () => {
+      sql.mockResolvedValue([{ visit_changed: true, install_changed: true }]);
+      const result = await jobs.updateDetails(ID, { ...base, visitAt, installOn: "2026-10-02" }, "owner@example.com");
+      expect(result).toEqual({ visitChanged: true, installChanged: true });
+      const flags = sql.mock.calls[0].slice(1).filter((value: unknown) => typeof value === "boolean");
+      expect(flags).not.toContain(false);
+    });
+  });
+
   it("updateDetails returns null when the job does not exist", async () => {
     sql.mockResolvedValue([]);
     const result = await jobs.updateDetails(
