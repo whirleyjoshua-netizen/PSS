@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const requireAdmin = vi.fn();
 vi.mock("@/lib/admin/session", () => ({ requireAdmin }));
-const jobs = { setStage: vi.fn(), updateDetails: vi.fn(), addNote: vi.fn(), createJob: vi.fn(), getJob: vi.fn() };
+const jobs = { setStage: vi.fn(), updateDetails: vi.fn(), addNote: vi.fn(), createJob: vi.fn(), getJob: vi.fn(), assignJob: vi.fn() };
 vi.mock("@/lib/admin/jobs", () => jobs);
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 const redirect = vi.fn(() => { throw new Error("NEXT_REDIRECT"); });
@@ -26,6 +26,7 @@ vi.mock("@/lib/calendar/sync", () => ({ syncJobCalendar }));
 
 const actions = await import("@/app/admin/jobs/actions");
 const ID = "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c";
+const MEMBER = "4a3c9d2f-9d63-4b64-8b2d-2e3f4a5b6c7d";
 const form = (entries: Record<string, string | string[]>) => {
   const data = new FormData();
   for (const [key, value] of Object.entries(entries)) [value].flat().forEach((v) => data.append(key, v));
@@ -64,6 +65,7 @@ describe("without a session", () => {
     ["saveReviewOptOut", () => actions.saveReviewOptOut(ID, true)],
     ["createReferralLink", () => actions.createReferralLink(ID, {}, form({}))],
     ["payReferral", () => actions.payReferral(ID, ID, {}, form({}))],
+    ["assignJobAction", () => actions.assignJobAction(ID, {}, form({ assignedTo: MEMBER }))],
   ])("%s touches nothing", async (_name, run) => {
     await expect(run()).rejects.toThrow("NEXT_REDIRECT");
     [...Object.values(jobs), ...Object.values(referrals), sendReviewRequest, ...Object.values(reviewsDb), syncJobCalendar]
@@ -196,6 +198,35 @@ describe("referrals and reviews", () => {
     expect(referrals.markReferralPaid).toHaveBeenCalledWith("r1", "owner@example.com");
     referrals.markReferralPaid.mockResolvedValue(false);
     expect((await actions.payReferral("r1", ID, {}, form({}))).error).toMatch(/not owed/i);
+  });
+});
+
+describe("assignJobAction", () => {
+  it("checks the session first, and '' unassigns", async () => {
+    jobs.assignJob.mockResolvedValue("ok");
+    const data = form({ assignedTo: "" });
+    expect(await actions.assignJobAction(ID, {}, data)).toEqual({});
+    expect(requireAdmin).toHaveBeenCalled();
+    expect(jobs.assignJob).toHaveBeenCalledWith(ID, null, "owner@example.com");
+  });
+
+  it("passes the chosen person through", async () => {
+    jobs.assignJob.mockResolvedValue("ok");
+    expect(await actions.assignJobAction(ID, {}, form({ assignedTo: MEMBER }))).toEqual({});
+    expect(jobs.assignJob).toHaveBeenCalledWith(ID, MEMBER, "owner@example.com");
+  });
+
+  it("treats an unchanged assignment as a success", async () => {
+    jobs.assignJob.mockResolvedValue("unchanged");
+    expect(await actions.assignJobAction(ID, {}, form({ assignedTo: MEMBER }))).toEqual({});
+  });
+
+  it("explains a removed person and a missing job", async () => {
+    const data = form({ assignedTo: MEMBER });
+    jobs.assignJob.mockResolvedValue("unknown-member");
+    expect(await actions.assignJobAction(ID, {}, data)).toEqual({ error: "That person is no longer on the team." });
+    jobs.assignJob.mockResolvedValue("missing");
+    expect(await actions.assignJobAction(ID, {}, data)).toEqual({ error: "That job no longer exists." });
   });
 });
 

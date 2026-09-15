@@ -351,6 +351,57 @@ describe("changing jobs", () => {
   });
 });
 
+describe("assigning jobs", () => {
+  const MEMBER = "4a3c9d2f-9d63-4b64-8b2d-2e3f4a5b6c7d";
+
+  it("maps the assignee fields", async () => {
+    sql.query.mockResolvedValue([{ ...row, assigned_to: MEMBER, assigned_name: "Shade", assigned_role: "designer" }]);
+    const [job] = await jobs.listJobs({});
+    expect(job).toMatchObject({ assignedTo: MEMBER, assignedName: "Shade", assignedRole: "designer" });
+  });
+
+  it("maps an unassigned job to nulls", async () => {
+    sql.query.mockResolvedValue([row]);
+    const [job] = await jobs.listJobs({});
+    expect(job).toMatchObject({ assignedTo: null, assignedName: null, assignedRole: null });
+  });
+
+  it("selects the assignee's name and role with the job", () => {
+    expect(jobs.JOB_COLUMNS).toContain("assigned_to");
+    expect(jobs.JOB_COLUMNS).toContain("as assigned_name");
+    expect(jobs.JOB_COLUMNS).toContain("as assigned_role");
+  });
+
+  it("assigns, logging who it went to", async () => {
+    sql.mockResolvedValue([{ job: 1, member: 1, changed: 1 }]);
+    expect(await jobs.assignJob(ID, MEMBER, "owner@example.com")).toBe("ok");
+    const statement = text(sql.mock.calls[0]);
+    expect(statement).toContain("assigned_to is distinct from");
+    expect(statement).toContain("'Assigned to ' || name || ' (' || initcap(role) || ')'");
+    expect(statement).toContain("'Unassigned'");
+  });
+
+  it("unassigns with null", async () => {
+    sql.mockResolvedValue([{ job: 1, member: 0, changed: 1 }]);
+    expect(await jobs.assignJob(ID, null, "owner@example.com")).toBe("ok");
+  });
+
+  it("reports a missing job, an unknown person and a no-op", async () => {
+    sql.mockResolvedValue([{ job: 0, member: 1, changed: 0 }]);
+    expect(await jobs.assignJob(ID, MEMBER, "o")).toBe("missing");
+    sql.mockResolvedValue([{ job: 1, member: 0, changed: 0 }]);
+    expect(await jobs.assignJob(ID, MEMBER, "o")).toBe("unknown-member");
+    sql.mockResolvedValue([{ job: 1, member: 1, changed: 0 }]);
+    expect(await jobs.assignJob(ID, MEMBER, "o")).toBe("unchanged");
+  });
+
+  it("refuses bad ids without touching the database", async () => {
+    expect(await jobs.assignJob("nope", MEMBER, "o")).toBe("missing");
+    expect(await jobs.assignJob(ID, "nope", "o")).toBe("unknown-member");
+    expect(sql).not.toHaveBeenCalled();
+  });
+});
+
 describe("searching jobs", () => {
   it("keeps the plain query when there is no search", async () => {
     await jobs.listJobs({ search: "   " });

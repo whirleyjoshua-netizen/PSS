@@ -6,7 +6,7 @@ import { after } from "next/server";
 import type { Kind } from "@/lib/calendar/events";
 import { syncJobCalendar } from "@/lib/calendar/sync";
 import { requireAdmin } from "@/lib/admin/session";
-import { addNote, createJob, getJob, setStage, updateDetails } from "@/lib/admin/jobs";
+import { addNote, assignJob, createJob, getJob, setStage, updateDetails } from "@/lib/admin/jobs";
 import { detailsSchema, lostSchema, newJobSchema, noteSchema } from "@/lib/admin/schema";
 import { isInstalled, type Stage } from "@/lib/admin/stages";
 import { autoInvite, sendPortalInvite } from "@/lib/portal/invite";
@@ -173,6 +173,18 @@ export async function sendPortalInviteNow(id: string, _prev: FormState, _formDat
   }
   refresh(id);
   return { ok: true };
+}
+
+/** An empty choice unassigns. An assignment that changed nothing is still a success. */
+export async function assignJobAction(id: string, _prev: FormState, formData: FormData): Promise<FormState> {
+  const { email } = await requireAdmin();
+  const raw = formData.get("assignedTo");
+  const memberId = typeof raw === "string" && raw !== "" ? raw : null;
+  const result = await assignJob(id, memberId, email);
+  if (result === "missing") return MISSING;
+  if (result === "unknown-member") return { error: "That person is no longer on the team." };
+  refresh(id);
+  return {};
 }
 
 export async function payReferral(

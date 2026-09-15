@@ -6,6 +6,7 @@ import { isInstalled, isStage, type Stage } from "./stages";
 import { toLocalInput } from "./time";
 import { isFinish, type Finish } from "@/lib/leads/finish";
 import { isTreatmentType, type TreatmentType } from "@/lib/leads/treatment-types";
+import type { TeamRole } from "./team-roles";
 
 export type Job = {
   id: string;
@@ -50,6 +51,10 @@ export type Job = {
   finish?: Finish | null;
   /** Newest contact entry or logged call. Optional so older fixtures still type-check. */
   lastContactAt?: Date | null;
+  /** Who the job is assigned to, with their name and tag; absent or null when unassigned. */
+  assignedTo?: string | null;
+  assignedName?: string | null;
+  assignedRole?: TeamRole | null;
 };
 
 export type JobEvent = {
@@ -71,6 +76,9 @@ export const JOB_COLUMNS = `id, created_at, name, phone, email, address, city, t
   deposit_cents, brands, ordered_on::text as ordered_on, install_on::text as install_on, lost_reason,
   referral_code, referred_by, referral_paid_at, review_requested_at, review_opt_out, portal_invited_at, budget_tier,
   follow_up_at, follow_up_note, window_count_exact, treatment_types, motorized, gate_code, finish,
+  assigned_to,
+  (select t.name from team_members t where t.id = leads.assigned_to) as assigned_name,
+  (select t.role from team_members t where t.id = leads.assigned_to) as assigned_role,
   (select max(e.created_at) from job_events e where e.lead_id = leads.id and (e.kind = 'contact' or (e.kind = 'note' and e.body like 'Call:%'))) as last_contact_at`;
 
 export function toJob(row: Record<string, unknown>): Job {
@@ -112,6 +120,9 @@ export function toJob(row: Record<string, unknown>): Job {
     gateCode: (row.gate_code as string | null) ?? null,
     finish: isFinish(row.finish) ? row.finish : null,
     lastContactAt: row.last_contact_at ? new Date(row.last_contact_at as string) : null,
+    assignedTo: (row.assigned_to as string | null) ?? null,
+    assignedName: (row.assigned_name as string | null) ?? null,
+    assignedRole: (row.assigned_role as TeamRole | null) ?? null,
   };
 }
 
@@ -256,6 +267,35 @@ export async function addContact(id: string, body: string, actor: string): Promi
     select id, ${actor}, 'contact', ${body} from leads where id = ${id}
     returning id`;
   return rows.length > 0;
+}
+
+export type AssignResult = "ok" | "missing" | "unknown-member" | "unchanged";
+
+/** Assigns a job to one team member (or nobody) and logs it, in one statement. */
+export async function assignJob(id: string, memberId: string | null, actor: string): Promise<AssignResult> {
+  if (!isUuid(id)) return "missing";
+  if (memberId !== null && !isUuid(memberId)) return "unknown-member";
+  const [result] = await db()`
+    with member as (select id, name, role from team_members where id = ${memberId}::uuid),
+    target as (select id from leads where id = ${id}),
+    changed as (
+      update leads set assigned_to = ${memberId}::uuid, updated_at = now()
+      where id = ${id} and assigned_to is distinct from ${memberId}::uuid
+        and (${memberId}::uuid is null or exists (select 1 from member))
+      returning id
+    ),
+    logged as (
+      insert into job_events (lead_id, actor, kind, body)
+      select id, ${actor}, 'edit',
+        coalesce((select 'Assigned to ' || name || ' (' || initcap(role) || ')' from member), 'Unassigned')
+      from changed
+      returning id
+    )
+    select (select count(*) from target)::int as job, (select count(*) from member)::int as member,
+           (select count(*) from changed)::int as changed`;
+  if (!result?.job) return "missing";
+  if (memberId !== null && !result.member) return "unknown-member";
+  return result.changed ? "ok" : "unchanged";
 }
 
 export async function createJob(input: NewJobInput, actor: string): Promise<string> {
