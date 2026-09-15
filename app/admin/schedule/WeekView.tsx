@@ -42,7 +42,7 @@ export function WeekView({
       </header>
 
       {notice ? <p role="status" className="text-sm text-ink-soft">{notice}</p> : null}
-      {items.length === 0 ? <p className="text-sm text-ink-soft">Nothing scheduled this week.</p> : null}
+      {items.some((item) => days.includes(item.day)) ? null : <p className="text-sm text-ink-soft">Nothing scheduled this week.</p>}
 
       <ol className="grid gap-3 md:grid-cols-7">
         {days.map((day) => {

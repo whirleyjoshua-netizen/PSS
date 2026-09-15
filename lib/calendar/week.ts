@@ -40,6 +40,25 @@ export function rangeLabel(days: string[]): string {
   return `${fmt(a, { month: "short", day: "numeric" })} – ${end}, ${a.slice(0, 4)}`;
 }
 
+/**
+ * The displayed days an Outlook event covers. An all-day event covers its start date up to, not including,
+ * its end date; a timed one every Las Vegas date from its start instant up to, not including, its end
+ * instant, so an event ending exactly at midnight stays on one day.
+ */
+function coveredDays(event: GraphEvent, days: string[]): string[] {
+  const first = event.start.dateTime.slice(0, 10);
+  let last = first;
+  if (event.isAllDay === true) {
+    const end = event.end.dateTime.slice(0, 10);
+    if (end > first) last = addDays(end, -1);
+  } else {
+    const start = fromLocalInput(event.start.dateTime.slice(0, 16));
+    const end = fromLocalInput(event.end.dateTime.slice(0, 16));
+    if (end > start) last = lasVegasDate(new Date(end.getTime() - 1));
+  }
+  return days.filter((day) => day >= first && day <= last);
+}
+
 const order = (a: ScheduleItem, b: ScheduleItem) =>
   a.day.localeCompare(b.day) || Number(b.allDay) - Number(a.allDay) || (a.start?.getTime() ?? 0) - (b.start?.getTime() ?? 0);
 
@@ -70,7 +89,8 @@ async function trackerItems(days: string[], from: Date, to: Date): Promise<Sched
 async function loadRange(days: string[]): Promise<{ items: ScheduleItem[]; source: "outlook" | "tracker"; notice: string | null }> {
   const from = fromLocalInput(`${days[0]}T00:00`);
   const to = fromLocalInput(`${nextDay(days[days.length - 1])}T00:00`);
-  const tracker = (await trackerItems(days, from, to)).sort(order);
+  const displayed = new Set(days);
+  const tracker = (await trackerItems(days, from, to)).filter((item) => displayed.has(item.day)).sort(order);
   if (!calendarEnabled()) return { items: tracker, source: "tracker", notice: "Outlook isn't connected yet." };
   try {
     const mailbox = calendarConfig()!.mailbox;
@@ -92,17 +112,19 @@ async function loadRange(days: string[]): Promise<{ items: ScheduleItem[]; sourc
           from job_calendar_events l join leads j on j.id = l.lead_id where l.event_id = any(${ids})`
       : [];
     const byEvent = new Map(links.map((row) => [row.event_id as string, row]));
-    const items = value.map((event): ScheduleItem => {
+    // One copy per displayed day the event covers; each copy keeps the event's real start and end.
+    const items = value.flatMap((event): ScheduleItem[] => {
       const link = byEvent.get(event.id);
       const allDay = event.isAllDay === true;
-      return {
-        key: event.id, day: event.start.dateTime.slice(0, 10), allDay,
+      const base = {
+        allDay,
         start: allDay ? null : fromLocalInput(event.start.dateTime.slice(0, 16)),
         end: allDay ? null : fromLocalInput(event.end.dateTime.slice(0, 16)),
         title: event.subject || "(no title)",
         job: link ? { id: link.id as string, name: link.name as string, city: link.city as string,
           status: link.status as Stage, kind: link.kind as "visit" | "install" } : null,
       };
+      return coveredDays(event, days).map((day) => ({ key: `${event.id}:${day}`, day, ...base }));
     });
     return { items: items.sort(order), source: "outlook", notice: null };
   } catch (error) {

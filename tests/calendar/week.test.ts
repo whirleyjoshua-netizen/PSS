@@ -202,6 +202,54 @@ describe("getWeek", () => {
     expect(String(graphJson.mock.calls[0][0])).toMatch(/^users\/jobs@example.com\/calendar\/calendarView\?startDateTime=2026-09-13T07:00:00.000Z&endDateTime=2026-09-20T07:00:00.000Z/);
   });
 
+  describe("events covering more than one day", () => {
+    const outlook = (events: unknown[]) => {
+      enabled.mockReturnValue(true);
+      graphJson.mockResolvedValue({ value: events });
+      sql.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+    };
+
+    it("shows a 3-day all-day event on all 3 days, each copy with its own key", async () => {
+      outlook([{ id: "trip", changeKey: "c", subject: "Trip", isAllDay: true,
+        start: { dateTime: "2026-09-15T00:00:00.0000000", timeZone: PST }, end: { dateTime: "2026-09-18T00:00:00.0000000", timeZone: PST } }]);
+      const result = await week.getWeek(undefined, NOW);
+      expect(result.items.map((i) => [i.key, i.day])).toEqual([
+        ["trip:2026-09-15", "2026-09-15"], ["trip:2026-09-16", "2026-09-16"], ["trip:2026-09-17", "2026-09-17"],
+      ]);
+    });
+
+    it("shows an event that started the week before on this week's first day, keeping its real times", async () => {
+      outlook([{ id: "long", changeKey: "c", subject: "Long job", isAllDay: false,
+        start: { dateTime: "2026-09-11T09:00:00.0000000", timeZone: PST }, end: { dateTime: "2026-09-13T10:00:00.0000000", timeZone: PST } }]);
+      const result = await week.getWeek(undefined, NOW);
+      expect(result.items).toEqual([expect.objectContaining({
+        key: "long:2026-09-13", day: "2026-09-13",
+        start: new Date("2026-09-11T16:00:00Z"), end: new Date("2026-09-13T17:00:00Z"),
+      })]);
+    });
+
+    it("keeps an event ending exactly at midnight on one day", async () => {
+      outlook([{ id: "late", changeKey: "c", subject: "Late", isAllDay: false,
+        start: { dateTime: "2026-09-15T22:00:00.0000000", timeZone: PST }, end: { dateTime: "2026-09-16T00:00:00.0000000", timeZone: PST } }]);
+      const result = await week.getWeek(undefined, NOW);
+      expect(result.items.map((i) => i.day)).toEqual(["2026-09-15"]);
+    });
+
+    it("never returns copies for days outside the displayed range", async () => {
+      outlook([{ id: "big", changeKey: "c", subject: "Big", isAllDay: true,
+        start: { dateTime: "2026-09-01T00:00:00.0000000", timeZone: PST }, end: { dateTime: "2026-10-10T00:00:00.0000000", timeZone: PST } }]);
+      const result = await week.getWeek(undefined, NOW);
+      expect(result.items.map((i) => i.day)).toEqual(result.days);
+    });
+
+    it("getDay includes a multi-day event on a middle day", async () => {
+      outlook([{ id: "trip", changeKey: "c", subject: "Trip", isAllDay: true,
+        start: { dateTime: "2026-09-15T00:00:00.0000000", timeZone: PST }, end: { dateTime: "2026-09-18T00:00:00.0000000", timeZone: PST } }]);
+      const result = await week.getDay("2026-09-16");
+      expect(result.items).toEqual([expect.objectContaining({ key: "trip:2026-09-16", day: "2026-09-16", allDay: true })]);
+    });
+  });
+
   it("falls back to tracker dates when Outlook can't be reached", async () => {
     enabled.mockReturnValue(true);
     graphJson.mockRejectedValue(new Error("down"));

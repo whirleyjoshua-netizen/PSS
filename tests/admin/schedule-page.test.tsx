@@ -200,4 +200,27 @@ describe("MonthView (direct render)", () => {
     render(<MonthView {...baseProps} items={[]} />);
     expect(screen.getByText("Nothing scheduled this month.")).toBeInTheDocument();
   });
+
+  it("counts only items on the displayed days", () => {
+    render(
+      <MonthView
+        {...baseProps}
+        items={[{ key: "x", day: "2026-11-02", allDay: true, start: null, end: null, title: "Elsewhere", job: null }]}
+      />,
+    );
+    expect(screen.getByText("Nothing scheduled this month.")).toBeInTheDocument();
+  });
+});
+
+describe("WeekView (direct render)", () => {
+  it("counts only items on the displayed days", async () => {
+    const { WeekView } = await import("@/app/admin/schedule/WeekView");
+    render(
+      <WeekView
+        days={days} notice={null} now={NOW}
+        items={[{ key: "x", day: "2026-09-12", allDay: true, start: null, end: null, title: "Last week", job: null }]}
+      />,
+    );
+    expect(screen.getByText("Nothing scheduled this week.")).toBeInTheDocument();
+  });
 });

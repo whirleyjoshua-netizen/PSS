@@ -65,7 +65,7 @@ export function MonthView({
       </header>
 
       {notice ? <p role="status" className="text-sm text-ink-soft">{notice}</p> : null}
-      {items.length === 0 ? <p className="text-sm text-ink-soft">Nothing scheduled this month.</p> : null}
+      {items.some((item) => days.includes(item.day)) ? null : <p className="text-sm text-ink-soft">Nothing scheduled this month.</p>}
 
       <ol className="grid grid-cols-7 gap-1 text-center text-xs font-semibold uppercase tracking-wide text-ink-soft">
         {WEEKDAY_NAMES.map((name) => <li key={name}>{name}</li>)}
