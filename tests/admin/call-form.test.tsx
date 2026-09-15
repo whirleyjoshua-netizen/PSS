@@ -106,6 +106,15 @@ describe("CallForm", () => {
     expect(screen.getByText(/Visit · Other Job — clashes with this time/)).toBeTruthy();
   });
 
+  it("labels an item with no end as lasting an hour", async () => {
+    callDaySchedule.mockResolvedValue({
+      ok: true, notice: null,
+      items: [{ key: "x", allDay: false, start: "2026-09-20T17:00:00.000Z", end: null, title: "No End" }],
+    });
+    bookVisit("2026-09-20T08:00");
+    expect(await screen.findByText("10:00 AM – 11:00 AM · No End")).toBeInTheDocument();
+  });
+
   it("shows the notice under the heading", async () => {
     callDaySchedule.mockResolvedValue({ ok: true, notice: "Outlook isn't connected yet.", items: [] });
     bookVisit("2026-09-20T10:30");

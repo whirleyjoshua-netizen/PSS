@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { clashes } from "@/lib/calendar/clash";
+import { clashes, effectiveEnd } from "@/lib/calendar/clash";
 import type { DayScheduleItem } from "@/lib/calendar/day-schedule";
 import { callDaySchedule } from "../../call-actions";
 
@@ -13,8 +13,8 @@ type Loaded =
 const dayLabel = (date: string) =>
   new Date(`${date}T12:00:00Z`).toLocaleDateString("en-US", { timeZone: "UTC", weekday: "short", month: "short", day: "numeric" });
 
-const timeLabel = (iso: string) =>
-  new Date(iso).toLocaleTimeString("en-US", { timeZone: "America/Los_Angeles", hour: "numeric", minute: "2-digit" });
+const timeLabel = (date: Date) =>
+  date.toLocaleTimeString("en-US", { timeZone: "America/Los_Angeles", hour: "numeric", minute: "2-digit" });
 
 const order = (a: DayScheduleItem, b: DayScheduleItem) =>
   Number(b.allDay) - Number(a.allDay) || (a.start ? new Date(a.start).getTime() : 0) - (b.start ? new Date(b.start).getTime() : 0);
@@ -39,9 +39,10 @@ export function DaySchedule({ jobId, date, slotStart }: { jobId: string; date: s
   const status = !current ? "loading" : current.ok ? "ok" : "error";
   const loaded = current?.ok ? current : null;
   const items = loaded ? [...loaded.items].sort(order) : [];
-  const clashed = slotStart
-    ? items.map((item) => clashes({ allDay: item.allDay, start: item.start ? new Date(item.start) : null, end: item.end ? new Date(item.end) : null }, slotStart))
-    : items.map(() => false);
+  const timed = items.map((item) => ({
+    allDay: item.allDay, start: item.start ? new Date(item.start) : null, end: item.end ? new Date(item.end) : null,
+  }));
+  const clashed = timed.map((item) => (slotStart ? clashes(item, slotStart) : false));
   const anyClash = clashed.some(Boolean);
 
   return (
@@ -56,9 +57,9 @@ export function DaySchedule({ jobId, date, slotStart }: { jobId: string; date: s
         <ul className="flex flex-col gap-1">
           {items.map((item, i) => {
             const clash = clashed[i];
-            const label = item.allDay
-              ? `All day · ${item.title}`
-              : `${timeLabel(item.start!)} – ${timeLabel(item.end ?? new Date(new Date(item.start!).getTime() + 3_600_000).toISOString())} · ${item.title}`;
+            const { start } = timed[i];
+            const end = effectiveEnd(timed[i]);
+            const label = start && end ? `${timeLabel(start)} – ${timeLabel(end)} · ${item.title}` : `All day · ${item.title}`;
             return (
               <li key={item.key} data-clash={clash ? "true" : undefined}
                 className={`text-sm ${clash ? "border-l-4 border-overdue pl-2 text-overdue" : ""}`}>
