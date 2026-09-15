@@ -28,9 +28,9 @@ const job: Job = {
 };
 
 describe("job page", () => {
-  it("offers the next stage as the main button", () => {
+  it("offers Set stage as a control", () => {
     render(<StageControls job={job} />);
-    expect(screen.getByRole("button", { name: "Move to Sold" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Set stage")).toBeInTheDocument();
   });
 
   it("offers no next step once a job is installed", () => {
@@ -94,7 +94,7 @@ describe("job page", () => {
     expect(screen.getByLabelText("Budget")).toHaveValue("mid");
   });
 
-  it("makes the next-stage button full width with a decorative icon", () => {
+  it("makes the move-to-next-stage button full width with a decorative icon", () => {
     render(<StageControls job={job} />);
     const button = screen.getByRole("button", { name: "Move to Sold" });
     expect(button.className).toContain("w-full");
@@ -109,7 +109,7 @@ describe("job page", () => {
     expect(screen.getByLabelText(/mark lost/i)).toBeInTheDocument();
   });
 
-  it("still renders every stage-control part by default", () => {
+  it("still renders every stage-control part by default, including the unused move button", () => {
     render(<StageControls job={job} />);
     expect(screen.getByText("Stage:")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Move to Sold" })).toBeInTheDocument();

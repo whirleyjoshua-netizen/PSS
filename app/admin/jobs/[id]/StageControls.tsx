@@ -12,8 +12,9 @@ const ALL_PARTS: readonly StagePart[] = ["status", "move", "set", "lost"];
 
 /**
  * The stage line, next-stage button, set-stage select and mark-lost form.
- * The board's side panel shows all four; the job page splits them between
- * the Next action card and the header's More menu.
+ * The board's side panel shows the status line, Set stage and Mark lost; the
+ * job page's "More actions" menu shows Set stage and Mark lost under
+ * "Change stage…".
  */
 export function StageControls({ job, parts = ALL_PARTS }: { job: Job; parts?: readonly StagePart[] }) {
   const show = (part: StagePart) => parts.includes(part);

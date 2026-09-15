@@ -75,6 +75,8 @@ describe("client panel", () => {
     expect(stage).toHaveTextContent("Visit—");
     expect(stage).toHaveTextContent("2 days in stage");
     expect(stage).not.toHaveTextContent("Overdue");
+    expect(within(stage).getByLabelText("Set stage")).toBeInTheDocument();
+    expect(within(stage).queryByRole("button", { name: /^Move to/ })).toBeNull();
   });
 
   it("flags an overdue job in the stage section", () => {

@@ -32,7 +32,7 @@ test.afterAll(async () => {
   await sql()`delete from admin_sessions where email = ${OWNER}`;
 });
 
-test("logging a booked call from a computer moves the lead to Visit booked", async ({ page }) => {
+test("logging a booked call from a computer moves the lead to Appointment booked", async ({ page }) => {
   const id = await lead(`E2E Call Booked ${STAMP}`, "new");
   await signIn(page);
   await page.goto(`/admin/jobs/${id}`);

@@ -83,7 +83,7 @@ export function JobPanel({ job, measurements, files, now, closeHref }: {
       </Section>
 
       <Section title="Stage and dates">
-        <StageControls job={job} />
+        <StageControls job={job} parts={["status", "set", "lost"]} />
         <dl className="grid grid-cols-[8rem_1fr] gap-y-1 text-sm">
           <Row label="Visit" value={job.visitAt ? formatWhen(job.visitAt) : "—"} />
           <Row label="Order" value={job.orderedOn ?? "—"} />
