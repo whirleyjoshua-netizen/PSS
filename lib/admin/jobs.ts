@@ -209,7 +209,9 @@ export async function updateDetails(
         sold_cents = ${input.soldCents}, deposit_cents = ${input.depositCents},
         brands = ${input.brands}, ordered_on = ${input.orderedOn}::date,
         install_on = case when ${installEdited}::boolean then ${input.installOn}::date else install_on end,
-        budget_tier = ${input.budgetTier}, updated_at = now()
+        budget_tier = ${input.budgetTier},
+        window_count_exact = ${input.windowCountExact}, treatment_types = ${input.treatmentTypes}::text[], motorized = ${input.motorized}, gate_code = ${input.gateCode},
+        updated_at = now()
       where id = ${id}
       returning id
     ),

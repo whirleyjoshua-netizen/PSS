@@ -39,6 +39,10 @@ export const detailsSchema = z
     orderedOn: day,
     installOn: day,
     budget: z.preprocess(blank, z.enum(BUDGET_TIERS, { error: "Pick a budget tier" }).optional()),
+    windowCountExact: windowCountExactField,
+    treatmentTypes: treatmentTypesField,
+    motorized: z.boolean().default(false),
+    gateCode: gateCodeField,
     // The dates the form was rendered with, in the visible inputs' formats. Absent from older forms.
     visitAtLoaded: z.string().optional(),
     installOnLoaded: z.string().optional(),

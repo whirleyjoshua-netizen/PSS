@@ -29,6 +29,7 @@ describe("detailsSchema", () => {
       quoteCents: 450000, soldCents: null, depositCents: 225000,
       brands: ["Alta Window Fashions"], orderedOn: null, installOn: "2027-01-10",
       budgetTier: null,
+      windowCountExact: null, treatmentTypes: [], motorized: false, gateCode: null,
     });
   });
 
@@ -52,6 +53,18 @@ describe("detailsSchema budget", () => {
   });
   it("rejects an unknown tier", () => {
     expect(detailsSchema.safeParse({ budget: "luxury" }).success).toBe(false);
+  });
+});
+
+describe("detailsSchema questionnaire fields", () => {
+  it("parses exact windows, treatment types, motorized and gate code", () => {
+    expect(detailsSchema.parse({ windowCountExact: "31", treatmentTypes: ["shutters"], motorized: true, gateCode: " 12# " }))
+      .toMatchObject({ windowCountExact: 31, treatmentTypes: ["shutters"], motorized: true, gateCode: "12#" });
+  });
+  it("rejects bad values", () => {
+    expect(detailsSchema.safeParse({ windowCountExact: "0" }).success).toBe(false);
+    expect(detailsSchema.safeParse({ treatmentTypes: ["Blinds"] }).success).toBe(false);
+    expect(detailsSchema.safeParse({ gateCode: "x".repeat(41) }).success).toBe(false);
   });
 });
 

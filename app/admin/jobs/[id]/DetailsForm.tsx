@@ -7,6 +7,8 @@ import { BUDGET_OPTIONS } from "@/lib/admin/budget";
 import type { Job } from "@/lib/admin/jobs";
 import { BRANDS } from "@/lib/admin/schema";
 import { toLocalInput } from "@/lib/admin/time";
+import { TREATMENT_TYPES } from "@/lib/leads/treatment-types";
+import { WINDOW_EXACT_OPTIONS } from "@/lib/leads/window-count";
 import { saveDetails, type FormState } from "../actions";
 
 const dollars = (cents: number | null) => (cents === null ? "" : (cents / 100).toFixed(2));
@@ -25,6 +27,12 @@ export function DetailsForm({ job }: { job: Job }) {
     if (submitted === undefined) return job.brands.includes(brand);
     return Array.isArray(submitted) ? submitted.includes(brand) : submitted === brand;
   };
+  const typeChecked = (key: string) => {
+    const submitted = values?.treatmentTypes;
+    if (!values) return (job.treatmentTypes ?? []).some((type) => type === key);
+    return Array.isArray(submitted) ? submitted.includes(key) : submitted === key;
+  };
+  const motorized = values ? values.motorized === "on" : Boolean(job.motorized);
 
   return (
     <form
@@ -60,6 +68,30 @@ export function DetailsForm({ job }: { job: Job }) {
           {BUDGET_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
         </select>
       </label>
+      <label htmlFor="windowCountExact" className="flex flex-col gap-2 text-sm">
+        Exact windows
+        <select id="windowCountExact" name="windowCountExact" className={CONTROL}
+          defaultValue={field("windowCountExact", job.windowCountExact ? String(job.windowCountExact) : "")}>
+          <option value="">—</option>
+          {WINDOW_EXACT_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+        </select>
+      </label>
+      <TextField id="gateCode" name="gateCode" label="Gate code" defaultValue={field("gateCode", job.gateCode ?? "")} />
+      <fieldset className="flex flex-col gap-2 sm:col-span-2">
+        <legend className="text-sm">Treatment types</legend>
+        <div className="flex flex-wrap gap-2">
+          {TREATMENT_TYPES.map((type) => (
+            <label key={type.key} htmlFor={`type-${type.key}`} className="flex min-h-11 items-center gap-2 border border-rule px-3 text-sm">
+              <input id={`type-${type.key}`} type="checkbox" name="treatmentTypes" value={type.key} defaultChecked={typeChecked(type.key)} />
+              {type.label}
+            </label>
+          ))}
+          <label htmlFor="motorized" className="flex min-h-11 items-center gap-2 border border-rule px-3 text-sm">
+            <input id="motorized" type="checkbox" name="motorized" defaultChecked={motorized} />
+            Motorized
+          </label>
+        </div>
+      </fieldset>
       <fieldset className="flex flex-col gap-2 sm:col-span-2">
         <legend className="text-sm">Brands on this job</legend>
         <div className="flex flex-wrap gap-2">

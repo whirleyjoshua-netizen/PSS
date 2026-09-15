@@ -91,6 +91,13 @@ describe("with a session", () => {
     );
   });
 
+  it("saves the questionnaire fields from Job details", async () => {
+    await actions.saveDetails(ID, {}, form({ windowCountExact: "12", treatmentTypes: ["shutters", "roman_shades"], motorized: "on", gateCode: "#4321" }));
+    expect(jobs.updateDetails).toHaveBeenCalledWith(ID, expect.objectContaining({
+      windowCountExact: 12, treatmentTypes: ["shutters", "roman_shades"], motorized: true, gateCode: "#4321",
+    }), "owner@example.com");
+  });
+
   it("opens the new job after adding it", async () => {
     jobs.createJob.mockResolvedValue(ID);
     await expect(

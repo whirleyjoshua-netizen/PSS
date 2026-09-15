@@ -91,7 +91,7 @@ describe("changing jobs", () => {
 
   it("setStage, updateDetails and addNote return false for a non-uuid id without querying", async () => {
     expect(await jobs.setStage("../etc", "sold", "owner@example.com")).toBe(false);
-    expect(await jobs.updateDetails("../etc", { visitAt: null, quoteCents: null, soldCents: null, depositCents: null, brands: [], orderedOn: null, installOn: null, budgetTier: null }, "owner@example.com")).toBeNull();
+    expect(await jobs.updateDetails("../etc", { visitAt: null, quoteCents: null, soldCents: null, depositCents: null, brands: [], orderedOn: null, installOn: null, budgetTier: null, windowCountExact: null, treatmentTypes: [], motorized: false, gateCode: null }, "owner@example.com")).toBeNull();
     expect(await jobs.addNote("../etc", "hi", "owner@example.com")).toBe(false);
     expect(sql).not.toHaveBeenCalled();
   });
@@ -111,11 +111,23 @@ describe("changing jobs", () => {
     expect(await jobs.addNote(ID, "hi", "owner@example.com")).toBe(false);
   });
 
+  it("updateDetails saves the questionnaire fields", async () => {
+    sql.mockResolvedValue([{ visit_changed: false, install_changed: false }]);
+    await jobs.updateDetails(ID, {
+      visitAt: null, quoteCents: null, soldCents: null, depositCents: null, brands: [], orderedOn: null, installOn: null, budgetTier: null,
+      windowCountExact: 12, treatmentTypes: ["shutters"], motorized: true, gateCode: "#4321",
+    }, "owner@example.com");
+    const call = sql.mock.calls[0];
+    const statement = text(call).replace(/\s+/g, " ");
+    expect(statement).toContain("window_count_exact = ?, treatment_types = ?::text[], motorized = ?, gate_code = ?");
+    expect(call).toEqual(expect.arrayContaining([12, ["shutters"], "#4321"]));
+  });
+
   it("updateDetails saves the parsed values and reports which dates changed", async () => {
     sql.mockResolvedValue([{ visit_changed: false, install_changed: true }]);
     const result = await jobs.updateDetails(
       ID,
-      { visitAt: null, quoteCents: 450000, soldCents: null, depositCents: 225000, brands: ["Alta Window Fashions"], orderedOn: null, installOn: "2027-01-10", budgetTier: null },
+      { visitAt: null, quoteCents: 450000, soldCents: null, depositCents: 225000, brands: ["Alta Window Fashions"], orderedOn: null, installOn: "2027-01-10", budgetTier: null, windowCountExact: null, treatmentTypes: [], motorized: false, gateCode: null },
       "owner@example.com",
     );
     expect(result).toEqual({ visitChanged: false, installChanged: true });
@@ -127,7 +139,7 @@ describe("changing jobs", () => {
     sql.mockResolvedValue([{ visit_changed: true, install_changed: false }]);
     const visitAt = new Date("2026-09-20T17:00:00Z");
     expect(await jobs.updateDetails(ID, {
-      visitAt, quoteCents: null, soldCents: null, depositCents: null, brands: [], orderedOn: null, installOn: null, budgetTier: null,
+      visitAt, quoteCents: null, soldCents: null, depositCents: null, brands: [], orderedOn: null, installOn: null, budgetTier: null, windowCountExact: null, treatmentTypes: [], motorized: false, gateCode: null,
     }, "owner@example.com")).toEqual({ visitChanged: true, installChanged: false });
     const statement = text(sql.mock.calls[0]);
     expect(statement).toMatch(/with prev as \(select visit_at, install_on from leads where id = \?\)/);
@@ -137,8 +149,9 @@ describe("changing jobs", () => {
   });
 
   describe("updateDetails with the dates the form was loaded with", () => {
-    const base = { quoteCents: null, soldCents: null, depositCents: null, brands: [], orderedOn: null, budgetTier: null };
+    const base = { quoteCents: null, soldCents: null, depositCents: null, brands: [], orderedOn: null, budgetTier: null, windowCountExact: null, treatmentTypes: [], motorized: false, gateCode: null };
     const visitAt = new Date("2026-09-20T17:00:00Z"); // 10:00 AM in Las Vegas
+    const dateFlags = (call: unknown[]) => call.slice(1).filter((value) => typeof value === "boolean").slice(0, 2);
 
     it("leaves an unedited date alone, even when the stored one has moved, and reports no change", async () => {
       // The stored dates differ (Outlook moved them after the form was opened).
@@ -150,7 +163,7 @@ describe("changing jobs", () => {
       const statement = text(sql.mock.calls[0]).replace(/\s+/g, " ");
       expect(statement).toMatch(/visit_at = case when \?::boolean then \?::timestamptz else visit_at end/);
       expect(statement).toMatch(/install_on = case when \?::boolean then \?::date else install_on end/);
-      expect(sql.mock.calls[0].slice(1).filter((value: unknown) => typeof value === "boolean")).not.toContain(true);
+      expect(dateFlags(sql.mock.calls[0])).not.toContain(true);
     });
 
     it("writes and reports a date the owner edited", async () => {
@@ -159,7 +172,7 @@ describe("changing jobs", () => {
         ...base, visitAt, visitAtLoaded: "2026-09-19T09:00", installOn: null, installOnLoaded: "",
       }, "owner@example.com");
       expect(result).toEqual({ visitChanged: true, installChanged: false });
-      const flags = sql.mock.calls[0].slice(1).filter((value: unknown) => typeof value === "boolean");
+      const flags = dateFlags(sql.mock.calls[0]);
       expect(flags).toContain(true); // visit is written
       expect(flags).toContain(false); // install was not edited
     });
@@ -176,7 +189,7 @@ describe("changing jobs", () => {
       sql.mockResolvedValue([{ visit_changed: true, install_changed: true }]);
       const result = await jobs.updateDetails(ID, { ...base, visitAt, installOn: "2026-10-02" }, "owner@example.com");
       expect(result).toEqual({ visitChanged: true, installChanged: true });
-      const flags = sql.mock.calls[0].slice(1).filter((value: unknown) => typeof value === "boolean");
+      const flags = dateFlags(sql.mock.calls[0]);
       expect(flags).not.toContain(false);
     });
   });
@@ -185,7 +198,7 @@ describe("changing jobs", () => {
     sql.mockResolvedValue([]);
     const result = await jobs.updateDetails(
       ID,
-      { visitAt: null, quoteCents: null, soldCents: null, depositCents: null, brands: [], orderedOn: null, installOn: null, budgetTier: null },
+      { visitAt: null, quoteCents: null, soldCents: null, depositCents: null, brands: [], orderedOn: null, installOn: null, budgetTier: null, windowCountExact: null, treatmentTypes: [], motorized: false, gateCode: null },
       "owner@example.com",
     );
     expect(result).toBeNull();
@@ -196,6 +209,7 @@ describe("changing jobs", () => {
     await jobs.updateDetails(ID, {
       visitAt: null, quoteCents: null, soldCents: null, depositCents: null,
       brands: [], orderedOn: null, installOn: null, budgetTier: "mid",
+      windowCountExact: null, treatmentTypes: [], motorized: false, gateCode: null,
     }, "owner@example.com");
     const call = sql.mock.calls.at(-1)!;
     expect((call[0] as TemplateStringsArray).join("?")).toContain("budget_tier = ");

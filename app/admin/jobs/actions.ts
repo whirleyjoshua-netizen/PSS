@@ -70,6 +70,7 @@ export async function saveDetails(id: string, _prev: FormState, formData: FormDa
   const { email } = await requireAdmin();
   const values = captureValues(formData, [
     "visitAt", "quote", "sold", "deposit", "brands", "orderedOn", "installOn", "budget",
+    "windowCountExact", "treatmentTypes", "motorized", "gateCode",
   ]);
   const parsed = detailsSchema.safeParse({
     visitAt: formData.get("visitAt") ?? "",
@@ -80,6 +81,10 @@ export async function saveDetails(id: string, _prev: FormState, formData: FormDa
     orderedOn: formData.get("orderedOn") ?? "",
     installOn: formData.get("installOn") ?? "",
     budget: formData.get("budget") ?? "",
+    windowCountExact: formData.get("windowCountExact") ?? "",
+    treatmentTypes: formData.getAll("treatmentTypes").map(String),
+    motorized: formData.get("motorized") === "on",
+    gateCode: formData.get("gateCode") ?? "",
     visitAtLoaded: formData.get("visitAtLoaded") ?? undefined,
     installOnLoaded: formData.get("installOnLoaded") ?? undefined,
   });
