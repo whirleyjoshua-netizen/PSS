@@ -6,6 +6,7 @@ import { BUDGET_TIERS } from "./budget";
 import { WORKING_STAGES } from "./stages";
 import { MAX_EIGHTHS, REQUIREMENTS, toEighths, type Requirement } from "./measure-units";
 import { callBackProblem, FOLLOW_UP_NOTE_MAX } from "./follow-up";
+import { CONTACT_METHOD_KEYS, CONTACT_NOTE_MAX, type ContactMethod } from "./contact";
 import { dollarsToCents } from "./money";
 import { fromLocalInput } from "./time";
 
@@ -196,6 +197,16 @@ export const followUpSchema = z
     if (problem) ctx.addIssue({ code: "custom", path: ["at"], message: problem });
   })
   .transform((value) => ({ at: fromLocalInput(value.at), note: value.note ?? null }));
+
+export const contactSchema = z.object({
+  methods: z
+    .array(z.enum(CONTACT_METHOD_KEYS, { error: "Pick how you reached them" }))
+    .min(1, "Pick how you reached them")
+    .transform((keys): ContactMethod[] => [...new Set(keys)]),
+  note: z
+    .preprocess(blank, z.string().trim().max(CONTACT_NOTE_MAX, "Keep the note under 500 characters").optional())
+    .transform((value) => value ?? null),
+});
 
 export type MeasurementInput = z.output<typeof measurementSchema>;
 

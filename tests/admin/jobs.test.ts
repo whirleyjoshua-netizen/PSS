@@ -111,6 +111,20 @@ describe("changing jobs", () => {
     expect(await jobs.addNote(ID, "hi", "owner@example.com")).toBe(false);
   });
 
+  it("addContact logs a contact event against an existing job only", async () => {
+    sql.mockResolvedValue([{ id: "e1" }]);
+    expect(await jobs.addContact(ID, "Contacted · Called", "owner@example.com")).toBe(true);
+    expect(text(sql.mock.calls[0])).toContain("'contact'");
+    expect(sql.mock.calls[0]).toEqual(expect.arrayContaining([ID, "owner@example.com", "Contacted · Called"]));
+    expect(await jobs.addContact("../etc", "x", "o")).toBe(false);
+  });
+
+  it("computes last contacted from contact events and call logs", () => {
+    expect(jobs.JOB_COLUMNS).toMatch(/\(select max\(e\.created_at\) from job_events e where e\.lead_id = leads\.id and \(e\.kind = 'contact' or \(e\.kind = 'note' and e\.body like 'Call:%'\)\)\) as last_contact_at/);
+    expect(jobs.toJob({ ...row, last_contact_at: "2026-09-15T17:00:00Z" }).lastContactAt).toEqual(new Date("2026-09-15T17:00:00Z"));
+    expect(jobs.toJob({ ...row }).lastContactAt).toBeNull();
+  });
+
   it("updateDetails saves the questionnaire fields", async () => {
     sql.mockResolvedValue([{ visit_changed: false, install_changed: false }]);
     await jobs.updateDetails(ID, {

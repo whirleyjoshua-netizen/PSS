@@ -48,6 +48,8 @@ export type Job = {
   motorized?: boolean;
   gateCode?: string | null;
   finish?: Finish | null;
+  /** Newest contact entry or logged call. Optional so older fixtures still type-check. */
+  lastContactAt?: Date | null;
 };
 
 export type JobEvent = {
@@ -68,7 +70,8 @@ export const JOB_COLUMNS = `id, created_at, name, phone, email, address, city, t
   heard_via, notes, source, status, stage_changed_at, visit_at, quote_cents, sold_cents,
   deposit_cents, brands, ordered_on::text as ordered_on, install_on::text as install_on, lost_reason,
   referral_code, referred_by, referral_paid_at, review_requested_at, review_opt_out, portal_invited_at, budget_tier,
-  follow_up_at, follow_up_note, window_count_exact, treatment_types, motorized, gate_code, finish`;
+  follow_up_at, follow_up_note, window_count_exact, treatment_types, motorized, gate_code, finish,
+  (select max(e.created_at) from job_events e where e.lead_id = leads.id and (e.kind = 'contact' or (e.kind = 'note' and e.body like 'Call:%'))) as last_contact_at`;
 
 export function toJob(row: Record<string, unknown>): Job {
   return {
@@ -108,6 +111,7 @@ export function toJob(row: Record<string, unknown>): Job {
     motorized: row.motorized === true,
     gateCode: (row.gate_code as string | null) ?? null,
     finish: isFinish(row.finish) ? row.finish : null,
+    lastContactAt: row.last_contact_at ? new Date(row.last_contact_at as string) : null,
   };
 }
 
@@ -245,6 +249,15 @@ export async function addNote(id: string, body: string, actor: string): Promise<
   const rows = await db()`
     insert into job_events (lead_id, actor, kind, body)
     select id, ${actor}, 'note', ${body} from leads where id = ${id}
+    returning id`;
+  return rows.length > 0;
+}
+
+export async function addContact(id: string, body: string, actor: string): Promise<boolean> {
+  if (!isUuid(id)) return false;
+  const rows = await db()`
+    insert into job_events (lead_id, actor, kind, body)
+    select id, ${actor}, 'contact', ${body} from leads where id = ${id}
     returning id`;
   return rows.length > 0;
 }

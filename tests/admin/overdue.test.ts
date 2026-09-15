@@ -4,8 +4,8 @@ import { OVERDUE_DAYS, daysInStage, isOverdue } from "@/lib/admin/overdue";
 const DAY = 86_400_000;
 const NOW = new Date("2026-09-20T18:00:00Z"); // 11 a.m. Sep 20 in Las Vegas
 const since = (days: number) => new Date(NOW.getTime() - days * DAY);
-const job = (status: string, days: number, visitAt: Date | null = null) =>
-  ({ status, stageChangedAt: since(days), visitAt }) as Parameters<typeof isOverdue>[0];
+const job = (status: string, days: number, visitAt: Date | null = null, lastContactAt: Date | null = null) =>
+  ({ status, stageChangedAt: since(days), visitAt, lastContactAt }) as Parameters<typeof isOverdue>[0];
 
 describe("daysInStage", () => {
   it("counts whole days and never goes below zero", () => {
@@ -16,7 +16,7 @@ describe("daysInStage", () => {
 
 describe("isOverdue", () => {
   it.each([
-    ["new", 1], ["quoted", 7], ["sold", 3], ["ordered", 21],
+    ["quoted", 7], ["sold", 3], ["ordered", 21],
   ])("%s is overdue only after %i days", (status, limit) => {
     expect(OVERDUE_DAYS[status as keyof typeof OVERDUE_DAYS]).toBe(limit);
     expect(isOverdue(job(status, limit), NOW)).toBe(false);
@@ -38,5 +38,13 @@ describe("isOverdue", () => {
 
   it("a booked visit with no date is never overdue", () => {
     expect(isOverdue(job("visit_booked", 60, null), NOW)).toBe(false);
+  });
+
+  it("a new lead is overdue after a day only when nothing was logged since it came in", () => {
+    expect(OVERDUE_DAYS.new).toBe(1);
+    expect(isOverdue(job("new", 1), NOW)).toBe(false);
+    expect(isOverdue(job("new", 2), NOW)).toBe(true);
+    expect(isOverdue(job("new", 2, null, since(1)), NOW)).toBe(false);
+    expect(isOverdue(job("new", 2, null, since(3)), NOW)).toBe(true); // contact before it entered New does not count
   });
 });
