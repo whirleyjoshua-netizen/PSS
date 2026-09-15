@@ -43,13 +43,6 @@ export function ProjectCard({ job, editHref }: { job: Job; editHref: string }) {
         <Link href={editHref} className={TEXT_LINK}>Edit</Link>
       </div>
       <dl className={DL}>
-        <dt className="text-ink-soft">Interested in</dt>
-        <dd className="flex flex-wrap gap-1.5">
-          {job.treatments.length
-            ? job.treatments.map((t) => <span key={t} className="border border-rule bg-sand px-2 py-0.5 text-xs">{t}</span>)
-            : "—"}
-        </dd>
-        <dt className="text-ink-soft">Windows</dt><dd>{job.windowCount ?? "—"}</dd>
         <dt className="text-ink-soft">Exact windows</dt>
         <dd>{job.windowCountExact ? windowCountLabel(job.windowCountExact) : "—"}</dd>
         <dt className="text-ink-soft">Treatment types</dt>
@@ -63,7 +56,6 @@ export function ProjectCard({ job, editHref }: { job: Job; editHref: string }) {
         <dt className="text-ink-soft">Motorized</dt><dd>{job.motorized ? "Yes" : "No"}</dd>
         <dt className="text-ink-soft">Gate code</dt><dd>{job.gateCode ?? "—"}</dd>
         <dt className="text-ink-soft">Budget</dt><dd>{finishBudgetLabel(job.finish, job.budgetTier)}</dd>
-        <dt className="text-ink-soft">Brands</dt><dd>{job.brands.join(", ") || "—"}</dd>
       </dl>
       {job.notes ? <p className="whitespace-pre-line border-l-2 border-champagne pl-4 text-sm">{job.notes}</p> : null}
     </section>

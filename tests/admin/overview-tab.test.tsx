@@ -19,6 +19,7 @@ const job: Job = {
   quoteCents: 520000, soldCents: 500000, depositCents: 250000, brands: ["Alta Window Fashions"],
   orderedOn: "2026-09-18", installOn: null, lostReason: null, referralCode: null, referredBy: null,
   referralPaidAt: null, reviewRequestedAt: null, reviewOptOut: false, budgetTier: "mid",
+  treatmentTypes: ["shutters"],
 };
 const base = { job, editing: false, now, measurements: [], files: [], events: [], referrals: [], referrer: null };
 
@@ -29,7 +30,6 @@ describe("OverviewTab", () => {
     const project = screen.getByRole("region", { name: "Project details" });
     expect(project).toHaveTextContent("Shutters");
     expect(project).toHaveTextContent("Mid-range");
-    expect(project).toHaveTextContent("Alta Window Fashions");
     expect(screen.getByText("Schedule the install")).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Money" })).toHaveTextContent("$2,500");
   });

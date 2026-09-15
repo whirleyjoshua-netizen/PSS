@@ -20,15 +20,22 @@ const value = (term: string) => {
 };
 
 describe("ProjectCard", () => {
-  it("shows the questionnaire answers beside the website form's", () => {
+  it("shows the questionnaire answers", () => {
     render(<ProjectCard job={job} editHref="#" />);
-    expect(value("Interested in")).toHaveTextContent("Shades");
-    expect(value("Windows")).toHaveTextContent("6-10");
     expect(value("Exact windows")).toHaveTextContent("30+");
     expect(value("Treatment types")).toHaveTextContent("ShuttersCellular shades");
     expect(value("Motorized")).toHaveTextContent("Yes");
     expect(value("Gate code")).toHaveTextContent("#4321");
     expect(value("Budget")).toHaveTextContent("Luxury → Premium");
+  });
+
+  it("leaves out the first form's interest and window range, and brands", () => {
+    render(<ProjectCard job={{ ...job, brands: ["Hunter Douglas"] }} editHref="#" />);
+    const card = within(screen.getByRole("region", { name: "Project details" }));
+    for (const term of ["Interested in", "Windows", "Brands"]) {
+      expect(card.queryByText(term, { selector: "dt" })).toBeNull();
+    }
+    expect(card.queryByText("Hunter Douglas")).toBeNull();
   });
 
   it("shows dashes and No when nothing was given", () => {
