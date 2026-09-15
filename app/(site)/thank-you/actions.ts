@@ -1,6 +1,7 @@
 "use server";
 
 import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import { saveQuestionnaire } from "@/lib/leads/questionnaire";
 import { QUESTIONNAIRE_COOKIE } from "@/lib/leads/questionnaire-cookie";
 import {
@@ -34,7 +35,7 @@ export async function submitQuestionnaire(_prev: QuestionnaireState, formData: F
     finish: formData.get("finish") ?? "",
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message, values };
-  if (isEmptyAnswers(parsed.data)) return { ok: true, values };
+  if (isEmptyAnswers(parsed.data)) redirect("/thank-you/all-set");
   try {
     const saved = await saveQuestionnaire(key, parsed.data);
     if (!saved) return { error: QUESTIONNAIRE_EXPIRED, values };
@@ -42,5 +43,5 @@ export async function submitQuestionnaire(_prev: QuestionnaireState, formData: F
     console.error("Questionnaire save failed", error);
     return { error: "We couldn't save that. Please try again, or call us.", values };
   }
-  return { ok: true, values };
+  redirect("/thank-you/all-set");
 }

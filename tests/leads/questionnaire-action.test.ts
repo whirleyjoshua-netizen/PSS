@@ -4,6 +4,8 @@ const cookieGet = vi.fn();
 vi.mock("next/headers", () => ({ cookies: async () => ({ get: cookieGet }) }));
 const saveQuestionnaire = vi.fn();
 vi.mock("@/lib/leads/questionnaire", () => ({ saveQuestionnaire }));
+const redirect = vi.fn((to: string) => { throw new Error(`NEXT_REDIRECT ${to}`); });
+vi.mock("next/navigation", () => ({ redirect }));
 const { submitQuestionnaire } = await import("@/app/(site)/thank-you/actions");
 
 const EXPIRED = "This form has expired — call us and we'll take it from here.";
@@ -12,22 +14,23 @@ const form = (entries: [string, string][]) => { const d = new FormData(); for (c
 beforeEach(() => {
   cookieGet.mockReset().mockImplementation((name: string) => (name === "pss_q" ? { value: "the-key" } : undefined));
   saveQuestionnaire.mockReset().mockResolvedValue(true);
+  redirect.mockClear();
 });
 
 describe("submitQuestionnaire", () => {
-  it("saves the answers against the cookie's key", async () => {
-    const state = await submitQuestionnaire({}, form([
+  it("saves the answers against the cookie's key and redirects to all-set", async () => {
+    await expect(submitQuestionnaire({}, form([
       ["windowCountExact", "12"], ["treatmentTypes", "shutters"], ["treatmentTypes", "cellular_shades"], ["motorized", "on"],
       ["address", "12 Sample St"], ["gateCode", "#4321"], ["finish", "luxury"],
-    ]));
-    expect(state.ok).toBe(true);
+    ]))).rejects.toThrow("NEXT_REDIRECT /thank-you/all-set");
     expect(saveQuestionnaire).toHaveBeenCalledWith("the-key", {
       windowCountExact: 12, treatmentTypes: ["shutters", "cellular_shades"], motorized: true,
       address: "12 Sample St", gateCode: "#4321", finish: "luxury",
     });
   });
   it("ignores any key sent in the form", async () => {
-    await submitQuestionnaire({}, form([["key", "attacker"], ["pss_q", "attacker"], ["windowCountExact", "3"]]));
+    await expect(submitQuestionnaire({}, form([["key", "attacker"], ["pss_q", "attacker"], ["windowCountExact", "3"]])))
+      .rejects.toThrow("NEXT_REDIRECT");
     expect(saveQuestionnaire.mock.calls[0][0]).toBe("the-key");
   });
   it("says the form expired without a cookie, and saves nothing", async () => {
@@ -39,8 +42,8 @@ describe("submitQuestionnaire", () => {
     saveQuestionnaire.mockResolvedValue(false);
     expect(await submitQuestionnaire({}, form([["windowCountExact", "3"]]))).toMatchObject({ error: EXPIRED });
   });
-  it("thanks an empty submit without saving", async () => {
-    expect(await submitQuestionnaire({}, form([]))).toMatchObject({ ok: true });
+  it("redirects to all-set on an empty submit without saving", async () => {
+    await expect(submitQuestionnaire({}, form([]))).rejects.toThrow("NEXT_REDIRECT /thank-you/all-set");
     expect(saveQuestionnaire).not.toHaveBeenCalled();
   });
   it("keeps what was typed when validation fails", async () => {

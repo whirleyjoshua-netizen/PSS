@@ -41,4 +41,4 @@ export const isEmptyAnswers = (a: QuestionnaireAnswers): boolean =>
 
 export const QUESTIONNAIRE_EXPIRED = "This form has expired — call us and we'll take it from here.";
 
-export type QuestionnaireState = { ok?: boolean; error?: string; values?: Record<string, string | string[]> };
+export type QuestionnaireState = { error?: string; values?: Record<string, string | string[]> };

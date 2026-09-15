@@ -47,7 +47,8 @@ test("a new lead answers the questionnaire and the owner sees it", async ({ page
   await card.getByLabel(/^Gate or community code/).fill("#4321");
   await card.getByRole("radio", { name: /^Luxury/ }).check();
   await card.getByRole("button", { name: "Save" }).click();
-  await expect(card.getByRole("status")).toHaveText("Thanks — we'll come prepared.");
+  await expect(page).toHaveURL(/\/thank-you\/all-set$/);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Consider it done.");
 
   const [lead] = await sql()`select id, status, window_count_exact, treatment_types, motorized, gate_code, finish, budget_tier
     from leads where name = ${NAME}`;

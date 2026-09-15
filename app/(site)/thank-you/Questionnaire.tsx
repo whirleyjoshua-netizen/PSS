@@ -95,7 +95,6 @@ export function Questionnaire({ initial, windowRange }: { initial: Questionnaire
 
         <div className="flex flex-wrap items-center gap-4">
           <Button type="submit" disabled={pending}>{pending ? "Saving…" : "Save"}</Button>
-          {state.ok ? <p role="status" className="text-sm text-charcoal">Thanks — we&apos;ll come prepared.</p> : null}
           {state.error ? <p role="alert" className="text-sm text-charcoal">{state.error}</p> : null}
         </div>
       </form>
