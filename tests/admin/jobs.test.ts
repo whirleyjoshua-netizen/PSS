@@ -31,7 +31,7 @@ describe("reading jobs", () => {
   it("lists every job, lost included", async () => {
     await jobs.listJobs({});
     const [statement, params] = sql.query.mock.calls[0];
-    expect(statement).not.toContain("status <> 'lost'");
+    expect(statement).not.toMatch(/status\s*(<>|!=|not in)/i);
     expect(params ?? []).toEqual([]);
   });
 

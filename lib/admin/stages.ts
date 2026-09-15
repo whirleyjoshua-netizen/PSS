@@ -63,3 +63,11 @@ export const STAGE_STYLE: Record<Stage, { icon: IconName; edge: string; tint: st
   completed: { icon: "check", edge: "border-t-stage-completed", tint: "text-stage-completed", left: "border-l-stage-completed" },
   lost: { icon: "lost", edge: "border-t-taupe", tint: "text-taupe", left: "border-l-taupe" },
 };
+
+/** The job list's dropdown: all jobs, then every stage, then Lost. "" means all jobs. */
+export const LIST_FILTERS: readonly { value: Stage | ""; label: string }[] = [
+  { value: "", label: "All jobs" },
+  ...ALL_STAGES.map((stage) => ({ value: stage, label: stageLabel(stage) })),
+];
+
+export const parseListFilter = (value: string | undefined): Stage | null => (isStage(value) ? value : null);

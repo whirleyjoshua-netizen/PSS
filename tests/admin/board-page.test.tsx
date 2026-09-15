@@ -137,4 +137,22 @@ describe("board look and conveniences", () => {
     await open({});
     expect(screen.getByRole("region", { name: "Follow-ups due · 1" })).toBeInTheDocument();
   });
+
+  it("lists every job below the board and filters it by ?list", async () => {
+    jobs.listJobs.mockResolvedValue([job, { ...jobB, status: "completed" }]);
+    await open({});
+    const list = screen.getByRole("region", { name: /all jobs/i });
+    expect(within(list).getAllByRole("row")).toHaveLength(3);
+
+    jobs.listJobs.mockResolvedValue([job, { ...jobB, status: "completed" }]);
+    await open({ list: "completed" });
+    const filtered = screen.getAllByRole("region", { name: /all jobs/i }).at(-1)!;
+    expect(within(filtered).getAllByRole("row")).toHaveLength(2);
+    expect(filtered).toHaveTextContent("Chris Lane");
+  });
+
+  it("treats an unknown ?list as all jobs", async () => {
+    await open({ list: "bogus" });
+    expect(screen.getByLabelText("Stage")).toHaveValue("");
+  });
 });

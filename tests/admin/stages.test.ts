@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { STAGES, ALL_STAGES, isStage, stageLabel, nextStage, WORKING_STAGES, STAGE_STYLE, parseWorkingStage, BOARD_STAGES, INSTALLED_STATUSES, isInstalled } from "@/lib/admin/stages";
+import { STAGES, ALL_STAGES, isStage, stageLabel, nextStage, WORKING_STAGES, STAGE_STYLE, parseWorkingStage, BOARD_STAGES, INSTALLED_STATUSES, isInstalled, LIST_FILTERS, parseListFilter } from "@/lib/admin/stages";
 
 describe("stages", () => {
   it("runs from new lead to completed, in order", () => {
@@ -81,5 +81,21 @@ describe("board and installed stages", () => {
     expect(STAGE_STYLE.completed).toEqual({
       icon: "check", edge: "border-t-stage-completed", tint: "text-stage-completed", left: "border-l-stage-completed",
     });
+  });
+});
+
+describe("job list filter", () => {
+  it("offers all jobs, every stage in order, then lost", () => {
+    expect(LIST_FILTERS.map((f) => f.label)).toEqual([
+      "All jobs", "New lead", "Appointment booked", "Quoted", "Sold", "Ordered", "Installed", "Completed", "Lost",
+    ]);
+    expect(LIST_FILTERS[0].value).toBe("");
+  });
+
+  it("reads a stage from the URL and treats anything else as all jobs", () => {
+    expect(parseListFilter("completed")).toBe("completed");
+    expect(parseListFilter("lost")).toBe("lost");
+    expect(parseListFilter("nope")).toBeNull();
+    expect(parseListFilter(undefined)).toBeNull();
   });
 });

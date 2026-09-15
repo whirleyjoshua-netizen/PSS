@@ -6,10 +6,11 @@ import { getJob, listJobs, SEARCH_MAX } from "@/lib/admin/jobs";
 import { boardHref } from "@/lib/admin/links";
 import { listMeasurements } from "@/lib/admin/measurements";
 import { requireAdmin } from "@/lib/admin/session";
-import { BOARD_STAGES, STAGE_STYLE } from "@/lib/admin/stages";
+import { BOARD_STAGES, STAGE_STYLE, parseListFilter } from "@/lib/admin/stages";
 import { formatDay } from "@/lib/admin/time";
 import { FollowUpsDue } from "./FollowUpsDue";
 import { JobCard, groupByStage } from "./JobCard";
+import { JobList } from "./JobList";
 import { JobPanel } from "./JobPanel";
 
 /** The panel's data, loaded only when a job is open. A missing job still gets a panel that says so. */
@@ -32,8 +33,9 @@ export default async function BoardPage({
 }) {
   await requireAdmin();
   const params = await searchParams;
-  // Passed through as-is for now; the job list validates it.
-  const list = first(params.list);
+  const filter = parseListFilter(first(params.list));
+  // Only a known stage is carried into links, so an unknown ?list drops out.
+  const list = filter ?? undefined;
   const openId = first(params.job);
   const q = (first(params.q) ?? "").trim().slice(0, SEARCH_MAX);
   const now = new Date();
@@ -135,6 +137,14 @@ export default async function BoardPage({
             })}
           </div>
         </section>
+
+        <JobList
+          jobs={filter ? jobs.filter((job) => job.status === filter) : jobs}
+          now={now}
+          filter={filter}
+          q={q}
+          openId={openId}
+        />
       </div>
 
       {panel ? (
