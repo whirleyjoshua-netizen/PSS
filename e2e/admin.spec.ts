@@ -184,7 +184,8 @@ test("a job opens in the panel beside the board, survives a reload, and closes",
     values (${name}, '7025550102', 'e2e-panel@example.com', 'Henderson', 'phone', 'quoted')`;
 
   await signIn(page);
-  await page.getByRole("link", { name: new RegExp(name) }).click();
+  // The All jobs list under the board has a link with the same name; open the board card.
+  await page.getByRole("region", { name: "Board" }).getByRole("link", { name: new RegExp(name) }).click();
   await expect(page).toHaveURL(/\/admin\?job=/);
   const panel = page.getByRole("complementary", { name: new RegExp(name) });
   await expect(panel).toBeVisible();

@@ -63,3 +63,31 @@ test("mark contacted logs how, shows last contacted, and keeps the stage", async
   const [event] = await sql()`select kind, body from job_events where lead_id = ${id} and kind = 'contact'`;
   expect(event).toEqual({ kind: "contact", body: "Contacted · Called, Texted — left details on price" });
 });
+
+test("completing an installed job moves it from the board to the list", async ({ page }) => {
+  const name = `E2E Stages Complete ${STAMP}`;
+  const id = await lead(name);
+  await sql()`update leads set status = 'installed' where id = ${id}`;
+  await signIn(page);
+  await page.goto(`/admin/jobs/${id}`);
+  await page.getByLabel("More actions").click();
+  await page.getByText("Change stage…").click();
+  await page.getByLabel("Set stage").selectOption("completed");
+  await page.getByRole("button", { name: "Set", exact: true }).click();
+  await expect(page.getByRole("list", { name: "Stage" }).locator('[aria-current="step"]')).toContainText("Completed");
+
+  await page.goto("/admin");
+  await expect(page.getByRole("region", { name: "Board" }).getByText(name)).toHaveCount(0);
+  await page.getByLabel("Stage", { exact: true }).selectOption("completed");
+  await expect(page).toHaveURL(/list=completed/);
+  await expect(page.getByRole("region", { name: /all jobs/i }).getByRole("link", { name })).toBeVisible();
+});
+
+test("the list shows lost jobs", async ({ page }) => {
+  const name = `E2E Stages Lost ${STAMP}`;
+  const id = await lead(name);
+  await sql()`update leads set status = 'lost' where id = ${id}`;
+  await signIn(page);
+  await page.goto("/admin?list=lost");
+  await expect(page.getByRole("region", { name: /all jobs/i }).getByRole("link", { name })).toBeVisible();
+});
