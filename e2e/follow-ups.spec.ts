@@ -40,6 +40,7 @@ test("a no-answer call sets tomorrow's call-back", async ({ page }) => {
   await page.getByLabel("Reason").fill("checking with husband");
   await page.getByRole("button", { name: "No answer" }).click();
   await expect(page).toHaveURL(new RegExp(`/admin/jobs/${id}$`));
+  await page.getByLabel("More actions").click();
   await expect(page.getByText(/Next call-back: .* 10:00 AM · checking with husband/)).toBeVisible();
   const [row] = await sql()`select follow_up_note from leads where id = ${id}`;
   expect(row.follow_up_note).toBe("checking with husband");

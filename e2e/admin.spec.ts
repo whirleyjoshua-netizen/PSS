@@ -113,6 +113,7 @@ test("a referral link attributes the friend and the reward can be paid", async (
   await page.getByRole("link", { name: friendName }).click();
   await expect(page.getByRole("link", { name: referrerName })).toBeVisible();
   await page.getByLabel("More actions").click();
+  await page.getByText("Change stage…").click();
   await page.getByLabel("Set stage").selectOption("installed");
   await page.getByRole("button", { name: "Set", exact: true }).click();
   await expect(page.getByRole("list", { name: "Stage" }).locator('[aria-current="step"]')).toContainText("Installed");
