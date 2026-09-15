@@ -3,7 +3,7 @@ import { STAGE_STYLE } from "@/lib/admin/stages";
 import { lasVegasDate } from "@/lib/admin/time";
 import { monthLabel, type ScheduleItem } from "@/lib/calendar/week";
 import { ScheduleCard, formatTime } from "./ScheduleCard";
-import { ViewSwitch } from "./ViewSwitch";
+import { ScheduleHeader } from "./ScheduleHeader";
 
 const WEEKDAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -42,27 +42,17 @@ export function MonthView({
 
   return (
     <div className="mx-auto flex max-w-[110rem] flex-col gap-6">
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div className="flex flex-col gap-1">
-          <p className="text-xs font-medium uppercase tracking-[0.2em] text-ink-soft">PSS Operations</p>
-          <h1 className="text-3xl font-semibold text-charcoal">Schedule</h1>
-          <p className="text-sm text-ink-soft">{monthLabel(displayedMonth)}</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <ViewSwitch active="month" weekHref={weekHref} monthHref={`/admin/schedule?view=month&month=${displayedMonth}`} />
-          <nav aria-label="Months" className="flex flex-wrap items-center gap-3 text-sm">
-            <Link href={`/admin/schedule?view=month&month=${shiftMonth(displayedMonth, -1)}`} className="underline underline-offset-4">
-              ← Previous month
-            </Link>
-            <Link href="/admin/schedule?view=month" className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-charcoal px-4 font-medium text-ivory">
-              This month
-            </Link>
-            <Link href={`/admin/schedule?view=month&month=${shiftMonth(displayedMonth, 1)}`} className="underline underline-offset-4">
-              Next month →
-            </Link>
-          </nav>
-        </div>
-      </header>
+      <ScheduleHeader
+        label={monthLabel(displayedMonth)}
+        view="month"
+        switchHrefs={{ week: weekHref, month: `/admin/schedule?view=month&month=${displayedMonth}` }}
+        nav={{
+          label: "Months",
+          previous: { href: `/admin/schedule?view=month&month=${shiftMonth(displayedMonth, -1)}`, text: "← Previous month" },
+          current: { href: "/admin/schedule?view=month", text: "This month" },
+          next: { href: `/admin/schedule?view=month&month=${shiftMonth(displayedMonth, 1)}`, text: "Next month →" },
+        }}
+      />
 
       {notice ? <p role="status" className="text-sm text-ink-soft">{notice}</p> : null}
       {items.some((item) => days.includes(item.day)) ? null : <p className="text-sm text-ink-soft">Nothing scheduled this month.</p>}
