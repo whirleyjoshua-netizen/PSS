@@ -58,20 +58,20 @@ export function CallForm({ job }: { job: CallJob }) {
       </fieldset>
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <label htmlFor="call-windows" className="flex flex-col gap-2 text-sm">
-          <span className={LEGEND}>Windows</span>
+        <div className="flex flex-col gap-2 text-sm">
+          <label htmlFor="call-windows" className={LEGEND}>Windows</label>
           <select id="call-windows" name="windowCountExact" defaultValue={windows}
             className="min-h-11 w-full border border-rule bg-ivory px-4 py-3">
             <option value="">Not sure</option>
             {WINDOW_EXACT_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select>
-        </label>
-        <label htmlFor="call-gate" className="flex flex-col gap-2 text-sm">
-          <span className={LEGEND}>Gate code</span>
+        </div>
+        <div className="flex flex-col gap-2 text-sm">
+          <label htmlFor="call-gate" className={LEGEND}>Gate code</label>
           <input id="call-gate" name="gateCode" type="text" maxLength={40} autoComplete="off"
             defaultValue={text("gateCode", job.gateCode ?? "")}
             className="min-h-11 w-full border border-rule bg-ivory px-4 py-3" />
-        </label>
+        </div>
       </div>
 
       <fieldset className="flex flex-col gap-2">
