@@ -16,7 +16,7 @@ async function signIn(page: Page) {
   await sql()`insert into admin_login_tokens (token_hash, email, expires_at) values (${hash}, ${OWNER}, now() + interval '15 minutes')`;
   await page.goto(`/admin/auth?token=${token}`);
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page.getByRole("heading", { name: "Jobs" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Jobs", exact: true })).toBeVisible();
 }
 
 async function lead(name: string): Promise<string> {
@@ -77,6 +77,7 @@ test("completing an installed job moves it from the board to the list", async ({
   await expect(page.getByRole("list", { name: "Stage" }).locator('[aria-current="step"]')).toContainText("Completed");
 
   await page.goto("/admin");
+  await expect(page.getByRole("region", { name: "Board" }).getByRole("heading", { name: /^Installed ·/ })).toBeVisible();
   await expect(page.getByRole("region", { name: "Board" }).getByText(name)).toHaveCount(0);
   await page.getByLabel("Stage", { exact: true }).selectOption("completed");
   await expect(page).toHaveURL(/list=completed/);

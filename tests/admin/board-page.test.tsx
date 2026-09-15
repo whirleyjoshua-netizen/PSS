@@ -121,6 +121,14 @@ describe("board look and conveniences", () => {
     expect(within(screen.getByRole("region", { name: "Board" })).getByRole("link", { name: /dana reyes/i, current: true })).toHaveAttribute("href", `/admin?q=reyes&job=${ID}`);
   });
 
+  it("counts only the jobs the list shows when a stage filter is on", async () => {
+    jobs.listJobs.mockResolvedValue([job, { ...jobB, name: "Chris Reyes", status: "lost" }]);
+    await open({ list: "lost", q: "reyes" });
+    expect(screen.getByText(/1 job matches "reyes"/i)).toBeInTheDocument();
+    const list = screen.getByRole("region", { name: /all jobs/i });
+    expect(within(list).getAllByRole("row")).toHaveLength(2);
+  });
+
   it("says when nothing matches", async () => {
     jobs.listJobs.mockResolvedValue([]);
     await open({ q: "zzz" });

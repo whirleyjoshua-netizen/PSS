@@ -19,7 +19,7 @@ async function signInOwner(page: Page) {
     values (${hash(token)}, ${OWNER}, now() + interval '15 minutes')`;
   await page.goto(`/admin/auth?token=${token}`);
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page.getByRole("heading", { name: "Jobs" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Jobs", exact: true })).toBeVisible();
 }
 
 async function customerPage(browser: Browser): Promise<Page> {

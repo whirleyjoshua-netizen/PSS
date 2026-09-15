@@ -45,6 +45,7 @@ export default async function BoardPage({
     listDueFollowUps(now),
   ]);
   const groups = groupByStage(jobs, BOARD_STAGES);
+  const listed = filter ? jobs.filter((job) => job.status === filter) : jobs;
   const here = { q, list };
 
   return (
@@ -87,7 +88,7 @@ export default async function BoardPage({
 
         {q ? (
           <p className="text-sm text-ink-soft">
-            {jobs.length === 0 ? `No jobs match "${q}"` : `${jobs.length} ${jobs.length === 1 ? "job matches" : "jobs match"} "${q}"`}
+            {listed.length === 0 ? `No jobs match "${q}"` : `${listed.length} ${listed.length === 1 ? "job matches" : "jobs match"} "${q}"`}
             {" · "}
             <Link href={boardHref({ list, job: openId })} className="underline underline-offset-4">Clear search</Link>
           </p>
@@ -139,7 +140,7 @@ export default async function BoardPage({
         </section>
 
         <JobList
-          jobs={filter ? jobs.filter((job) => job.status === filter) : jobs}
+          jobs={listed}
           now={now}
           filter={filter}
           q={q}
