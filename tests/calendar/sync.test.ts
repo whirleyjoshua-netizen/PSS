@@ -38,7 +38,7 @@ beforeEach(() => {
   enabled.mockReturnValue(true);
   store.getCalendarJob.mockResolvedValue(job);
   store.getLinks.mockResolvedValue([]);
-  store.claimLink.mockResolvedValue(true);
+  store.claimLink.mockResolvedValue("pending:new");
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
 
@@ -79,15 +79,16 @@ describe("syncJobCalendar (tracker wins)", () => {
     graphFetch.mockResolvedValueOnce(Response.json(event())).mockResolvedValueOnce(new Response(null, { status: 204 }));
     await sync.syncJobCalendar(ID);
     expect(calls()).toContain("DELETE users/jobs@example.com/events/e1");
-    expect(store.deleteLink).toHaveBeenCalledWith(ID, "visit");
+    expect(store.deleteLink).toHaveBeenCalledWith(ID, "visit", "e1");
   });
 
-  it("re-creates an event Outlook no longer has", async () => {
+  it("re-creates an event Outlook no longer has, dropping only the link it saw", async () => {
     store.getLinks.mockResolvedValue([link]);
     graphFetch.mockResolvedValueOnce(new Response(null, { status: 404 }))
       .mockResolvedValueOnce(Response.json({ id: "e9", changeKey: "ck9" }, { status: 201 }));
     await sync.syncJobCalendar(ID, ["visit"]);
-    expect(store.deleteLink).toHaveBeenCalledWith(ID, "visit");
+    expect(store.deleteLink).toHaveBeenCalledWith(ID, "visit", "e1");
+    expect(store.deleteLink).not.toHaveBeenCalledWith(ID, "visit");
     expect(store.saveLink).toHaveBeenCalledWith({ ...link, eventId: "e9", changeKey: "ck9" });
     expect(store.setJobDate).not.toHaveBeenCalled();
   });
@@ -143,7 +144,7 @@ describe("syncJobCalendar push kinds (only a date the tracker just changed wins)
   it("clears the date, rather than re-creating, when Outlook deleted an event the save did not touch", async () => {
     graphFetch.mockResolvedValueOnce(new Response(null, { status: 404 }));
     await sync.syncJobCalendar(ID);
-    expect(store.deleteLink).toHaveBeenCalledWith(ID, "visit");
+    expect(store.deleteLink).toHaveBeenCalledWith(ID, "visit", "e1");
     expect(store.setJobDate).toHaveBeenCalledWith(ID, "visit", null, "Visit removed in Outlook");
     expect(calls().some((c) => c.startsWith("POST"))).toBe(false);
   });
@@ -170,18 +171,48 @@ describe("creating an event claims the link first", () => {
   });
 
   it("does not post when another sync holds the claim", async () => {
-    store.claimLink.mockResolvedValue(false);
+    store.claimLink.mockResolvedValue(null);
     await sync.syncJobCalendar(ID);
     expect(graphFetch).not.toHaveBeenCalled();
     expect(store.saveLink).not.toHaveBeenCalled();
   });
 
-  it("releases the claim when the post fails", async () => {
+  it("releases only its own claim when the post fails", async () => {
     graphFetch.mockResolvedValue(new Response("down", { status: 500 }));
     await sync.syncJobCalendar(ID);
-    expect(store.deleteLink).toHaveBeenCalledWith(ID, "visit");
+    expect(store.deleteLink).toHaveBeenCalledTimes(1);
+    expect(store.deleteLink).toHaveBeenCalledWith(ID, "visit", "pending:new");
     expect(store.saveLink).not.toHaveBeenCalled();
     expect(store.recordError).toHaveBeenCalledWith(expect.stringMatching(/500/));
+  });
+
+  it("releases only its own claim when the created event's JSON can't be read", async () => {
+    graphFetch.mockResolvedValue(new Response("not json", { status: 201 }));
+    await sync.syncJobCalendar(ID);
+    expect(store.deleteLink).toHaveBeenCalledTimes(1);
+    expect(store.deleteLink).toHaveBeenCalledWith(ID, "visit", "pending:new");
+    expect(store.saveLink).not.toHaveBeenCalled();
+    expect(store.recordError).toHaveBeenCalled();
+  });
+
+  it("deletes the new Outlook event and releases the claim when saving the link fails", async () => {
+    graphFetch.mockResolvedValueOnce(Response.json({ id: "e/7", changeKey: "ck7" }, { status: 201 }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    store.saveLink.mockRejectedValue(new Error("db down"));
+    await sync.syncJobCalendar(ID);
+    expect(calls()).toEqual(["POST users/jobs@example.com/events", "DELETE users/jobs@example.com/events/e%2F7"]);
+    expect(store.deleteLink).toHaveBeenCalledWith(ID, "visit", "pending:new");
+    expect(store.deleteLink.mock.invocationCallOrder[0]).toBeGreaterThan(graphFetch.mock.invocationCallOrder[1]);
+    expect(store.recordError).toHaveBeenCalledWith("db down");
+  });
+
+  it("still releases the claim and reports the save failure when that clean-up delete fails", async () => {
+    graphFetch.mockResolvedValueOnce(Response.json({ id: "e7", changeKey: "ck7" }, { status: 201 }))
+      .mockRejectedValueOnce(new Error("network"));
+    store.saveLink.mockRejectedValue(new Error("db down"));
+    await sync.syncJobCalendar(ID);
+    expect(store.deleteLink).toHaveBeenCalledWith(ID, "visit", "pending:new");
+    expect(store.recordError).toHaveBeenCalledWith("db down");
   });
 
   it("skips a kind whose event another sync is creating right now", async () => {
@@ -192,11 +223,12 @@ describe("creating an event claims the link first", () => {
     expect(store.claimLink).not.toHaveBeenCalled();
   });
 
-  it("takes over a claim abandoned for over 10 minutes", async () => {
+  it("takes over a claim abandoned for over 10 minutes, deleting it only if it is still that claim", async () => {
     store.getLinks.mockResolvedValue([pending(11 * MIN)]);
     graphFetch.mockResolvedValue(Response.json({ id: "e1", changeKey: "ck1" }, { status: 201 }));
     await sync.syncJobCalendar(ID);
-    expect(store.deleteLink).toHaveBeenCalledWith(ID, "visit");
+    expect(store.deleteLink).toHaveBeenCalledTimes(1);
+    expect(store.deleteLink).toHaveBeenCalledWith(ID, "visit", "pending:abc");
     expect(store.claimLink).toHaveBeenCalledWith(ID, "visit");
     expect(calls()).toEqual(["POST users/jobs@example.com/events"]);
     expect(store.saveLink).toHaveBeenCalledWith(link);

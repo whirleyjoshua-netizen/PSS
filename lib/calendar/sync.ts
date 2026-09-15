@@ -42,10 +42,12 @@ export async function reconcileJob(leadId: string, pushKinds: readonly Kind[] = 
     const current = kind === "visit" ? job?.visitAt ?? null : job?.installOn ?? null;
     const wanted = job && job.status !== "lost" ? current : null;
 
-    // Only the sync that wins the claim creates the event; a failed create gives the claim back.
+    // Only the sync that wins the claim creates the event. A failed create gives back only its own claim,
+    // never a link another sync has written since.
     const create = async () => {
       if (!job || wanted === null) return;
-      if (!(await store.claimLink(leadId, kind))) return;
+      const pendingId = await store.claimLink(leadId, kind);
+      if (pendingId === null) return;
       let created: { id: string; changeKey: string };
       try {
         const response = await expectOk(
@@ -53,16 +55,23 @@ export async function reconcileJob(leadId: string, pushKinds: readonly Kind[] = 
         );
         created = (await response.json()) as { id: string; changeKey: string };
       } catch (error) {
-        await store.deleteLink(leadId, kind);
+        await store.deleteLink(leadId, kind, pendingId);
         throw error;
       }
-      await store.saveLink({ leadId, kind, eventId: created.id, changeKey: created.changeKey });
+      try {
+        await store.saveLink({ leadId, kind, eventId: created.id, changeKey: created.changeKey });
+      } catch (error) {
+        // Nothing would point at the new event, so the next sync would create a duplicate: remove it first.
+        await graphFetch(`${events}/${encodeURIComponent(created.id)}`, { method: "DELETE" }).catch(() => {});
+        await store.deleteLink(leadId, kind, pendingId);
+        throw error;
+      }
     };
 
     if (link?.eventId.startsWith("pending:")) {
       const age = Date.now() - (link.syncedAt?.getTime() ?? 0);
       if (age < CLAIM_TIMEOUT_MS) continue; // another sync is creating this event right now
-      await store.deleteLink(leadId, kind);
+      await store.deleteLink(leadId, kind, link.eventId);
       link = null;
     }
 
@@ -74,7 +83,7 @@ export async function reconcileJob(leadId: string, pushKinds: readonly Kind[] = 
     const eventPath = `${events}/${encodeURIComponent(link.eventId)}`;
     const got = await graphFetch(eventPath);
     if (got.status === 404) {
-      await store.deleteLink(leadId, kind);
+      await store.deleteLink(leadId, kind, link.eventId);
       if (push) await create();
       // Outlook drops old appointments on its own; a past date stays in the tracker as history.
       else if (current !== null && !isPast(kind, current)) {
@@ -87,7 +96,7 @@ export async function reconcileJob(leadId: string, pushKinds: readonly Kind[] = 
     if (wanted === null) {
       const removed = await graphFetch(eventPath, { method: "DELETE" });
       if (removed.status !== 404) await expectOk(removed, "delete");
-      await store.deleteLink(leadId, kind);
+      await store.deleteLink(leadId, kind, link.eventId);
       continue;
     }
 
