@@ -4,6 +4,8 @@ import { isBudgetTier, type BudgetTier } from "./budget";
 import type { DetailsInput, NewJobInput } from "./schema";
 import { isStage, type Stage } from "./stages";
 import { toLocalInput } from "./time";
+import { isFinish, type Finish } from "@/lib/leads/finish";
+import { isTreatmentType, type TreatmentType } from "@/lib/leads/treatment-types";
 
 export type Job = {
   id: string;
@@ -40,6 +42,12 @@ export type Job = {
   /** The job's one next call-back, if any. Optional so older fixtures still type-check. */
   followUpAt?: Date | null;
   followUpNote?: string | null;
+  /** Questionnaire / call-screen detail. Optional so older fixtures still type-check. The gate code is owner-only. */
+  windowCountExact?: number | null;
+  treatmentTypes?: TreatmentType[];
+  motorized?: boolean;
+  gateCode?: string | null;
+  finish?: Finish | null;
 };
 
 export type JobEvent = {
@@ -60,7 +68,7 @@ export const JOB_COLUMNS = `id, created_at, name, phone, email, address, city, t
   heard_via, notes, source, status, stage_changed_at, visit_at, quote_cents, sold_cents,
   deposit_cents, brands, ordered_on::text as ordered_on, install_on::text as install_on, lost_reason,
   referral_code, referred_by, referral_paid_at, review_requested_at, review_opt_out, portal_invited_at, budget_tier,
-  follow_up_at, follow_up_note`;
+  follow_up_at, follow_up_note, window_count_exact, treatment_types, motorized, gate_code, finish`;
 
 export function toJob(row: Record<string, unknown>): Job {
   return {
@@ -95,6 +103,11 @@ export function toJob(row: Record<string, unknown>): Job {
     budgetTier: isBudgetTier(row.budget_tier) ? row.budget_tier : null,
     followUpAt: row.follow_up_at ? new Date(row.follow_up_at as string) : null,
     followUpNote: (row.follow_up_note as string | null) ?? null,
+    windowCountExact: (row.window_count_exact as number | null) ?? null,
+    treatmentTypes: ((row.treatment_types as unknown[]) ?? []).filter(isTreatmentType),
+    motorized: row.motorized === true,
+    gateCode: (row.gate_code as string | null) ?? null,
+    finish: isFinish(row.finish) ? row.finish : null,
   };
 }
 

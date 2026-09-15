@@ -215,6 +215,18 @@ describe("changing jobs", () => {
     expect(jobs.toJob({ ...row })).toMatchObject({ followUpAt: null, followUpNote: null });
   });
 
+  it("toJob maps the questionnaire fields and drops unknown values", () => {
+    const job = jobs.toJob({ ...row, window_count_exact: 12, treatment_types: ["shutters", "curtains"], motorized: true, gate_code: "#4321", finish: "luxury" });
+    expect(job).toMatchObject({ windowCountExact: 12, treatmentTypes: ["shutters"], motorized: true, gateCode: "#4321", finish: "luxury" });
+    expect(jobs.toJob({ ...row })).toMatchObject({ windowCountExact: null, treatmentTypes: [], motorized: false, gateCode: null, finish: null });
+    expect(jobs.toJob({ ...row, finish: "cheap" }).finish).toBeNull();
+  });
+
+  it("never selects the questionnaire key into a Job", () => {
+    expect(jobs.JOB_COLUMNS).toContain("gate_code");
+    expect(jobs.JOB_COLUMNS).not.toContain("questionnaire_");
+  });
+
   it("creates a hand-entered job and returns its id", async () => {
     sql.mockResolvedValue([{ id: ID }]);
     const id = await jobs.createJob(
