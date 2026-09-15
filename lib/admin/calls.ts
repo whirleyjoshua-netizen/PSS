@@ -13,6 +13,7 @@ import { isUuid } from "./jobs";
  * (prev.status) — under READ COMMITTED another request may have already
  * moved the row between the snapshot and this UPDATE, which would otherwise
  * log a spurious stage event for a move this call didn't make.
+ * It also sets the next follow-up, or clears it (a booked call and a call with no call-back time clear it).
  */
 export async function logCall(jobId: string, input: CallInput, actor: string): Promise<boolean> {
   if (!isUuid(jobId)) return false;
@@ -26,6 +27,7 @@ export async function logCall(jobId: string, input: CallInput, actor: string): P
          visit_at = coalesce($5::timestamptz, visit_at),
          status = case when $6::text is not null and status = any($7::text[]) then $6::text else status end,
          stage_changed_at = case when $6::text is not null and status = any($7::text[]) then now() else stage_changed_at end,
+         follow_up_at = $10::timestamptz, follow_up_note = $11,
          updated_at = now()
        where id = $1
        returning id, status
@@ -38,7 +40,8 @@ export async function logCall(jobId: string, input: CallInput, actor: string): P
      insert into job_events (lead_id, actor, kind, body)
      select id, $8, 'note', $9 from updated
      returning id`,
-    [jobId, input.treatments, input.windowCount, input.budgetTier, input.visitAt, move?.to ?? null, move?.from ?? [], actor, body],
+    [jobId, input.treatments, input.windowCount, input.budgetTier, input.visitAt, move?.to ?? null, move?.from ?? [], actor, body,
+      input.followUpAt, input.followUpNote],
   );
   return rows.length > 0;
 }

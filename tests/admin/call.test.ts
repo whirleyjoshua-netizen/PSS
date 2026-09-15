@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { CALL_OUTCOMES, TREATMENT_NAMES, callStageMove, callSummary } from "@/lib/admin/call";
 
-const base = { treatments: [], windowCount: null, budgetTier: null, notes: null, visitAt: null };
+const base = { treatments: [], windowCount: null, budgetTier: null, notes: null, visitAt: null, followUpAt: null, followUpNote: null };
 
 describe("call outcomes", () => {
   it("are booked, talked and no answer", () => {
@@ -38,5 +38,9 @@ describe("callSummary", () => {
   });
   it("never includes the notes", () => {
     expect(callSummary({ ...base, outcome: "talked", notes: "Call back Friday" })).toBe("Call: talked, no visit yet");
+  });
+  it("adds the call-back to the summary", () => {
+    expect(callSummary({ ...base, outcome: "no_answer", followUpAt: new Date("2026-10-16T17:00:00Z"), followUpNote: "checking with husband" }))
+      .toBe("Call: no answer · Call back Fri 10/16, 10:00 AM · checking with husband");
   });
 });

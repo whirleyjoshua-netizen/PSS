@@ -37,6 +37,9 @@ export type Job = {
   portalInvitedAt?: Date | null;
   /** Budget tier from the call screen or Job details. Optional so older fixtures still type-check. */
   budgetTier?: BudgetTier | null;
+  /** The job's one next call-back, if any. Optional so older fixtures still type-check. */
+  followUpAt?: Date | null;
+  followUpNote?: string | null;
 };
 
 export type JobEvent = {
@@ -56,7 +59,8 @@ export const isUuid = (id: string): boolean => UUID.test(id);
 export const JOB_COLUMNS = `id, created_at, name, phone, email, address, city, treatments, window_count,
   heard_via, notes, source, status, stage_changed_at, visit_at, quote_cents, sold_cents,
   deposit_cents, brands, ordered_on::text as ordered_on, install_on::text as install_on, lost_reason,
-  referral_code, referred_by, referral_paid_at, review_requested_at, review_opt_out, portal_invited_at, budget_tier`;
+  referral_code, referred_by, referral_paid_at, review_requested_at, review_opt_out, portal_invited_at, budget_tier,
+  follow_up_at, follow_up_note`;
 
 export function toJob(row: Record<string, unknown>): Job {
   return {
@@ -89,6 +93,8 @@ export function toJob(row: Record<string, unknown>): Job {
     reviewOptOut: row.review_opt_out === true,
     portalInvitedAt: row.portal_invited_at ? new Date(row.portal_invited_at as string) : null,
     budgetTier: isBudgetTier(row.budget_tier) ? row.budget_tier : null,
+    followUpAt: row.follow_up_at ? new Date(row.follow_up_at as string) : null,
+    followUpNote: (row.follow_up_note as string | null) ?? null,
   };
 }
 
@@ -148,10 +154,13 @@ export async function setStage(id: string, to: Stage, actor: string, reason?: st
   if (!isStage(to)) throw new Error(`Unknown stage: ${String(to)}`);
   if (!isUuid(id)) return false;
   const lostReason = to === "lost" ? (reason ?? null) : null;
+  const clearFollowUp = to === "lost";
   const rows = await db()`
     with prev as (select status from leads where id = ${id}),
     moved as (
       update leads set status = ${to}, lost_reason = ${lostReason},
+        follow_up_at = case when ${clearFollowUp}::boolean then null else follow_up_at end,
+        follow_up_note = case when ${clearFollowUp}::boolean then null else follow_up_note end,
         stage_changed_at = now(), updated_at = now()
       where id = ${id} and status <> ${to}
       returning id

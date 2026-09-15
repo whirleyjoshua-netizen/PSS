@@ -21,6 +21,8 @@ const listMeasurements = vi.fn();
 vi.mock("@/lib/admin/measurements", () => ({ listMeasurements }));
 const listFiles = vi.fn();
 vi.mock("@/lib/admin/files", () => ({ listFiles }));
+const listDueFollowUps = vi.fn();
+vi.mock("@/lib/admin/follow-ups", () => ({ listDueFollowUps }));
 vi.mock("@/lib/admin/session", () => ({ requireAdmin: vi.fn(async () => ({ email: "owner@example.com" })) }));
 vi.mock("@/app/admin/jobs/actions", () => ({ moveStage: vi.fn(), markLost: vi.fn(async () => ({})) }));
 vi.mock("@/app/admin/jobs/measure-actions", () => ({ removeMeasurement: vi.fn(), removeFile: vi.fn(), setFileShared: vi.fn() }));
@@ -34,6 +36,7 @@ beforeEach(() => {
   jobs.getJob.mockReset().mockResolvedValue(job);
   listMeasurements.mockReset().mockResolvedValue([]);
   listFiles.mockReset().mockResolvedValue([]);
+  listDueFollowUps.mockReset().mockResolvedValue([]);
 });
 
 describe("board page", () => {
@@ -124,5 +127,16 @@ describe("board look and conveniences", () => {
     jobs.listJobs.mockResolvedValue([]);
     await open({ q: "zzz" });
     expect(screen.getByText(/no jobs match "zzz"/i)).toBeInTheDocument();
+  });
+
+  it("shows no follow-ups region when none are due", async () => {
+    await open({});
+    expect(screen.queryByRole("region", { name: /follow-ups due/i })).toBeNull();
+  });
+
+  it("shows the follow-ups due region when one is due", async () => {
+    listDueFollowUps.mockResolvedValue([{ ...job, followUpAt: new Date("2026-09-01T00:00:00Z"), followUpNote: null }]);
+    await open({});
+    expect(screen.getByRole("region", { name: "Follow-ups due · 1" })).toBeInTheDocument();
   });
 });

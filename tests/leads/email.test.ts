@@ -80,3 +80,11 @@ describe("sendLeadNotification", () => {
     expect(send).not.toHaveBeenCalled();
   });
 });
+
+describe("ownerRecipients", () => {
+  it("splits and trims the owner list", async () => {
+    const { ownerRecipients } = await import("@/lib/leads/email");
+    vi.stubEnv("LEAD_NOTIFICATION_EMAIL", " a@example.com, b@example.com ,");
+    expect(ownerRecipients()).toEqual(["a@example.com", "b@example.com"]);
+  });
+});

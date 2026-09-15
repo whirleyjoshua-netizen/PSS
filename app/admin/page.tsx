@@ -1,12 +1,14 @@
 import Link from "next/link";
 import { Icon } from "@/components/admin/icons";
 import { listFiles } from "@/lib/admin/files";
+import { listDueFollowUps } from "@/lib/admin/follow-ups";
 import { getJob, listJobs, SEARCH_MAX } from "@/lib/admin/jobs";
 import { boardHref } from "@/lib/admin/links";
 import { listMeasurements } from "@/lib/admin/measurements";
 import { requireAdmin } from "@/lib/admin/session";
 import { STAGE_STYLE } from "@/lib/admin/stages";
 import { formatDay } from "@/lib/admin/time";
+import { FollowUpsDue } from "./FollowUpsDue";
 import { JobCard, groupByStage } from "./JobCard";
 import { JobPanel } from "./JobPanel";
 
@@ -33,13 +35,14 @@ export default async function BoardPage({
   const includeLost = first(params.lost) === "1";
   const openId = first(params.job);
   const q = (first(params.q) ?? "").trim().slice(0, SEARCH_MAX);
-  const [jobs, panel] = await Promise.all([
+  const now = new Date();
+  const [jobs, panel, followUps] = await Promise.all([
     listJobs({ includeLost, search: q }),
     openId ? loadPanel(openId) : Promise.resolve(null),
+    listDueFollowUps(now),
   ]);
   const groups = groupByStage(jobs, includeLost);
   const working = groups.filter((group) => group.stage !== "lost");
-  const now = new Date();
   const here = { lost: includeLost, q };
 
   return (
@@ -90,6 +93,8 @@ export default async function BoardPage({
             <Link href={boardHref({ lost: includeLost, job: openId })} className="underline underline-offset-4">Clear search</Link>
           </p>
         ) : null}
+
+        <FollowUpsDue jobs={followUps} now={now} />
 
         <nav aria-label="Stages">
           <ul className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-7">

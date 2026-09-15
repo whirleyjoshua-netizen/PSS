@@ -16,6 +16,8 @@ export type CallInput = {
   budgetTier: BudgetTier | null;
   notes: string | null;
   visitAt: Date | null;
+  followUpAt: Date | null;
+  followUpNote: string | null;
 };
 
 /** Where a call's outcome may move the job, and only from which stages. Forward only. */
@@ -41,5 +43,8 @@ export function callSummary(input: CallInput): string {
     input.windowCount ? `${input.windowCount} windows` : "",
     input.budgetTier ? budgetLabel(input.budgetTier) : "",
   ].filter(Boolean);
-  return [`Call: ${outcome}`, ...parts].join(" · ");
+  const callBack = input.followUpAt
+    ? [`Call back ${formatCallVisit(input.followUpAt)}`, ...(input.followUpNote ? [input.followUpNote] : [])]
+    : [];
+  return [`Call: ${outcome}`, ...parts, ...callBack].join(" · ");
 }
