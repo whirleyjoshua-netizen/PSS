@@ -8,21 +8,24 @@ import { TeamSection } from "./TeamSection";
 /** The team list, plus account and client-portal options as later portal steps land. */
 export default async function SettingsPage() {
   await requireAdmin();
-  const teamLoading = listTeam();
   const enabled = calendarEnabled();
-  let state: Awaited<ReturnType<typeof getSyncState>> | null = null;
-  let unreadable = false;
-  if (enabled) {
-    try {
-      state = await getSyncState();
-    } catch (error) {
-      // Most likely the calendar tables are missing (migration 007 not applied); say so instead of a 500.
-      console.error("Could not read the calendar sync state", error);
-      unreadable = true;
-    }
-  }
+  type Calendar = { state: Awaited<ReturnType<typeof getSyncState>> | null; unreadable: boolean };
+  // Read both together, so neither rejection is left unhandled while the other is awaited.
+  const [team, calendar] = await Promise.all<[ReturnType<typeof listTeam>, Promise<Calendar>]>([
+    listTeam(),
+    enabled
+      ? getSyncState().then(
+          (state) => ({ state, unreadable: false }),
+          (error: unknown) => {
+            // Most likely the calendar tables are missing (migration 007 not applied); say so instead of a 500.
+            console.error("Could not read the calendar sync state", error);
+            return { state: null, unreadable: true };
+          },
+        )
+      : Promise.resolve({ state: null, unreadable: false }),
+  ]);
+  const { state, unreadable } = calendar;
   const { expiresAt, lastError, lastErrorAt } = state ?? { expiresAt: null, lastError: null, lastErrorAt: null };
-  const team = await teamLoading;
 
   return (
     <div className="flex max-w-xl flex-col gap-4">

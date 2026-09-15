@@ -24,6 +24,9 @@ export function AddMemberForm() {
           name="name"
           defaultValue={state.name ?? ""}
           maxLength={60}
+          required
+          aria-invalid={state.error ? true : undefined}
+          aria-describedby={state.error ? "team-name-error" : undefined}
           className={CONTROL}
         />
       </div>
@@ -40,7 +43,11 @@ export function AddMemberForm() {
       <Button type="submit" variant="outline" disabled={adding}>
         Add
       </Button>
-      {state.error ? <p role="alert" className="w-full text-sm text-overdue">{state.error}</p> : null}
+      {state.error ? (
+        <p id="team-name-error" role="alert" className="w-full text-sm text-overdue">
+          {state.error}
+        </p>
+      ) : null}
     </form>
   );
 }

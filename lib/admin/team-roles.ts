@@ -4,10 +4,17 @@ export const TEAM_ROLES = [
   { value: "installer", label: "Installer" },
 ] as const;
 
-export type TeamRole = (typeof TEAM_ROLES)[number]["value"];
+type RoleEntry = (typeof TEAM_ROLES)[number];
+
+export type TeamRole = RoleEntry["value"];
 
 export const isTeamRole = (value: unknown): value is TeamRole =>
   TEAM_ROLES.some((role) => role.value === value);
 
-export const roleLabel = (role: TeamRole): string =>
-  TEAM_ROLES.find((r) => r.value === role)!.label;
+// Typed from TEAM_ROLES, so a role added there without a label here fails typecheck.
+const ROLE_LABELS: { [R in TeamRole]: Extract<RoleEntry, { value: R }>["label"] } = {
+  designer: "Designer",
+  installer: "Installer",
+};
+
+export const roleLabel = (role: TeamRole): string => ROLE_LABELS[role];
