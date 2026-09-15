@@ -2,7 +2,7 @@ import Link from "next/link";
 import { STAGE_STYLE } from "@/lib/admin/stages";
 import { lasVegasDate } from "@/lib/admin/time";
 import { monthLabel, type ScheduleItem } from "@/lib/calendar/week";
-import { whenLabel } from "@/lib/calendar/labels";
+import { cellWhen } from "@/lib/calendar/labels";
 import { ScheduleCard } from "./ScheduleCard";
 import { ScheduleHeader } from "./ScheduleHeader";
 
@@ -21,7 +21,7 @@ const cellName = (date: string) =>
   new Date(`${date}T12:00:00Z`).toLocaleDateString("en-US", { timeZone: "UTC", weekday: "short", month: "short", day: "numeric" });
 
 function cellLine(item: ScheduleItem): { text: string; className: string } {
-  const when = item.allDay || !item.start ? "All day" : whenLabel(item.start, item.end, item.day);
+  const when = cellWhen(item, item.day);
   if (item.job) {
     const kind = item.job.kind === "visit" ? "Visit" : "Install";
     return { text: `${when} · ${kind} · ${item.job.name}`, className: `border-l-2 pl-1 ${STAGE_STYLE[item.job.status].left}` };

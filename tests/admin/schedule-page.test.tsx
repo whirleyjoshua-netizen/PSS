@@ -224,10 +224,10 @@ describe("multi-day timed events", () => {
     expect(monday.getByText("Sun 9:00 AM – Tue 10:00 AM")).toBeInTheDocument();
   });
 
-  it("dates both ends on a month cell line and in the day list", () => {
+  it("shows 'Continues' on a later-day month cell line but the full span in the day list", () => {
     render(<MonthView month="2026-09" days={monthDays} notice={null} now={NOW} day="2026-09-14" items={[middle]} />);
     const cell = screen.getByRole("link", { name: /mon, sep 14/i });
-    expect(within(cell).getByText("Sun 9:00 AM – Tue 10:00 AM · Long job")).toBeInTheDocument();
+    expect(within(cell).getByText("Continues · Long job")).toBeInTheDocument();
     const section = within(screen.getByRole("region", { name: "Monday, September 14" }));
     expect(section.getByText("Sun 9:00 AM – Tue 10:00 AM")).toBeInTheDocument();
   });
