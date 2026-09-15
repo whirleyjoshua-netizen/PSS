@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/Button";
 import { business } from "@/content/business";
 import { categories } from "@/content/products";
@@ -16,26 +16,28 @@ import {
   TextField,
 } from "./Field";
 
+// The query string never changes while the form is open, so there is nothing to subscribe to.
+// The snapshot is the raw string, a primitive, so it is stable between renders.
+const subscribeToNothing = () => () => {};
+const readSearch = () => window.location.search;
+const serverSearch = () => "";
+
 export function ConsultationForm() {
   const { state, error, submit } = useConsultationForm("contact");
-  const [heardVia, setHeardVia] = useState("");
-  const [referral, setReferral] = useState<{ code: string; by: string | null } | null>(null);
-
   // A printed QR code carries ?ref=flyer, which prefills this select so the
   // lead arrives attributed. A /r/<code> link additionally carries r= and by=,
-  // identifying the friend who sent them. Read on mount rather than via
-  // useSearchParams: this page is statically rendered, and useSearchParams
-  // would opt it out.
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const label = referralLabel(params.get("ref"));
-    // Intentional: the URL can only be read after hydration on this statically rendered page,
-    // and reading it during render would make the server and client HTML differ.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (label) setHeardVia(label);
-    const code = params.get("r");
-    if (code) setReferral({ code: code.slice(0, 20), by: params.get("by")?.slice(0, 40) || null });
-  }, []);
+  // identifying the friend who sent them. Read with useSyncExternalStore rather
+  // than useSearchParams: this page is statically rendered, and useSearchParams
+  // would opt it out. The server snapshot is the unattributed default, and React
+  // renders that during hydration too, so the HTML matches before the URL applies.
+  const search = useSyncExternalStore(subscribeToNothing, readSearch, serverSearch);
+  const params = new URLSearchParams(search);
+  const urlSource = referralLabel(params.get("ref")) ?? "";
+  const code = params.get("r");
+  const referral = code ? { code: code.slice(0, 20), by: params.get("by")?.slice(0, 40) || null } : null;
+  // The visitor's own pick wins over the prefilled source.
+  const [picked, setPicked] = useState<string | null>(null);
+  const heardVia = picked ?? urlSource;
 
   return (
     <form onSubmit={submit} noValidate className="relative flex flex-col gap-6">
@@ -137,7 +139,7 @@ export function ConsultationForm() {
             id="c-heard"
             name="heardVia"
             value={heardVia}
-            onChange={(event) => setHeardVia(event.target.value)}
+            onChange={(event) => setPicked(event.target.value)}
             className="min-h-11 w-full border border-rule bg-ivory px-4 py-3 text-charcoal focus:border-champagne-ink focus:outline-none"
           >
             <option value="">Select one</option>

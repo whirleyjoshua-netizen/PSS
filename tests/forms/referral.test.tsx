@@ -1,4 +1,5 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { renderToString } from "react-dom/server";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { ConsultationForm } from "@/components/forms/ConsultationForm";
 import {
@@ -93,6 +94,29 @@ describe("ConsultationForm friend referral", () => {
     );
     expect(screen.getByText("Sarah sent you.")).toBeInTheDocument();
     expect(container.querySelector('input[name="referralCode"]')).toHaveValue("K7M2QX");
+  });
+
+  it("shows the attribution for a referral link without a name, posting the code", async () => {
+    visit("?r=K7M2QX");
+    const { container } = render(<ConsultationForm />);
+    await waitFor(() => expect(container.querySelector('input[name="referralCode"]')).toHaveValue("K7M2QX"));
+    expect(screen.queryByText(/sent you\./)).toBeNull();
+  });
+
+  it("renders the server HTML unattributed, so hydration matches whatever the URL holds", () => {
+    visit("?ref=friend&r=K7M2QX&by=Sarah");
+    const html = renderToString(<ConsultationForm />);
+    expect(html).not.toContain("sent you.");
+    expect(html).not.toContain('name="referralCode"');
+  });
+
+  it("still lets the visitor change a prefilled source", async () => {
+    visit("?ref=flyer");
+    render(<ConsultationForm />);
+    const select = screen.getByLabelText(/how did you hear/i);
+    await waitFor(() => expect(select).toHaveValue("Flyer"));
+    fireEvent.change(select, { target: { value: "Saw our van" } });
+    expect(select).toHaveValue("Saw our van");
   });
 
   it("renders no code field without a referral", () => {
