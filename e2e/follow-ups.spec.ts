@@ -50,6 +50,7 @@ test("an overdue call-back shows on the board until it's done", async ({ page })
   const id = await lead(name);
   await signIn(page);
   await page.goto(`/admin/jobs/${id}`);
+  await page.getByLabel("More actions").click();
   await page.getByRole("button", { name: "Set call-back" }).click();
   await page.getByLabel("Call-back date and time").fill("2026-01-05T09:00");
   await page.getByRole("button", { name: "Save call-back" }).click();
@@ -61,6 +62,7 @@ test("an overdue call-back shows on the board until it's done", async ({ page })
   await expect(due.getByRole("listitem").filter({ hasText: name })).toContainText("Overdue");
 
   await page.goto(`/admin/jobs/${id}`);
+  await page.getByLabel("More actions").click();
   await page.getByRole("button", { name: "Done" }).click();
   await expect(page.getByText("No call-back set")).toBeVisible();
   await page.goto("/admin");

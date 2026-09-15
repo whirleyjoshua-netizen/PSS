@@ -30,8 +30,8 @@ describe("OverviewTab", () => {
     const project = screen.getByRole("region", { name: "Project details" });
     expect(project).toHaveTextContent("Shutters");
     expect(project).toHaveTextContent("Mid-range");
-    expect(screen.getByText("Schedule the install")).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Money" })).toHaveTextContent("$2,500");
+    expect(screen.queryByRole("region", { name: "Next action" })).toBeNull();
   });
 
   it("shows set values and empty states on the status cards", () => {

@@ -70,17 +70,20 @@ test("an owner adds a job, advances it, and leaves a note", async ({ page }) => 
   await page.getByRole("button", { name: "Add job" }).click();
 
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(NAME);
-  await page.getByRole("button", { name: "Move to Contacted" }).click();
-  await expect(page.getByRole("list", { name: "Stage" }).locator('[aria-current="step"]')).toContainText("Contacted");
+  await page.getByLabel("More actions").click();
+  await page.getByText("Change stage…").click();
+  await page.getByLabel("Set stage").selectOption("visit_booked");
+  await page.getByRole("button", { name: "Set", exact: true }).click();
+  await expect(page.getByRole("list", { name: "Stage" }).locator('[aria-current="step"]')).toContainText("Appointment booked");
 
   await page.getByRole("link", { name: "Activity", exact: true }).click();
   await page.getByLabel("Add a note").fill("Call back after 5pm");
   await page.getByRole("button", { name: "Add note" }).click();
   await expect(page.getByText("Call back after 5pm")).toBeVisible();
-  await expect(page.getByText("New lead → Contacted")).toBeVisible();
+  await expect(page.getByText("New lead → Appointment booked")).toBeVisible();
 
   await page.getByRole("link", { name: "← All jobs" }).click();
-  await expect(page.getByRole("region", { name: /contacted/i }).getByRole("link", { name: new RegExp(NAME) })).toBeVisible();
+  await expect(page.getByRole("region", { name: /appointment booked/i }).getByRole("link", { name: new RegExp(NAME) })).toBeVisible();
 });
 
 test("a referral link attributes the friend and the reward can be paid", async ({ page }) => {

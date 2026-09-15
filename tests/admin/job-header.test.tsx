@@ -3,6 +3,8 @@ import { describe, it, expect, vi } from "vitest";
 import type { Job } from "@/lib/admin/jobs";
 
 vi.mock("@/app/admin/jobs/actions", () => ({ moveStage: vi.fn(), markLost: vi.fn(async () => ({})) }));
+vi.mock("@/app/admin/jobs/contact-actions", () => ({ logContactAction: vi.fn(async () => ({})) }));
+vi.mock("@/app/admin/jobs/follow-up-actions", () => ({ saveFollowUp: vi.fn(async () => ({})), clearFollowUpAction: vi.fn(async () => {}) }));
 const { JobHeader } = await import("@/app/admin/jobs/[id]/JobHeader");
 
 const ID = "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c";
@@ -39,12 +41,28 @@ describe("JobHeader", () => {
     expect(screen.queryByRole("link", { name: "Email" })).toBeNull();
   });
 
-  it("keeps set stage and mark lost in the More menu", () => {
+  it("puts mark contacted, the call-back and change stage in the More menu, with no Move button", () => {
     render(<JobHeader job={job} now={now} />);
-    const menu = screen.getByLabelText("More actions").closest("details")!;
-    expect(within(menu).getByLabelText("Set stage")).toBeInTheDocument();
-    expect(within(menu).getByLabelText(/mark lost/i)).toBeInTheDocument();
-    expect(within(menu).queryByRole("button", { name: /^Move to/ })).toBeNull();
+    const menu = within(screen.getByLabelText("More actions").closest("details")!);
+    expect(menu.getByLabelText("Mark contacted")).toBeInTheDocument();
+    expect(menu.getByText("No call-back set")).toBeInTheDocument();
+    expect(menu.getByText("Change stage…")).toBeInTheDocument();
+    expect(menu.getByLabelText("Set stage")).toBeInTheDocument();
+    expect(menu.getByLabelText(/mark lost/i)).toBeInTheDocument();
+    expect(menu.queryByRole("button", { name: /^Move to/ })).toBeNull();
+    expect(menu.queryByText(/^Next/)).toBeNull();
+  });
+
+  it("shows when the client was last contacted", () => {
+    render(<JobHeader job={{ ...job, lastContactAt: new Date("2026-09-16T05:00:00Z") }} now={now} />);
+    expect(screen.getByText("Last contacted Tue 9/15")).toBeInTheDocument();
+    render(<JobHeader job={{ ...job, lastContactAt: null }} now={now} />);
+    expect(screen.getAllByText(/Last contacted/)).toHaveLength(1);
+  });
+
+  it("flags an overdue call-back beside the stage", () => {
+    render(<JobHeader job={{ ...job, followUpAt: new Date("2026-09-13T17:00:00Z") }} now={now} />);
+    expect(screen.getByText("Call-back overdue")).toBeInTheDocument();
   });
 
   it("keeps the More-actions panel within the header row below sm", () => {

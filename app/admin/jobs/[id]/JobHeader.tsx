@@ -3,8 +3,10 @@ import { Icon } from "@/components/admin/icons";
 import type { Job } from "@/lib/admin/jobs";
 import { editDetailsHref } from "@/lib/admin/next-action";
 import { STAGE_STYLE, stageLabel } from "@/lib/admin/stages";
-import { daysBetween, formatShortDate } from "@/lib/admin/time";
+import { daysBetween, formatShortDate, formatShortDay } from "@/lib/admin/time";
 import { CallButton } from "./CallButton";
+import { ContactLog } from "./ContactLog";
+import { FollowUpBox } from "./FollowUpBox";
 import { StageControls } from "./StageControls";
 import { StageStepper } from "./StageStepper";
 import { ACTION_LINK, TEXT_LINK } from "./ui";
@@ -29,10 +31,16 @@ export function JobHeader({ job, now }: { job: Job; now: Date }) {
               <Icon name={style.icon} className={`size-3.5 ${style.tint}`} />
               {stageLabel(job.status)}
             </span>
+            {job.followUpAt && job.followUpAt.getTime() < now.getTime() ? (
+              <span className="border border-overdue px-2 py-1 text-xs font-semibold uppercase tracking-wide text-overdue">Call-back overdue</span>
+            ) : null}
           </div>
           <p className="text-sm text-ink-soft">
             {[job.city, `Created ${formatShortDate(job.createdAt)}`, inStage(daysBetween(job.stageChangedAt, now))].join(" · ")}
           </p>
+          {job.lastContactAt ? (
+            <p className="text-sm text-ink-soft">Last contacted {formatShortDay(job.lastContactAt)}</p>
+          ) : null}
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -45,7 +53,21 @@ export function JobHeader({ job, now }: { job: Job; now: Date }) {
               <span aria-hidden="true">•••</span>
             </summary>
             <div className="absolute inset-x-0 z-20 mt-2 border border-rule bg-ivory p-4 shadow-lg sm:left-auto sm:right-0 sm:w-80">
-              <StageControls job={job} parts={["set", "lost"]} />
+              <div className="flex flex-col gap-4">
+                <ContactLog jobId={job.id} />
+                <hr className="border-rule" />
+                <FollowUpBox
+                  key={job.followUpAt?.toISOString() ?? "none"}
+                  job={{ id: job.id, followUpAt: job.followUpAt ?? null, followUpNote: job.followUpNote ?? null }}
+                />
+                <hr className="border-rule" />
+                <details>
+                  <summary className="cursor-pointer text-sm underline underline-offset-4">Change stage…</summary>
+                  <div className="mt-3">
+                    <StageControls job={job} parts={["set", "lost"]} />
+                  </div>
+                </details>
+              </div>
             </div>
           </details>
         </div>

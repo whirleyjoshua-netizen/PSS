@@ -40,7 +40,7 @@ describe("job page layout", () => {
     expect(screen.getByRole("link", { current: "page" })).toHaveTextContent("Overview");
     expect(screen.getByRole("region", { name: "Customer" })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Project details" })).toHaveTextContent("Mid-range");
-    expect(screen.getByText("Call the customer")).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Next action" })).toBeNull();
   });
 
   it("shows the Measurements tab", async () => {

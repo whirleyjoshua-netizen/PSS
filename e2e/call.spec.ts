@@ -47,7 +47,7 @@ test("logging a booked call from a computer moves the lead to Visit booked", asy
   await page.getByRole("button", { name: "Save booked visit" }).click();
 
   await expect(page).toHaveURL(new RegExp(`/admin/jobs/${id}$`));
-  await expect(page.getByRole("list", { name: "Stage" }).locator('[aria-current="step"]')).toContainText("Visit booked");
+  await expect(page.getByRole("list", { name: "Stage" }).locator('[aria-current="step"]')).toContainText("Appointment booked");
   await expect(page.getByText("Call: booked visit Wed 10/14, 2:00 PM · Shutters · 8 windows · Mid-range")).toBeVisible();
   const [row] = await sql()`select budget_tier, window_count_exact, treatment_types from leads where id = ${id}`;
   expect(row).toMatchObject({ budget_tier: "mid", window_count_exact: 8, treatment_types: ["shutters"] });

@@ -11,7 +11,6 @@ import { DetailsForm } from "./DetailsForm";
 import { EventList } from "./EventList";
 import { InviteSection } from "./InviteSection";
 import { MoneyStrip } from "./MoneyStrip";
-import { NextActionCard } from "./NextActionCard";
 import { CustomerCard, ProjectCard, StatusCard } from "./OverviewCards";
 import { ReferralSection } from "./ReferralSection";
 import { ReferralsList } from "./ReferralsList";
@@ -45,7 +44,6 @@ export function OverviewTab({ job, editing, now, measurements, files, events, re
     <div className="grid gap-6 lg:grid-cols-3">
       <CustomerCard job={job} referrer={referrer} />
       <ProjectCard job={job} editHref={edit} />
-      <NextActionCard job={job} measurementCount={measurements.length} />
 
       {editing ? (
         <section aria-labelledby="edit-heading" className={`${CARD} lg:col-span-3`}>
