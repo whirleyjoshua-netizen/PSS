@@ -10,12 +10,21 @@ vi.mock("@/lib/calendar/config", () => ({ calendarEnabled }));
 const getSyncState = vi.fn();
 vi.mock("@/lib/calendar/store", () => ({ getSyncState }));
 
+const listTeam = vi.fn();
+vi.mock("@/lib/admin/team", () => ({ listTeam }));
+
+vi.mock("@/app/admin/settings/actions", () => ({
+  addMember: vi.fn(async () => ({})),
+  removeMember: vi.fn(),
+}));
+
 const { default: SettingsPage } = await import("@/app/admin/settings/page");
 
 beforeEach(() => {
   requireAdmin.mockClear();
   calendarEnabled.mockReset();
   getSyncState.mockReset();
+  listTeam.mockReset().mockResolvedValue([]);
 });
 
 describe("settings page", () => {
@@ -86,5 +95,32 @@ describe("settings page", () => {
     expect(
       screen.getByText("Connected, but the calendar status couldn't be read. Has migration 007 been applied?"),
     ).toBeInTheDocument();
+  });
+});
+
+describe("team section", () => {
+  it("says no one is added yet", async () => {
+    calendarEnabled.mockReturnValue(false);
+    render(await SettingsPage());
+    const team = screen.getByRole("region", { name: "Team" });
+    expect(team).toHaveTextContent("No one added yet.");
+    expect(screen.getByLabelText("Name")).toBeInTheDocument();
+    expect(screen.getByLabelText("Role")).toHaveDisplayValue("Designer");
+    expect(screen.getByRole("button", { name: "Add" })).toBeInTheDocument();
+  });
+
+  it("lists each person with their tag and a Remove button", async () => {
+    calendarEnabled.mockReturnValue(false);
+    listTeam.mockResolvedValue([
+      { id: "a", name: "Joshua", role: "installer" },
+      { id: "b", name: "Shade", role: "designer" },
+    ]);
+    render(await SettingsPage());
+    const team = screen.getByRole("region", { name: "Team" });
+    expect(team).toHaveTextContent("Joshua — Installer");
+    expect(team).toHaveTextContent("Shade — Designer");
+    expect(screen.getAllByRole("button", { name: /^Remove / })).toHaveLength(2);
+    expect(screen.getByRole("button", { name: "Remove Shade" })).toBeInTheDocument();
+    expect(team).toHaveTextContent("Removing someone leaves their jobs unassigned.");
   });
 });

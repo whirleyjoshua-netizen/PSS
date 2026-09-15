@@ -25,6 +25,13 @@ describe("team", () => {
     expect(sql.mock.calls[0]).toEqual(expect.arrayContaining(["Shade", "designer"]));
   });
 
+  it("trims the name before it reaches the database", async () => {
+    sql.mockResolvedValue([{ id: ID }]);
+    await team.addTeamMember("  Shade  ", "designer");
+    expect(sql.mock.calls[0]).toEqual(expect.arrayContaining(["Shade", "designer"]));
+    expect(sql.mock.calls[0]).not.toEqual(expect.arrayContaining(["  Shade  "]));
+  });
+
   it("removes a person by id", async () => {
     sql.mockResolvedValue([{ id: ID }]);
     expect(await team.removeTeamMember(ID)).toBe(true);

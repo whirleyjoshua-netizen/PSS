@@ -10,4 +10,4 @@ export const isTeamRole = (value: unknown): value is TeamRole =>
   TEAM_ROLES.some((role) => role.value === value);
 
 export const roleLabel = (role: TeamRole): string =>
-  TEAM_ROLES.find((r) => r.value === role)?.label ?? role;
+  TEAM_ROLES.find((r) => r.value === role)!.label;

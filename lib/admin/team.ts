@@ -12,7 +12,9 @@ export async function listTeam(): Promise<TeamMember[]> {
 }
 
 export async function addTeamMember(name: string, role: TeamRole): Promise<string> {
-  const [row] = await db()`insert into team_members (name, role) values (${name}, ${role}) returning id`;
+  // Trim here too: the db check is length(trim(name)) and rows sort by lower(name),
+  // so padding from a caller that skipped the schema would sort and display oddly.
+  const [row] = await db()`insert into team_members (name, role) values (${name.trim()}, ${role}) returning id`;
   return row.id as string;
 }
 

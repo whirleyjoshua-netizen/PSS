@@ -2,10 +2,13 @@ import { requireAdmin } from "@/lib/admin/session";
 import { calendarEnabled } from "@/lib/calendar/config";
 import { getSyncState } from "@/lib/calendar/store";
 import { formatWhen } from "@/lib/admin/time";
+import { listTeam } from "@/lib/admin/team";
+import { TeamSection } from "./TeamSection";
 
-/** Reserved for account and client-portal options as later portal steps land. */
+/** The team list, plus account and client-portal options as later portal steps land. */
 export default async function SettingsPage() {
   await requireAdmin();
+  const teamLoading = listTeam();
   const enabled = calendarEnabled();
   let state: Awaited<ReturnType<typeof getSyncState>> | null = null;
   let unreadable = false;
@@ -19,10 +22,12 @@ export default async function SettingsPage() {
     }
   }
   const { expiresAt, lastError, lastErrorAt } = state ?? { expiresAt: null, lastError: null, lastErrorAt: null };
+  const team = await teamLoading;
 
   return (
     <div className="flex max-w-xl flex-col gap-4">
       <h1 className="text-2xl font-semibold">Settings</h1>
+      <TeamSection team={team} />
       <section aria-labelledby="outlook-heading" className="flex flex-col gap-2">
         <h2 id="outlook-heading" className="text-lg font-semibold">
           Outlook calendar
