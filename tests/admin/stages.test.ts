@@ -4,7 +4,7 @@ import { STAGES, ALL_STAGES, isStage, stageLabel, nextStage, WORKING_STAGES, STA
 describe("stages", () => {
   it("runs from new lead to installed, in order", () => {
     expect(STAGES.map((s) => s.value)).toEqual([
-      "new", "contacted", "visit_booked", "quoted", "sold", "ordered", "installed",
+      "new", "visit_booked", "quoted", "sold", "ordered", "installed",
     ]);
   });
 
@@ -14,7 +14,7 @@ describe("stages", () => {
   });
 
   it("advances one stage at a time and stops at installed", () => {
-    expect(nextStage("new")).toBe("contacted");
+    expect(nextStage("new")).toBe("visit_booked");
     expect(nextStage("ordered")).toBe("installed");
     expect(nextStage("installed")).toBeNull();
     expect(nextStage("lost")).toBeNull();
@@ -22,7 +22,7 @@ describe("stages", () => {
 
   it("labels stages the way the owners read them", () => {
     expect(stageLabel("new")).toBe("New lead");
-    expect(stageLabel("visit_booked")).toBe("Visit booked");
+    expect(stageLabel("visit_booked")).toBe("Appointment booked");
     expect(stageLabel("lost")).toBe("Lost");
   });
 
@@ -31,10 +31,15 @@ describe("stages", () => {
     expect(isStage("Sold")).toBe(false);
     expect(isStage(undefined)).toBe(false);
   });
+
+  it("still names the retired Contacted stage for old activity", () => {
+    expect(stageLabel("contacted")).toBe("Contacted");
+    expect(isStage("contacted")).toBe(false);
+  });
 });
 
 describe("working stages and styles", () => {
-  it("lists the seven working stages in board order", () => {
+  it("lists the six working stages in board order", () => {
     expect([...WORKING_STAGES]).toEqual(STAGES.map((s) => s.value));
   });
 
@@ -51,6 +56,7 @@ describe("working stages and styles", () => {
       expect(style.icon).toBeTruthy();
       expect(style.edge).toMatch(/^border-t-/);
       expect(style.tint).toMatch(/^text-/);
+      expect(style.left).toMatch(/^border-l-/);
     }
     expect(STAGE_STYLE.quoted.edge).toBe("border-t-stage-quoted");
   });

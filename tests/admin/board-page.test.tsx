@@ -92,15 +92,15 @@ describe("board look and conveniences", () => {
     await open({});
     const tiles = screen.getByRole("navigation", { name: "Stages" });
     const links = within(tiles).getAllByRole("link");
-    expect(links).toHaveLength(7);
-    expect(links[3]).toHaveAttribute("href", "/admin#stage-quoted");
-    expect(links[3]).toHaveTextContent("Quoted");
+    expect(links).toHaveLength(6);
+    expect(links[2]).toHaveAttribute("href", "/admin#stage-quoted");
+    expect(links[2]).toHaveTextContent("Quoted");
   });
 
   it("has an add link in every working column, and none for lost", async () => {
     await open({ lost: "1" });
     expect(screen.getByRole("link", { name: "+ Add lead" })).toHaveAttribute("href", "/admin/jobs/new?stage=new");
-    expect(screen.getAllByRole("link", { name: "+ Add job" })).toHaveLength(6);
+    expect(screen.getAllByRole("link", { name: "+ Add job" })).toHaveLength(5);
     const lost = screen.getByRole("region", { name: /lost/i });
     expect(within(lost).queryByRole("link", { name: /add/i })).toBeNull();
   });

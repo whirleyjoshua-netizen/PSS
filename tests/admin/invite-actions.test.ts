@@ -36,7 +36,7 @@ describe("moveStage invites", () => {
     expect(invite.autoInvite).toHaveBeenCalledWith(JOB);
   });
 
-  it.each(["new", "contacted", "visit_booked", "lost"] as const)("does not invite on a move to %s", async (to) => {
+  it.each(["new", "visit_booked", "lost"] as const)("does not invite on a move to %s", async (to) => {
     jobs.setStage.mockResolvedValue(true);
     await moveStage(JOB, to);
     await Promise.all(afterCallbacks.map((cb) => cb()));

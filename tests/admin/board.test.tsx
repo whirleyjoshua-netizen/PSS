@@ -14,10 +14,10 @@ const job = (overrides: Partial<Job>): Job => ({
 });
 
 describe("board", () => {
-  it("groups jobs into the seven stages, in order, even when empty", () => {
+  it("groups jobs into the six stages, in order, even when empty", () => {
     const groups = groupByStage([job({ status: "sold" })], false);
     expect(groups.map((g) => g.label)).toEqual([
-      "New lead", "Contacted", "Visit booked", "Quoted", "Sold", "Ordered", "Installed",
+      "New lead", "Appointment booked", "Quoted", "Sold", "Ordered", "Installed",
     ]);
     expect(groups.find((g) => g.stage === "sold")!.jobs).toHaveLength(1);
   });

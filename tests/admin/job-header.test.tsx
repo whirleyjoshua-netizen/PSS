@@ -10,7 +10,7 @@ const now = new Date("2026-09-14T18:00:00Z");
 const job: Job = {
   id: ID, createdAt: new Date("2026-09-11T18:00:00Z"), name: "Dana Reyes", phone: "7025550134",
   email: "dana@example.com", address: null, city: "Henderson", treatments: [], windowCount: null, heardVia: null,
-  notes: null, source: "phone", status: "contacted", stageChangedAt: new Date("2026-09-13T18:00:00Z"),
+  notes: null, source: "phone", status: "new", stageChangedAt: new Date("2026-09-13T18:00:00Z"),
   visitAt: null, quoteCents: null, soldCents: null, depositCents: null, brands: [], orderedOn: null,
   installOn: null, lostReason: null, referralCode: null, referredBy: null, referralPaidAt: null,
   reviewRequestedAt: null, reviewOptOut: false, budgetTier: null,
@@ -21,7 +21,7 @@ describe("JobHeader", () => {
     render(<JobHeader job={job} now={now} />);
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Dana Reyes");
     expect(screen.getByText("Henderson · Created Sep 11, 2026 · 1 day in stage")).toBeInTheDocument();
-    expect(screen.getByRole("listitem", { current: "step" })).toHaveTextContent("Contacted");
+    expect(screen.getByRole("listitem", { current: "step" })).toHaveTextContent("New lead");
   });
 
   it("has call, text, email and schedule actions", () => {

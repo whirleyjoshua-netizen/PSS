@@ -6,7 +6,7 @@ const ID = "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c";
 const job: Job = {
   id: ID, createdAt: new Date(), name: "Dana Reyes", phone: "7025550134", email: null, address: null,
   city: "Henderson", treatments: [], windowCount: null, heardVia: null, notes: null, source: "phone",
-  status: "contacted", stageChangedAt: new Date(), visitAt: null, quoteCents: null, soldCents: null,
+  status: "new", stageChangedAt: new Date(), visitAt: null, quoteCents: null, soldCents: null,
   depositCents: null, brands: [], orderedOn: null, installOn: null, lostReason: null, referralCode: null,
   referredBy: null, referralPaidAt: null, reviewRequestedAt: null, reviewOptOut: false, budgetTier: "mid",
 };
@@ -40,7 +40,7 @@ describe("job page layout", () => {
     expect(screen.getByRole("link", { current: "page" })).toHaveTextContent("Overview");
     expect(screen.getByRole("region", { name: "Customer" })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Project details" })).toHaveTextContent("Mid-range");
-    expect(screen.getByText("Book the consultation")).toBeInTheDocument();
+    expect(screen.getByText("Call the customer")).toBeInTheDocument();
   });
 
   it("shows the Measurements tab", async () => {

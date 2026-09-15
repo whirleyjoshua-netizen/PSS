@@ -7,7 +7,7 @@ describe("portal stages", () => {
   });
 
   it("exclude every earlier stage and lost", () => {
-    for (const stage of ["new", "contacted", "visit_booked", "lost"] as const) {
+    for (const stage of ["new", "visit_booked", "lost"] as const) {
       expect(isPortalStage(stage)).toBe(false);
     }
     for (const stage of PORTAL_STAGES) expect(isPortalStage(stage)).toBe(true);

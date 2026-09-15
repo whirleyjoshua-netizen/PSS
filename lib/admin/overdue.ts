@@ -5,7 +5,6 @@ import { lasVegasDate } from "./time";
 /** Days a job may sit in a stage before the board flags it. Stages absent here never go overdue. */
 export const OVERDUE_DAYS: Partial<Record<Stage, number>> = {
   new: 1,
-  contacted: 3,
   quoted: 7,
   sold: 3,
   ordered: 21,

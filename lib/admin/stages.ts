@@ -2,12 +2,11 @@ import type { IconName } from "@/components/admin/icons";
 
 /**
  * The one definition of the job stages. The database enforces the same list
- * with a check constraint in 002_job_tracker.sql; keep the two in step.
+ * with a check constraint (011_stages_contact_log.sql); keep the two in step.
  */
 export const STAGES = [
   { value: "new", label: "New lead" },
-  { value: "contacted", label: "Contacted" },
-  { value: "visit_booked", label: "Visit booked" },
+  { value: "visit_booked", label: "Appointment booked" },
   { value: "quoted", label: "Quoted" },
   { value: "sold", label: "Sold" },
   { value: "ordered", label: "Ordered" },
@@ -21,8 +20,11 @@ export const ALL_STAGES: readonly Stage[] = [...STAGES.map((s) => s.value), "los
 export const isStage = (value: unknown): value is Stage =>
   typeof value === "string" && (ALL_STAGES as readonly string[]).includes(value);
 
-export const stageLabel = (stage: Stage): string =>
-  stage === "lost" ? "Lost" : STAGES.find((s) => s.value === stage)!.label;
+/** Stages retired from the tracker that old activity entries still mention. */
+const RETIRED_LABELS: Record<string, string> = { contacted: "Contacted" };
+
+export const stageLabel = (stage: string): string =>
+  stage === "lost" ? "Lost" : STAGES.find((s) => s.value === stage)?.label ?? RETIRED_LABELS[stage] ?? stage;
 
 /** The stage the primary button moves to, or null when there is none. */
 export function nextStage(stage: Stage): Stage | null {
@@ -30,7 +32,7 @@ export function nextStage(stage: Stage): Stage | null {
   return index === -1 || index === STAGES.length - 1 ? null : STAGES[index + 1].value;
 }
 
-export const WORKING_STAGES = ["new", "contacted", "visit_booked", "quoted", "sold", "ordered", "installed"] as const;
+export const WORKING_STAGES = ["new", "visit_booked", "quoted", "sold", "ordered", "installed"] as const;
 export type WorkingStage = (typeof WORKING_STAGES)[number];
 
 export const parseWorkingStage = (value: string | null | undefined): WorkingStage | null =>
@@ -42,7 +44,6 @@ export const parseWorkingStage = (value: string | null | undefined): WorkingStag
  */
 export const STAGE_STYLE: Record<Stage, { icon: IconName; edge: string; tint: string; left: string }> = {
   new: { icon: "lead", edge: "border-t-stage-new", tint: "text-stage-new", left: "border-l-stage-new" },
-  contacted: { icon: "phone", edge: "border-t-stage-contacted", tint: "text-stage-contacted", left: "border-l-stage-contacted" },
   visit_booked: { icon: "calendar", edge: "border-t-stage-visit", tint: "text-stage-visit", left: "border-l-stage-visit" },
   quoted: { icon: "document", edge: "border-t-stage-quoted", tint: "text-stage-quoted", left: "border-l-stage-quoted" },
   sold: { icon: "cart", edge: "border-t-stage-sold", tint: "text-stage-sold", left: "border-l-stage-sold" },

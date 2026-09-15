@@ -17,11 +17,6 @@ describe("nextAction", () => {
   it("calls a new lead", () => {
     expect(nextAction(job("new"), 0)).toMatchObject({ title: "Call the customer", cta: { kind: "call" } });
   });
-  it("books the visit once contacted", () => {
-    expect(nextAction(job("contacted"), 0)).toMatchObject({
-      title: "Book the consultation", cta: { kind: "link", label: "Book visit", href: `${EDIT}#visitAt` },
-    });
-  });
   it("measures a booked visit with no measurements", () => {
     expect(nextAction(job("visit_booked"), 0)).toMatchObject({
       title: "Measure the windows", cta: { label: "Add measurement", href: `/admin/jobs/${ID}/measure` },

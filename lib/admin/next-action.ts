@@ -21,8 +21,6 @@ export function nextAction(
   switch (job.status) {
     case "new":
       return { title: "Call the customer", detail: "Learn what they want and book a visit.", cta: { kind: "call" } };
-    case "contacted":
-      return { title: "Book the consultation", detail: "Set a date for the in-home visit and measure.", cta: link("Book visit", editDetailsHref(job.id, "visitAt")) };
     case "visit_booked":
       return measurementCount === 0
         ? { title: "Measure the windows", detail: "Record each window at the visit.", cta: link("Add measurement", `/admin/jobs/${job.id}/measure`) }

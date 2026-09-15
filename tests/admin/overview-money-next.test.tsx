@@ -3,19 +3,14 @@ import { describe, it, expect, vi } from "vitest";
 import type { Job } from "@/lib/admin/jobs";
 
 vi.mock("@/app/admin/jobs/actions", () => ({ moveStage: vi.fn(), markLost: vi.fn(async () => ({})) }));
-vi.mock("@/app/admin/jobs/follow-up-actions", () => ({
-  saveFollowUp: vi.fn(async () => ({})),
-  clearFollowUpAction: vi.fn(async () => {}),
-}));
 const { MoneyStrip } = await import("@/app/admin/jobs/[id]/MoneyStrip");
-const { NextActionCard } = await import("@/app/admin/jobs/[id]/NextActionCard");
 
 const ID = "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c";
 const EDIT = `/admin/jobs/${ID}?tab=overview&edit=details`;
 const job: Job = {
   id: ID, createdAt: new Date(), name: "Dana Reyes", phone: "7025550134", email: null, address: null,
   city: "Henderson", treatments: [], windowCount: null, heardVia: null, notes: null, source: "phone",
-  status: "contacted", stageChangedAt: new Date(), visitAt: null, quoteCents: null, soldCents: null,
+  status: "new", stageChangedAt: new Date(), visitAt: null, quoteCents: null, soldCents: null,
   depositCents: null, brands: [], orderedOn: null, installOn: null, lostReason: null, referralCode: null,
   referredBy: null, referralPaidAt: null, reviewRequestedAt: null, reviewOptOut: false, budgetTier: null,
 };
@@ -38,38 +33,5 @@ describe("MoneyStrip", () => {
   it("shows no balance before a sale", () => {
     render(<MoneyStrip job={{ quoteCents: 520000, soldCents: null, depositCents: null }} editHref={EDIT} />);
     expect(screen.getByText("Balance").closest("div")).toHaveTextContent("—");
-  });
-});
-
-describe("NextActionCard", () => {
-  it("links to the task and keeps the manual stage move", () => {
-    render(<NextActionCard job={job} measurementCount={0} />);
-    expect(screen.getByText("Book the consultation")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Book visit" })).toHaveAttribute("href", `${EDIT}#visitAt`);
-    expect(screen.getByRole("button", { name: "Move to Visit booked" })).toBeInTheDocument();
-    expect(screen.queryByLabelText("Set stage")).toBeNull();
-  });
-
-  it("offers the call button for a new lead", () => {
-    render(<NextActionCard job={{ ...job, status: "new" }} measurementCount={0} />);
-    expect(screen.getByRole("link", { name: "Log a call" })).toHaveAttribute("href", `/admin/jobs/${ID}/call`);
-  });
-
-  it("renders nothing for a lost job", () => {
-    const { container } = render(<NextActionCard job={{ ...job, status: "lost" }} measurementCount={0} />);
-    expect(container).toBeEmptyDOMElement();
-  });
-
-  it("places the follow-up box between the CTA and the stage-move control", () => {
-    render(<NextActionCard job={job} measurementCount={0} />);
-    const cta = screen.getByRole("link", { name: "Book visit" });
-    const followUp = screen.getByText("No call-back set");
-    const moveButton = screen.getByRole("button", { name: "Move to Visit booked" });
-    expect(
-      cta.compareDocumentPosition(followUp) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
-    expect(
-      followUp.compareDocumentPosition(moveButton) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
   });
 });

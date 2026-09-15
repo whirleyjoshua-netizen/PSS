@@ -16,7 +16,7 @@ describe("daysInStage", () => {
 
 describe("isOverdue", () => {
   it.each([
-    ["new", 1], ["contacted", 3], ["quoted", 7], ["sold", 3], ["ordered", 21],
+    ["new", 1], ["quoted", 7], ["sold", 3], ["ordered", 21],
   ])("%s is overdue only after %i days", (status, limit) => {
     expect(OVERDUE_DAYS[status as keyof typeof OVERDUE_DAYS]).toBe(limit);
     expect(isOverdue(job(status, limit), NOW)).toBe(false);

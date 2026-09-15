@@ -25,16 +25,16 @@ describe("logCall", () => {
     expect(text).toContain("follow_up_at = $12::timestamptz");
     expect(text).toContain("follow_up_note = $13");
     expect(params).toEqual([
-      JOB, ["shutters"], true, 8, "#4321", "mid", input.visitAt, "visit_booked", ["new", "contacted"], "owner@example.com",
+      JOB, ["shutters"], true, 8, "#4321", "mid", input.visitAt, "visit_booked", ["new"], "owner@example.com",
       "Call: booked visit Wed 10/14, 2:00 PM · Shutters · Motorized · 8 windows · Mid-range\nDog in yard",
       null, null,
     ]);
   });
 
-  it("moves talked calls only from new", async () => {
+  it("never moves a talked call", async () => {
     await logCall(JOB, { ...input, outcome: "talked", visitAt: null, notes: null }, "o@example.com");
     const params = query.mock.calls[0][1];
-    expect(params.slice(6, 9)).toEqual([null, "contacted", ["new"]]);
+    expect(params.slice(6, 9)).toEqual([null, null, []]);
     expect(params[10]).toBe("Call: talked, no visit yet · Shutters · Motorized · 8 windows · Mid-range");
   });
 
