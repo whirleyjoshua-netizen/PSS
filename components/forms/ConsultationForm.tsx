@@ -29,6 +29,9 @@ export function ConsultationForm() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const label = referralLabel(params.get("ref"));
+    // Intentional: the URL can only be read after hydration on this statically rendered page,
+    // and reading it during render would make the server and client HTML differ.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (label) setHeardVia(label);
     const code = params.get("r");
     if (code) setReferral({ code: code.slice(0, 20), by: params.get("by")?.slice(0, 40) || null });
