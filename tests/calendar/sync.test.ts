@@ -39,6 +39,7 @@ beforeEach(() => {
   store.getCalendarJob.mockResolvedValue(job);
   store.getLinks.mockResolvedValue([]);
   store.claimLink.mockResolvedValue("pending:new");
+  store.deleteLink.mockResolvedValue(undefined); // async like the real store
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
 
@@ -204,6 +205,25 @@ describe("creating an event claims the link first", () => {
     expect(store.deleteLink).toHaveBeenCalledWith(ID, "visit", "pending:new");
     expect(store.deleteLink.mock.invocationCallOrder[0]).toBeGreaterThan(graphFetch.mock.invocationCallOrder[1]);
     expect(store.recordError).toHaveBeenCalledWith("db down");
+  });
+
+  it("reports the post failure, not the release failure, when giving the claim back fails too", async () => {
+    graphFetch.mockResolvedValue(new Response("down", { status: 500 }));
+    store.deleteLink.mockRejectedValue(new Error("release failed"));
+    await sync.syncJobCalendar(ID);
+    expect(store.deleteLink).toHaveBeenCalledWith(ID, "visit", "pending:new");
+    expect(store.recordError).toHaveBeenCalledWith(expect.stringMatching(/500/));
+    expect(store.recordError).not.toHaveBeenCalledWith("release failed");
+  });
+
+  it("reports the save failure, not the release failure, when giving the claim back fails too", async () => {
+    graphFetch.mockResolvedValueOnce(Response.json({ id: "e7", changeKey: "ck7" }, { status: 201 }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    store.saveLink.mockRejectedValue(new Error("db down"));
+    store.deleteLink.mockRejectedValue(new Error("release failed"));
+    await sync.syncJobCalendar(ID);
+    expect(store.recordError).toHaveBeenCalledWith("db down");
+    expect(store.recordError).not.toHaveBeenCalledWith("release failed");
   });
 
   it("still releases the claim and reports the save failure when that clean-up delete fails", async () => {

@@ -56,7 +56,7 @@ export async function reconcileJob(leadId: string, pushKinds: readonly Kind[] = 
         );
         created = (await response.json()) as { id: string; changeKey: string };
       } catch (error) {
-        await store.deleteLink(leadId, kind, pendingId);
+        await store.deleteLink(leadId, kind, pendingId).catch((e) => console.error("Calendar claim release failed", e));
         throw error;
       }
       try {
@@ -64,7 +64,7 @@ export async function reconcileJob(leadId: string, pushKinds: readonly Kind[] = 
       } catch (error) {
         // Nothing would point at the new event, so the next sync would create a duplicate: remove it first.
         await graphFetch(`${events}/${encodeURIComponent(created.id)}`, { method: "DELETE" }).catch(() => {});
-        await store.deleteLink(leadId, kind, pendingId);
+        await store.deleteLink(leadId, kind, pendingId).catch((e) => console.error("Calendar claim release failed", e));
         throw error;
       }
     };
