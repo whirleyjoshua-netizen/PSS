@@ -8,6 +8,7 @@ import { listTeam } from "@/lib/admin/team";
 import { listReferrals } from "@/lib/referrals/db";
 import { ActivityTab } from "./ActivityTab";
 import { JobFiles } from "./JobFiles";
+import { InstallTab } from "./InstallTab";
 import { JobHeader } from "./JobHeader";
 import { JobTabs } from "./JobTabs";
 import { MeasurementsTab } from "./MeasurementsTab";
@@ -52,6 +53,7 @@ export default async function JobPage({ params, searchParams }: {
           <JobFiles jobId={job.id} measurements={measurements} files={files} />
         </div>
       ) : null}
+      {tab === "install" ? <InstallTab jobId={job.id} measurements={measurements} /> : null}
       {tab === "activity" ? <ActivityTab jobId={job.id} events={events} now={now} /> : null}
     </div>
   );

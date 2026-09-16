@@ -2,8 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/admin/session";
-import { teamMemberSchema } from "@/lib/admin/schema";
+import { installRateSchema, installSettingsSchema, teamMemberSchema } from "@/lib/admin/schema";
 import { addTeamMember, removeTeamMember } from "@/lib/admin/team";
+import { INSTALLABLE_TREATMENTS, type InstallRate } from "@/lib/admin/install-pricing";
+import { saveInstallRates } from "@/lib/admin/install-rates";
+import { TREATMENT_TYPES } from "@/lib/leads/treatment-types";
 
 export type TeamFormState = { error?: string; ok?: boolean; name?: string };
 
@@ -28,4 +31,55 @@ export async function removeMember(id: string): Promise<void> {
   await requireAdmin();
   await removeTeamMember(id);
   refresh();
+}
+
+/** On failure, `values` carries what was submitted so the form can show it again instead of resetting. */
+export type InstallRatesFormState = { error?: string; ok?: boolean; values?: Record<string, string> };
+
+const TREATMENT_LABEL = new Map(TREATMENT_TYPES.map((type) => [type.key, type.label]));
+
+/** The job-level fields as the form labels them, so an error names the box to fix. */
+const SETTING_LABEL: Record<string, string> = {
+  minimumCents: "Minimum job cost",
+  hardSurfaceCents: "Hard surface",
+  highLadderCents: "High ladder",
+  motorizedCents: "Motorized",
+};
+
+export async function saveInstallRatesAction(
+  _prev: InstallRatesFormState,
+  formData: FormData,
+): Promise<InstallRatesFormState> {
+  const admin = await requireAdmin();
+  const values: Record<string, string> = {};
+  for (const [name, value] of formData) if (typeof value === "string") values[name] = value;
+  const settings = installSettingsSchema.safeParse({
+    minimumCents: formData.get("minimumCents") ?? "",
+    hardSurfaceCents: formData.get("hardSurfaceCents") ?? "",
+    highLadderCents: formData.get("highLadderCents") ?? "",
+    motorizedCents: formData.get("motorizedCents") ?? "",
+  });
+  if (!settings.success) {
+    const issue = settings.error.issues[0];
+    return { error: `${SETTING_LABEL[String(issue.path[0])]}: ${issue.message}`, values };
+  }
+
+  const rates: InstallRate[] = [];
+  for (const treatment of INSTALLABLE_TREATMENTS) {
+    const raw = String(formData.get(`rate-${treatment}`) ?? "").trim();
+    // A blank rate means "not priced yet"; saving a zero would claim it is free.
+    if (raw === "") continue;
+    const parsed = installRateSchema.safeParse({
+      treatment, basis: formData.get(`basis-${treatment}`), rateCents: raw,
+    });
+    if (!parsed.success) {
+      return { error: `${TREATMENT_LABEL.get(treatment) ?? treatment}: ${parsed.error.issues[0].message}`, values };
+    }
+    rates.push(parsed.data);
+  }
+
+  await saveInstallRates(rates, settings.data, admin.email);
+  revalidatePath("/admin/settings");
+  revalidatePath("/admin/jobs/[id]", "page");
+  return { ok: true };
 }

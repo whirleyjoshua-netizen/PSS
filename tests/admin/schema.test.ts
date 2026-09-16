@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { appointmentSchema, detailsSchema, newJobSchema, noteSchema, lostSchema, teamMemberSchema } from "@/lib/admin/schema";
+import { appointmentSchema, detailsSchema, newJobSchema, noteSchema, lostSchema, teamMemberSchema, installRateSchema, installSettingsSchema, installLinesSchema, installKindSchema } from "@/lib/admin/schema";
 import { APPOINTMENT_KINDS } from "@/lib/admin/appointment-kinds";
 import { TEAM_ROLES } from "@/lib/admin/team-roles";
 
@@ -141,5 +141,84 @@ describe("teamMemberSchema", () => {
       expect(teamMemberSchema.safeParse({ name: "Shade", role: role.value }).success).toBe(true);
     }
     expect(teamMemberSchema.safeParse({ name: "Shade", role: "owner" }).success).toBe(false);
+  });
+});
+
+describe("installation rate money fields", () => {
+  const settings = { minimumCents: "150", hardSurfaceCents: "0", highLadderCents: "50", motorizedCents: "15.50" };
+
+  it("accepts money the way people type it", () => {
+    const parsed = installSettingsSchema.safeParse({ ...settings, minimumCents: "$1,500" });
+    expect(parsed.success && parsed.data.minimumCents).toBe(150_000);
+    expect(installRateSchema.safeParse({ treatment: "roller_shades", basis: "window", rateCents: "$25" }).data?.rateCents).toBe(2500);
+  });
+
+  it("keeps 0 as a real amount", () => {
+    expect(installSettingsSchema.safeParse(settings).data?.hardSurfaceCents).toBe(0);
+  });
+
+  it("rejects a blank minimum instead of saving it as zero", () => {
+    const parsed = installSettingsSchema.safeParse({ ...settings, minimumCents: "  " });
+    expect(parsed.success).toBe(false);
+    expect(parsed.error?.issues[0].message).toBe("Enter an amount, or 0");
+  });
+
+  it("asks in words for a pricing basis", () => {
+    expect(installRateSchema.safeParse({ treatment: "roller_shades", basis: "", rateCents: "25" }).error?.issues[0].message)
+      .toBe("Pick how this treatment is priced");
+  });
+
+  it("rejects an amount that is not money", () => {
+    expect(installSettingsSchema.safeParse({ ...settings, motorizedCents: "abc" }).success).toBe(false);
+  });
+});
+
+describe("installLinesSchema", () => {
+  const line = {
+    treatment: "roller_shades", count: 3, widthEighths: 240, heightEighths: null,
+    hardSurface: false, highLadder: true, motorized: false,
+  };
+
+  it("accepts a valid line", () => {
+    expect(installLinesSchema.safeParse([line]).data).toEqual([line]);
+  });
+
+  it("rejects a fractional count", () => {
+    expect(installLinesSchema.safeParse([{ ...line, count: 1.5 }]).success).toBe(false);
+  });
+
+  it("rejects a negative count", () => {
+    expect(installLinesSchema.safeParse([{ ...line, count: -1 }]).success).toBe(false);
+  });
+
+  it("rejects an unknown treatment", () => {
+    expect(installLinesSchema.safeParse([{ ...line, treatment: "moat" }]).success).toBe(false);
+  });
+
+  it("rejects a width beyond the measurable maximum", () => {
+    expect(installLinesSchema.safeParse([{ ...line, widthEighths: 600 * 8 + 1 }]).success).toBe(false);
+  });
+
+  it("says in words when a width or height is too small to measure", () => {
+    expect(installLinesSchema.safeParse([{ ...line, widthEighths: 0 }]).error?.issues[0].message)
+      .toBe("Enter a width of at least 1/8 inch");
+    expect(installLinesSchema.safeParse([{ ...line, heightEighths: 0 }]).error?.issues[0].message)
+      .toBe("Enter a height of at least 1/8 inch");
+  });
+
+  it("says in words when a width or height is too large", () => {
+    expect(installLinesSchema.safeParse([{ ...line, widthEighths: 600 * 8 + 1 }]).error?.issues[0].message)
+      .toBe("Enter a width of 600 inches or less");
+    expect(installLinesSchema.safeParse([{ ...line, heightEighths: 600 * 8 + 1 }]).error?.issues[0].message)
+      .toBe("Enter a height of 600 inches or less");
+  });
+
+  it("asks for a line when there are none", () => {
+    expect(installLinesSchema.safeParse([]).error?.issues[0].message).toBe("Add at least one line before saving.");
+  });
+
+  it("accepts only estimate or final as a kind", () => {
+    expect(installKindSchema.safeParse("final").success).toBe(true);
+    expect(installKindSchema.safeParse("draft").success).toBe(false);
   });
 });
