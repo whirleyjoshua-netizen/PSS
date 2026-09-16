@@ -6,6 +6,7 @@ import { installRateSchema, installSettingsSchema, teamMemberSchema } from "@/li
 import { addTeamMember, removeTeamMember } from "@/lib/admin/team";
 import { INSTALLABLE_TREATMENTS, type InstallRate } from "@/lib/admin/install-pricing";
 import { saveInstallRates } from "@/lib/admin/install-rates";
+import { TREATMENT_TYPES } from "@/lib/leads/treatment-types";
 
 export type TeamFormState = { error?: string; ok?: boolean; name?: string };
 
@@ -35,6 +36,16 @@ export async function removeMember(id: string): Promise<void> {
 /** On failure, `values` carries what was submitted so the form can show it again instead of resetting. */
 export type InstallRatesFormState = { error?: string; ok?: boolean; values?: Record<string, string> };
 
+const TREATMENT_LABEL = new Map(TREATMENT_TYPES.map((type) => [type.key, type.label]));
+
+/** The job-level fields as the form labels them, so an error names the box to fix. */
+const SETTING_LABEL: Record<string, string> = {
+  minimumCents: "Minimum job cost",
+  hardSurfaceCents: "Hard surface",
+  highLadderCents: "High ladder",
+  motorizedCents: "Motorized",
+};
+
 export async function saveInstallRatesAction(
   _prev: InstallRatesFormState,
   formData: FormData,
@@ -48,7 +59,10 @@ export async function saveInstallRatesAction(
     highLadderCents: formData.get("highLadderCents") ?? "",
     motorizedCents: formData.get("motorizedCents") ?? "",
   });
-  if (!settings.success) return { error: settings.error.issues[0].message, values };
+  if (!settings.success) {
+    const issue = settings.error.issues[0];
+    return { error: `${SETTING_LABEL[String(issue.path[0])]}: ${issue.message}`, values };
+  }
 
   const rates: InstallRate[] = [];
   for (const treatment of INSTALLABLE_TREATMENTS) {
@@ -58,7 +72,9 @@ export async function saveInstallRatesAction(
     const parsed = installRateSchema.safeParse({
       treatment, basis: formData.get(`basis-${treatment}`), rateCents: raw,
     });
-    if (!parsed.success) return { error: parsed.error.issues[0].message, values };
+    if (!parsed.success) {
+      return { error: `${TREATMENT_LABEL.get(treatment) ?? treatment}: ${parsed.error.issues[0].message}`, values };
+    }
     rates.push(parsed.data);
   }
 

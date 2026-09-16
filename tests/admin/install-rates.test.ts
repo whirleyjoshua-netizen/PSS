@@ -47,7 +47,7 @@ describe("saveInstallRates", () => {
         { treatment: "roller_shades", basis: "window", rateCents: 2500 },
         { treatment: "shutters", basis: "sq_ft", rateCents: 300 },
       ],
-      { minimumCents: 15_000, hardSurfaceCents: 0, highLadderCents: 0, motorizedCents: 0 },
+      { minimumCents: 15_000, hardSurfaceCents: 1000, highLadderCents: 5000, motorizedCents: 1500 },
       "owner@example.com",
     );
     expect(sql).toHaveBeenCalledTimes(1);
@@ -56,10 +56,14 @@ describe("saveInstallRates", () => {
     expect(statement).toContain("delete from install_rates where not (treatment = any(");
     expect(statement).toMatch(/insert into install_rates .* on conflict/);
     expect(statement).toContain("update install_settings");
-    // The first bound value is the kept-treatment list that the delete checks against.
-    expect(call[1]).toEqual(["roller_shades", "shutters"]);
-    expect(call.slice(1)).toContainEqual(["window", "sq_ft"]);
-    expect(call.slice(1)).toContainEqual([2500, 300]);
+    // Every bound value in order: the kept-treatment list the delete checks, the upsert's
+    // three arrays, then each settings value and the actor.
+    expect(call.slice(1)).toEqual([
+      ["roller_shades", "shutters"],
+      ["roller_shades", "shutters"], ["window", "sq_ft"], [2500, 300],
+      15_000, 1000, 5000, 1500,
+      "owner@example.com",
+    ]);
   });
 
   it("deletes every rate when none is priced", async () => {

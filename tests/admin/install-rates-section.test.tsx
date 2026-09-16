@@ -41,7 +41,7 @@ describe("InstallRatesSection", () => {
 
   it("shows what was submitted, not the saved values, after a failed save", () => {
     const initialState = {
-      error: "Enter an amount, or 0",
+      error: "Minimum job cost: Enter an amount, or 0",
       values: { "rate-roller_shades": "$30", "basis-roller_shades": "sq_ft", minimumCents: "", hardSurfaceCents: "12" },
     };
     render(
@@ -55,6 +55,6 @@ describe("InstallRatesSection", () => {
     expect(screen.getByLabelText("Roller shades priced by")).toHaveValue("sq_ft");
     expect(screen.getByLabelText("Minimum job cost")).toHaveValue("");
     expect(screen.getByLabelText("Hard surface")).toHaveValue("12");
-    expect(screen.getByRole("alert")).toHaveTextContent("Enter an amount, or 0");
+    expect(screen.getByRole("alert")).toHaveTextContent("Minimum job cost: Enter an amount, or 0");
   });
 });
