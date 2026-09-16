@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { TREATMENT_TYPES, type TreatmentType } from "@/lib/leads/treatment-types";
 import {
   INSTALLABLE_TREATMENTS, priceQuote,
@@ -10,6 +11,7 @@ import type { InstallQuoteKind, SavedInstallQuote } from "@/lib/admin/install-qu
 import type { WindowMeasurement } from "@/lib/admin/measurements";
 import { formatCents } from "@/lib/admin/money";
 import { formatWhen } from "@/lib/admin/time";
+import { installLinesSchema } from "@/lib/admin/schema";
 import { saveInstallQuoteAction } from "./install-actions";
 
 /** Only what filling from measurements reads, so callers and tests need not build whole rows. */
@@ -38,13 +40,21 @@ const inchesToEighths = (value: string): number | null => {
   return value.trim() === "" || !Number.isFinite(inches) || inches <= 0 ? null : Math.round(inches * 8);
 };
 
+/** The server refuses a save priced against rates that have since moved; this is how it says so. */
+const RATES_CHANGED = "Rates changed since this page loaded.";
+
 /**
  * Preview only. Pricing can fail — a treatment with no rate, a per-foot line with
- * no width — and that must read as a message, not crash the page. The saved price
- * is computed again on the server from the stored rates.
+ * no width — and that must read as a message, not crash the page. Lines the server
+ * would refuse (a width under 1/8 inch, say) get the server's own message and no
+ * price. The server prices again and saves only if it reaches this same total.
  */
 function preview(lines: LineInput[], rates: InstallRate[], settings: InstallSettings):
   { priced: PricedQuote; error: null } | { priced: null; error: string } {
+  if (lines.length > 0) {
+    const checked = installLinesSchema.safeParse(lines);
+    if (!checked.success) return { priced: null, error: checked.error.issues[0].message };
+  }
   try {
     return { priced: priceQuote(lines, rates, settings), error: null };
   } catch (error) {
@@ -66,6 +76,7 @@ export function InstallCalculator({ jobId, rates, settings, saved, measurements 
   const [fillTreatment, setFillTreatment] = useState<TreatmentType>(INSTALLABLE_TREATMENTS[0]);
   const [message, setMessage] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const router = useRouter();
 
   if (rates.length === 0) {
     return (
@@ -76,10 +87,21 @@ export function InstallCalculator({ jobId, rates, settings, saved, measurements 
   }
 
   const basisOf = new Map(rates.map((rate) => [rate.treatment, rate.basis]));
-  const { priced, error } = preview(lines, rates, settings);
+  const unkeyed = lines.map(({ key: _key, ...line }) => line);
+  const { priced, error } = preview(unkeyed, rates, settings);
 
   const update = (index: number, patch: Partial<LineInput>) =>
     setLines((current) => current.map((line, i) => (i === index ? { ...line, ...patch } : line)));
+
+  // A dimension the new basis does not use has no box on screen, so it must not travel with the save.
+  const changeTreatment = (index: number, treatment: TreatmentType) => {
+    const basis = basisOf.get(treatment);
+    update(index, {
+      treatment,
+      ...(basis === "window" ? { widthEighths: null } : {}),
+      ...(basis === "window" || basis === "linear_ft" ? { heightEighths: null } : {}),
+    });
+  };
 
   // One line per measured window. A line holds a single width and height, so
   // merging windows of different sizes would misprice anything sold by the foot.
@@ -95,16 +117,21 @@ export function InstallCalculator({ jobId, rates, settings, saved, measurements 
       motorized: false,
     })));
 
-  const save = (kind: InstallQuoteKind) =>
+  const save = (kind: InstallQuoteKind) => {
+    if (!priced) return;
+    const shownTotal = priced.totalCents;
     startTransition(async () => {
-      const result = await saveInstallQuoteAction(jobId, kind, lines.map(({ key: _key, ...line }) => line));
+      const result = await saveInstallQuoteAction(jobId, kind, unkeyed, shownTotal);
       if (result.error) {
         setMessage(result.error);
+        // Load the current rates so the preview shows the total a second save would store.
+        if (result.error.startsWith(RATES_CHANGED)) router.refresh();
       } else {
         setMessage(null);
         setLines([]);
       }
     });
+  };
 
   const blocked = pending || lines.length === 0 || error !== null;
 
@@ -131,7 +158,7 @@ export function InstallCalculator({ jobId, rates, settings, saved, measurements 
             <div key={line.key} className="flex flex-wrap items-end gap-3 border border-rule p-3">
               <label className="flex flex-col gap-1 text-sm">
                 Treatment
-                <select value={line.treatment} onChange={(e) => update(index, { treatment: e.target.value as TreatmentType })} className={field}>
+                <select value={line.treatment} onChange={(e) => changeTreatment(index, e.target.value as TreatmentType)} className={field}>
                   {INSTALLABLE_TREATMENTS.map((t) => <option key={t} value={t}>{LABEL.get(t)}</option>)}
                 </select>
               </label>
@@ -212,6 +239,11 @@ export function InstallCalculator({ jobId, rates, settings, saved, measurements 
                 <span className="font-semibold">{quote.kind === "estimate" ? "Estimate" : "Final"}</span>
                 <span>{formatCents(quote.totalCents)}</span>
                 <span className="text-ink-soft">{quote.createdBy} · {formatWhen(quote.createdAt)}</span>
+                {quote.subtotalCents < quote.totalCents ? (
+                  <span className="w-full text-ink-soft">
+                    Minimum applied (lines came to {formatCents(quote.subtotalCents)})
+                  </span>
+                ) : null}
               </li>
             ))}
           </ul>
