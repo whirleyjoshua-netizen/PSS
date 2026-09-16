@@ -41,6 +41,32 @@ export async function lastMeasuredAt(jobId: string): Promise<Date | null> {
 }
 
 /**
+ * The confirmed install appointment for each of several jobs, in one query.
+ *
+ * The list of a customer's projects needs each row's current step, and a confirmed install
+ * appointment is the only fact deciding it that the job row does not already carry. Batching
+ * it keeps a list of N projects at one round trip instead of N. Same whitelist as
+ * installAppointmentAt: the time and nothing else, and an unconfirmed booking never counts.
+ */
+export async function confirmedInstallAppointments(jobIds: string[]): Promise<Map<string, Date>> {
+  const ids = jobIds.filter(isUuid);
+  if (ids.length === 0) return new Map();
+  const rows = await db().query(
+    `select lead_id, max(starts_at) as starts_at from appointments
+     where lead_id = any($1::uuid[]) and kind = 'install' and confirmed_at is not null
+     group by lead_id`,
+    [ids],
+  );
+
+  const byJob = new Map<string, Date>();
+  for (const row of rows) {
+    const at = row.starts_at as string | Date | null | undefined;
+    if (at) byJob.set(String(row.lead_id), new Date(at));
+  }
+  return byJob;
+}
+
+/**
  * The confirmed install appointment, for the Ready to Install step. An unconfirmed
  * booking is the owners' own pencilling-in and never reaches the customer.
  */

@@ -43,6 +43,16 @@ export type ProjectStep = {
 };
 
 /**
+ * The step the customer is on: the one in progress, or — for a finished job, whose steps
+ * are all done — the last step it reached. One definition, so the project page and the
+ * list of several projects can never name different steps for the same job.
+ */
+export const currentStep = (steps: ProjectStep[]): ProjectStep =>
+  steps.find((step) => step.state === "current") ??
+  [...steps].reverse().find((step) => step.state === "done") ??
+  steps[0];
+
+/**
  * Everything the seven steps are derived from. Dates only — no event body ever
  * reaches here, so nothing internal can be rendered from a step.
  */

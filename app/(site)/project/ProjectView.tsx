@@ -4,6 +4,7 @@ import type { Job } from "@/lib/admin/jobs";
 import { listSharedDocuments, listSharedPhotos } from "@/lib/admin/files";
 import { formatDateOnly, formatShortDate } from "@/lib/admin/time";
 import { toProject } from "@/lib/portal/access";
+import { currentStep } from "@/lib/portal/progress";
 import { countReferred } from "@/lib/portal/project";
 import { listMessages } from "@/lib/portal/messages";
 import { requireCustomer } from "@/lib/portal/session";
@@ -48,10 +49,7 @@ export async function ProjectView({ job }: { job: Job }) {
   });
   const place = [project.address, project.city].filter(Boolean).join(", ");
 
-  const current =
-    project.steps.find((step) => step.state === "current") ??
-    [...project.steps].reverse().find((step) => step.state === "done") ??
-    project.steps[0];
+  const current = currentStep(project.steps);
   const quote = documents.find((file) => file.docType === "quote");
   const installLabel = project.installOn
     ? formatDateOnly(project.installOn)

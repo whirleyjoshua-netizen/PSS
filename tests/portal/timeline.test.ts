@@ -4,7 +4,8 @@ const query = vi.fn();
 const sql = Object.assign(vi.fn(), { query });
 vi.mock("@/lib/db", () => ({ db: () => sql }));
 
-const { stageDates, lastMeasuredAt, installAppointmentAt } = await import("@/lib/portal/timeline");
+const { stageDates, lastMeasuredAt, installAppointmentAt, confirmedInstallAppointments } =
+  await import("@/lib/portal/timeline");
 
 const JOB = "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c";
 const text = (call: unknown[]) => (call[0] as TemplateStringsArray).join("?");
@@ -97,5 +98,41 @@ describe("installAppointmentAt", () => {
   it("returns null for a non-uuid without querying", async () => {
     expect(await installAppointmentAt("not-a-uuid")).toBeNull();
     expect(sql).not.toHaveBeenCalled();
+  });
+});
+
+describe("confirmedInstallAppointments", () => {
+  const OTHER = "7a1c2d3e-4f5a-4b6c-8d9e-0f1a2b3c4d5e";
+
+  it("takes every job's confirmed install appointment in a single query", async () => {
+    query.mockResolvedValue([
+      { lead_id: JOB, starts_at: "2026-10-13T17:00:00Z" },
+      { lead_id: OTHER, starts_at: "2026-11-02T17:00:00Z" },
+    ]);
+
+    const byJob = await confirmedInstallAppointments([JOB, OTHER]);
+    expect(byJob.get(JOB)).toEqual(new Date("2026-10-13T17:00:00Z"));
+    expect(byJob.get(OTHER)).toEqual(new Date("2026-11-02T17:00:00Z"));
+
+    // One round trip for the whole list, however many jobs the customer has.
+    expect(query).toHaveBeenCalledTimes(1);
+    const [text, params] = query.mock.calls[0];
+    expect(text).toContain("lead_id = any($1::uuid[])");
+    expect(text).toContain("kind = 'install'");
+    expect(text).toContain("confirmed_at is not null");
+    // Symmetric with installAppointmentAt: only the time may be selected, never free text.
+    expect(text).not.toMatch(/notes|body/i);
+    expect(params).toEqual([[JOB, OTHER]]);
+  });
+
+  it("leaves out a job with no confirmed appointment", async () => {
+    query.mockResolvedValue([{ lead_id: JOB, starts_at: null }]);
+    expect((await confirmedInstallAppointments([JOB, OTHER])).size).toBe(0);
+  });
+
+  it("queries nothing when no id is a uuid", async () => {
+    expect(await confirmedInstallAppointments(["not-a-uuid"])).toEqual(new Map());
+    expect(await confirmedInstallAppointments([])).toEqual(new Map());
+    expect(query).not.toHaveBeenCalled();
   });
 });
