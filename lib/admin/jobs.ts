@@ -6,7 +6,7 @@ import { isInstalled, isStage, type Stage } from "./stages";
 import { toLocalInput } from "./time";
 import { isFinish, type Finish } from "@/lib/leads/finish";
 import { isTreatmentType, type TreatmentType } from "@/lib/leads/treatment-types";
-import type { TeamRole } from "./team-roles";
+import { isTeamRole, type TeamRole } from "./team-roles";
 
 export type Job = {
   id: string;
@@ -122,7 +122,7 @@ export function toJob(row: Record<string, unknown>): Job {
     lastContactAt: row.last_contact_at ? new Date(row.last_contact_at as string) : null,
     assignedTo: (row.assigned_to as string | null) ?? null,
     assignedName: (row.assigned_name as string | null) ?? null,
-    assignedRole: (row.assigned_role as TeamRole | null) ?? null,
+    assignedRole: isTeamRole(row.assigned_role) ? row.assigned_role : null,
   };
 }
 

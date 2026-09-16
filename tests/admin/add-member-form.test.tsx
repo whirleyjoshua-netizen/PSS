@@ -12,7 +12,7 @@ beforeEach(() => {
 });
 
 describe("add member form", () => {
-  it("shows the problem from the action and keeps the typed name", async () => {
+  it("rejects a blank name, showing the problem and keeping what was typed", async () => {
     addMember.mockResolvedValue({ error: "Enter a name", name: "  " });
     render(<AddMemberForm />);
     // Spaces get past the browser's own required check, so the action's message is what shows.

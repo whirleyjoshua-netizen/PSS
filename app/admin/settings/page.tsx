@@ -9,9 +9,8 @@ import { TeamSection } from "./TeamSection";
 export default async function SettingsPage() {
   await requireAdmin();
   const enabled = calendarEnabled();
-  type Calendar = { state: Awaited<ReturnType<typeof getSyncState>> | null; unreadable: boolean };
   // Read both together, so neither rejection is left unhandled while the other is awaited.
-  const [team, calendar] = await Promise.all<[ReturnType<typeof listTeam>, Promise<Calendar>]>([
+  const [team, calendar] = await Promise.all([
     listTeam(),
     enabled
       ? getSyncState().then(

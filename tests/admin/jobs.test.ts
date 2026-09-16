@@ -366,6 +366,11 @@ describe("assigning jobs", () => {
     expect(job).toMatchObject({ assignedTo: null, assignedName: null, assignedRole: null });
   });
 
+  it("maps an unexpected role to null", () => {
+    expect(jobs.toJob({ ...row, assigned_role: "designer" }).assignedRole).toBe("designer");
+    expect(jobs.toJob({ ...row, assigned_role: "foreman" }).assignedRole).toBeNull();
+  });
+
   it("selects the assignee's name and role with the job", () => {
     expect(jobs.JOB_COLUMNS).toContain("assigned_to");
     expect(jobs.JOB_COLUMNS).toContain("as assigned_name");
