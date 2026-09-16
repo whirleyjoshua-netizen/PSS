@@ -251,7 +251,7 @@ const rateAmount = z.string().transform((value, ctx) => {
 
 export const installRateSchema = z.object({
   treatment: z.enum(INSTALLABLE_TREATMENTS as [TreatmentType, ...TreatmentType[]]),
-  basis: z.enum(INSTALL_BASES),
+  basis: z.enum(INSTALL_BASES, { error: "Pick how this treatment is priced" }),
   rateCents: rateAmount,
 });
 
@@ -262,7 +262,11 @@ export const installSettingsSchema = z.object({
   motorizedCents: rateAmount,
 });
 
-const lineEighths = z.number().int().positive().max(MAX_EIGHTHS).nullable();
+/** Whole eighths, as the Install tab sends them. The messages are shown to the owner as written. */
+const lineEighths = (dimension: "width" | "height") => z.number().int()
+  .positive(`Enter a ${dimension} of at least 1/8 inch`)
+  .max(MAX_EIGHTHS, `Enter a ${dimension} of ${MAX_EIGHTHS / 8} inches or less`)
+  .nullable();
 
 /**
  * Lines sent from the Install tab. The pricing engine trusts its inputs, so they are checked here:
@@ -273,8 +277,8 @@ export const installLinesSchema = z
     treatment: z.enum(INSTALLABLE_TREATMENTS as [TreatmentType, ...TreatmentType[]], { error: "Pick a treatment" }),
     count: z.number({ error: "Enter a whole number of windows" }).int("Enter a whole number of windows")
       .min(0, "Enter a whole number of windows").max(1000, "That is more windows than one job can hold"),
-    widthEighths: lineEighths,
-    heightEighths: lineEighths,
+    widthEighths: lineEighths("width"),
+    heightEighths: lineEighths("height"),
     hardSurface: z.boolean(),
     highLadder: z.boolean(),
     motorized: z.boolean(),

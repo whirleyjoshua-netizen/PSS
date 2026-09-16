@@ -163,6 +163,11 @@ describe("installation rate money fields", () => {
     expect(parsed.error?.issues[0].message).toBe("Enter an amount, or 0");
   });
 
+  it("asks in words for a pricing basis", () => {
+    expect(installRateSchema.safeParse({ treatment: "roller_shades", basis: "", rateCents: "25" }).error?.issues[0].message)
+      .toBe("Pick how this treatment is priced");
+  });
+
   it("rejects an amount that is not money", () => {
     expect(installSettingsSchema.safeParse({ ...settings, motorizedCents: "abc" }).success).toBe(false);
   });
@@ -192,6 +197,20 @@ describe("installLinesSchema", () => {
 
   it("rejects a width beyond the measurable maximum", () => {
     expect(installLinesSchema.safeParse([{ ...line, widthEighths: 600 * 8 + 1 }]).success).toBe(false);
+  });
+
+  it("says in words when a width or height is too small to measure", () => {
+    expect(installLinesSchema.safeParse([{ ...line, widthEighths: 0 }]).error?.issues[0].message)
+      .toBe("Enter a width of at least 1/8 inch");
+    expect(installLinesSchema.safeParse([{ ...line, heightEighths: 0 }]).error?.issues[0].message)
+      .toBe("Enter a height of at least 1/8 inch");
+  });
+
+  it("says in words when a width or height is too large", () => {
+    expect(installLinesSchema.safeParse([{ ...line, widthEighths: 600 * 8 + 1 }]).error?.issues[0].message)
+      .toBe("Enter a width of 600 inches or less");
+    expect(installLinesSchema.safeParse([{ ...line, heightEighths: 600 * 8 + 1 }]).error?.issues[0].message)
+      .toBe("Enter a height of 600 inches or less");
   });
 
   it("asks for a line when there are none", () => {
