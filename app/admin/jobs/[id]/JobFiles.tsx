@@ -67,7 +67,7 @@ export function JobFiles({ jobId, measurements, files }: {
                     {file.sharedAt ? <> · <span className="text-xs uppercase tracking-wide text-charcoal">Shared</span></> : null}
                   </p>
                 </div>
-                <DocTypeSelect jobId={jobId} fileId={file.id} fileName={file.name} docType={file.docType ?? null} />
+                <DocTypeSelect key={file.docType ?? ""} jobId={jobId} fileId={file.id} fileName={file.name} docType={file.docType ?? null} />
                 <ShareSwitch jobId={jobId} fileId={file.id} fileName={file.name} shared={Boolean(file.sharedAt)} />
                 <form action={removeFile.bind(null, jobId, file.id)}>
                   <DeleteButton />
