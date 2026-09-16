@@ -3,8 +3,6 @@ import type { DayStop, RoutePlan } from "@/lib/routes/types";
 
 const sql = Object.assign(vi.fn(), { query: vi.fn(), transaction: vi.fn() });
 vi.mock("@/lib/db", () => ({ db: () => sql }));
-const geocodeLead = vi.fn();
-vi.mock("@/lib/routes/geocode", () => ({ geocodeLead }));
 vi.mock("@/lib/routes/settings", async () => {
   const actual = await vi.importActual<typeof import("@/lib/routes/settings")>("@/lib/routes/settings");
   return { ...actual, getRouteSettings: async () => actual.DEFAULT_ROUTE_SETTINGS };
@@ -37,7 +35,6 @@ beforeEach(() => {
   sql.mockReset().mockResolvedValue([]);
   sql.query.mockReset().mockImplementation((q: string, params: unknown[]) => ({ q, params }));
   sql.transaction.mockReset();
-  geocodeLead.mockReset();
 });
 
 describe("isRouteDay", () => {
@@ -46,6 +43,7 @@ describe("isRouteDay", () => {
     expect(isRouteDay("2026-02-30")).toBe(false);
     expect(isRouteDay("x")).toBe(false);
     expect(isRouteDay(undefined)).toBe(false);
+    for (const bad of ["2026-13-01", "2026-00-10", "0000-00-00"]) expect(isRouteDay(bad)).toBe(false);
   });
 });
 
@@ -55,6 +53,7 @@ describe("loadDay", () => {
     const [stop] = await loadDay(D);
     const q = text(sql.mock.calls[0]);
     expect(q).toContain("from appointments a join leads l");
+    expect(q).toContain("date_trunc('milliseconds', a.updated_at) as updated_at");
     expect(q).toContain("l.status <> 'lost'");
     expect(q).toContain("a.starts_at >= ? and a.starts_at < ?");
     for (const col of ["l.lat", "l.lng", "l.geocode_status", "l.assigned_to", "a.window_start::text",
@@ -68,19 +67,9 @@ describe("loadDay", () => {
     });
   });
 
-  it("re-geocodes errored leads once each, then re-reads; never for not_found", async () => {
-    sql.mockResolvedValueOnce([row({ lead_id: "L1", geocode_status: "error" }), row({ id: B, lead_id: "L1", geocode_status: "error" }),
-      row({ id: C, lead_id: "L2", geocode_status: "not_found" })]).mockResolvedValueOnce([row()]);
-    const day = await loadDay(D);
-    expect(geocodeLead.mock.calls).toEqual([["L1"]]);
-    expect(sql).toHaveBeenCalledTimes(2);
-    expect(day).toHaveLength(1);
-  });
-
-  it("does not re-read when nothing errored", async () => {
-    sql.mockResolvedValue([row({ geocode_status: "not_found" })]);
+  it("never geocodes, even for errored leads", async () => {
+    sql.mockResolvedValue([row({ geocode_status: "error" })]);
     await loadDay(D);
-    expect(geocodeLead).not.toHaveBeenCalled();
     expect(sql).toHaveBeenCalledTimes(1);
   });
 });
@@ -101,6 +90,7 @@ describe("loadSavedPlan", () => {
 
   it("returns null when nothing is saved", async () => {
     expect(await loadSavedPlan(D, [])).toBeNull();
+    expect(text(sql.mock.calls[0])).toContain("date_trunc('milliseconds', saved_at) as saved_at");
     expect(text(sql.mock.calls[0])).toContain("from route_stops where route_date = ?::date order by team_member_id, position");
   });
 
@@ -126,6 +116,19 @@ describe("loadSavedPlan", () => {
       savedAt: "2026-09-22T13:00:00.000Z",
       stale: false,
     });
+  });
+
+  it("lists no didn't-fit when a lead was geocoded after the save (count differs, updated_at unchanged)", async () => {
+    sql.mockResolvedValueOnce([saved({ saved_count: 1 })]).mockResolvedValueOnce([]);
+    const result = await loadSavedPlan(D, [dayStop(A), dayStop(B)]);
+    expect(result?.plan.skipped).toEqual([]);
+    expect(result?.stale).toBe(true);
+  });
+
+  it("lists no didn't-fit when a leftover changed after the save", async () => {
+    sql.mockResolvedValueOnce([saved({ saved_count: 2 })]).mockResolvedValueOnce([]);
+    const result = await loadSavedPlan(D, [dayStop(A), dayStop(B, { updatedAt: "2026-09-23T00:00:00.000Z" })]);
+    expect(result?.plan.skipped).toEqual([]);
   });
 
   it("reports stale from the saved rows", async () => {
@@ -173,7 +176,7 @@ describe("saveRoutePlan", () => {
     expect(write).toContain("'edit', 'Assigned to ' || m.name || ' (Installer) by route'");
     for (const q of [clear, write]) {
       expect(q).toContain("jsonb_to_recordset($1::jsonb)");
-      expect(q).toContain("d.updated_at > $4::timestamptz");
+      expect(q).toContain("date_trunc('milliseconds', d.updated_at) > $4::timestamptz");
       expect(q).toContain("l.lat is not null and l.lng is not null");
       expect(q).toContain("(select count(*) from day) <> cardinality($5::uuid[])");
       expect(q).toContain("not (d.id = any($5::uuid[]))");
@@ -202,6 +205,16 @@ describe("saveRoutePlan", () => {
     expect((await run([{ changed: 0, unknown: 1 }])).result).toBe("unknown-installer");
     sql.transaction.mockReset();
     expect((await run([{ changed: 0, unknown: 0, cleared: 3 }])).result).toBe("ok");
+  });
+
+  it("maps a serialization failure or a unique collision to changed, and rethrows anything else", async () => {
+    for (const code of ["40001", "23505"]) {
+      sql.transaction.mockReset().mockRejectedValue(Object.assign(new Error("race"), { code }));
+      expect(await saveRoutePlan(plan, "owner@example.com")).toBe("changed");
+    }
+    const boom = Object.assign(new Error("boom"), { code: "42P01" });
+    sql.transaction.mockReset().mockRejectedValue(boom);
+    await expect(saveRoutePlan(plan, "owner@example.com")).rejects.toBe(boom);
   });
 
   it("saves a day whose only extra appointment has no coordinates (guard ignores it)", async () => {

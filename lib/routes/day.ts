@@ -2,7 +2,6 @@ import "server-only";
 import { db } from "@/lib/db";
 import { fromLocalInput } from "@/lib/admin/time";
 import type { AppointmentKind } from "@/lib/admin/appointment-kinds";
-import { geocodeLead } from "./geocode";
 import { defaultMinutes, getRouteSettings } from "./settings";
 import { isRouteStale } from "./stale";
 import { addDaysIso, clockOf } from "./window";
@@ -11,12 +10,16 @@ import type { DayStop, Installer, PlanRoute, RoutePlan, SavedRoute } from "./typ
 /** Given to a routable appointment that a saved day counts but no installer's route holds. */
 export const DIDNT_FIT_REASON = "Did not fit when the route was saved";
 
-export const isRouteDay = (value: string | undefined): value is string =>
-  Boolean(value && /^\d{4}-\d{2}-\d{2}$/.test(value) && addDaysIso(value, 0) === value);
+export const isRouteDay = (value: string | undefined): value is string => {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const noon = new Date(`${value}T12:00:00Z`);
+  return !Number.isNaN(noon.getTime()) && noon.toISOString().slice(0, 10) === value;
+};
 
 const iso = (v: unknown) => new Date(v as string | Date).toISOString();
 const hasCoordinates = (stop: DayStop) => stop.lat !== null && stop.lng !== null;
 
+// Postgres keeps microseconds and JavaScript dates keep milliseconds, so every compared timestamp is cut to milliseconds.
 /** Las Vegas midnight to the next Las Vegas midnight. */
 const dayBounds = (date: string) => ({
   from: fromLocalInput(`${date}T00:00`),
@@ -26,7 +29,8 @@ const dayBounds = (date: string) => ({
 async function readDay(date: string) {
   const { from, to } = dayBounds(date);
   return db()`
-    select a.id, a.lead_id, a.kind, a.starts_at, a.all_day, a.confirmed_at, a.updated_at,
+    select a.id, a.lead_id, a.kind, a.starts_at, a.all_day, a.confirmed_at,
+           date_trunc('milliseconds', a.updated_at) as updated_at,
            a.window_start::text as window_start, a.window_end::text as window_end, a.duration_minutes,
            l.name, l.address, l.city, l.lat, l.lng, l.geocode_status, l.assigned_to
       from appointments a join leads l on l.id = a.lead_id
@@ -35,12 +39,8 @@ async function readDay(date: string) {
 }
 
 export async function loadDay(date: string): Promise<DayStop[]> {
-  let rows = await readDay(date);
-  const retry = [...new Set(rows.filter((r) => r.geocode_status === "error").map((r) => r.lead_id as string))];
-  if (retry.length) {
-    for (const id of retry) await geocodeLead(id);
-    rows = await readDay(date);
-  }
+  // Never calls Google: an errored lead is retried by the next build.
+  const rows = await readDay(date);
   const settings = await getRouteSettings();
   return rows.map((r) => ({
     appointmentId: r.id as string, jobId: r.lead_id as string, name: r.name as string,
@@ -67,7 +67,8 @@ const emptyRoute = (teamMemberId: string): PlanRoute => ({ teamMemberId, stops: 
  */
 export async function loadSavedPlan(date: string, day: DayStop[]): Promise<SavedRoute | null> {
   const rows = await db()`
-    select appointment_id, team_member_id, position, planned_arrival, drive_minutes, saved_at, saved_count,
+    select appointment_id, team_member_id, position, planned_arrival, drive_minutes,
+           date_trunc('milliseconds', saved_at) as saved_at, saved_count,
            route_date::text as route_date
       from route_stops where route_date = ${date}::date order by team_member_id, position`;
   if (!rows.length) return null;
@@ -85,17 +86,24 @@ export async function loadSavedPlan(date: string, day: DayStop[]): Promise<Saved
     routeDate: r.route_date as string, savedCount: r.saved_count as number }));
   const savedAt = savedRows.map((r) => r.savedAt).sort().at(-1)!;
   const onRoute = new Set(savedRows.map((r) => r.appointmentId));
-  const skipped = day
-    .filter((s) => hasCoordinates(s) && !onRoute.has(s.appointmentId))
-    .map((s) => ({ appointmentId: s.appointmentId, reason: DIDNT_FIT_REASON }));
+  // Leftovers count as didn't-fit only when they are exactly what was saved as didn't-fit. Otherwise
+  // (a lead geocoded or an appointment changed since) they stay unrouted and a save forces a rebuild.
+  const routable = day.filter(hasCoordinates);
+  const leftovers = routable.filter((s) => !onRoute.has(s.appointmentId));
+  const savedCount = Math.max(...savedRows.map((r) => r.savedCount));
+  const skipped = routable.length === savedCount && !leftovers.some((s) => s.updatedAt > savedAt)
+    ? leftovers.map((s) => ({ appointmentId: s.appointmentId, reason: DIDNT_FIT_REASON }))
+    : [];
   return {
     plan: { day: date, builtAt: savedAt, routes: [...routes.values()], skipped },
     savedAt,
-    stale: isRouteStale(savedRows, day, date),
+    stale: isRouteStale(savedRows, day),
   };
 }
 
 export type SaveRouteResult = "ok" | "changed" | "unknown-installer";
+
+const RACE_CODES = new Set(["40001", "23505"]);
 
 /*
  * Shared by both queries of the save transaction. $1 stops JSON, $2 day start, $3 day end, $4 builtAt,
@@ -112,7 +120,7 @@ const SAVE_GUARD = `
        and l.lat is not null and l.lng is not null
   ),
   guard as (
-    select (exists (select 1 from day d where d.updated_at > $4::timestamptz)
+    select (exists (select 1 from day d where date_trunc('milliseconds', d.updated_at) > $4::timestamptz)
         or (select count(*) from day) <> cardinality($5::uuid[])
         or exists (select 1 from day d where not (d.id = any($5::uuid[])))
         or exists (select 1 from unnest($5::uuid[]) p(id) where p.id not in (select id from day))) as changed,
@@ -173,10 +181,17 @@ export async function saveRoutePlan(plan: RoutePlan, actor: string): Promise<Sav
   const { from, to } = dayBounds(plan.day);
   const guardParams = [JSON.stringify(stops), from, to, plan.builtAt, planned, plan.day];
   const sql = db();
-  const [checked] = await sql.transaction([
-    sql.query(CLEAR_DAY, guardParams),
-    sql.query(WRITE_DAY, [...guardParams, planned.length, actor]),
-  ], { isolationLevel: "RepeatableRead" });
+  let checked: Record<string, unknown>[];
+  try {
+    [checked] = await sql.transaction([
+      sql.query(CLEAR_DAY, guardParams),
+      sql.query(WRITE_DAY, [...guardParams, planned.length, actor]),
+    ], { isolationLevel: "RepeatableRead" });
+  } catch (error) {
+    // A concurrent save (serialization failure or a position/appointment collision) means the day moved on.
+    if (RACE_CODES.has((error as { code?: string } | null)?.code ?? "")) return "changed";
+    throw error;
+  }
   const result = checked?.[0] as { changed?: number; unknown?: number } | undefined;
   if (result?.changed) return "changed";
   if (result?.unknown) return "unknown-installer";
