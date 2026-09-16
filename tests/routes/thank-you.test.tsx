@@ -21,7 +21,7 @@ describe("/thank-you", () => {
   it("thanks the visitor and lays out the next steps", async () => {
     render(await ThankYouPage());
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(/thank you/i);
-    expect(screen.getByText(/within one business day/i)).toBeInTheDocument();
+    expect(screen.getByText(/within 3 business days/i)).toBeInTheDocument();
     expect(screen.getAllByRole("listitem").length).toBeGreaterThanOrEqual(3);
   });
 
