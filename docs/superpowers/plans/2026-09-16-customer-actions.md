@@ -55,7 +55,7 @@ Tasks 2 and 5 write two new kinds — `'message'` and `'service'` — so 019 mus
 alter table leads add column if not exists parent_job_id uuid references leads(id);
 create index if not exists leads_parent_job_id_idx on leads (parent_job_id);
 
--- 011_stages_contact_log.sql last defined this check; every migration that touches it
+-- 011_stages_contact_log.sql last defined this check. Every migration that touches it
 -- lists every kind, so run order can never narrow it. 'message' is a customer's message
 -- from their project page, 'service' is a customer's service request.
 alter table job_events drop constraint if exists job_events_kind_check;
