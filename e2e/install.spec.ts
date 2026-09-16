@@ -77,5 +77,19 @@ test("rates set in Settings price a job, and the snapshot survives a rate change
   await page.getByRole("button", { name: "Save rates" }).click();
   await expect(page.getByRole("status")).toHaveText("Saved.");
   await page.goto(`/admin/jobs/${row.id}?tab=install`);
+
+  // Prove the new rate took effect before trusting that the old snapshot ignored it.
+  await page.getByRole("button", { name: /add line/i }).click();
+  await page.getByLabel("Treatment").selectOption("roller_shades");
+  await page.getByLabel("Windows").fill("10");
+  await expect(page.getByTestId("install-total")).toHaveText("$400");
   await expect(savedPrices(page).getByRole("listitem").first()).toContainText("$250");
+
+  await page.getByRole("button", { name: /save as final/i }).click();
+  const items = savedPrices(page).getByRole("listitem");
+  await expect(items).toHaveCount(2);
+  await expect(items.nth(0)).toContainText("Final");
+  await expect(items.nth(0)).toContainText("$400");
+  await expect(items.nth(1)).toContainText("Estimate");
+  await expect(items.nth(1)).toContainText("$250");
 });
