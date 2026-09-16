@@ -5,11 +5,10 @@ describe("boardHref", () => {
   it("is the plain board with nothing set", () => {
     expect(boardHref({})).toBe("/admin");
   });
-  it("carries the search, the list filter and the open job, in that order", () => {
-    expect(boardHref({ job: "abc" })).toBe("/admin?job=abc");
-    expect(boardHref({ list: "completed", job: "abc" })).toBe("/admin?list=completed&job=abc");
-    expect(boardHref({ q: "reyes smith", list: "lost", job: "abc" })).toBe("/admin?q=reyes%20smith&list=lost&job=abc");
-    expect(boardHref({ q: "", list: null, job: null })).toBe("/admin");
+  it("carries the search and the list filter, in that order", () => {
+    expect(boardHref({ list: "completed" })).toBe("/admin?list=completed");
+    expect(boardHref({ q: "reyes smith", list: "lost" })).toBe("/admin?q=reyes%20smith&list=lost");
+    expect(boardHref({ q: "", list: null })).toBe("/admin");
   });
 });
 

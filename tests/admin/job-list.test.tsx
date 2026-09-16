@@ -16,7 +16,7 @@ const NOW = new Date("2026-09-10T00:00:00Z");
 
 describe("JobList", () => {
   it("lists every job with its city, stage and time in stage, and counts them", () => {
-    render(<JobList jobs={[base, lost]} now={NOW} filter={null} q="" openId={undefined} />);
+    render(<JobList jobs={[base, lost]} now={NOW} filter={null} q="" />);
     expect(screen.getByRole("heading", { name: "All jobs · 2" })).toBeInTheDocument();
     const rows = screen.getAllByRole("row").slice(1);
     expect(rows).toHaveLength(2);
@@ -29,7 +29,7 @@ describe("JobList", () => {
 
   it("has an Assigned to column after City, showing the person or a dash", () => {
     const assigned: Job = { ...base, assignedTo: "b", assignedName: "Shade", assignedRole: "designer" };
-    render(<JobList jobs={[assigned, lost]} now={NOW} filter={null} q="" openId={undefined} />);
+    render(<JobList jobs={[assigned, lost]} now={NOW} filter={null} q="" />);
     const headers = screen.getAllByRole("columnheader").map((h) => h.textContent);
     expect(headers).toEqual(["Customer", "City", "Assigned to", "Stage", "In stage"]);
     const rows = screen.getAllByRole("row").slice(1);
@@ -37,40 +37,28 @@ describe("JobList", () => {
     expect(within(rows[1]).getAllByRole("cell")[2]).toHaveTextContent("—");
   });
 
-  it("links each row to the full job page on mobile and to its panel on desktop", () => {
-    render(<JobList jobs={[base]} now={NOW} filter="completed" q="reyes" openId={base.id} />);
-    const [mobile, desktop] = screen.getAllByRole("link", { name: /dana reyes/i });
-    expect(mobile).toHaveAttribute("href", `/admin/jobs/${base.id}`);
-    expect(mobile).toHaveClass("lg:hidden");
-    expect(mobile).not.toHaveAttribute("aria-current");
-    // The panel only exists on desktop, so only that link keeps the search and filter.
-    expect(desktop).toHaveAttribute("href", `/admin?q=reyes&list=completed&job=${base.id}`);
-    expect(desktop).toHaveClass("hidden");
-    expect(desktop).toHaveAttribute("aria-current", "true");
-  });
+  it("links each row to the full job page, and the link covers the whole row", () => {
+    render(<JobList jobs={[base]} now={NOW} filter="completed" q="reyes" />);
+    const link = screen.getByRole("link", { name: /dana reyes/i });
+    expect(link).toHaveAttribute("href", `/admin/jobs/${base.id}`);
+    expect(link).not.toHaveAttribute("aria-current");
 
-  it("makes the whole row one link at each breakpoint", () => {
-    render(<JobList jobs={[base]} now={NOW} filter={null} q="" openId={undefined} />);
     const row = screen.getAllByRole("row")[1];
-    const links = within(row).getAllByRole("link");
-    // Two in the DOM, but only one is displayed at a time, so a row is never two tap targets.
-    expect(links).toHaveLength(2);
+    expect(within(row).getAllByRole("link")).toHaveLength(1);
     expect(row.className).toContain("relative");
-    for (const link of links) {
-      expect(link.className).toContain("after:absolute");
-      expect(link.className).toContain("after:inset-0");
-    }
+    expect(link.className).toContain("after:absolute");
+    expect(link.className).toContain("after:inset-0");
   });
 
   it("tags a referred job", () => {
-    render(<JobList jobs={[{ ...base, referredBy: "PSS-AB12" }, lost]} now={NOW} filter={null} q="" openId={undefined} />);
+    render(<JobList jobs={[{ ...base, referredBy: "PSS-AB12" }, lost]} now={NOW} filter={null} q="" />);
     const rows = screen.getAllByRole("row").slice(1);
     expect(rows[0]).toHaveTextContent("Referral");
     expect(rows[1]).not.toHaveTextContent("Referral");
   });
 
-  it("has a stage dropdown in a GET form that keeps the search and open job", () => {
-    render(<JobList jobs={[]} now={NOW} filter="lost" q="reyes" openId={base.id} />);
+  it("has a stage dropdown in a GET form that keeps the search", () => {
+    render(<JobList jobs={[]} now={NOW} filter="lost" q="reyes" />);
     const select = screen.getByLabelText("Stage");
     expect(select).toHaveValue("lost");
     expect(within(select).getAllByRole("option").map((o) => o.textContent)).toEqual([
@@ -79,16 +67,16 @@ describe("JobList", () => {
     const form = select.closest("form")!;
     expect(form).toHaveAttribute("action", "/admin");
     expect(form.querySelector('input[name="q"]')).toHaveValue("reyes");
-    expect(form.querySelector('input[name="job"]')).toHaveValue(base.id);
+    expect(form.querySelector('input[name="job"]')).toBeNull();
     expect(within(form).getByRole("button", { name: "Show" })).toBeInTheDocument();
   });
 
   it("says when there are no jobs, a stage has none, or a search matches none", () => {
-    const { rerender } = render(<JobList jobs={[]} now={NOW} filter={null} q="" openId={undefined} />);
+    const { rerender } = render(<JobList jobs={[]} now={NOW} filter={null} q="" />);
     expect(screen.getByText("No jobs yet")).toBeInTheDocument();
-    rerender(<JobList jobs={[]} now={NOW} filter="completed" q="" openId={undefined} />);
+    rerender(<JobList jobs={[]} now={NOW} filter="completed" q="" />);
     expect(screen.getByText("No jobs in this stage")).toBeInTheDocument();
-    rerender(<JobList jobs={[]} now={NOW} filter={null} q="zzz" openId={undefined} />);
+    rerender(<JobList jobs={[]} now={NOW} filter={null} q="zzz" />);
     expect(screen.getByText("No jobs match")).toBeInTheDocument();
   });
 });
