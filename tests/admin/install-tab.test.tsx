@@ -8,6 +8,7 @@ const refresh = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
 
 const { InstallCalculator } = await import("@/app/admin/jobs/[id]/InstallCalculator");
+const { priceQuote, priceFingerprint } = await import("@/lib/admin/install-pricing");
 
 const JOB = "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c";
 const settings = { minimumCents: 15_000, hardSurfaceCents: 1000, highLadderCents: 5000, motorizedCents: 1500 };
@@ -116,7 +117,28 @@ describe("InstallCalculator", () => {
     expect(widths[0]).toHaveValue("48");
   });
 
-  it("sends the total the owner saw, so the server can refuse a price that moved", async () => {
+  it("edits and removes the line the owner acted on, after earlier lines have shifted", async () => {
+    const user = userEvent.setup();
+    render(<InstallCalculator jobId={JOB} rates={footRates} settings={settings} saved={[]} measurements={[]} />);
+    for (const width of ["30", "48", "60", "84"]) {
+      await user.click(screen.getByRole("button", { name: /add line/i }));
+      const boxes = screen.getAllByLabelText("Width (in)");
+      await user.type(boxes[boxes.length - 1], width);
+    }
+    // Remove the 48" line, then edit the 60" line — now second, and neither first nor last, so
+    // an edit aimed at the wrong position cannot land on it by accident.
+    await user.click(screen.getAllByRole("button", { name: "Remove" })[1]);
+    const survivor = screen.getAllByLabelText("Width (in)")[1];
+    expect(survivor).toHaveValue("60");
+    await user.clear(survivor);
+    await user.type(survivor, "72");
+    await user.click(screen.getByRole("button", { name: /save as estimate/i }));
+
+    const sent = saveInstallQuoteAction.mock.calls[0][2];
+    expect(sent.map((l: { widthEighths: number }) => l.widthEighths)).toEqual([30 * 8, 72 * 8, 84 * 8]);
+  });
+
+  it("sends the fingerprint of the price the owner saw, so the server can refuse one that moved", async () => {
     const user = userEvent.setup();
     render(<InstallCalculator jobId={JOB} rates={rates} settings={settings} saved={[]} measurements={[]} />);
     await user.click(screen.getByRole("button", { name: /add line/i }));
@@ -124,7 +146,35 @@ describe("InstallCalculator", () => {
     await user.type(screen.getByLabelText("Windows"), "10");
     expect(screen.getByTestId("install-total")).toHaveTextContent("$250");
     await user.click(screen.getByRole("button", { name: /save as final/i }));
-    expect(saveInstallQuoteAction).toHaveBeenCalledWith(JOB, "final", [expect.objectContaining({ count: 10 })], 25_000);
+
+    const [, , sentLines, sentFingerprint] = saveInstallQuoteAction.mock.calls[0];
+    expect(sentLines).toEqual([expect.objectContaining({ count: 10 })]);
+    // Exactly what the page priced and displayed: these rates, this minimum, these lines.
+    expect(sentFingerprint).toBe(priceFingerprint(priceQuote(sentLines, rates, settings), settings.minimumCents));
+    expect(JSON.parse(sentFingerprint)).toMatchObject({ totalCents: 25_000, minimumCents: 15_000 });
+  });
+
+  it("shows the width it will price, not the digits typed, once the box loses focus", async () => {
+    const user = userEvent.setup();
+    render(<InstallCalculator jobId={JOB} rates={footRates} settings={settings} saved={[]} measurements={[]} />);
+    await user.click(screen.getByRole("button", { name: /add line/i }));
+    const width = screen.getByLabelText("Width (in)");
+    // 30.1 inches is priced as 30 1/8 (241 eighths), the nearest eighth.
+    await user.type(width, "30.1");
+    await user.tab();
+    expect(width).toHaveValue("30.125");
+    await user.click(screen.getByRole("button", { name: /save as estimate/i }));
+    expect(saveInstallQuoteAction.mock.calls[0][2][0]).toMatchObject({ widthEighths: 241 });
+  });
+
+  it("clears a width it cannot price when the box loses focus, rather than showing text it ignores", async () => {
+    const user = userEvent.setup();
+    render(<InstallCalculator jobId={JOB} rates={footRates} settings={settings} saved={[]} measurements={[]} />);
+    await user.click(screen.getByRole("button", { name: /add line/i }));
+    const width = screen.getByLabelText("Width (in)");
+    await user.type(width, "abc");
+    await user.tab();
+    expect(width).toHaveValue("");
   });
 
   it("keeps the lines and reloads the rates when the server says they changed", async () => {

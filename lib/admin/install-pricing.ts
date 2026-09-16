@@ -112,3 +112,21 @@ export function priceQuote(
     minimumApplied,
   };
 }
+
+/**
+ * Everything a saved price records, as one comparable string: the minimum in force, the
+ * subtotal and total, and each line's stored columns in order. A saved price is immutable,
+ * so the server saves only when its own fingerprint equals the one the owner was looking
+ * at. Comparing the total alone is not enough — rates can move between lines, or the
+ * minimum can hide a changed subtotal, while the total stays the same.
+ */
+export function priceFingerprint(priced: PricedQuote, minimumCents: number): string {
+  return JSON.stringify({
+    minimumCents,
+    subtotalCents: priced.subtotalCents,
+    totalCents: priced.totalCents,
+    lines: priced.lines.map((l) => [
+      l.treatment, l.basis, l.quantity, l.rateCents, l.hardSurface, l.highLadder, l.motorized, l.amountCents,
+    ]),
+  });
+}

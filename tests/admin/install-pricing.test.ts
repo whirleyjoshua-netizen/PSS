@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  INSTALLABLE_TREATMENTS, quantityFor, priceQuote,
+  INSTALLABLE_TREATMENTS, quantityFor, priceQuote, priceFingerprint,
   type InstallRate, type InstallSettings, type LineInput,
 } from "@/lib/admin/install-pricing";
 
@@ -170,5 +170,47 @@ describe("priceQuote", () => {
     const priced = priceQuote([line({ count: 0 })], [rate()], settings);
     expect(priced.lines[0].amountCents).toBe(0);
     expect(priced.subtotalCents).toBe(0);
+  });
+});
+
+describe("priceFingerprint", () => {
+  const roller = rate({ treatment: "roller_shades", rateCents: 2500 });
+  const shutters = rate({ treatment: "shutters", basis: "window", rateCents: 1000 });
+  const both = [line({ treatment: "roller_shades" }), line({ treatment: "shutters" })];
+
+  it("is the same for the same lines, rates and minimum", () => {
+    const a = priceFingerprint(priceQuote(both, [roller, shutters], settings), 0);
+    const b = priceFingerprint(priceQuote(both, [roller, shutters], settings), 0);
+    expect(a).toBe(b);
+  });
+
+  it("differs when rates move between lines even though the total is unchanged", () => {
+    const before = priceQuote(both, [roller, shutters], settings);
+    const swapped = priceQuote(both, [{ ...roller, rateCents: 1000 }, { ...shutters, rateCents: 2500 }], settings);
+    // Same $35 total, but each saved line would record a different rate and amount.
+    expect(swapped.totalCents).toBe(before.totalCents);
+    expect(priceFingerprint(swapped, 0)).not.toBe(priceFingerprint(before, 0));
+  });
+
+  it("differs when the lines come to a different subtotal that the minimum hides", () => {
+    const withMinimum = { ...settings, minimumCents: 15_000 };
+    const before = priceQuote([line({ count: 2 })], [roller], withMinimum);
+    const raised = priceQuote([line({ count: 2 })], [{ ...roller, rateCents: 3000 }], withMinimum);
+    // Both total $150, but "lines came to $50" would become "lines came to $60".
+    expect(raised.totalCents).toBe(before.totalCents);
+    expect(priceFingerprint(raised, 15_000)).not.toBe(priceFingerprint(before, 15_000));
+  });
+
+  it("differs when only the minimum changes, since the saved price records it", () => {
+    const priced = priceQuote([line({ count: 10 })], [roller], settings);
+    expect(priceFingerprint(priced, 15_000)).not.toBe(priceFingerprint(priced, 20_000));
+  });
+
+  it("differs when a surcharge flag changes the saved line", () => {
+    const plain = priceQuote([line()], [roller], { ...settings, highLadderCents: 0 });
+    const flagged = priceQuote([line({ highLadder: true })], [roller], { ...settings, highLadderCents: 0 });
+    // A $0 surcharge leaves every amount equal, but the saved line records the flag.
+    expect(flagged.totalCents).toBe(plain.totalCents);
+    expect(priceFingerprint(flagged, 0)).not.toBe(priceFingerprint(plain, 0));
   });
 });
