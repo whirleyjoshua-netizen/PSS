@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { describe, it, expect } from "vitest";
 import { JobCard, groupByStage } from "@/app/admin/JobCard";
 import type { Job } from "@/lib/admin/jobs";
@@ -43,12 +43,17 @@ describe("board", () => {
         href="/admin"
       />,
     );
-    expect(screen.getByRole("link", { name: /dana reyes/i })).toHaveTextContent("Shade · Designer");
+    const link = screen.getByRole("link", { name: /dana reyes/i });
+    // Same matcher the unassigned case asserts is absent, so that case can't pass vacuously.
+    expect(within(link).getByText(/\S+ · (Designer|Installer)$/)).toHaveTextContent("Shade · Designer");
   });
 
   it("says nothing about an assignee when the job has none", () => {
     render(<JobCard job={job({})} now={new Date("2026-09-10T00:00:00Z")} href="/admin" />);
-    expect(screen.getByRole("link", { name: /dana reyes/i })).not.toHaveTextContent("Designer");
+    const link = screen.getByRole("link", { name: /dana reyes/i });
+    // No "Name · Role" line at all — not merely the absence of the word "Designer".
+    expect(within(link).queryByText(/\S+ · (Designer|Installer)$/)).toBeNull();
+    expect(link).not.toHaveTextContent("Designer");
   });
 
   it("flags a job that is overdue in its stage", () => {

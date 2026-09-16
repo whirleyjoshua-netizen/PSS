@@ -49,6 +49,8 @@ describe("board page", () => {
     await open({});
     expect(screen.queryByRole("complementary")).toBeNull();
     expect(jobs.getJob).not.toHaveBeenCalled();
+    // The team is only for the panel's Assigned to, so it isn't loaded either.
+    expect(listTeam).not.toHaveBeenCalled();
     expect(within(screen.getByRole("region", { name: "Board" })).getByRole("link", { name: /dana reyes/i })).toHaveAttribute("href", `/admin?job=${ID}`);
   });
 
@@ -63,6 +65,7 @@ describe("board page", () => {
 
   it("points the panel at Settings while there is no team", async () => {
     await open({ job: ID });
+    expect(listTeam).toHaveBeenCalled();
     expect(screen.getByRole("link", { name: "Add people in Settings" })).toBeInTheDocument();
   });
 

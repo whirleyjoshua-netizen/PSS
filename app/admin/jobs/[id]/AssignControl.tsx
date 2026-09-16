@@ -21,7 +21,14 @@ export function AssignControl({ jobId, assignedTo, team }: {
   return (
     <form action={action} className="flex flex-wrap items-center gap-2 text-sm">
       <label htmlFor={id} className="text-ink-soft">Assigned to</label>
-      <SubmitOnChange key={assignedTo ?? "none"} id={id} name="assignedTo" defaultValue={assignedTo ?? ""}>
+      {/* Remount on every save so the select shows the server's answer: the new
+          person after a success, the unchanged one after a failed attempt. */}
+      <SubmitOnChange
+        key={`${assignedTo ?? "none"}:${state.error ?? ""}`}
+        id={id}
+        name="assignedTo"
+        defaultValue={assignedTo ?? ""}
+      >
         <option value="">Unassigned</option>
         {team.map((person) => (
           <option key={person.id} value={person.id}>{person.name} — {roleLabel(person.role)}</option>

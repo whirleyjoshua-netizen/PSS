@@ -44,7 +44,8 @@ export default async function BoardPage({
     listJobs({ search: q }),
     openId ? loadPanel(openId) : Promise.resolve(null),
     listDueFollowUps(now),
-    listTeam(),
+    // Only the panel names the team, and the panel only renders with a job open.
+    openId ? listTeam() : Promise.resolve([]),
   ]);
   const groups = groupByStage(jobs, BOARD_STAGES);
   const listed = filter ? jobs.filter((job) => job.status === filter) : jobs;
