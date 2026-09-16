@@ -32,9 +32,12 @@ describe("ProjectView", () => {
     render(await ProjectView({ job }));
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Hi Maria");
     expect(screen.getByText("12 Palm Way, Henderson")).toBeInTheDocument();
-    const current = screen.getByText("In production").closest("li")!;
+    // Ordered, with no install booked yet: everything up to In Production is behind them.
+    const done = screen.getByText("In Production").closest("li")!;
+    expect(done).not.toHaveAttribute("aria-current");
+    expect(screen.getByText("Sep 20")).toBeInTheDocument();
+    const current = screen.getByText("Ready to Install").closest("li")!;
     expect(current).toHaveAttribute("aria-current", "step");
-    expect(screen.getByText("Install scheduled: Tue, Oct 13")).toBeInTheDocument();
   });
 
   it("shows only shared photos, through the customer route", async () => {

@@ -2,7 +2,6 @@ import { business } from "@/content/business";
 import type { Job } from "@/lib/admin/jobs";
 import { listSharedPhotos } from "@/lib/admin/files";
 import { toProject } from "@/lib/portal/access";
-import { progressSteps } from "@/lib/portal/progress";
 import { countReferred } from "@/lib/portal/project";
 import { ensureReferralCode } from "@/lib/referrals/db";
 import { referralUrl } from "@/lib/referrals/codes";
@@ -22,7 +21,7 @@ export async function ProjectView({ job }: { job: Job }) {
     ensureReferralCode(project.id),
     countReferred(project.id),
   ]);
-  const steps = progressSteps(project.status, project.installOn);
+  const steps = project.steps;
   const place = [project.address, project.city].filter(Boolean).join(", ");
 
   return (
@@ -41,13 +40,13 @@ export async function ProjectView({ job }: { job: Job }) {
         <h2 id="progress-heading" className={heading}>Your project</h2>
         <ol className="flex flex-col gap-3">
           {steps.map((step) => (
-            <li key={step.stage} aria-current={step.state === "current" ? "step" : undefined}
+            <li key={step.key} aria-current={step.state === "current" ? "step" : undefined}
               className={`flex gap-3 border-l-2 pl-4 ${step.state === "upcoming" ? "border-rule text-ink-soft" : "border-charcoal"}`}>
               <span aria-hidden="true" className="w-4 shrink-0">{step.state === "done" ? "✓" : step.state === "current" ? "●" : "○"}</span>
               <div className="flex flex-col">
                 <span className={step.state === "current" ? "font-semibold" : undefined}>{step.label}</span>
                 <span className="sr-only">{step.state === "done" ? "(done)" : step.state === "current" ? "(current step)" : "(coming up)"}</span>
-                {step.detail ? <span className="text-sm text-ink-soft">{step.detail}</span> : null}
+                {step.on ? <span className="text-sm text-ink-soft">{step.on}</span> : null}
               </div>
             </li>
           ))}
