@@ -3,7 +3,6 @@ import { db } from "@/lib/db";
 import { isBudgetTier, type BudgetTier } from "./budget";
 import type { DetailsInput, NewJobInput } from "./schema";
 import { isInstalled, isStage, type Stage } from "./stages";
-import { toLocalInput } from "./time";
 import { isFinish, type Finish } from "@/lib/leads/finish";
 import { isTreatmentType, type TreatmentType } from "@/lib/leads/treatment-types";
 import { isTeamRole, type TeamRole } from "./team-roles";
@@ -196,59 +195,33 @@ export async function setStage(id: string, to: Stage, actor: string, reason?: st
 }
 
 /**
- * Saves the details form and logs it, in one statement. Returns null when the job is gone, otherwise
- * which dates this save changed: every CTE reads the row as it was before the update, so prev holds
- * the old dates (Outlook should only be overridden for a date the owner actually changed).
+ * Saves the details form and logs it, in one statement. False means the job is gone.
  *
- * A date whose submitted value matches the value the form was loaded with was not edited, so the
- * stored date is kept: a stale form must never undo a move made in Outlook since it was opened.
- * Without the loaded value (an older form, or another caller) both dates are written as before.
- * A New job whose visit date this save set moves to Appointment booked, with its stage entry, in the same statement.
+ * No appointment date passes through here: visit_at and install_on are mirrors of the confirmed
+ * appointments (see mirrorToJob), and a New job now moves to Appointment booked only when its
+ * consultation is confirmed. This save therefore never touches Outlook.
  */
-export async function updateDetails(
-  id: string, input: DetailsInput, actor: string,
-): Promise<{ visitChanged: boolean; installChanged: boolean } | null> {
-  if (!isUuid(id)) return null;
-  const visitEdited =
-    input.visitAtLoaded === undefined || (input.visitAt ? toLocalInput(input.visitAt) : "") !== input.visitAtLoaded;
-  const installEdited = input.installOnLoaded === undefined || (input.installOn ?? "") !== input.installOnLoaded;
-  // Only a visit date this save actually set books the appointment; a stale form or an Outlook sync never does.
-  const book = visitEdited && input.visitAt !== null;
+export async function updateDetails(id: string, input: DetailsInput, actor: string): Promise<boolean> {
+  if (!isUuid(id)) return false;
   const rows = await db()`
-    with prev as (select status, visit_at, install_on from leads where id = ${id}),
-    changed as (
+    with changed as (
       update leads set
-        visit_at = case when ${visitEdited}::boolean then ${input.visitAt}::timestamptz else visit_at end,
         quote_cents = ${input.quoteCents},
         sold_cents = ${input.soldCents}, deposit_cents = ${input.depositCents},
         brands = ${input.brands}, ordered_on = ${input.orderedOn}::date,
-        install_on = case when ${installEdited}::boolean then ${input.installOn}::date else install_on end,
         budget_tier = ${input.budgetTier},
         window_count_exact = ${input.windowCountExact}, treatment_types = ${input.treatmentTypes}::text[], motorized = ${input.motorized}, gate_code = ${input.gateCode},
-        status = case when ${book}::boolean and status = 'new' then 'visit_booked' else status end,
-        stage_changed_at = case when ${book}::boolean and status = 'new' then now() else stage_changed_at end,
         updated_at = now()
       where id = ${id}
-      returning id, status
+      returning id
     ),
     logged as (
       insert into job_events (lead_id, actor, kind, body)
       select id, ${actor}, 'edit', 'Updated job details' from changed
-    ),
-    booked as (
-      insert into job_events (lead_id, actor, kind, from_status, to_status)
-      select changed.id, ${actor}, 'stage', 'new', 'visit_booked' from prev, changed
-      where prev.status = 'new' and changed.status = 'visit_booked'
+      returning id
     )
-    select prev.visit_at is distinct from ${input.visitAt}::timestamptz as visit_changed,
-           prev.install_on is distinct from ${input.installOn}::date as install_changed
-    from prev, changed`;
-  const row = rows[0];
-  if (!row) return null;
-  return {
-    visitChanged: visitEdited && Boolean(row.visit_changed),
-    installChanged: installEdited && Boolean(row.install_changed),
-  };
+    select id from changed`;
+  return rows.length > 0;
 }
 
 export async function addNote(id: string, body: string, actor: string): Promise<boolean> {

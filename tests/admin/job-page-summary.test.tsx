@@ -35,6 +35,11 @@ vi.mock("@/app/admin/jobs/actions", () => ({
   assignJobAction: vi.fn(async () => ({})),
 }));
 vi.mock("@/lib/admin/team", () => ({ listTeam: vi.fn(async () => []) }));
+vi.mock("@/lib/admin/appointments", () => ({ listAppointments: vi.fn(async () => []) }));
+vi.mock("@/app/admin/jobs/appointment-actions", () => ({
+  bookAppointment: vi.fn(async () => ({})), confirmSchedule: vi.fn(async () => ({})),
+  cancelAppointmentAction: vi.fn(async () => ({})),
+}));
 
 vi.mock("@/app/admin/jobs/measure-actions", () => ({
   removeFile: vi.fn(async () => {}),

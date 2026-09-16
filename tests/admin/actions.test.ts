@@ -37,7 +37,7 @@ beforeEach(() => {
   Object.values(jobs).forEach((fn) => fn.mockReset());
   requireAdmin.mockReset().mockResolvedValue({ email: "owner@example.com" });
   jobs.setStage.mockResolvedValue(true);
-  jobs.updateDetails.mockResolvedValue({ visitChanged: false, installChanged: false });
+  jobs.updateDetails.mockResolvedValue(true);
   jobs.addNote.mockResolvedValue(true);
   [...Object.values(referrals), sendReviewRequest, ...Object.values(reviewsDb)].forEach((fn) => fn.mockReset());
   jobs.getJob.mockResolvedValue({ id: ID, status: "installed", email: "dana@example.com", reviewOptOut: false });
@@ -231,40 +231,17 @@ describe("assignJobAction", () => {
 });
 
 describe("Outlook calendar sync", () => {
-  it("pushes only the dates this save changed", async () => {
-    jobs.updateDetails.mockResolvedValue({ visitChanged: true, installChanged: false });
-    await actions.saveDetails(ID, {}, form({ visitAt: "2026-09-20T10:00" }));
-    expect(syncJobCalendar).toHaveBeenCalledWith(ID, ["consultation"]);
-    jobs.updateDetails.mockResolvedValue({ visitChanged: true, installChanged: true });
-    await actions.saveDetails(ID, {}, form({ visitAt: "2026-09-20T10:00", installOn: "2026-10-02" }));
-    expect(syncJobCalendar).toHaveBeenLastCalledWith(ID, ["consultation", "install"]);
-  });
-
-  it("passes the dates the form was loaded with through to the save", async () => {
-    await actions.saveDetails(ID, {}, form({
-      visitAt: "2026-09-20T10:00", visitAtLoaded: "2026-09-20T10:00", installOn: "", installOnLoaded: "2026-10-02",
-    }));
+  it("never touches the calendar from Job details, which no longer holds a date", async () => {
+    await actions.saveDetails(ID, {}, form({ quote: "4500", orderedOn: "2026-10-02" }));
     expect(jobs.updateDetails).toHaveBeenCalledWith(
-      ID, expect.objectContaining({ visitAtLoaded: "2026-09-20T10:00", installOnLoaded: "2026-10-02" }), "owner@example.com",
+      ID, expect.objectContaining({ quoteCents: 450000, orderedOn: "2026-10-02" }), "owner@example.com",
     );
-  });
-
-  it("leaves the loaded dates out when an older form did not send them", async () => {
-    await actions.saveDetails(ID, {}, form({ visitAt: "2026-09-20T10:00" }));
-    const input = jobs.updateDetails.mock.calls[0][1];
-    expect(input.visitAtLoaded).toBeUndefined();
-    expect(input.installOnLoaded).toBeUndefined();
-  });
-
-  it("syncs without pushing when a save left both dates alone", async () => {
-    await actions.saveDetails(ID, {}, form({ quote: "4500" }));
-    expect(syncJobCalendar).toHaveBeenCalledWith(ID, []);
-  });
-
-  it("does not sync when the details did not save", async () => {
-    jobs.updateDetails.mockResolvedValue(null);
-    await actions.saveDetails(ID, {}, form({}));
     expect(syncJobCalendar).not.toHaveBeenCalled();
+  });
+
+  it("reports a job that no longer exists", async () => {
+    jobs.updateDetails.mockResolvedValue(false);
+    expect(await actions.saveDetails(ID, {}, form({}))).toEqual({ error: "That job no longer exists." });
   });
 
   it("syncs after a job is marked lost, so its events are removed", async () => {

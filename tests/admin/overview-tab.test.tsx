@@ -8,6 +8,10 @@ vi.mock("@/app/admin/jobs/actions", () => ({
   saveReviewOptOut: vi.fn(), createReferralLink: vi.fn(), payReferral: vi.fn(),
   assignJobAction: vi.fn(async () => ({})),
 }));
+vi.mock("@/app/admin/jobs/appointment-actions", () => ({
+  bookAppointment: vi.fn(async () => ({})), confirmSchedule: vi.fn(async () => ({})),
+  cancelAppointmentAction: vi.fn(async () => ({})),
+}));
 vi.mock("@/app/admin/jobs/measure-actions", () => ({ removeMeasurement: vi.fn(), removeFile: vi.fn(), setFileShared: vi.fn() }));
 const { OverviewTab } = await import("@/app/admin/jobs/[id]/OverviewTab");
 
@@ -22,36 +26,66 @@ const job: Job = {
   referralPaidAt: null, reviewRequestedAt: null, reviewOptOut: false, budgetTier: "mid",
   treatmentTypes: ["shutters"],
 };
-const base = { job, editing: false, now, measurements: [], files: [], events: [], referrals: [], referrer: null };
+const base = {
+  job, editing: false, now, measurements: [], files: [], events: [], referrals: [], referrer: null,
+  appointments: [],
+};
 
 describe("OverviewTab", () => {
-  it("shows the customer, project, next action and money", () => {
+  it("shows the customer and project, and no money strip", () => {
     render(<OverviewTab {...base} />);
     expect(screen.getByRole("region", { name: "Customer" })).toHaveTextContent("(702) 555-0134");
     const project = screen.getByRole("region", { name: "Project details" });
     expect(project).toHaveTextContent("Shutters");
     expect(project).toHaveTextContent("Mid-range");
-    expect(screen.getByRole("region", { name: "Money" })).toHaveTextContent("$2,500");
+    expect(screen.queryByRole("region", { name: "Money" })).toBeNull();
     expect(screen.queryByRole("region", { name: "Next action" })).toBeNull();
   });
 
-  it("shows set values and empty states on the status cards", () => {
+  it("puts the appointments where the visit and install cards were", () => {
     render(<OverviewTab {...base} />);
-    expect(screen.getByRole("region", { name: "Order" })).toHaveTextContent("Sep 18, 2026");
-    const install = screen.getByRole("region", { name: "Install" });
-    expect(install).toHaveTextContent("Not scheduled");
-    expect(within(install).getByRole("link", { name: "Set install date" })).toHaveAttribute(
-      "href", `/admin/jobs/${ID}?tab=overview&edit=details#installOn`,
-    );
-    expect(screen.getByRole("region", { name: "Visit" })).toHaveTextContent("No visit booked");
+    expect(screen.getByRole("region", { name: "Appointments" })).toHaveTextContent("Nothing scheduled");
+    expect(screen.queryByRole("region", { name: "Visit" })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Install" })).toBeNull();
   });
 
-  it("swaps the money and status cards for the details form in edit mode", () => {
+  it("reports the order without offering to edit it", () => {
+    render(<OverviewTab {...base} />);
+    const order = screen.getByRole("region", { name: "Order" });
+    expect(order).toHaveTextContent("Ordered Sep 18, 2026");
+    expect(order).toHaveTextContent("Hunter Douglas");
+    expect(within(order).queryByRole("link", { name: /order date/i })).toBeNull();
+    expect(within(order).queryByRole("button")).toBeNull();
+
+    render(<OverviewTab {...base} job={{ ...job, orderedOn: null }} />);
+    expect(screen.getAllByRole("region", { name: "Order" })[1]).toHaveTextContent("Not ordered");
+  });
+
+  it("links the order paperwork once a document is attached", () => {
+    const doc = {
+      id: "doc-1", leadId: ID, kind: "document" as const, name: "order.pdf", contentType: "application/pdf",
+      blobPathname: "doc-1", createdAt: now, sizeBytes: 100, uploadedBy: "x", sharedAt: null,
+    };
+    render(<OverviewTab {...base} files={[doc]} />);
+    const order = screen.getByRole("region", { name: "Order" });
+    expect(within(order).getByRole("link", { name: "Order paperwork" })).toHaveAttribute("href", "/admin/files/doc-1");
+  });
+
+  it("keeps Add measurement on the Measurements card", () => {
+    render(<OverviewTab {...base} />);
+    const measurements = screen.getByRole("region", { name: "Measurements" });
+    expect(measurements).toHaveTextContent("No windows measured yet");
+    expect(within(measurements).getByRole("link", { name: "Add measurement" })).toHaveAttribute(
+      "href", `/admin/jobs/${ID}/measure`,
+    );
+  });
+
+  it("swaps the status cards for the details form in edit mode", () => {
     render(<OverviewTab {...base} editing />);
     expect(screen.getByRole("button", { name: /save details/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Done" })).toHaveAttribute("href", `/admin/jobs/${ID}`);
-    expect(screen.queryByRole("region", { name: "Money" })).toBeNull();
-    expect(screen.queryByRole("region", { name: "Install" })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Appointments" })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Order" })).toBeNull();
   });
 
   it("shows empty activity and files with links to their tabs", () => {

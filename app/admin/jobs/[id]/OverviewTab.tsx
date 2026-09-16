@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Appointment } from "@/lib/admin/appointments";
 import type { JobFile } from "@/lib/admin/files";
 import type { Job, JobEvent } from "@/lib/admin/jobs";
 import type { WindowMeasurement } from "@/lib/admin/measurements";
@@ -7,10 +8,10 @@ import { STAGES } from "@/lib/admin/stages";
 import { formatDateOnly, formatWhen } from "@/lib/admin/time";
 import { isPortalStatus } from "@/lib/portal/progress";
 import type { listReferrals } from "@/lib/referrals/db";
+import { AppointmentsCard } from "./AppointmentsCard";
 import { DetailsForm } from "./DetailsForm";
 import { EventList } from "./EventList";
 import { InviteSection } from "./InviteSection";
-import { MoneyStrip } from "./MoneyStrip";
 import { CustomerCard, ProjectCard, StatusCard } from "./OverviewCards";
 import { ReferralSection } from "./ReferralSection";
 import { ReferralsList } from "./ReferralsList";
@@ -20,7 +21,7 @@ import { CARD, HEADING, TEXT_LINK } from "./ui";
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
-export function OverviewTab({ job, editing, now, measurements, files, events, referrals, referrer }: {
+export function OverviewTab({ job, editing, now, measurements, files, events, referrals, referrer, appointments }: {
   job: Job;
   editing: boolean;
   now: Date;
@@ -29,13 +30,16 @@ export function OverviewTab({ job, editing, now, measurements, files, events, re
   events: JobEvent[];
   referrals: Awaited<ReturnType<typeof listReferrals>>;
   referrer: Job | null;
+  appointments: Appointment[];
 }) {
   const edit = editDetailsHref(job.id);
   const stageIndex = STAGES.findIndex((s) => s.value === job.status);
   const soldOrLater = stageIndex >= STAGES.findIndex((s) => s.value === "sold");
   const windowPhotoIds = new Set(measurements.map((m) => m.photoFileId).filter(Boolean));
   const photos = files.filter((file) => file.kind === "photo" && !windowPhotoIds.has(file.id)).slice(0, 6);
-  const documents = files.filter((file) => file.kind === "document").length;
+  const documents = files.filter((file) => file.kind === "document");
+  // The order paperwork is whichever document was attached to the job; there is one in practice.
+  const paperwork = documents[0] ?? null;
   const lastMeasured = measurements.reduce<Date | null>(
     (latest, m) => (!latest || m.updatedAt > latest ? m.updatedAt : latest), null,
   );
@@ -54,23 +58,24 @@ export function OverviewTab({ job, editing, now, measurements, files, events, re
           <DetailsForm job={job} />
         </section>
       ) : (
-        <>
-          <div className="lg:col-span-3"><MoneyStrip job={job} editHref={edit} /></div>
-          <div className="grid gap-4 sm:grid-cols-2 lg:col-span-3 lg:grid-cols-4">
-            <StatusCard title="Visit" value={job.visitAt ? formatWhen(job.visitAt) : null} empty="No visit booked"
-              actions={job.visitAt ? [] : [{ label: "Book visit", href: editDetailsHref(job.id, "visitAt") }]} />
-            <StatusCard title="Measurements" value={measurements.length ? plural(measurements.length, "window") : null}
-              detail={lastMeasured ? `Updated ${formatWhen(lastMeasured)}` : undefined} empty="No windows measured yet"
-              actions={[
-                { label: "Add measurement", href: `/admin/jobs/${job.id}/measure` },
-                ...(measurements.length ? [{ label: "View all", href: tabHref(job.id, "measurements") }] : []),
-              ]} />
-            <StatusCard title="Order" value={job.orderedOn ? formatDateOnly(job.orderedOn) : null} empty="Not ordered"
-              actions={job.orderedOn ? [] : [{ label: "Set order date", href: editDetailsHref(job.id, "orderedOn") }]} />
-            <StatusCard title="Install" value={job.installOn ? formatDateOnly(job.installOn) : null} empty="Not scheduled"
-              actions={job.installOn ? [] : [{ label: "Set install date", href: editDetailsHref(job.id, "installOn") }]} />
-          </div>
-        </>
+        <div className="grid gap-4 sm:grid-cols-2 lg:col-span-3 lg:grid-cols-4">
+          <div className="grid sm:col-span-2"><AppointmentsCard jobId={job.id} appointments={appointments} /></div>
+          <StatusCard title="Measurements" value={measurements.length ? plural(measurements.length, "window") : null}
+            detail={lastMeasured ? `Updated ${formatWhen(lastMeasured)}` : undefined} empty="No windows measured yet"
+            actions={[
+              { label: "Add measurement", href: `/admin/jobs/${job.id}/measure` },
+              ...(measurements.length ? [{ label: "View all", href: tabHref(job.id, "measurements") }] : []),
+            ]} />
+          {/* Information only: the order date and its paperwork will arrive from Hunter Douglas. */}
+          <StatusCard title="Order" value={job.orderedOn ? `Ordered ${formatDateOnly(job.orderedOn)}` : null}
+            empty="Not ordered" detail="Fills in automatically once Hunter Douglas is connected.">
+            {paperwork ? (
+              <a href={`/admin/files/${paperwork.id}`} target="_blank" rel="noreferrer" className={TEXT_LINK}>
+                Order paperwork
+              </a>
+            ) : null}
+          </StatusCard>
+        </div>
       )}
 
       <div className="grid gap-6 lg:col-span-3 lg:grid-cols-3">
@@ -137,8 +142,10 @@ export function OverviewTab({ job, editing, now, measurements, files, events, re
                     </li>
                   ))}
                 </ul>
-              ) : null}
-              <p className="text-sm text-ink-soft">{plural(documents, "document")}</p>
+              ) : (
+                <p className="text-sm text-ink-soft">{plural(documents.length, "document")}</p>
+              )}
+              {photos.length ? <p className="text-sm text-ink-soft">{plural(documents.length, "document")}</p> : null}
             </>
           )}
         </section>

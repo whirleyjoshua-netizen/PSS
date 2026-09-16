@@ -23,13 +23,12 @@ describe("new job stage", () => {
 describe("detailsSchema", () => {
   it("turns form strings into typed values, with blanks as null", () => {
     const parsed = detailsSchema.parse({
-      visitAt: "2026-12-15T14:30", quote: "$4,500", sold: "", deposit: "2250",
-      brands: ["Alta Window Fashions"], orderedOn: "", installOn: "2027-01-10",
+      quote: "$4,500", sold: "", deposit: "2250",
+      brands: ["Alta Window Fashions"], orderedOn: "2027-01-10",
     });
     expect(parsed).toEqual({
-      visitAt: new Date("2026-12-15T22:30:00.000Z"),
       quoteCents: 450000, soldCents: null, depositCents: 225000,
-      brands: ["Alta Window Fashions"], orderedOn: null, installOn: "2027-01-10",
+      brands: ["Alta Window Fashions"], orderedOn: "2027-01-10",
       budgetTier: null,
       windowCountExact: null, treatmentTypes: [], motorized: false, gateCode: null,
     });
@@ -40,10 +39,10 @@ describe("detailsSchema", () => {
     expect(detailsSchema.safeParse({ quote: "lots" }).success).toBe(false);
   });
 
-  it("rejects an impossible visit date without throwing", () => {
-    const result = detailsSchema.safeParse({ visitAt: "2026-13-45T25:99" });
-    expect(result.success).toBe(false);
-    expect(result.error!.issues[0].message).toBe("Pick a valid visit date and time");
+  it("has no appointment dates: the Schedule button owns those", () => {
+    const parsed = detailsSchema.parse({ quote: "", visitAt: "2026-12-15T14:30", installOn: "2027-01-10" });
+    expect(parsed).not.toHaveProperty("visitAt");
+    expect(parsed).not.toHaveProperty("installOn");
   });
 });
 

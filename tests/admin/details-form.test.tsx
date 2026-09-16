@@ -25,9 +25,19 @@ describe("DetailsForm", () => {
     expect(screen.getByLabelText("Motorized")).toBeChecked();
     expect(screen.getByLabelText("Gate code")).toHaveValue("#4321");
   });
-  it("keeps the loaded-date inputs", () => {
+  it("leaves the appointment dates to the Schedule button", () => {
     const { container } = render(<DetailsForm job={job} />);
-    expect(container.querySelector('input[name="visitAtLoaded"]')).not.toBeNull();
-    expect(container.querySelector('input[name="installOnLoaded"]')).not.toBeNull();
+    expect(screen.queryByLabelText(/visit date and time/i)).toBeNull();
+    expect(screen.queryByLabelText(/install date/i)).toBeNull();
+    expect(container.querySelector('input[name="visitAtLoaded"]')).toBeNull();
+    expect(container.querySelector('input[name="installOnLoaded"]')).toBeNull();
+  });
+
+  it("keeps the order date and the money fields", () => {
+    render(<DetailsForm job={job} />);
+    expect(screen.getByLabelText("Order date")).toBeInTheDocument();
+    expect(screen.getByLabelText("Quote")).toBeInTheDocument();
+    expect(screen.getByLabelText("Sold amount")).toBeInTheDocument();
+    expect(screen.getByLabelText("Deposit received")).toBeInTheDocument();
   });
 });

@@ -28,6 +28,11 @@ vi.mock("@/app/admin/jobs/actions", () => ({
   assignJobAction: vi.fn(async () => ({})),
 }));
 vi.mock("@/lib/admin/team", () => ({ listTeam: vi.fn(async () => []) }));
+vi.mock("@/lib/admin/appointments", () => ({ listAppointments: vi.fn(async () => []) }));
+vi.mock("@/app/admin/jobs/appointment-actions", () => ({
+  bookAppointment: vi.fn(async () => ({})), confirmSchedule: vi.fn(async () => ({})),
+  cancelAppointmentAction: vi.fn(async () => ({})),
+}));
 vi.mock("@/app/admin/jobs/measure-actions", () => ({ removeMeasurement: vi.fn(), removeFile: vi.fn(), setFileShared: vi.fn() }));
 
 const { default: JobPage } = await import("@/app/admin/jobs/[id]/page");
@@ -70,7 +75,7 @@ describe("job page layout", () => {
   it("opens the details form with ?edit=details", async () => {
     await open({ edit: "details" });
     expect(screen.getByRole("button", { name: /save details/i })).toBeInTheDocument();
-    expect(screen.queryByRole("region", { name: "Money" })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Appointments" })).toBeNull();
   });
 
   it("keeps the header on every tab", async () => {

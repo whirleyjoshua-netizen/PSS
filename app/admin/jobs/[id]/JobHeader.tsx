@@ -2,13 +2,13 @@ import Link from "next/link";
 import { Icon } from "@/components/admin/icons";
 import type { Job } from "@/lib/admin/jobs";
 import type { TeamMember } from "@/lib/admin/team";
-import { editDetailsHref } from "@/lib/admin/next-action";
 import { STAGE_STYLE, stageLabel } from "@/lib/admin/stages";
 import { daysBetween, formatShortDate, formatShortDay } from "@/lib/admin/time";
 import { AssignControl } from "./AssignControl";
 import { CallButton } from "./CallButton";
 import { ContactLog } from "./ContactLog";
 import { FollowUpBox } from "./FollowUpBox";
+import { ScheduleDialog } from "./ScheduleDialog";
 import { StageControls } from "./StageControls";
 import { StageStepper } from "./StageStepper";
 import { ACTION_LINK, TEXT_LINK } from "./ui";
@@ -50,7 +50,7 @@ export function JobHeader({ job, now, team }: { job: Job; now: Date; team: TeamM
           <CallButton jobId={job.id} name={job.name} phone={job.phone} />
           <a href={`sms:+1${job.phone}`} className={ACTION_LINK}>Text</a>
           {job.email ? <a href={`mailto:${job.email}`} className={ACTION_LINK}>Email</a> : null}
-          <Link href={editDetailsHref(job.id, "visitAt")} className={ACTION_LINK}>Schedule</Link>
+          <ScheduleDialog jobId={job.id} />
           <details className="sm:relative">
             <summary aria-label="More actions" className={`${ACTION_LINK} cursor-pointer list-none [&::-webkit-details-marker]:hidden`}>
               <span aria-hidden="true">•••</span>

@@ -32,31 +32,22 @@ const cents = z
 const day = z.preprocess(blank, z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a date").optional())
   .transform((value) => value ?? null);
 
+// Appointment dates are not part of Job details: the Schedule button owns them, and only a
+// confirmed appointment mirrors to leads.visit_at / leads.install_on.
 export const detailsSchema = z
   .object({
-    visitAt: z.preprocess(blank, z.string().optional()),
     quote: cents,
     sold: cents,
     deposit: cents,
     brands: z.array(z.enum(BRANDS)).default([]),
     orderedOn: day,
-    installOn: day,
     budget: z.preprocess(blank, z.enum(BUDGET_TIERS, { error: "Pick a budget tier" }).optional()),
     windowCountExact: windowCountExactField,
     treatmentTypes: treatmentTypesField,
     motorized: z.boolean().default(false),
     gateCode: gateCodeField,
-    // The dates the form was rendered with, in the visible inputs' formats. Absent from older forms.
-    visitAtLoaded: z.string().optional(),
-    installOnLoaded: z.string().optional(),
   })
-  .superRefine((value, ctx) => {
-    if (value.visitAt !== undefined && !isValidLocalInput(value.visitAt)) {
-      ctx.addIssue({ code: "custom", path: ["visitAt"], message: "Pick a valid visit date and time" });
-    }
-  })
-  .transform(({ visitAt, quote, sold, deposit, budget, ...rest }) => ({
-    visitAt: visitAt ? fromLocalInput(visitAt) : null,
+  .transform(({ quote, sold, deposit, budget, ...rest }) => ({
     quoteCents: quote,
     soldCents: sold,
     depositCents: deposit,
