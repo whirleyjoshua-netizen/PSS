@@ -85,8 +85,8 @@ async function trackerItems(from: Date, to: Date): Promise<ScheduleItem[]> {
     const allDay = row.all_day === true;
     return {
       key: `${job.id}:${kind}`,
-      // Correct only because an all-day appointment is stored at 08:00 America/Los_Angeles
-      // (migration 014). Storing one at 00:00 UTC instead would land this on the previous day.
+      // Correct only because an all-day appointment is stored at 09:00 America/Los_Angeles
+      // (migration 014, moved by 017). Storing one at 00:00 UTC instead would land this on the previous day.
       day: lasVegasDate(startsAt),
       allDay,
       start: allDay ? null : startsAt,

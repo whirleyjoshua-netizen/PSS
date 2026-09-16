@@ -39,8 +39,8 @@ Numbers are coordinated: 016 belongs to the customer project page (`project_no`)
 ```sql
 alter table appointments add column if not exists window_start time;      -- null = working-day start
 alter table appointments add column if not exists window_end   time;      -- null = working-day end
-alter table appointments add column if not exists duration_minutes integer
-  check (duration_minutes between 15 and 720);                            -- null = default for kind
+alter table appointments add column if not exists duration_minutes integer; -- null = default for kind
+-- check: duration_minutes is null or duration_minutes between 15 and 720
 ```
 
 - If a window is set, both ends must be set and `window_start < window_end` (check constraint).
@@ -52,8 +52,8 @@ alter table appointments add column if not exists duration_minutes integer
 alter table leads add column if not exists lat double precision;
 alter table leads add column if not exists lng double precision;
 alter table leads add column if not exists geocoded_at timestamptz;
-alter table leads add column if not exists geocode_status text
-  check (geocode_status in ('ok','not_found','error'));
+alter table leads add column if not exists geocode_status text;
+-- check: geocode_status is null or geocode_status in ('ok','not_found','error')
 ```
 
 Only the geocoder writes these columns. The customer project page reads leads and never writes them.
@@ -83,13 +83,15 @@ create table if not exists route_stops (
   position integer not null,
   planned_arrival timestamptz not null,
   drive_minutes integer not null,          -- from the previous stop; 0 for the first
+  saved_count integer not null default 0,  -- stops + didn't-fit appointments when the day was saved
   saved_at timestamptz not null default now(),
   unique (route_date, team_member_id, position)
 );
 ```
 
 - Saving a day deletes that date's rows and inserts the new ones in one statement. It also sets `leads.assigned_to` for each stop's job and writes a `job_events` log row per reassigned job.
-- **Out of date:** a day's route is stale when any of its appointments has `updated_at` later than the route's `saved_at`, when a stop's appointment is no longer on that date, or when that date has an appointment with no stop. Cancelled appointments cascade away and also count as stale, because the stop count changes. This check is computed, not stored.
+- Every saved row carries `saved_count`: the number of stops plus skipped ("Didn't fit") appointments for that day at save time.
+- **Out of date:** a day's route is stale only when (a) a routed or skipped appointment has `updated_at` later than the route's `saved_at`, (b) a stop's appointment is no longer on that date, or (c) the number of that date's appointments whose lead has coordinates differs from `saved_count`. A cancelled appointment cascades its stop away and is caught by (c); so is a new appointment. Needs-address appointments never make a day stale; they still show in their list. This check is computed, not stored.
 
 ## 4. Geocoding
 
@@ -97,6 +99,7 @@ create table if not exists route_stops (
 - It runs after `createJob`, and after `updateDetails` when `address` or `city` changed. It is called with `after()` so saving a job never waits on Google or fails because of it. The public site's lead insert gets the same `after()` call.
 - Results set `lat`/`lng`, `geocode_status='ok'` and `geocoded_at`. A zero-result lookup sets `not_found`; a network or quota failure sets `error`, and the next build retries it.
 - Backfill: `scripts/geocode-backfill.mjs` geocodes every lead with `geocoded_at is null`, run once after deploy.
+- Addresses cannot be edited in the admin today, so the job's Details form gains **Address** and **City**. `updateDetails` re-geocodes only when either actually changed; the questionnaire, which also writes `address`, re-geocodes too.
 - The Route tab's "Needs address" link opens the job page to fix it; saving re-geocodes.
 
 ## 5. Booking changes
@@ -126,11 +129,11 @@ create table if not exists route_stops (
 
 1. **`buildRoutes(day, installerIds)`** loads the day's appointments with coordinates, windows and lengths, then calls `lib/routes/optimize.ts`, which:
    - builds an `optimizeTours` request with a shipment per appointment: one delivery at the lead's lat/lng, `duration` = length, `timeWindows` = window or working day, and `allowedVehicleIndices` limited to the assigned installer when the lead is already assigned *and* that installer is selected.
-   - adds one vehicle per selected installer, with no start location, `startTimeWindows`/`endTimeWindows` = working day, and `costPerHour` on travel so the least driving wins.
-   - posts to `routeoptimization.googleapis.com/v1/projects/<id>:optimizeTours` using a service account (`GOOGLE_CLOUD_PROJECT_ID`, `GOOGLE_SERVICE_ACCOUNT_JSON`, server-only).
+   - adds one vehicle per selected installer, with no start location, `startTimeWindows`/`endTimeWindows` = working day, and `costPerTraveledHour` so the least driving wins (`costPerHour` would also charge waiting and service time).
+   - posts to `routeoptimization.googleapis.com/v1/projects/<id>:optimizeTours` using a service account (`GOOGLE_CLOUD_PROJECT_ID`, `GOOGLE_SERVICE_ACCOUNT_JSON`, server-only). For tests only, when `ROUTE_OPTIMIZATION_URL` and `ROUTE_OPTIMIZATION_TOKEN` are both set it posts there with that bearer token instead; only `playwright.config.ts` sets them.
    - parses the response into `{ routes: [{ teamMemberId, stops: [{ appointmentId, arrival, driveMinutes }], polyline, driveMinutes }], skipped: [{ appointmentId, reason }] }`.
    It returns that plan. Nothing is written.
-2. **`recheckRoutes(day, plan)`** runs after a manual move. It sends the same request with each vehicle's stops fixed as an ordered route (`injectedFirstSolutionRoutes` plus `considerRoadTraffic: false`, with the solve mode set to validate only), then returns the times and any window now broken, which is flagged on that stop.
+2. **`recheckRoutes(day, plan, installerIds)`** runs after a manual move. It takes `installerIds` because once a route is emptied the plan alone cannot say which vehicles exist. It sends the same request with `solvingMode` `DEFAULT_SOLVE` and an `injectedSolutionConstraint` holding each vehicle's edited, ordered route, with one `constraintRelaxations` entry per vehicle at level `RELAX_VISIT_TIMES_AFTER_THRESHOLD` (`thresholdVisitCount: 0`), so Google recomputes the times but keeps the order and assignment. Windows are sent as soft, so a broken window comes back as an early or late arrival, which is flagged on that stop. `considerRoadTraffic: false` in both calls. (Validate-only returns no times, and `injectedFirstSolutionRoutes` is only a hint the solver may rearrange.)
 3. **`saveRoutes(day, plan)`** validates with zod that every appointment belongs to that day and every installer exists, then writes as described in section 3 and revalidates the schedule.
 
 The request builder and response parser are pure functions, kept separate from the HTTP call so they can be tested without Google.
@@ -163,7 +166,7 @@ A **Routes** section in Settings edits `route_settings`: working day start and e
 
 ## 11. Setup the owner does
 
-A Google Cloud project with billing turned on (usage is expected to stay within the monthly free credit), with the Maps JavaScript, Geocoding and Route Optimization APIs enabled. It needs a browser key restricted to the site and a service account with the Route Optimization Editor role. These go into Vercel env vars as `NEXT_PUBLIC_GOOGLE_MAPS_KEY`, `GOOGLE_GEOCODING_KEY`, `GOOGLE_CLOUD_PROJECT_ID` and `GOOGLE_SERVICE_ACCOUNT_JSON`.
+A Google Cloud project with billing turned on (usage is expected to stay within the monthly free credit), with the Maps JavaScript, Geocoding and Route Optimization APIs enabled. It needs a browser key restricted to the site and a service account with the Route Optimization Editor role. These go into Vercel env vars as `NEXT_PUBLIC_GOOGLE_MAPS_KEY`, `GOOGLE_GEOCODING_KEY`, `GOOGLE_CLOUD_PROJECT_ID` and `GOOGLE_SERVICE_ACCOUNT_JSON`, plus `NEXT_PUBLIC_GOOGLE_MAP_ID` (a Map ID created in Cloud Console, which advanced markers require). `ROUTE_OPTIMIZATION_URL` and `ROUTE_OPTIMIZATION_TOKEN` are for tests only and are never set in Vercel.
 
 ## 12. Not built
 
