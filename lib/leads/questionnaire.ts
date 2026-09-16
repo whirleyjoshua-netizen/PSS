@@ -46,6 +46,10 @@ export async function saveQuestionnaire(key: string, a: QuestionnaireAnswers): P
         window_count_exact = ${a.windowCountExact}, treatment_types = ${a.treatmentTypes}::text[],
         motorized = ${a.motorized}, gate_code = ${a.gateCode}, finish = ${a.finish},
         address = coalesce(${a.address}::text, address),
+        lat = case when coalesce(${a.address}::text, address) is distinct from address then null else lat end,
+        lng = case when coalesce(${a.address}::text, address) is distinct from address then null else lng end,
+        geocode_status = case when coalesce(${a.address}::text, address) is distinct from address then null else geocode_status end,
+        geocoded_at = case when coalesce(${a.address}::text, address) is distinct from address then null else geocoded_at end,
         budget_tier = case when ${a.finish}::text is distinct from finish
           then coalesce(${tierForFinish(a.finish)}::text, budget_tier) else budget_tier end,
         updated_at = now()

@@ -7,7 +7,7 @@
  * Env loading matches scripts/migrate.mjs: MIGRATE_DATABASE_URL wins, then .env.local.
  * GOOGLE_GEOCODING_KEY is read from .env.local, then the real environment.
  */
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { neon } from "@neondatabase/serverless";
 
 function loadEnv(file = ".env.local") {
@@ -27,16 +27,17 @@ function loadEnv(file = ".env.local") {
   return env;
 }
 
-const env = loadEnv();
+// Without .env.local (a CI box, a one-off shell) the real environment alone is enough.
+const env = existsSync(".env.local") ? loadEnv() : {};
 let url = process.env.MIGRATE_DATABASE_URL;
 let source = "MIGRATE_DATABASE_URL";
 if (!url) {
   url = env.DATABASE_URL ?? process.env.DATABASE_URL;
-  source = ".env.local";
+  source = env.DATABASE_URL ? ".env.local" : "DATABASE_URL";
 }
-if (!url) throw new Error("DATABASE_URL not found in .env.local");
+if (!url) throw new Error("DATABASE_URL not found in .env.local or the environment");
 const key = env.GOOGLE_GEOCODING_KEY || process.env.GOOGLE_GEOCODING_KEY;
-if (!key) throw new Error("GOOGLE_GEOCODING_KEY not found in .env.local");
+if (!key) throw new Error("GOOGLE_GEOCODING_KEY not found in .env.local or the environment");
 
 console.log(`Using ${source} -> ${new URL(url).host}`);
 

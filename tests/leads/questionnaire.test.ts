@@ -47,7 +47,11 @@ describe("saveQuestionnaire", () => {
     expect(statement).toContain("is distinct from finish");
     expect(statement).toContain("'note'");
     expect(statement).toContain("returning lead_id as id");
-    expect(statement).not.toContain("status");
+    for (const column of ["lat", "lng", "geocode_status", "geocoded_at"]) {
+      expect(statement).toContain(`${column} = case when coalesce(?::text, address) is distinct from address then null else ${column} end`);
+    }
+    // The job's stage (status) is never touched; geocode_status is cleared only for a new address.
+    expect(statement).not.toMatch(/(^|[^_])status/);
     expect(call).toContain(HASH);
     expect(call).toContain("premium");
     expect(call).toContain("Customer added details: 12 windows · Shutters · Motorized · Luxury");

@@ -70,8 +70,9 @@ export type JobEvent = {
   body: string | null;
 };
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-export const isUuid = (id: string): boolean => UUID.test(id);
+import { isUuid } from "./ids";
+
+export { isUuid };
 
 // Date columns come back as strings so an install date never shifts across time zones.
 export const JOB_COLUMNS = `id, created_at, name, phone, email, address, city, treatments, window_count,
@@ -216,6 +217,10 @@ export async function updateDetails(
     changed as (
       update leads set
         address = ${input.address}, city = ${input.city},
+        lat = case when address is distinct from ${input.address}::text or city is distinct from ${input.city}::text then null else lat end,
+        lng = case when address is distinct from ${input.address}::text or city is distinct from ${input.city}::text then null else lng end,
+        geocode_status = case when address is distinct from ${input.address}::text or city is distinct from ${input.city}::text then null else geocode_status end,
+        geocoded_at = case when address is distinct from ${input.address}::text or city is distinct from ${input.city}::text then null else geocoded_at end,
         quote_cents = ${input.quoteCents},
         sold_cents = ${input.soldCents}, deposit_cents = ${input.depositCents},
         brands = ${input.brands}, ordered_on = ${input.orderedOn}::date,
@@ -301,6 +306,12 @@ export async function createJob(input: NewJobInput, actor: string): Promise<stri
     select id from created`;
   const id = rows[0].id as string;
   // Here rather than in each caller, so every new job gets coordinates. Never blocks or fails the save.
-  after(() => geocodeLead(id));
+  // after() throws outside a request (a script, a test); the job is already inserted, so log and move on,
+  // and the route build's retry or the backfill picks it up.
+  try {
+    after(() => geocodeLead(id));
+  } catch (error) {
+    console.error("Could not schedule geocoding for job", id, error);
+  }
   return id;
 }

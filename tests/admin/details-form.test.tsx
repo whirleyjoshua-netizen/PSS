@@ -30,6 +30,10 @@ describe("DetailsForm", () => {
     expect(screen.getByLabelText("Address")).toHaveValue("12 Sample St");
     expect(screen.getByLabelText("City")).toHaveValue("North Las Vegas");
   });
+  it("keeps a city outside the service area selected instead of replacing it", () => {
+    render(<DetailsForm job={{ ...job, city: "Boulder City" }} />);
+    expect(screen.getByLabelText("City")).toHaveValue("Boulder City");
+  });
   it("leaves the appointment dates to the Schedule button", () => {
     const { container } = render(<DetailsForm job={job} />);
     expect(screen.queryByLabelText(/visit date and time/i)).toBeNull();

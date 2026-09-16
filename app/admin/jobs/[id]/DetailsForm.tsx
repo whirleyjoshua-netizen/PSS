@@ -32,7 +32,11 @@ export function DetailsForm({ job }: { job: Job }) {
     if (!values) return (job.treatmentTypes ?? []).some((type) => type === key);
     return Array.isArray(submitted) ? submitted.includes(key) : submitted === key;
   };
-  const motorized = values ? values.motorized === "on" : Boolean(job.motorized);
+  // A job's city outside today's list stays selectable, so the select never silently swaps it for another city.
+  const cityOptions: readonly string[] = (business.serviceArea as readonly string[]).includes(job.city)
+    ? business.serviceArea
+    : [job.city, ...business.serviceArea];
+  const motorized =values ? values.motorized === "on" : Boolean(job.motorized);
 
   return (
     <form
@@ -44,7 +48,7 @@ export function DetailsForm({ job }: { job: Job }) {
     >
       {/* Appointment dates are not edited here: the Schedule button owns them. */}
       <TextField id="address" name="address" label="Address" defaultValue={field("address", job.address ?? "")} />
-      <SelectField id="city" name="city" label="City" options={business.serviceArea} defaultValue={field("city", job.city)} />
+      <SelectField id="city" name="city" label="City" options={cityOptions} defaultValue={field("city", job.city)} />
       <Money id="quote" label="Quote" value={field("quote", dollars(job.quoteCents))} />
       <Money id="sold" label="Sold amount" value={field("sold", dollars(job.soldCents))} />
       <Money id="deposit" label="Deposit received" value={field("deposit", dollars(job.depositCents))} />

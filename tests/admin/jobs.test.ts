@@ -188,6 +188,10 @@ describe("changing jobs", () => {
     expect(await jobs.updateDetails(ID, input, "owner@example.com")).toEqual({ saved: true, addressChanged: true });
     const statement = text(sql.mock.calls[0]).replace(/\s+/g, " ");
     expect(statement).toContain("address = ?, city = ?");
+    // A moved job loses its old coordinates in the same update, so the planner never routes to the old address.
+    for (const column of ["lat", "lng", "geocode_status", "geocoded_at"]) {
+      expect(statement).toContain(`${column} = case when address is distinct from ?::text or city is distinct from ?::text then null else ${column} end`);
+    }
     expect(statement).toContain("with prev as (select address, city from leads where id = ?), changed as ( update leads set");
     expect(statement).toContain("(prev.address is distinct from ?::text or prev.city is distinct from ?::text) as address_changed");
     expect(statement).toContain("from changed, prev");
@@ -215,6 +219,18 @@ describe("changing jobs", () => {
       { name: "Dana Reyes", phone: "7025550134", city: "Henderson", source: "phone", stage: "new" },
       "owner@example.com",
     )).resolves.toBe(ID);
+  });
+
+  it("createJob still returns the id when after() throws outside a request", async () => {
+    sql.mockResolvedValue([{ id: ID }]);
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    after.mockImplementationOnce(() => { throw new Error("`after` was called outside a request scope"); });
+    await expect(jobs.createJob(
+      { name: "Dana Reyes", phone: "7025550134", city: "Henderson", source: "phone", stage: "new" },
+      "owner@example.com",
+    )).resolves.toBe(ID);
+    expect(error).toHaveBeenCalled();
+    error.mockRestore();
   });
 
   it("updateDetails saves the budget tier", async () => {

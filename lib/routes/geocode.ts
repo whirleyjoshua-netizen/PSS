@@ -1,6 +1,6 @@
 import "server-only";
 import { db } from "@/lib/db";
-import { isUuid } from "@/lib/admin/jobs";
+import { isUuid } from "@/lib/admin/ids";
 
 export type GeocodeResult = { status: "ok"; lat: number; lng: number } | { status: "not_found" } | { status: "error" };
 
@@ -44,7 +44,8 @@ export async function geocodeLead(id: string): Promise<void> {
     const result = await geocodeAddress(lead.address as string | null, lead.city as string);
     const lat = result.status === "ok" ? result.lat : null;
     const lng = result.status === "ok" ? result.lng : null;
-    await db()`update leads set lat = ${lat}, lng = ${lng}, geocode_status = ${result.status}, geocoded_at = now() where id = ${id}`;
+    await db()`update leads set lat = ${lat}, lng = ${lng}, geocode_status = ${result.status}, geocoded_at = now()
+      where id = ${id} and address is not distinct from ${lead.address}::text and city is not distinct from ${lead.city}::text`;
   } catch (error) {
     console.error("Could not geocode job", id, error);
   }

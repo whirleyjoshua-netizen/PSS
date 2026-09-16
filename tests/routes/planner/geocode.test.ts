@@ -42,6 +42,16 @@ describe("geocodeAddress", () => {
     expect(await geocodeAddress("12 Sample St", "Henderson")).toEqual({ status: "error" });
   });
 
+  it("reports OK with no results as an error", async () => {
+    fetchMock.mockResolvedValue(json({ status: "OK", results: [] }));
+    expect(await geocodeAddress("12 Sample St", "Henderson")).toEqual({ status: "error" });
+  });
+
+  it("reports a non-JSON error page as an error", async () => {
+    fetchMock.mockResolvedValue(new Response("<html>Bad gateway</html>", { status: 502 }));
+    expect(await geocodeAddress("12 Sample St", "Henderson")).toEqual({ status: "error" });
+  });
+
   it("never geocodes a job with no street address to the city centre", async () => {
     expect(await geocodeAddress(null, "Henderson")).toEqual({ status: "not_found" });
     expect(await geocodeAddress("  ", "Henderson")).toEqual({ status: "not_found" });
@@ -66,7 +76,23 @@ describe("geocodeLead", () => {
   it("stamps not_found and error without coordinates", async () => {
     sql.mockResolvedValueOnce([{ address: null, city: "Henderson" }]);
     await geocodeLead(ID);
-    expect(sql.mock.calls[1].slice(1)).toEqual([null, null, "not_found", ID]);
+    expect(sql.mock.calls[1].slice(1, 5)).toEqual([null, null, "not_found", ID]);
+  });
+
+  it("stamps error with no coordinates when the request fails", async () => {
+    sql.mockResolvedValueOnce([{ address: "12 Sample St", city: "Henderson" }]);
+    fetchMock.mockRejectedValue(new TypeError("fetch failed"));
+    await geocodeLead(ID);
+    expect(sql.mock.calls[1].slice(1, 5)).toEqual([null, null, "error", ID]);
+  });
+
+  it("writes only if the address and city are still the ones looked up", async () => {
+    sql.mockResolvedValueOnce([{ address: "12 Sample St", city: "Henderson" }]);
+    fetchMock.mockResolvedValue(json({ status: "OK", results: [{ geometry: { location: { lat: 1, lng: 2 } } }] }));
+    await geocodeLead(ID);
+    const update = text(sql.mock.calls[1]);
+    expect(update).toContain("where id = ? and address is not distinct from ?::text and city is not distinct from ?::text");
+    expect(sql.mock.calls[1].slice(4)).toEqual([ID, "12 Sample St", "Henderson"]);
   });
 
   it("does nothing for a bad id or a missing job, and never throws", async () => {
