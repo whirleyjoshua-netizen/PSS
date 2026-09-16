@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 const setFileShared = vi.fn();
 const setFileDocType = vi.fn();
@@ -76,21 +76,31 @@ describe("JobFiles photos and sharing", () => {
     expect(screen.queryByRole("combobox", { name: /Document type for install-1\.jpg/ })).toBeNull();
   });
 
-  it("labels a document without sharing it", () => {
+  it("labels a document without sharing it", async () => {
     render(<JobFiles jobId={JOB} measurements={[measurement]} files={files} />);
     fireEvent.change(screen.getByRole("combobox", { name: "Document type for PO.pdf" }), {
       target: { value: "invoice" },
     });
-    expect(setFileDocType).toHaveBeenCalledWith(JOB, "po", "invoice");
+    await waitFor(() => expect(setFileDocType).toHaveBeenCalledWith(JOB, "po", "invoice"));
     expect(setFileShared).not.toHaveBeenCalled();
   });
 
-  it("clears the label back to null when the blank option is chosen", () => {
+  it("clears the label back to null when the blank option is chosen", async () => {
     render(<JobFiles jobId={JOB} measurements={[measurement]} files={files} />);
     fireEvent.change(screen.getByRole("combobox", { name: "Document type for Quote.pdf" }), {
       target: { value: "" },
     });
-    expect(setFileDocType).toHaveBeenCalledWith(JOB, "quote", null);
+    await waitFor(() => expect(setFileDocType).toHaveBeenCalledWith(JOB, "quote", null));
+    expect(setFileShared).not.toHaveBeenCalled();
+  });
+
+  it("puts the old type back and says so when the save fails", async () => {
+    setFileDocType.mockRejectedValueOnce(new Error("nope"));
+    render(<JobFiles jobId={JOB} measurements={[measurement]} files={files} />);
+    const select = screen.getByRole("combobox", { name: "Document type for Quote.pdf" });
+    fireEvent.change(select, { target: { value: "invoice" } });
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Couldn't save that type"));
+    expect(select).toHaveValue("quote");
     expect(setFileShared).not.toHaveBeenCalled();
   });
 });

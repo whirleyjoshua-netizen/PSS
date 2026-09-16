@@ -32,6 +32,23 @@ describe("MeasurementsTab", () => {
     expect(screen.getByRole("link", { name: "Add measurement" })).toHaveAttribute("href", `/admin/jobs/${JOB}/measure`);
   });
 
+  it("names the photo file in its share control", () => {
+    render(<MeasurementsTab jobId={JOB} measurements={[m]} files={[photo]} />);
+    expect(screen.getByRole("switch", { name: "Share window.jpg with customer" })).toBeInTheDocument();
+  });
+
+  it("falls back to describing the window when the file row is missing", () => {
+    // The measurement still points at a photo id, but no matching file row was
+    // loaded — the switch must still say what it would share.
+    render(<MeasurementsTab jobId={JOB} measurements={[m]} files={[]} />);
+    expect(screen.getByRole("switch", { name: "Share the photo of Window 1 with customer" })).toBeInTheDocument();
+  });
+
+  it("falls back to the room when the window has no label either", () => {
+    render(<MeasurementsTab jobId={JOB} measurements={[{ ...m, label: null }]} files={[]} />);
+    expect(screen.getByRole("switch", { name: "Share the photo of Kitchen with customer" })).toBeInTheDocument();
+  });
+
   it("keeps today's empty state", () => {
     render(<MeasurementsTab jobId={JOB} measurements={[]} files={[]} />);
     expect(screen.getByText("No windows measured yet.")).toBeInTheDocument();
