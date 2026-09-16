@@ -20,7 +20,7 @@ beforeEach(() => {
   files.readFile.mockReset().mockResolvedValue({ stream: new Blob(["jpeg"]).stream(), contentType: "image/jpeg" });
 });
 
-describe("customer photo route", () => {
+describe("customer file route", () => {
   it("streams a shared photo on the customer's job, privately", async () => {
     const response = await call();
     expect(response.status).toBe(200);
@@ -30,9 +30,24 @@ describe("customer photo route", () => {
     expect(response.headers.get("content-disposition")).toMatch(/^inline/);
   });
 
+  // The project page lists shared documents at this same route, so a shared quote must
+  // download. Sharing is still the owner's explicit tick, and ownership is still checked.
+  it("streams a shared document on the customer's job", async () => {
+    files.getFile.mockResolvedValue(photo({ kind: "document", name: "Quote-1048.pdf" }));
+    files.readFile.mockResolvedValue({ stream: new Blob(["%PDF"]).stream(), contentType: "application/pdf" });
+
+    const response = await call();
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe("application/pdf");
+    expect(response.headers.get("cache-control")).toBe("private, no-store");
+    expect(response.headers.get("x-content-type-options")).toBe("nosniff");
+  });
+
   it.each([
     ["an unshared photo", photo({ sharedAt: null })],
-    ["a document", photo({ kind: "document" })],
+    ["an unshared document", photo({ kind: "document", sharedAt: null })],
+    ["another customer's document", photo({ kind: "document", leadId: "00000000-0000-4000-8000-000000000000" })],
+    ["a file of some other kind", photo({ kind: "internal" })],
     ["another customer's photo", photo({ leadId: "00000000-0000-4000-8000-000000000000" })],
     ["a missing file", null],
   ])("404s for %s, without reading the blob", async (_label, file) => {

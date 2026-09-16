@@ -204,6 +204,12 @@ describe("changing jobs", () => {
     expect(jobs.toJob({ ...row, finish: "cheap" }).finish).toBeNull();
   });
 
+  it("selects and maps the project number, and a row without one maps to null", () => {
+    expect(jobs.JOB_COLUMNS).toContain("project_no");
+    expect(jobs.toJob({ ...row, project_no: 1048 }).projectNo).toBe(1048);
+    expect(jobs.toJob({ ...row }).projectNo).toBeNull();
+  });
+
   it("never selects the questionnaire key into a Job", () => {
     expect(jobs.JOB_COLUMNS).toContain("gate_code");
     expect(jobs.JOB_COLUMNS).not.toContain("questionnaire_");

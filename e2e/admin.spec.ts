@@ -14,6 +14,28 @@ test.describe.configure({ mode: "serial" });
 const sql = () => neon(url!);
 const NAME = `E2E Tracker ${Date.now()}`;
 
+/**
+ * Fetches a file as the owner's own browser would.
+ *
+ * NOT `page.request.get`: the `pss_admin` session cookie is `Secure` (the e2e server
+ * runs a production build) and Playwright's APIRequestContext does not send it over
+ * plain http, so such a request arrives signed out, is redirected to /admin/sign-in
+ * and comes back 200 text/html — an assertion that would pass with the file route
+ * deleted. Fetching from inside the page carries the real session.
+ * `redirect: "manual"` keeps a bounce to sign-in from masquerading as a 200.
+ */
+async function download(page: import("@playwright/test").Page, target: string) {
+  return page.evaluate(async (fileUrl) => {
+    const response = await fetch(fileUrl, { redirect: "manual" });
+    const body = response.type === "opaqueredirect" ? "" : (await response.text()).slice(0, 200);
+    return {
+      status: response.status,
+      type: response.headers.get("content-type") ?? "",
+      html: /^\s*<(!doctype|html)/i.test(body),
+    };
+  }, target);
+}
+
 async function signIn(page: import("@playwright/test").Page) {
   const token = randomBytes(32).toString("base64url");
   const hash = createHash("sha256").update(token).digest("hex");
@@ -158,9 +180,11 @@ test("an owner measures a window with a photo", async ({ page, baseURL }) => {
   const src = await photo.getAttribute("src");
   const photoUrl = `${baseURL}${src}`;
 
-  const okResponse = await page.request.get(photoUrl);
-  expect(okResponse.status()).toBe(200);
-  expect(okResponse.headers()["content-type"]).toContain("image/jpeg");
+  const okResponse = await download(page, photoUrl);
+  expect(okResponse.status).toBe(200);
+  expect(okResponse.type).toContain("image/jpeg");
+  // The bytes of a photo, not a sign-in page wearing a 200.
+  expect(okResponse.html).toBe(false);
 
   await row.getByRole("link", { name: "Edit" }).click();
   await expect(page.getByLabel("Width inches")).toHaveValue("35");
@@ -174,8 +198,10 @@ test("an owner measures a window with a photo", async ({ page, baseURL }) => {
   await editedRow.getByRole("button", { name: "Tap again to delete" }).click();
   await expect(page.getByText("No windows measured yet.")).toBeVisible();
 
-  const goneResponse = await page.request.get(photoUrl);
-  expect(goneResponse.status()).toBe(404);
+  // A 404 from the route itself, not a redirect to sign-in.
+  const goneResponse = await download(page, photoUrl);
+  expect(goneResponse.status).toBe(404);
+  expect(goneResponse.html).toBe(false);
 });
 
 test("a board card opens the full job page, and an old ?job= link redirects there", async ({ page }) => {

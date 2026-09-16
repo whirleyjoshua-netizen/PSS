@@ -74,6 +74,10 @@ export const formatShortDate = (date: Date): string =>
 export const formatDateOnly = (ymd: string): string =>
   noonUtc(ymd).toLocaleDateString("en-US", { timeZone: "UTC", month: "short", day: "numeric", year: "numeric" });
 
+/** A date-only value ("2026-09-13") as "Sep 13", with no year and no time-zone shift. */
+export const formatMonthDay = (ymd: string): string =>
+  noonUtc(ymd).toLocaleDateString("en-US", { timeZone: "UTC", month: "short", day: "numeric" });
+
 /** "10:31 AM" in Las Vegas time. */
 export const formatTime = (date: Date): string =>
   date.toLocaleTimeString("en-US", { timeZone: ZONE, hour: "numeric", minute: "2-digit" });

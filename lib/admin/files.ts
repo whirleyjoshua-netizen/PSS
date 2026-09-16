@@ -2,6 +2,7 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { del, get, put } from "@vercel/blob";
 import { db } from "@/lib/db";
+import { docTypeLabel, type DocType } from "./doc-types";
 import { safeName, type FileKind } from "./uploads";
 
 export type JobFile = {
@@ -14,8 +15,10 @@ export type JobFile = {
   contentType: string;
   sizeBytes: number;
   blobPathname: string;
-  /** Set when an owner shares this photo with the customer. */
+  /** Set when an owner shares this file with the customer. */
   sharedAt?: Date | null;
+  /** The label an owner put on a document; null until one is chosen. */
+  docType?: DocType | null;
 };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -32,6 +35,7 @@ export function toFile(row: Record<string, unknown>): JobFile {
     sizeBytes: Number(row.size_bytes),
     blobPathname: row.blob_pathname as string,
     sharedAt: row.shared_at ? new Date(row.shared_at as string) : null,
+    docType: (row.doc_type as DocType | null) ?? null,
   };
 }
 
@@ -113,8 +117,20 @@ export async function readFile(file: JobFile) {
 }
 
 /**
- * Shares or stops sharing a photo with the customer, and logs it in the same
- * statement. Only photos on that job qualify; documents are never shared.
+ * Shares or stops sharing a photo or a document with the customer, and logs it
+ * in the same statement. Files stay private until this is called with
+ * `shared = true`; nothing else in this module sets shared_at.
+ *
+ * The `lead_id = ${jobId}` clause is what stops one job's file being shared
+ * onto another job. Do not remove or loosen it.
+ *
+ * Two different things check that clause, and only one of them runs on its own:
+ * tests/admin/file-sharing.test.ts:50 pins its presence in this statement, which
+ * is a tripwire rather than a proof — it asserts a string. What the database
+ * actually does is checked by scripts/verify-share-guard.ts, a manual script
+ * that calls this function against a real Neon branch with a mismatched pair and
+ * a positive control. Nothing runs that script for you. If you change this
+ * guard, run it, and if you cannot, call the guard unverified.
  */
 export async function setShared(jobId: string, fileId: string, shared: boolean, actor: string): Promise<boolean> {
   if (!UUID.test(jobId) || !UUID.test(fileId)) return false;
@@ -122,23 +138,65 @@ export async function setShared(jobId: string, fileId: string, shared: boolean, 
     with changed as (
       update job_files
       set shared_at = case when ${shared} then coalesce(shared_at, now()) else null end
-      where id = ${fileId} and lead_id = ${jobId} and kind = 'photo'
+      where id = ${fileId} and lead_id = ${jobId} and kind in ('photo','document')
       returning lead_id, name
     )
     insert into job_events (lead_id, actor, kind, body)
     select lead_id, ${actor}, 'file',
-      ${shared ? "Shared photo " : "Stopped sharing photo "} || name || ${shared ? " with customer" : ""}
+      ${shared ? "Shared " : "Stopped sharing "} || name || ${shared ? " with customer" : ""}
     from changed
     returning lead_id`;
   return rows.length > 0;
 }
 
-/** The photos a customer may see for one job, newest first. */
+/**
+ * Puts a type label on a document (or clears it) and logs the change. Labelling
+ * is not sharing: this statement never reads or writes shared_at, so a document
+ * stays private until setShared is called for it. `kind = 'document'` keeps a
+ * photo from carrying a document label.
+ */
+export async function setDocType(
+  jobId: string, fileId: string, type: DocType | null, actor: string,
+): Promise<boolean> {
+  if (!UUID.test(jobId) || !UUID.test(fileId)) return false;
+  const rows = await db()`
+    with changed as (
+      update job_files set doc_type = ${type}
+      where id = ${fileId} and lead_id = ${jobId} and kind = 'document'
+      returning lead_id, name
+    )
+    insert into job_events (lead_id, actor, kind, body)
+    select lead_id, ${actor}, 'file',
+      ${type ? "Labelled " : "Removed the type label from "} || name || ${type ? ` as ${docTypeLabel(type)}` : ""}
+    from changed
+    returning lead_id`;
+  return rows.length > 0;
+}
+
+/** The photos a customer may see for one job, newest first. Columns named, as for documents. */
 export async function listSharedPhotos(leadId: string): Promise<JobFile[]> {
   if (!UUID.test(leadId)) return [];
   const rows = await db()`
-    select * from job_files
+    select id, lead_id, created_at, uploaded_by, kind, name, content_type, size_bytes,
+           blob_pathname, shared_at, doc_type
+    from job_files
     where lead_id = ${leadId} and kind = 'photo' and shared_at is not null
+    order by created_at desc`;
+  return rows.map(toFile);
+}
+
+/**
+ * The documents a customer may see for one job, newest first. The columns are named rather
+ * than starred: this feeds a customer-facing page, so a column added to job_files later
+ * cannot reach the portal by accident.
+ */
+export async function listSharedDocuments(leadId: string): Promise<JobFile[]> {
+  if (!UUID.test(leadId)) return [];
+  const rows = await db()`
+    select id, lead_id, created_at, uploaded_by, kind, name, content_type, size_bytes,
+           blob_pathname, shared_at, doc_type
+    from job_files
+    where lead_id = ${leadId} and kind = 'document' and shared_at is not null
     order by created_at desc`;
   return rows.map(toFile);
 }
