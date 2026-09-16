@@ -30,19 +30,31 @@ export async function getInstallSettings(): Promise<InstallSettings> {
   };
 }
 
-/** `actor` is stored on the settings row as `updated_by`, so the last rate change has an author. */
+/**
+ * Replaces the whole rate table in one statement: treatments missing from `rates` are deleted
+ * (a missing row means "not priced"), the rest are upserted, and the settings row is updated.
+ * `actor` is stored on the settings row as `updated_by`, so the last rate change has an author.
+ */
 export async function saveInstallRates(
   rates: InstallRate[],
   settings: InstallSettings,
   actor: string,
 ): Promise<void> {
-  for (const rate of rates) {
-    await db()`insert into install_rates (treatment, basis, rate_cents, updated_at)
-      values (${rate.treatment}, ${rate.basis}, ${rate.rateCents}, now())
+  const treatments = rates.map((rate) => rate.treatment);
+  const bases = rates.map((rate) => rate.basis);
+  const cents = rates.map((rate) => rate.rateCents);
+  await db()`
+    with removed as (
+      delete from install_rates where not (treatment = any(${treatments}::text[]))
+    ),
+    upserted as (
+      insert into install_rates (treatment, basis, rate_cents, updated_at)
+      select treatment, basis, rate_cents, now()
+      from unnest(${treatments}::text[], ${bases}::text[], ${cents}::int[]) as incoming(treatment, basis, rate_cents)
       on conflict (treatment) do update
-        set basis = excluded.basis, rate_cents = excluded.rate_cents, updated_at = now()`;
-  }
-  await db()`update install_settings set
+        set basis = excluded.basis, rate_cents = excluded.rate_cents, updated_at = now()
+    )
+    update install_settings set
       minimum_cents = ${settings.minimumCents},
       hard_surface_cents = ${settings.hardSurfaceCents},
       high_ladder_cents = ${settings.highLadderCents},

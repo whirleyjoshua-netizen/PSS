@@ -230,14 +230,24 @@ export const teamMemberSchema = z.object({
   role: z.enum(TEAM_ROLE_VALUES, { error: "Pick Designer or Installer" }),
 });
 
-/** A money field on the installation rates form. Blank counts as zero, not as "unset". */
-const rateAmount = z
-  .string()
-  .trim()
-  .transform((value) => (value === "" ? "0" : value))
-  .refine((value) => /^\d+(\.\d{1,2})?$/.test(value), "Enter an amount like 25 or 25.00")
-  .transform((value) => Math.round(Number(value) * 100))
-  .refine((cents) => cents <= 2_147_483_647, "Enter an amount under $21,474,836");
+/**
+ * A money field on the installation rates form, parsed like every other money field ("$1,500" works).
+ * Blank is rejected: a job-level number must be entered, even if it is 0. The action skips blank
+ * treatment rates before this runs, since a blank rate means "not priced".
+ */
+const rateAmount = z.string().transform((value, ctx) => {
+  try {
+    const cents = dollarsToCents(value);
+    if (cents === null) {
+      ctx.addIssue({ code: "custom", message: "Enter an amount, or 0" });
+      return z.NEVER;
+    }
+    return cents;
+  } catch (error) {
+    ctx.addIssue({ code: "custom", message: (error as Error).message });
+    return z.NEVER;
+  }
+});
 
 export const installRateSchema = z.object({
   treatment: z.enum(INSTALLABLE_TREATMENTS as [TreatmentType, ...TreatmentType[]]),

@@ -12,15 +12,28 @@ const amount = (cents: number | null): string =>
 
 const field = "min-h-11 w-28 border border-rule px-2";
 
-export function InstallRatesSection({ rates, settings }: { rates: InstallRate[]; settings: InstallSettings }) {
-  const [state, action, pending] = useActionState<InstallRatesFormState, FormData>(saveInstallRatesAction, {});
+export function InstallRatesSection({
+  rates,
+  settings,
+  initialState = {},
+}: {
+  rates: InstallRate[];
+  settings: InstallSettings;
+  /** Lets a test start from a returned state; the page never passes it. */
+  initialState?: InstallRatesFormState;
+}) {
+  const [state, action, pending] = useActionState<InstallRatesFormState, FormData>(saveInstallRatesAction, initialState);
   const byTreatment = new Map(rates.map((rate) => [rate.treatment, rate]));
+  // After a failed save React resets the form, so fall back to what was submitted rather than the saved values.
+  const shown = (name: string, saved: string) => state.values?.[name] ?? saved;
+  // A changed defaultValue does not update a mounted input; re-keying the form re-mounts it with the new defaults.
+  const formKey = state.values ? JSON.stringify(state.values) : "saved";
 
   return (
     <section aria-labelledby="install-rates-heading" className="flex flex-col gap-3">
       <h2 id="install-rates-heading" className="text-lg font-semibold">Installation rates</h2>
       <p className="text-sm text-ink-soft">What PSS charges to install, before any Hunter Douglas product cost.</p>
-      <form action={action} className="flex flex-col gap-4">
+      <form key={formKey} action={action} className="flex flex-col gap-4">
         <table className="text-left text-sm">
           <thead className="text-xs uppercase tracking-[0.1em] text-ink-soft">
             <tr><th scope="col" className="py-2">Treatment</th><th scope="col">Priced by</th><th scope="col">Rate</th></tr>
@@ -35,7 +48,7 @@ export function InstallRatesSection({ rates, settings }: { rates: InstallRate[];
                   <td>
                     <label className="sr-only" htmlFor={`basis-${treatment}`}>{label} priced by</label>
                     <select id={`basis-${treatment}`} name={`basis-${treatment}`}
-                      defaultValue={rate?.basis ?? "window"} className={field}>
+                      defaultValue={shown(`basis-${treatment}`, rate?.basis ?? "window")} className={field}>
                       {INSTALL_BASES.map((basis) => (
                         <option key={basis} value={basis}>{basisLabel(basis)}</option>
                       ))}
@@ -44,7 +57,7 @@ export function InstallRatesSection({ rates, settings }: { rates: InstallRate[];
                   <td>
                     <label className="sr-only" htmlFor={`rate-${treatment}`}>{label} rate</label>
                     <input id={`rate-${treatment}`} name={`rate-${treatment}`} inputMode="decimal"
-                      defaultValue={amount(rate ? rate.rateCents : null)} placeholder="—" className={field} />
+                      defaultValue={shown(`rate-${treatment}`, amount(rate ? rate.rateCents : null))} placeholder="—" className={field} />
                   </td>
                 </tr>
               );
@@ -56,21 +69,21 @@ export function InstallRatesSection({ rates, settings }: { rates: InstallRate[];
           <legend className="text-sm font-semibold">Surcharges, per window</legend>
           <label className="flex items-center justify-between gap-3">
             Hard surface
-            <input name="hardSurfaceCents" inputMode="decimal" defaultValue={amount(settings.hardSurfaceCents)} className={field} />
+            <input name="hardSurfaceCents" inputMode="decimal" defaultValue={shown("hardSurfaceCents", amount(settings.hardSurfaceCents))} className={field} />
           </label>
           <label className="flex items-center justify-between gap-3">
             High ladder
-            <input name="highLadderCents" inputMode="decimal" defaultValue={amount(settings.highLadderCents)} className={field} />
+            <input name="highLadderCents" inputMode="decimal" defaultValue={shown("highLadderCents", amount(settings.highLadderCents))} className={field} />
           </label>
           <label className="flex items-center justify-between gap-3">
             Motorized
-            <input name="motorizedCents" inputMode="decimal" defaultValue={amount(settings.motorizedCents)} className={field} />
+            <input name="motorizedCents" inputMode="decimal" defaultValue={shown("motorizedCents", amount(settings.motorizedCents))} className={field} />
           </label>
         </fieldset>
 
         <label className="flex items-center justify-between gap-3 text-sm">
           Minimum job cost
-          <input name="minimumCents" inputMode="decimal" defaultValue={amount(settings.minimumCents)} className={field} />
+          <input name="minimumCents" inputMode="decimal" defaultValue={shown("minimumCents", amount(settings.minimumCents))} className={field} />
         </label>
         <p className="text-xs text-ink-soft">The minimum covers the trip. There is no separate trip charge.</p>
 

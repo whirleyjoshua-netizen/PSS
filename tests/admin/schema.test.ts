@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { appointmentSchema, detailsSchema, newJobSchema, noteSchema, lostSchema, teamMemberSchema } from "@/lib/admin/schema";
+import { appointmentSchema, detailsSchema, newJobSchema, noteSchema, lostSchema, teamMemberSchema, installRateSchema, installSettingsSchema } from "@/lib/admin/schema";
 import { APPOINTMENT_KINDS } from "@/lib/admin/appointment-kinds";
 import { TEAM_ROLES } from "@/lib/admin/team-roles";
 
@@ -141,5 +141,29 @@ describe("teamMemberSchema", () => {
       expect(teamMemberSchema.safeParse({ name: "Shade", role: role.value }).success).toBe(true);
     }
     expect(teamMemberSchema.safeParse({ name: "Shade", role: "owner" }).success).toBe(false);
+  });
+});
+
+describe("installation rate money fields", () => {
+  const settings = { minimumCents: "150", hardSurfaceCents: "0", highLadderCents: "50", motorizedCents: "15.50" };
+
+  it("accepts money the way people type it", () => {
+    const parsed = installSettingsSchema.safeParse({ ...settings, minimumCents: "$1,500" });
+    expect(parsed.success && parsed.data.minimumCents).toBe(150_000);
+    expect(installRateSchema.safeParse({ treatment: "roller_shades", basis: "window", rateCents: "$25" }).data?.rateCents).toBe(2500);
+  });
+
+  it("keeps 0 as a real amount", () => {
+    expect(installSettingsSchema.safeParse(settings).data?.hardSurfaceCents).toBe(0);
+  });
+
+  it("rejects a blank minimum instead of saving it as zero", () => {
+    const parsed = installSettingsSchema.safeParse({ ...settings, minimumCents: "  " });
+    expect(parsed.success).toBe(false);
+    expect(parsed.error?.issues[0].message).toBe("Enter an amount, or 0");
+  });
+
+  it("rejects an amount that is not money", () => {
+    expect(installSettingsSchema.safeParse({ ...settings, motorizedCents: "abc" }).success).toBe(false);
   });
 });

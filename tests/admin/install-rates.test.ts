@@ -41,15 +41,32 @@ describe("getInstallSettings", () => {
 });
 
 describe("saveInstallRates", () => {
-  it("upserts each rate and the settings row", async () => {
+  it("upserts each rate, deletes cleared ones, and updates settings in one statement", async () => {
     await rates.saveInstallRates(
-      [{ treatment: "roller_shades", basis: "window", rateCents: 2500 }],
+      [
+        { treatment: "roller_shades", basis: "window", rateCents: 2500 },
+        { treatment: "shutters", basis: "sq_ft", rateCents: 300 },
+      ],
       { minimumCents: 15_000, hardSurfaceCents: 0, highLadderCents: 0, motorizedCents: 0 },
       "owner@example.com",
     );
-    const statements = sql.mock.calls.map(text);
-    expect(statements.some((s) => s.includes("insert into install_rates") && s.includes("on conflict"))).toBe(true);
-    expect(statements.some((s) => s.includes("update install_settings"))).toBe(true);
+    expect(sql).toHaveBeenCalledTimes(1);
+    const [call] = sql.mock.calls;
+    const statement = text(call);
+    expect(statement).toContain("delete from install_rates where not (treatment = any(");
+    expect(statement).toMatch(/insert into install_rates .* on conflict/);
+    expect(statement).toContain("update install_settings");
+    // The first bound value is the kept-treatment list that the delete checks against.
+    expect(call[1]).toEqual(["roller_shades", "shutters"]);
+    expect(call.slice(1)).toContainEqual(["window", "sq_ft"]);
+    expect(call.slice(1)).toContainEqual([2500, 300]);
+  });
+
+  it("deletes every rate when none is priced", async () => {
+    await rates.saveInstallRates([], { minimumCents: 0, hardSurfaceCents: 0, highLadderCents: 0, motorizedCents: 0 }, "owner@example.com");
+    const [call] = sql.mock.calls;
+    expect(text(call)).toContain("delete from install_rates where not (treatment = any(");
+    expect(call[1]).toEqual([]);
   });
 
   it("stores who saved the rates on the settings row", async () => {

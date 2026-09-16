@@ -32,20 +32,23 @@ export async function removeMember(id: string): Promise<void> {
   refresh();
 }
 
-export type InstallRatesFormState = { error?: string; ok?: boolean };
+/** On failure, `values` carries what was submitted so the form can show it again instead of resetting. */
+export type InstallRatesFormState = { error?: string; ok?: boolean; values?: Record<string, string> };
 
 export async function saveInstallRatesAction(
   _prev: InstallRatesFormState,
   formData: FormData,
 ): Promise<InstallRatesFormState> {
   const admin = await requireAdmin();
+  const values: Record<string, string> = {};
+  for (const [name, value] of formData) if (typeof value === "string") values[name] = value;
   const settings = installSettingsSchema.safeParse({
     minimumCents: formData.get("minimumCents") ?? "",
     hardSurfaceCents: formData.get("hardSurfaceCents") ?? "",
     highLadderCents: formData.get("highLadderCents") ?? "",
     motorizedCents: formData.get("motorizedCents") ?? "",
   });
-  if (!settings.success) return { error: settings.error.issues[0].message };
+  if (!settings.success) return { error: settings.error.issues[0].message, values };
 
   const rates: InstallRate[] = [];
   for (const treatment of INSTALLABLE_TREATMENTS) {
@@ -55,7 +58,7 @@ export async function saveInstallRatesAction(
     const parsed = installRateSchema.safeParse({
       treatment, basis: formData.get(`basis-${treatment}`), rateCents: raw,
     });
-    if (!parsed.success) return { error: parsed.error.issues[0].message };
+    if (!parsed.success) return { error: parsed.error.issues[0].message, values };
     rates.push(parsed.data);
   }
 
