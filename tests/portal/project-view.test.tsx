@@ -57,7 +57,7 @@ describe("ProjectView header and tracker", () => {
     const tracker = screen.getByRole("region", { name: "Your project" });
     const done = within(tracker).getByText("In Production").closest("li")!;
     expect(done).not.toHaveAttribute("aria-current");
-    expect(within(done).getByText("Sep 20")).toBeInTheDocument();
+    expect(within(done).getByText("Sep 20, 2025")).toBeInTheDocument();
     expect(within(tracker).getByText("Ready to Install").closest("li")!).toHaveAttribute("aria-current", "step");
   });
 
@@ -69,7 +69,7 @@ describe("ProjectView header and tracker", () => {
 
     const tracker = screen.getByRole("region", { name: "Your project" });
     const measured = within(tracker).getByText("Measurements").closest("li")!;
-    expect(within(measured).getByText("Sep 8")).toBeInTheDocument();
+    expect(within(measured).getByText("Sep 8, 2025")).toBeInTheDocument();
   });
 
   it("reads a still-to-come date under a tick as scheduled, not as done", async () => {
@@ -77,9 +77,9 @@ describe("ProjectView header and tracker", () => {
     render(await ProjectView({ job }));
     const tracker = screen.getByRole("region", { name: "Your project" });
     const ready = within(tracker).getByText("Ready to Install").closest("li")!;
-    expect(within(ready).getByText("Scheduled Oct 13")).toBeInTheDocument();
-    // A date that has already passed stays bare.
-    expect(within(within(tracker).getByText("In Production").closest("li")!).getByText("Sep 20")).toBeInTheDocument();
+    expect(within(ready).getByText("Scheduled Oct 13, 2099")).toBeInTheDocument();
+    // A date that has already passed stays bare, and carries its year because it is not this year.
+    expect(within(within(tracker).getByText("In Production").closest("li")!).getByText("Sep 20, 2025")).toBeInTheDocument();
   });
 });
 
@@ -126,7 +126,7 @@ describe("ProjectView details and updates", () => {
     render(await ProjectView({ job }));
     const updates = screen.getByRole("region", { name: "Project updates" });
     expect(within(updates).getByText("Your order was confirmed.")).toBeInTheDocument();
-    expect(within(updates).getByText("Sep 18")).toBeInTheDocument();
+    expect(within(updates).getByText("Sep 18, 2025")).toBeInTheDocument();
   });
 });
 

@@ -106,7 +106,7 @@ test("a customer sees the rebuilt project page, with no money on it", async ({ b
 
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Hi E2E, your project is underway.");
   // project_no is assigned by the 016 default, and only ever reaches the page as PSS-xxxx.
-  await expect(page.getByText(/^PSS-\d{4}$/)).toBeVisible();
+  await expect(page.getByText(/^PSS-\d{4,}$/)).toBeVisible();
 
   const banner = page.getByRole("region", { name: "Where your project stands" });
   await expect(banner.getByRole("heading", { name: "Quote Ready" })).toBeVisible();
@@ -243,7 +243,15 @@ test("an owner shares a quote, the customer opens it, and unsharing takes it awa
  * shared: not job A's file, not job B's, and neither customer's page may change.
  */
 test("a file cannot be shared under another job's id", async ({ page, browser }) => {
-  test.skip(!process.env.E2E_BLOB_READ_WRITE_TOKEN, "Set E2E_BLOB_READ_WRITE_TOKEN to run document tests");
+  // This one never skips. A release gate that quietly does not run reads GREEN while proving
+  // nothing, which is worse than having no gate at all: fail loudly instead, so a missing
+  // token can never be mistaken for a guard that passed.
+  if (!process.env.E2E_BLOB_READ_WRITE_TOKEN) {
+    throw new Error(
+      "E2E_BLOB_READ_WRITE_TOKEN is not set. This cross-job sharing gate must actually run — " +
+        "set the token against the test blob store rather than skipping it.",
+    );
+  }
 
   const jobA = jobId;
   const jobB = await lead(`${NAME} Other`, OTHER_CUSTOMER, "quoted");

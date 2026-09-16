@@ -160,16 +160,18 @@ describe("a date that has not happened yet", () => {
   it("marks a done step whose date is still to come", () => {
     const steps = buildSteps({
       status: "ordered",
+      today: "2026-09-16",
       orderedOn: "2025-09-20",
       installAppointmentAt: new Date("2099-10-13T17:00:00Z"),
     });
     const ready = step(steps, "ready");
     expect(ready.state).toBe("done");
-    expect(ready.on).toBe("Oct 13");
+    // Neither date is in the current year, so both carry it.
+    expect(ready.on).toBe("Oct 13, 2099");
     expect(ready.future).toBe(true);
 
     const production = step(steps, "production");
-    expect(production.on).toBe("Sep 20");
+    expect(production.on).toBe("Sep 20, 2025");
     expect(production.future).toBe(false);
   });
 
@@ -185,5 +187,62 @@ describe("today", () => {
     // The day itself is not "still to come", nor is any day after it.
     expect(step(buildSteps({ ...input, today: "2026-10-13" }), "ready").future).toBe(false);
     expect(step(buildSteps({ ...input, today: "2026-10-14" }), "ready").future).toBe(false);
+  });
+});
+
+describe("a booked install never speaks for the job's status", () => {
+  // The regression: an owner books the install before moving the job on. Because every step
+  // before the furthest reached one reads as done, a Ready to Install reached on the strength
+  // of the appointment alone told a customer at quote stage that their order was confirmed
+  // and in production. Neither was true.
+  it("does not confirm the order of a quoted job whose install is already booked", () => {
+    const steps = buildSteps({
+      status: "quoted",
+      stageDates: { quoted: new Date("2026-09-10T17:00:00Z") },
+      installAppointmentAt: new Date("2026-10-13T17:00:00Z"),
+    });
+
+    expect(step(steps, "quote").state).toBe("done");
+    for (const key of ["order", "production", "ready"]) {
+      expect(step(steps, key).state).not.toBe("done");
+    }
+    expect(step(steps, "order").state).toBe("current");
+    expect(step(steps, "ready").on).toBeNull();
+  });
+
+  it("does not put a sold job into production on the strength of a booked install", () => {
+    const steps = buildSteps({
+      status: "sold",
+      stageDates: { sold: new Date("2026-09-14T17:00:00Z") },
+      installAppointmentAt: new Date("2026-10-13T17:00:00Z"),
+    });
+
+    expect(step(steps, "order").state).toBe("done");
+    expect(step(steps, "production").state).not.toBe("done");
+    expect(step(steps, "ready").state).not.toBe("done");
+  });
+
+  it("still ticks Ready to Install once the job is actually ordered", () => {
+    const steps = buildSteps({
+      status: "ordered",
+      orderedOn: "2026-09-15",
+      installAppointmentAt: new Date("2026-10-13T17:00:00Z"),
+    });
+    expect(step(steps, "ready").state).toBe("done");
+    expect(step(steps, "ready").on).toBe("Oct 13");
+  });
+});
+
+describe("dates from another year", () => {
+  it("carry the year, so an old project cannot read as this one", () => {
+    const steps = buildSteps({
+      status: "ordered",
+      today: "2026-09-16",
+      orderedOn: "2025-11-04",
+      installAppointmentAt: new Date("2026-10-13T17:00:00Z"),
+    });
+    expect(step(steps, "production").on).toBe("Nov 4, 2025");
+    // A date inside the current year stays short.
+    expect(step(steps, "ready").on).toBe("Oct 13");
   });
 });

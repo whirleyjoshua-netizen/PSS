@@ -88,7 +88,11 @@ describe("toProject", () => {
     expect(byKey.measurements.on).toBe("Sep 13");
     expect(byKey.quote.on).toBe("Sep 10");
     expect(byKey.order).toEqual({ key: "order", label: "Order Confirmed", state: "done", on: "Sep 14", future: false });
-    expect(byKey.ready.on).toBe("Oct 13");
+    // The job is only sold, so a booked install does not tick Ready to Install — and cannot
+    // drag In Production done with it. The date still reaches the page's Installation section.
+    expect(byKey.ready.on).toBeNull();
+    expect(byKey.ready.state).not.toBe("done");
+    expect(byKey.production.state).not.toBe("done");
     expect(JSON.stringify(project)).not.toMatch(/gate code|cheaper quote/i);
   });
 

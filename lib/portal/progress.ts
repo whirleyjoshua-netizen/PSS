@@ -1,5 +1,5 @@
 import { STAGES, type Stage } from "@/lib/admin/stages";
-import { formatMonthDay, lasVegasDate } from "@/lib/admin/time";
+import { formatDateOnly, formatMonthDay, lasVegasDate } from "@/lib/admin/time";
 
 /** The stages a customer can see, in order. Earlier stages and Lost are never shown. */
 export const PORTAL_STAGES = ["quoted", "sold", "ordered", "installed"] as const;
@@ -79,6 +79,13 @@ type StepSpec = {
  * scheduled, so a ticked step holding next month's install date cannot be misread
  * as something that has already happened.
  */
+/**
+ * "Sep 13" within the current year, "Sep 13, 2025" outside it. A customer can come back to
+ * this page for years, and a bare month and day from a previous year reads as this year.
+ */
+const formatStepDay = (day: string, today: string): string =>
+  day.slice(0, 4) === today.slice(0, 4) ? formatMonthDay(day) : formatDateOnly(day);
+
 export const stepDateLabel = (step: ProjectStep): string | null =>
   step.on === null ? null : step.future ? `Scheduled ${step.on}` : step.on;
 
@@ -110,7 +117,14 @@ const SPECS: readonly StepSpec[] = [
   },
   {
     key: "ready", label: "Ready to Install",
-    reached: (i) => i.installAppointmentAt != null,
+    // A booked appointment alone is not enough. Every step before this one reads as done
+    // (see buildSteps), so reaching this on an appointment while the job was still at quote
+    // would tell a customer their order was confirmed and in production when it was neither.
+    // The gate is `ordered`, not `sold`: at `sold` the In Production step below is still
+    // unreached, and ticking it would make exactly that false claim one step lower down.
+    // The install date is not lost meanwhile — the Installation section renders it from the
+    // appointment itself, whatever the tracker shows.
+    reached: (i, at) => i.installAppointmentAt != null && at >= rank("ordered"),
     on: (i) => onInstant(i.installAppointmentAt),
   },
   {
@@ -142,7 +156,7 @@ export function buildSteps(input: StepInput): ProjectStep[] {
       key: spec.key,
       label: spec.label,
       state: index <= furthest ? "done" : index === furthest + 1 && furthest >= 0 ? "current" : "upcoming",
-      on: day ? formatMonthDay(day) : null,
+      on: day ? formatStepDay(day, today) : null,
       future: day != null && day > today,
     };
   });
