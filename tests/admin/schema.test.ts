@@ -175,3 +175,32 @@ describe("routeSettingsSchema", () => {
     expect(message({ ...form, dayStart: "09:15" })).toBe("Pick a time");
   });
 });
+
+describe("appointmentSchema timing", () => {
+  const base = { kind: "install", startsAt: "2026-09-24T09:00", allDay: false };
+
+  it("stores 'Any time' as no window", () => {
+    const out = appointmentSchema.parse({ ...base, windowStart: "", windowEnd: "", hours: "4" });
+    expect(out).toMatchObject({ windowStart: null, windowEnd: null, durationMinutes: 240 });
+  });
+
+  it("stores a window in 30-minute steps", () => {
+    const out = appointmentSchema.parse({ ...base, windowStart: "08:00", windowEnd: "10:00", hours: "1.5" });
+    expect(out).toMatchObject({ windowStart: "08:00", windowEnd: "10:00", durationMinutes: 90 });
+  });
+
+  it("needs both ends, in order", () => {
+    expect(appointmentSchema.safeParse({ ...base, windowStart: "08:00", windowEnd: "", hours: "1" }).error!.issues[0].message)
+      .toBe("Pick both ends of the arrival window, or Any time");
+    expect(appointmentSchema.safeParse({ ...base, windowStart: "10:00", windowEnd: "08:00", hours: "1" }).error!.issues[0].message)
+      .toBe("The window must end after it starts");
+  });
+
+  it("leaves the length unset when blank, so the kind's default applies", () => {
+    expect(appointmentSchema.parse({ ...base, windowStart: "", windowEnd: "", hours: "" }).durationMinutes).toBeNull();
+  });
+
+  it("rejects lengths outside quarter hours between 0.25 and 12", () => {
+    expect(appointmentSchema.safeParse({ ...base, windowStart: "", windowEnd: "", hours: "13" }).success).toBe(false);
+  });
+});

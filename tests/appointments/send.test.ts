@@ -23,7 +23,8 @@ const job = (overrides: Partial<Job> = {}): Job => ({
 
 const appointment = (overrides: Partial<Appointment> = {}): Appointment => ({
   id: "a1", jobId: job().id, kind: "consultation", startsAt: AT, allDay: false,
-  confirmedAt: new Date(), confirmedBy: "owner@example.com", ...overrides,
+  confirmedAt: new Date(), confirmedBy: "owner@example.com", windowStart: null, windowEnd: null, durationMinutes: null,
+  ...overrides,
 });
 
 beforeEach(() => {

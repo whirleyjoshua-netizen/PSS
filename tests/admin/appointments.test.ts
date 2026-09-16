@@ -13,6 +13,8 @@ const APPT = "9c8b7a65-4d3e-4f21-8a0b-1c2d3e4f5a6b";
 const ACTOR = "owner@example.com";
 const STARTS = new Date("2026-09-20T17:00:00Z"); // 10:00 AM in Las Vegas
 
+const NO_TIMING = { windowStart: null, windowEnd: null, durationMinutes: null };
+
 const row = {
   id: APPT, lead_id: JOB, kind: "consultation", starts_at: "2026-09-20T17:00:00Z",
   all_day: false, confirmed_at: null, confirmed_by: null,
@@ -29,9 +31,10 @@ describe("listAppointments", () => {
     const [appointment] = await appointments.listAppointments(JOB);
     expect(appointment).toEqual({
       id: APPT, jobId: JOB, kind: "consultation", startsAt: new Date("2026-09-20T17:00:00Z"),
-      allDay: false, confirmedAt: null, confirmedBy: null,
+      allDay: false, confirmedAt: null, confirmedBy: null, windowStart: null, windowEnd: null, durationMinutes: null,
     });
     expect(flat(sql.mock.calls[0])).toContain("order by starts_at");
+    expect(flat(sql.mock.calls[0])).toContain("window_start::text as window_start, window_end::text as window_end, duration_minutes");
     expect(sql.mock.calls[0]).toContain(JOB);
   });
 
@@ -40,6 +43,12 @@ describe("listAppointments", () => {
     const [appointment] = await appointments.listAppointments(JOB);
     expect(appointment.confirmedAt).toEqual(new Date("2026-09-18T12:00:00Z"));
     expect(appointment.confirmedBy).toBe(ACTOR);
+  });
+
+  it("maps the arrival window as clock times and the length in minutes", async () => {
+    sql.mockResolvedValue([{ ...row, window_start: "08:00:00", window_end: "10:00:00", duration_minutes: 240 }]);
+    const [appointment] = await appointments.listAppointments(JOB);
+    expect(appointment).toMatchObject({ windowStart: "08:00", windowEnd: "10:00", durationMinutes: 240 });
   });
 
   it("returns nothing for a non-uuid job id, without querying", async () => {
@@ -52,7 +61,7 @@ describe("saveAppointment", () => {
   // Which body is logged is decided by a SQL CASE, so this checks that both are passed for it to choose.
   it("upserts on (lead_id, kind) and passes both pending bodies in one statement", async () => {
     sql.mockResolvedValue([{ job: 1 }]);
-    expect(await appointments.saveAppointment(JOB, "consultation", STARTS, false, ACTOR)).toBe("ok");
+    expect(await appointments.saveAppointment(JOB, "consultation", STARTS, false, NO_TIMING, ACTOR)).toBe("ok");
     expect(sql).toHaveBeenCalledOnce();
     const statement = flat(sql.mock.calls[0]);
     expect(statement).toContain("insert into appointments");
@@ -66,16 +75,28 @@ describe("saveAppointment", () => {
 
   it("always saves as unconfirmed, and replaces rather than inserting a second row for the kind", async () => {
     sql.mockResolvedValue([{ job: 1 }]);
-    await appointments.saveAppointment(JOB, "measure", STARTS, false, ACTOR);
+    await appointments.saveAppointment(JOB, "measure", STARTS, false, NO_TIMING, ACTOR);
     const statement = flat(sql.mock.calls[0]);
     expect(statement).toContain("confirmed_at = null");
     expect(statement).toContain("confirmed_by = null");
     expect(statement).toMatch(/on conflict \(lead_id, kind\) do update set[^;]*confirmed_at = null/);
   });
 
+  it("saves the arrival window and length, and a timing change resets confirmation", async () => {
+    sql.mockResolvedValue([{ job: 1 }]);
+    await appointments.saveAppointment(JOB, "install", STARTS, false, { windowStart: "08:00", windowEnd: "10:00", durationMinutes: 240 }, ACTOR);
+    const statement = flat(sql.mock.calls[0]);
+    expect(statement).toContain("window_start, window_end, duration_minutes");
+    expect(statement).toContain("?::time, ?::time, ?::integer");
+    expect(statement).toMatch(
+      /on conflict \(lead_id, kind\) do update set[^;]*window_start = excluded.window_start, window_end = excluded.window_end, duration_minutes = excluded.duration_minutes, confirmed_at = null/,
+    );
+    expect(sql.mock.calls[0]).toEqual(expect.arrayContaining(["08:00", "10:00", 240]));
+  });
+
   it("describes an all-day appointment by its date", async () => {
     sql.mockResolvedValue([{ job: 1 }]);
-    await appointments.saveAppointment(JOB, "install", STARTS, true, ACTOR);
+    await appointments.saveAppointment(JOB, "install", STARTS, true, NO_TIMING, ACTOR);
     expect(sql.mock.calls[0]).toContain("Install set for Sep 20, 2026 — pending confirmation");
     expect(sql.mock.calls[0]).toContain("Install moved to Sep 20, 2026 — pending confirmation");
     expect(sql.mock.calls[0]).toContain(true);
@@ -83,11 +104,11 @@ describe("saveAppointment", () => {
 
   it("returns missing when the job is gone", async () => {
     sql.mockResolvedValue([{ job: 0 }]);
-    expect(await appointments.saveAppointment(JOB, "service", STARTS, false, ACTOR)).toBe("missing");
+    expect(await appointments.saveAppointment(JOB, "service", STARTS, false, NO_TIMING, ACTOR)).toBe("missing");
   });
 
   it("returns missing for a non-uuid job id, without touching the database", async () => {
-    expect(await appointments.saveAppointment("../etc", "service", STARTS, false, ACTOR)).toBe("missing");
+    expect(await appointments.saveAppointment("../etc", "service", STARTS, false, NO_TIMING, ACTOR)).toBe("missing");
     expect(sql).not.toHaveBeenCalled();
   });
 });
@@ -106,6 +127,8 @@ describe("confirmAppointment", () => {
     expect(statement).toContain("update appointments set confirmed_at = now()");
     expect(statement).toContain("confirmed_by = ?");
     expect(statement).toContain("confirmed_at is null");
+    expect(statement).toContain("returning id, lead_id, kind, starts_at, all_day, confirmed_at, confirmed_by, window_start::text as window_start, window_end::text as window_end, duration_minutes");
+    expect(statement).toContain("c.window_start, c.window_end, c.duration_minutes");
     expect(sql.mock.calls[0]).toEqual(expect.arrayContaining([APPT, ACTOR]));
   });
 
@@ -132,6 +155,8 @@ describe("cancelAppointment", () => {
     expect(statement).toContain("delete from appointments");
     expect(statement).toContain("insert into job_events");
     expect(statement).toContain("' cancelled'");
+    expect(statement.match(/window_start::text as window_start, window_end::text as window_end, duration_minutes/g)).toHaveLength(1);
+    expect(statement).toContain("select id, lead_id, kind, starts_at, all_day, confirmed_at, confirmed_by, window_start, window_end, duration_minutes from gone");
     expect(sql.mock.calls[0]).toEqual(expect.arrayContaining([APPT, ACTOR]));
   });
 
@@ -177,7 +202,7 @@ describe("module boundaries", () => {
 describe("logConfirmation", () => {
   it("logs the kind and when it is booked for, as the signed-in owner", async () => {
     await appointments.logConfirmation(
-      { id: APPT, jobId: JOB, kind: "consultation", startsAt: STARTS, allDay: false, confirmedAt: new Date(), confirmedBy: ACTOR },
+      { id: APPT, jobId: JOB, kind: "consultation", startsAt: STARTS, allDay: false, confirmedAt: new Date(), confirmedBy: ACTOR, ...NO_TIMING },
       ACTOR,
     );
     const statement = flat(sql.mock.calls[0]);
@@ -189,7 +214,7 @@ describe("logConfirmation", () => {
 
   it("describes an all-day appointment by its date alone", async () => {
     await appointments.logConfirmation(
-      { id: APPT, jobId: JOB, kind: "install", startsAt: STARTS, allDay: true, confirmedAt: new Date(), confirmedBy: ACTOR },
+      { id: APPT, jobId: JOB, kind: "install", startsAt: STARTS, allDay: true, confirmedAt: new Date(), confirmedBy: ACTOR, ...NO_TIMING },
       ACTOR,
     );
     expect(sql.mock.calls[0]).toContain("Install confirmed for Sep 20, 2026");
@@ -197,7 +222,7 @@ describe("logConfirmation", () => {
 
   it("does nothing for a non-uuid job id", async () => {
     await appointments.logConfirmation(
-      { id: APPT, jobId: "../etc", kind: "install", startsAt: STARTS, allDay: true, confirmedAt: new Date(), confirmedBy: ACTOR },
+      { id: APPT, jobId: "../etc", kind: "install", startsAt: STARTS, allDay: true, confirmedAt: new Date(), confirmedBy: ACTOR, ...NO_TIMING },
       ACTOR,
     );
     expect(sql).not.toHaveBeenCalled();

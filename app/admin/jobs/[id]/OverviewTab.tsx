@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Appointment } from "@/lib/admin/appointments";
+import type { AppointmentKind } from "@/lib/admin/appointment-kinds";
 import type { JobFile } from "@/lib/admin/files";
 import type { Job, JobEvent } from "@/lib/admin/jobs";
 import type { WindowMeasurement } from "@/lib/admin/measurements";
@@ -21,7 +22,7 @@ import { CARD, HEADING, TEXT_LINK } from "./ui";
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
-export function OverviewTab({ job, editing, now, measurements, files, events, referrals, referrer, appointments }: {
+export function OverviewTab({ job, editing, now, measurements, files, events, referrals, referrer, appointments, defaultMinutes }: {
   job: Job;
   editing: boolean;
   now: Date;
@@ -31,6 +32,7 @@ export function OverviewTab({ job, editing, now, measurements, files, events, re
   referrals: Awaited<ReturnType<typeof listReferrals>>;
   referrer: Job | null;
   appointments: Appointment[];
+  defaultMinutes: Record<AppointmentKind, number>;
 }) {
   const edit = editDetailsHref(job.id);
   const stageIndex = STAGES.findIndex((s) => s.value === job.status);
@@ -59,7 +61,7 @@ export function OverviewTab({ job, editing, now, measurements, files, events, re
         </section>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:col-span-3 lg:grid-cols-4">
-          <div className="grid sm:col-span-2"><AppointmentsCard jobId={job.id} appointments={appointments} /></div>
+          <div className="grid sm:col-span-2"><AppointmentsCard jobId={job.id} appointments={appointments} defaultMinutes={defaultMinutes} /></div>
           <StatusCard title="Measurements" value={measurements.length ? plural(measurements.length, "window") : null}
             detail={lastMeasured ? `Updated ${formatWhen(lastMeasured)}` : undefined} empty="No windows measured yet"
             actions={[

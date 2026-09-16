@@ -72,13 +72,29 @@ describe("bookAppointment", () => {
   it("saves the parsed appointment as the signed-in owner", async () => {
     expect(await actions.bookAppointment(JOB, {}, booking())).toEqual({ ok: true });
     expect(appointments.saveAppointment).toHaveBeenCalledWith(
-      JOB, "consultation", STARTS, false, "owner@example.com",
+      JOB, "consultation", STARTS, false, { windowStart: null, windowEnd: null, durationMinutes: null }, "owner@example.com",
     );
+  });
+
+  it("carries the arrival window and length through", async () => {
+    await actions.bookAppointment(JOB, {}, booking({ windowStart: "08:00", windowEnd: "10:00", hours: "1.5" }));
+    expect(appointments.saveAppointment).toHaveBeenCalledWith(
+      JOB, "consultation", STARTS, false, { windowStart: "08:00", windowEnd: "10:00", durationMinutes: 90 }, "owner@example.com",
+    );
+  });
+
+  it("refuses half a window, echoing what was picked", async () => {
+    const state = await actions.bookAppointment(JOB, {}, booking({ windowStart: "08:00", windowEnd: "" }));
+    expect(state.error).toBe("Pick both ends of the arrival window, or Any time");
+    expect(state.values).toMatchObject({ windowStart: "08:00", windowEnd: "" });
+    expect(appointments.saveAppointment).not.toHaveBeenCalled();
   });
 
   it("carries an all-day booking through", async () => {
     await actions.bookAppointment(JOB, {}, booking({ kind: "install", allDay: "on" }));
-    expect(appointments.saveAppointment).toHaveBeenCalledWith(JOB, "install", STARTS, true, "owner@example.com");
+    expect(appointments.saveAppointment).toHaveBeenCalledWith(
+      JOB, "install", STARTS, true, { windowStart: null, windowEnd: null, durationMinutes: null }, "owner@example.com",
+    );
   });
 
   it("mirrors, so a re-booked confirmation clears the job's date", async () => {

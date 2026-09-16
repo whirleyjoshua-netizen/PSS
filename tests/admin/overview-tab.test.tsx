@@ -28,7 +28,7 @@ const job: Job = {
 };
 const base = {
   job, editing: false, now, measurements: [], files: [], events: [], referrals: [], referrer: null,
-  appointments: [],
+  appointments: [], defaultMinutes: { consultation: 60, measure: 60, install: 240, service: 90 },
 };
 
 describe("OverviewTab", () => {

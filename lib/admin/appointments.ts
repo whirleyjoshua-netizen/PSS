@@ -2,10 +2,14 @@ import "server-only";
 import { db } from "@/lib/db";
 import { isUuid } from "./jobs";
 import { formatShortDate, formatWhen } from "./time";
+import { clockOf } from "@/lib/routes/window";
 import { kindLabel, type AppointmentKind } from "./appointment-kinds";
 
 // This module must never import from lib/calendar: lib/calendar/store.ts depends on mirrorToJob,
 // so the dependency stays one-way.
+
+/** When the crew may arrive ("08:00" to "10:00", or both null for any time) and how long the visit takes. */
+export type AppointmentTiming = { windowStart: string | null; windowEnd: string | null; durationMinutes: number | null };
 
 export type Appointment = {
   id: string;
@@ -15,7 +19,7 @@ export type Appointment = {
   allDay: boolean;
   confirmedAt: Date | null;
   confirmedBy: string | null;
-};
+} & AppointmentTiming;
 
 function toAppointment(row: Record<string, unknown>): Appointment {
   return {
@@ -26,6 +30,9 @@ function toAppointment(row: Record<string, unknown>): Appointment {
     allDay: row.all_day === true,
     confirmedAt: row.confirmed_at ? new Date(row.confirmed_at as string | Date) : null,
     confirmedBy: (row.confirmed_by as string | null) ?? null,
+    windowStart: clockOf(row.window_start),
+    windowEnd: clockOf(row.window_end),
+    durationMinutes: typeof row.duration_minutes === "number" ? row.duration_minutes : null,
   };
 }
 
@@ -36,7 +43,9 @@ const whenLabel = (startsAt: Date, allDay: boolean): string =>
 export async function listAppointments(jobId: string): Promise<Appointment[]> {
   if (!isUuid(jobId)) return [];
   const rows = await db()`
-    select id, lead_id, kind, starts_at, all_day, confirmed_at, confirmed_by from appointments
+    select id, lead_id, kind, starts_at, all_day, confirmed_at, confirmed_by,
+           window_start::text as window_start, window_end::text as window_end, duration_minutes
+      from appointments
     where lead_id = ${jobId} order by starts_at`;
   return rows.map(toAppointment);
 }
@@ -48,7 +57,7 @@ export type SaveResult = "ok" | "missing";
  * unconfirmed: only the confirm path sets confirmed_at, and only a confirmed row mirrors to the job.
  */
 export async function saveAppointment(
-  jobId: string, kind: AppointmentKind, startsAt: Date, allDay: boolean, actor: string,
+  jobId: string, kind: AppointmentKind, startsAt: Date, allDay: boolean, timing: AppointmentTiming, actor: string,
 ): Promise<SaveResult> {
   if (!isUuid(jobId)) return "missing";
   const when = whenLabel(startsAt, allDay);
@@ -58,10 +67,14 @@ export async function saveAppointment(
     with target as (select id from leads where id = ${jobId}),
     prev as (select id from appointments where lead_id = ${jobId} and kind = ${kind}),
     saved as (
-      insert into appointments (lead_id, kind, starts_at, all_day, confirmed_at, confirmed_by)
-      select id, ${kind}, ${startsAt}::timestamptz, ${allDay}::boolean, null, null from target
+      insert into appointments (lead_id, kind, starts_at, all_day, window_start, window_end, duration_minutes, confirmed_at, confirmed_by)
+      select id, ${kind}, ${startsAt}::timestamptz, ${allDay}::boolean,
+             ${timing.windowStart}::time, ${timing.windowEnd}::time, ${timing.durationMinutes}::integer, null, null
+        from target
       on conflict (lead_id, kind) do update set
         starts_at = excluded.starts_at, all_day = excluded.all_day,
+        window_start = excluded.window_start, window_end = excluded.window_end,
+        duration_minutes = excluded.duration_minutes,
         confirmed_at = null, confirmed_by = null, updated_at = now()
       returning id
     ),
@@ -86,9 +99,11 @@ export async function confirmAppointment(id: string, actor: string): Promise<Con
     confirmed as (
       update appointments set confirmed_at = now(), confirmed_by = ${actor}, updated_at = now()
       where id = ${id} and confirmed_at is null
-      returning id, lead_id, kind, starts_at, all_day, confirmed_at, confirmed_by
+      returning id, lead_id, kind, starts_at, all_day, confirmed_at, confirmed_by,
+                window_start::text as window_start, window_end::text as window_end, duration_minutes
     )
     select c.id, c.lead_id, c.kind, c.starts_at, c.all_day, c.confirmed_at, c.confirmed_by,
+           c.window_start, c.window_end, c.duration_minutes,
            (select count(*) from prev)::int as found
     from prev left join confirmed c on true`;
   if (!result) return "missing";
@@ -102,14 +117,16 @@ export async function cancelAppointment(id: string, actor: string): Promise<Appo
   const [result] = await db()`
     with gone as (
       delete from appointments where id = ${id}
-      returning id, lead_id, kind, starts_at, all_day, confirmed_at, confirmed_by
+      returning id, lead_id, kind, starts_at, all_day, confirmed_at, confirmed_by,
+                window_start::text as window_start, window_end::text as window_end, duration_minutes
     ),
     logged as (
       insert into job_events (lead_id, actor, kind, body)
       select lead_id, ${actor}, 'edit', initcap(kind) || ' cancelled' from gone
       returning id
     )
-    select id, lead_id, kind, starts_at, all_day, confirmed_at, confirmed_by from gone`;
+    select id, lead_id, kind, starts_at, all_day, confirmed_at, confirmed_by, window_start, window_end, duration_minutes
+      from gone`;
   return result ? toAppointment(result) : "missing";
 }
 

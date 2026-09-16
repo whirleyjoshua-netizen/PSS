@@ -19,29 +19,30 @@ beforeEach(() => {
 const { AppointmentsCard } = await import("@/app/admin/jobs/[id]/AppointmentsCard");
 
 const ID = "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c";
+const MINUTES = { consultation: 60, measure: 60, install: 240, service: 90 };
 const APPT = "9c8b7a65-4d3e-4f21-8a0b-1c2d3e4f5a6b";
 /** 10:00 AM in Las Vegas on Sunday, September 20 2026. */
 const STARTS = new Date("2026-09-20T17:00:00Z");
 
 const appointment = (over: Partial<Appointment> = {}): Appointment => ({
   id: APPT, jobId: ID, kind: "consultation", startsAt: STARTS, allDay: false,
-  confirmedAt: null, confirmedBy: null, ...over,
+  confirmedAt: null, confirmedBy: null, windowStart: null, windowEnd: null, durationMinutes: null, ...over,
 });
 
 const card = () => screen.getByRole("region", { name: "Appointments" });
-const renderConfirmed = () => render(<AppointmentsCard jobId={ID} appointments={[appointment({
+const renderConfirmed = () => render(<AppointmentsCard jobId={ID} defaultMinutes={MINUTES} appointments={[appointment({
   confirmedAt: new Date("2026-09-18T12:00:00Z"), confirmedBy: "owner@example.com",
 })]} />);
 
 describe("AppointmentsCard", () => {
   it("says nothing is scheduled, with a way to schedule one", () => {
-    render(<AppointmentsCard jobId={ID} appointments={[]} />);
+    render(<AppointmentsCard jobId={ID} defaultMinutes={MINUTES} appointments={[]} />);
     expect(card()).toHaveTextContent("Nothing scheduled");
     expect(within(card()).getByRole("button", { name: "Schedule" })).toBeInTheDocument();
   });
 
   it("shows a pending appointment with its kind, time and the confirm step", () => {
-    render(<AppointmentsCard jobId={ID} appointments={[appointment()]} />);
+    render(<AppointmentsCard jobId={ID} defaultMinutes={MINUTES} appointments={[appointment()]} />);
     const row = within(card()).getByRole("listitem");
     expect(row).toHaveTextContent("Consultation");
     expect(row).toHaveTextContent("Sep 20");
@@ -53,7 +54,7 @@ describe("AppointmentsCard", () => {
   });
 
   it("tints the kind chip for the kind of appointment", () => {
-    render(<AppointmentsCard jobId={ID} appointments={[appointment({ kind: "install" })]} />);
+    render(<AppointmentsCard jobId={ID} defaultMinutes={MINUTES} appointments={[appointment({ kind: "install" })]} />);
     // The chip leads the row; the Reschedule form below it names the kinds too.
     const chip = within(card()).getByRole("listitem").querySelector("span")!;
     expect(chip).toHaveTextContent("Install");
@@ -62,7 +63,7 @@ describe("AppointmentsCard", () => {
   });
 
   it("offers Reschedule and Cancel, but no Confirm, once confirmed", () => {
-    render(<AppointmentsCard jobId={ID} appointments={[appointment({
+    render(<AppointmentsCard jobId={ID} defaultMinutes={MINUTES} appointments={[appointment({
       confirmedAt: new Date("2026-09-18T12:00:00Z"), confirmedBy: "owner@example.com",
     })]} />);
     const row = within(card()).getByRole("listitem");
@@ -74,7 +75,7 @@ describe("AppointmentsCard", () => {
   });
 
   it("describes an all-day appointment by its date alone", () => {
-    render(<AppointmentsCard jobId={ID} appointments={[appointment({ kind: "install", allDay: true })]} />);
+    render(<AppointmentsCard jobId={ID} defaultMinutes={MINUTES} appointments={[appointment({ kind: "install", allDay: true })]} />);
     const row = within(card()).getByRole("listitem");
     expect(row).toHaveTextContent("Sep 20, 2026");
     expect(row).not.toHaveTextContent("10:00 AM");
@@ -82,7 +83,7 @@ describe("AppointmentsCard", () => {
 
   it("keeps every booking form's field ids to itself", () => {
     // Several dialogs share the page, so a repeated id would point a label at another row's input.
-    const { container } = render(<AppointmentsCard jobId={ID} appointments={[
+    const { container } = render(<AppointmentsCard jobId={ID} defaultMinutes={MINUTES} appointments={[
       appointment(),
       appointment({ id: "b", kind: "measure", startsAt: new Date("2026-09-24T17:00:00Z") }),
     ]} />);
@@ -93,7 +94,7 @@ describe("AppointmentsCard", () => {
 
   it("confirms as the signed-in owner, for this appointment", async () => {
     const user = userEvent.setup();
-    render(<AppointmentsCard jobId={ID} appointments={[appointment()]} />);
+    render(<AppointmentsCard jobId={ID} defaultMinutes={MINUTES} appointments={[appointment()]} />);
     await user.click(screen.getByRole("button", { name: "Confirm schedule" }));
     expect(confirmSchedule).toHaveBeenCalled();
     expect(confirmSchedule.mock.calls[0].slice(0, 2)).toEqual([APPT, ID]);
@@ -103,7 +104,7 @@ describe("AppointmentsCard", () => {
   it("shows the owner when confirming could not email the customer", async () => {
     confirmSchedule.mockResolvedValue({ error: "Confirmed, but the email could not be sent." });
     const user = userEvent.setup();
-    render(<AppointmentsCard jobId={ID} appointments={[appointment()]} />);
+    render(<AppointmentsCard jobId={ID} defaultMinutes={MINUTES} appointments={[appointment()]} />);
     await user.click(screen.getByRole("button", { name: "Confirm schedule" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Confirmed, but the email could not be sent.");
   });
@@ -148,7 +149,7 @@ describe("AppointmentsCard", () => {
   });
 
   it("degrades the cancel confirmation to a disclosure without JavaScript", () => {
-    const html = renderToStaticMarkup(<AppointmentsCard jobId={ID} appointments={[appointment({
+    const html = renderToStaticMarkup(<AppointmentsCard jobId={ID} defaultMinutes={MINUTES} appointments={[appointment({
       confirmedAt: new Date("2026-09-18T12:00:00Z"), confirmedBy: "owner@example.com",
     })]} />);
     expect(html).toContain("<details");
@@ -157,15 +158,42 @@ describe("AppointmentsCard", () => {
   });
 
   it("keeps a form out of phrasing-only markup", () => {
-    const { container } = render(<AppointmentsCard jobId={ID} appointments={[appointment()]} />);
+    const { container } = render(<AppointmentsCard jobId={ID} defaultMinutes={MINUTES} appointments={[appointment()]} />);
     expect(container.querySelector("span form")).toBeNull();
   });
 
   it("lists every appointment it is given", () => {
-    render(<AppointmentsCard jobId={ID} appointments={[
+    render(<AppointmentsCard jobId={ID} defaultMinutes={MINUTES} appointments={[
       appointment(),
       appointment({ id: "b", kind: "measure", startsAt: new Date("2026-09-24T17:00:00Z") }),
     ]} />);
     expect(within(card()).getAllByRole("listitem")).toHaveLength(2);
+  });
+
+  it("shows the arrival window and the length", () => {
+    render(<AppointmentsCard jobId={ID} defaultMinutes={MINUTES} appointments={[appointment({
+      windowStart: "08:00", windowEnd: "10:00", durationMinutes: 240,
+    })]} />);
+    const row = within(card()).getByRole("listitem");
+    expect(row).toHaveTextContent("Arrives 8:00 – 10:00 am");
+    expect(row).toHaveTextContent("4 h");
+  });
+
+  it("says nothing of a window or length the appointment does not have", () => {
+    render(<AppointmentsCard jobId={ID} defaultMinutes={MINUTES} appointments={[appointment()]} />);
+    const row = within(card()).getByRole("listitem");
+    expect(row).not.toHaveTextContent("Arrives");
+    expect(row).not.toHaveTextContent(/\d h/);
+  });
+
+  it("hands the window and length to Reschedule", async () => {
+    const user = userEvent.setup();
+    render(<AppointmentsCard jobId={ID} defaultMinutes={MINUTES} appointments={[appointment({
+      kind: "install", windowStart: "08:00", windowEnd: "10:00", durationMinutes: 90,
+    })]} />);
+    await user.click(screen.getByRole("button", { name: "Reschedule" }));
+    expect(screen.getByLabelText("Length (hours)")).toHaveValue(1.5);
+    expect(screen.getByRole("combobox", { name: "From" })).toHaveValue("08:00");
+    expect(screen.getByRole("combobox", { name: "To" })).toHaveValue("10:00");
   });
 });

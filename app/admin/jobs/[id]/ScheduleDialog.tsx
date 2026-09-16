@@ -1,9 +1,10 @@
 "use client";
 
-import { useActionState, useEffect, useId, useRef, useSyncExternalStore } from "react";
+import { useActionState, useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
 import { Icon } from "@/components/admin/icons";
 import { Button } from "@/components/ui/Button";
 import { APPOINTMENT_KINDS, type AppointmentKind } from "@/lib/admin/appointment-kinds";
+import { hoursLabel, WINDOW_OPTIONS } from "@/lib/routes/window";
 import { bookAppointment } from "../appointment-actions";
 import type { FormState } from "../actions";
 import { ACTION_LINK } from "./ui";
@@ -34,6 +35,13 @@ type Props = {
   /** The appointment being moved, as a datetime-local value. */
   startsAt?: string;
   allDay?: boolean;
+  /** The arrival window being moved; null or absent is Any time. */
+  windowStart?: string | null;
+  windowEnd?: string | null;
+  /** The length being moved; absent means the kind's default. */
+  durationMinutes?: number | null;
+  /** Each kind's usual length, which pre-fills Length until the owner types one. */
+  defaultMinutes: Record<AppointmentKind, number>;
   className?: string;
 };
 
@@ -42,7 +50,8 @@ type Props = {
  * form sits inside a <details> disclosure, which posts the action the ordinary way.
  */
 export function ScheduleDialog({
-  jobId, label = "Schedule", kind = "consultation", startsAt = "", allDay = false, className = ACTION_LINK,
+  jobId, label = "Schedule", kind = "consultation", startsAt = "", allDay = false,
+  windowStart = null, windowEnd = null, durationMinutes = null, defaultMinutes, className = ACTION_LINK,
 }: Props) {
   const [state, action, pending] = useActionState<FormState, FormData>(bookAppointment.bind(null, jobId), {});
   // False on the server and through hydration, true once this is running in a browser — which is
@@ -54,6 +63,10 @@ export function ScheduleDialog({
   const uid = useId();
   // A saved booking is done with: close the modal so the refreshed card shows underneath.
   useEffect(() => { if (state.ok) close(dialog.current); }, [state]);
+  // A length the owner typed, or one carried from the appointment being moved, stays put when the
+  // kind changes; an untouched length follows the picked kind's default.
+  const [touched, setTouched] = useState(durationMinutes != null);
+  const [hours, setHours] = useState(hoursLabel(durationMinutes ?? defaultMinutes[kind]));
 
   const fields = (
     <form action={action} className="flex flex-col gap-4 text-sm">
@@ -68,7 +81,8 @@ export function ScheduleDialog({
             <label key={option.value} htmlFor={`kind-${uid}-${option.value}`}
               className="flex min-h-11 items-center gap-2 border border-rule px-3">
               <input id={`kind-${uid}-${option.value}`} type="radio" name="kind" value={option.value}
-                defaultChecked={option.value === kind} />
+                defaultChecked={option.value === kind}
+                onChange={() => { if (!touched) setHours(hoursLabel(defaultMinutes[option.value])); }} />
               <Icon name={option.icon} className="size-4" />
               {option.label}
             </label>
@@ -78,6 +92,28 @@ export function ScheduleDialog({
       <label htmlFor={`allDay-${uid}`} className="flex min-h-11 items-center gap-2">
         <input id={`allDay-${uid}`} type="checkbox" name="allDay" defaultChecked={allDay} />
         All day
+      </label>
+      <fieldset className="flex flex-col gap-2">
+        <legend className="mb-2">Arrival window</legend>
+        <div className="grid grid-cols-2 gap-2">
+          <label htmlFor={`windowStart-${uid}`} className="flex flex-col gap-1">From
+            <select id={`windowStart-${uid}`} name="windowStart" className={CONTROL} defaultValue={windowStart ?? ""}>
+              <option value="">Any time</option>
+              {WINDOW_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </label>
+          <label htmlFor={`windowEnd-${uid}`} className="flex flex-col gap-1">To
+            <select id={`windowEnd-${uid}`} name="windowEnd" className={CONTROL} defaultValue={windowEnd ?? ""}>
+              <option value="">Any time</option>
+              {WINDOW_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </label>
+        </div>
+      </fieldset>
+      <label htmlFor={`hours-${uid}`} className="flex flex-col gap-2">
+        Length (hours)
+        <input id={`hours-${uid}`} name="hours" type="number" step="0.25" min="0.25" max="12" inputMode="decimal"
+          className={CONTROL} value={hours} onChange={(e) => { setHours(e.target.value); setTouched(true); }} />
       </label>
       <div className="flex flex-wrap items-center gap-4">
         <Button type="submit" variant="solid" disabled={pending}>{pending ? "Saving…" : "Save"}</Button>

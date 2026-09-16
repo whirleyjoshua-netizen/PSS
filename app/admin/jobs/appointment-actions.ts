@@ -26,17 +26,21 @@ const GONE: FormState = { error: "That appointment no longer exists." };
  */
 export async function bookAppointment(jobId: string, _prev: FormState, formData: FormData): Promise<FormState> {
   const { email } = await requireAdmin();
-  const values = captureValues(formData, ["kind", "startsAt", "allDay"]);
+  const values = captureValues(formData, ["kind", "startsAt", "allDay", "windowStart", "windowEnd", "hours"]);
   const parsed = appointmentSchema.safeParse({
     kind: formData.get("kind") ?? "",
     startsAt: formData.get("startsAt") ?? "",
     allDay: formData.get("allDay") === "on",
+    windowStart: formData.get("windowStart") ?? "",
+    windowEnd: formData.get("windowEnd") ?? "",
+    hours: formData.get("hours") ?? "",
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message, values };
-  const saved = await saveAppointment(jobId, parsed.data.kind, parsed.data.startsAt, parsed.data.allDay, email);
+  const { kind, startsAt, allDay, windowStart, windowEnd, durationMinutes } = parsed.data;
+  const saved = await saveAppointment(jobId, kind, startsAt, allDay, { windowStart, windowEnd, durationMinutes }, email);
   if (saved === "missing") return MISSING;
   await mirrorToJob(jobId);
-  after(() => syncJobCalendar(jobId, [parsed.data.kind]));
+  after(() => syncJobCalendar(jobId, [kind]));
   refresh(jobId);
   return { ok: true };
 }

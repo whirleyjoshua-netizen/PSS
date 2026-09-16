@@ -57,9 +57,24 @@ export const detailsSchema = z
 
 const APPOINTMENT_KIND_VALUES = APPOINTMENT_KINDS.map((kind) => kind.value) as [AppointmentKind, ...AppointmentKind[]];
 
+const CLOCK = /^([01]\d|2[0-3]):(00|30)$/;
+export const clockField = z.string().regex(CLOCK, "Pick a time");
+
+/** Hours in quarter steps, stored as minutes. */
+// A blank box would coerce to 0; treat it as missing so the message asks for a length.
+export const hoursField = z
+  .preprocess(blank, z.coerce.number({ error: "Enter the length in hours" }))
+  .refine((h) => h >= 0.25 && h <= 12, "Lengths are between 0.25 and 12 hours")
+  .refine((h) => Number.isInteger(h * 4), "Use quarter hours")
+  .transform((h) => Math.round(h * 60));
+
+const optionalClock = z.preprocess(blank, clockField.optional());
+const optionalHours = z.preprocess(blank, hoursField.optional());
+
 /**
  * One booking from the Schedule button. The saved appointment is always pending: nothing here
  * confirms it, so neither Outlook nor the customer hears about it until the owner confirms.
+ * A blank window is "Any time"; a blank length leaves the kind's default to apply.
  */
 export const appointmentSchema = z
   .object({
@@ -67,12 +82,24 @@ export const appointmentSchema = z
     startsAt: z.string({ error: "Pick a date and time" }).refine(isValidLocalInput, "Pick a date and time"),
     // An unchecked checkbox sends nothing, so a timed appointment is the default.
     allDay: z.boolean().default(false),
+    windowStart: optionalClock,
+    windowEnd: optionalClock,
+    hours: optionalHours,
+  })
+  .refine((v) => Boolean(v.windowStart) === Boolean(v.windowEnd), {
+    message: "Pick both ends of the arrival window, or Any time", path: ["windowEnd"],
+  })
+  .refine((v) => !v.windowStart || !v.windowEnd || v.windowStart < v.windowEnd, {
+    message: "The window must end after it starts", path: ["windowEnd"],
   })
   .transform((value) => ({
     kind: value.kind,
     // An all-day booking still carries an instant; its Las Vegas date is the part that matters.
     startsAt: fromLocalInput(value.startsAt),
     allDay: value.allDay,
+    windowStart: value.windowStart ?? null,
+    windowEnd: value.windowEnd ?? null,
+    durationMinutes: value.hours ?? null,
   }));
 
 export const noteSchema = z.object({ body: z.string().trim().min(1, "Write a note first").max(2000) });
@@ -232,17 +259,6 @@ export type MeasurementInput = z.output<typeof measurementSchema>;
 
 export type DetailsInput = z.output<typeof detailsSchema>;
 export type NewJobInput = z.output<typeof newJobSchema>;
-
-const CLOCK = /^([01]\d|2[0-3]):(00|30)$/;
-export const clockField = z.string().regex(CLOCK, "Pick a time");
-
-/** Hours in quarter steps, stored as minutes. */
-// A blank box would coerce to 0; treat it as missing so the message asks for a length.
-export const hoursField = z
-  .preprocess(blank, z.coerce.number({ error: "Enter the length in hours" }))
-  .refine((h) => h >= 0.25 && h <= 12, "Lengths are between 0.25 and 12 hours")
-  .refine((h) => Number.isInteger(h * 4), "Use quarter hours")
-  .transform((h) => Math.round(h * 60));
 
 export const routeSettingsSchema = z
   .object({

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Icon } from "@/components/admin/icons";
+import type { AppointmentKind } from "@/lib/admin/appointment-kinds";
 import type { Job } from "@/lib/admin/jobs";
 import type { TeamMember } from "@/lib/admin/team";
 import { STAGE_STYLE, stageLabel } from "@/lib/admin/stages";
@@ -18,7 +19,9 @@ function inStage(days: number): string {
   return `${days} ${days === 1 ? "day" : "days"} in stage`;
 }
 
-export function JobHeader({ job, now, team }: { job: Job; now: Date; team: TeamMember[] }) {
+export function JobHeader({ job, now, team, defaultMinutes }: {
+  job: Job; now: Date; team: TeamMember[]; defaultMinutes: Record<AppointmentKind, number>;
+}) {
   const style = STAGE_STYLE[job.status];
 
   return (
@@ -50,7 +53,7 @@ export function JobHeader({ job, now, team }: { job: Job; now: Date; team: TeamM
           <CallButton jobId={job.id} name={job.name} phone={job.phone} />
           <a href={`sms:+1${job.phone}`} className={ACTION_LINK}>Text</a>
           {job.email ? <a href={`mailto:${job.email}`} className={ACTION_LINK}>Email</a> : null}
-          <ScheduleDialog jobId={job.id} />
+          <ScheduleDialog jobId={job.id} defaultMinutes={defaultMinutes} />
           <details className="sm:relative">
             <summary aria-label="More actions" className={`${ACTION_LINK} cursor-pointer list-none [&::-webkit-details-marker]:hidden`}>
               <span aria-hidden="true">•••</span>
