@@ -293,11 +293,24 @@ test("an owner shares a quote, the customer opens it, and unsharing takes it awa
  * dispatch is handled as an ordinary navigation and never reaches the action at all.
  *
  * So the lead_id guard defends against OUR OWN code passing a wrong id, not against a
- * customer or a tampering owner. That is a real thing worth guarding, but it is not an
- * end-to-end fact, and the honest proof is the unit test at
- * tests/admin/file-sharing.test.ts:50 ("keeps the lead_id guard, so one job's file
- * cannot be shared onto another"), which has been watched failing under exactly that
- * mutation. If you change setShared, that is the test that must stay green.
+ * customer or a tampering owner. It is not an end-to-end fact, and its proof lives in
+ * two other places, which cover different things:
+ *
+ *  - tests/admin/file-sharing.test.ts:50 pins the SQL TEXT and no more. It runs in CI
+ *    and fails the moment the `and lead_id = ${jobId}` clause leaves the statement, so
+ *    it is the tripwire for anyone editing setShared — but it asserts a string, not
+ *    that a database refuses anything.
+ *  - The guard's BEHAVIOUR was proven by calling setShared directly against a real
+ *    database with the genuine mismatched pair (a document on lead A, shared under
+ *    lead B's id) and a positive control with the correct pair, so that "refused"
+ *    could not be confused with "the function is broken". With the guard in place the
+ *    mismatched call returned false and left shared_at NULL while the correct call
+ *    returned true and set it; with the clause removed the mismatched call returned
+ *    true and a real cross-job share happened.
+ *
+ * That behavioural check was a MANUAL run against a Neon branch. It is not part of any
+ * suite and nothing here runs it, so do not read the tests above as covering it; if you
+ * change setShared's guard, it has to be redone by hand.
  *
  * What IS reachable from a browser, and what this gate therefore proves: one
  * customer's session must not be able to open another customer's file, even a file
