@@ -59,7 +59,9 @@ describe("setShared", () => {
     const call = sql.mock.calls[0];
     expect(text(call)).toContain("|| name ||");
     expect(call).toEqual(expect.arrayContaining(["Shared ", " with customer"]));
-    expect(call).not.toContain("Shared photo ");
+    // `call` is the array of template values, so this checks that no bound value
+    // IS the string "Shared photo " — not that it contains it as a substring.
+    expect(call.filter((value) => value === "Shared photo ")).toEqual([]);
   });
 
   it("logs stopping, with its own wording, and clears shared_at", async () => {
@@ -67,7 +69,8 @@ describe("setShared", () => {
     await setShared(JOB, FILE, false, "owner@example.com");
     expect(text(sql.mock.calls[0])).toContain("else null end");
     expect(sql.mock.calls[0]).toEqual(expect.arrayContaining([false, "Stopped sharing ", ""]));
-    expect(sql.mock.calls[0]).not.toContain("Stopped sharing photo ");
+    // Again an element check, not a substring one: no bound value equals this.
+    expect(sql.mock.calls[0].filter((value) => value === "Stopped sharing photo ")).toEqual([]);
   });
 
   it("returns false for another job's file, or a bad id", async () => {
@@ -104,6 +107,27 @@ describe("setDocType", () => {
     expect(text(call)).toContain("insert into job_events");
     expect(text(call)).not.toContain("shared_at");
     expect(call).toEqual(expect.arrayContaining([JOB, FILE, "quote", "owner@example.com"]));
+  });
+
+  it("labels documents only, so a photo cannot carry a document type", async () => {
+    sql.mockResolvedValue([{ lead_id: JOB }]);
+    await setDocType(JOB, FILE, "quote", "owner@example.com");
+    expect(text(sql.mock.calls[0])).toContain("kind = 'document'");
+  });
+
+  it("writes the log body wording, naming the file and its label", async () => {
+    sql.mockResolvedValue([{ lead_id: JOB }]);
+    await setDocType(JOB, FILE, "quote", "owner@example.com");
+    expect(text(sql.mock.calls[0])).toContain("|| name ||");
+    expect(sql.mock.calls[0]).toEqual(expect.arrayContaining(["Labelled ", " as Quote"]));
+
+    sql.mockClear();
+    await setDocType(JOB, FILE, "po", "owner@example.com");
+    expect(sql.mock.calls[0]).toEqual(expect.arrayContaining([" as PO"]));
+
+    sql.mockClear();
+    await setDocType(JOB, FILE, null, "owner@example.com");
+    expect(sql.mock.calls[0]).toEqual(expect.arrayContaining(["Removed the type label from ", ""]));
   });
 
   it("clears the label", async () => {
@@ -150,5 +174,27 @@ describe("setFileShared action", () => {
     sql.mockResolvedValue([{ lead_id: JOB }]);
     await actions.setFileShared(JOB, FILE, true);
     expect(sql.mock.calls[0]).toContain("owner@example.com");
+  });
+});
+
+describe("setFileDocType action", () => {
+  it("checks the session first", async () => {
+    requireAdmin.mockRejectedValue(new Error("NEXT_REDIRECT"));
+    await expect(actions.setFileDocType(JOB, FILE, "quote")).rejects.toThrow("NEXT_REDIRECT");
+    expect(sql).not.toHaveBeenCalled();
+  });
+
+  it("labels as the signed-in owner, and never touches shared_at", async () => {
+    sql.mockResolvedValue([{ lead_id: JOB }]);
+    await actions.setFileDocType(JOB, FILE, "quote");
+    expect(sql.mock.calls[0]).toContain("owner@example.com");
+    expect(sql.mock.calls[0]).toContain("quote");
+    expect(text(sql.mock.calls[0])).not.toContain("shared_at");
+  });
+
+  it("clears the label", async () => {
+    sql.mockResolvedValue([{ lead_id: JOB }]);
+    await actions.setFileDocType(JOB, FILE, null);
+    expect(sql.mock.calls[0]).toContain(null);
   });
 });

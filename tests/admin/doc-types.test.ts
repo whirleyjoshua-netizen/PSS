@@ -24,7 +24,12 @@ describe("document types", () => {
 
   it("matches the values the database allows", () => {
     const sql = readFileSync("db/migrations/016_project_page.sql", "utf8");
-    for (const { value } of DOC_TYPES) expect(sql).toContain(`'${value}'`);
+    // Scoped to the check constraint itself: a bare toContain("'quote'") would
+    // pass on any unrelated occurrence elsewhere in the migration.
+    const constraint = /doc_type\s+is\s+null\s+or\s+doc_type\s+in\s*\(([^)]*)\)/i.exec(sql);
+    expect(constraint).not.toBeNull();
+    const allowed = constraint![1].split(",").map((value) => value.trim());
+    expect(allowed).toEqual(DOC_TYPES.map((type) => `'${type.value}'`));
   });
 
   it("imports nothing server-only, so a client component may use it", () => {

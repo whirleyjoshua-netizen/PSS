@@ -39,9 +39,9 @@ describe("MeasurementsTab", () => {
   });
 });
 
-describe("JobFiles without measurements", () => {
-  it("hides the measurements block but still keeps window photos out of Photos", () => {
-    render(<JobFiles jobId={JOB} measurements={[m]} files={[photo]} showMeasurements={false} />);
+describe("JobFiles", () => {
+  it("shows no measurements of its own, and keeps window photos out of Photos", () => {
+    render(<JobFiles jobId={JOB} measurements={[m]} files={[photo]} />);
     expect(screen.queryByText(/^Measurements ·/)).toBeNull();
     expect(screen.queryByRole("link", { name: "Measure" })).toBeNull();
     expect(screen.getByText("Photos · 0")).toBeInTheDocument();

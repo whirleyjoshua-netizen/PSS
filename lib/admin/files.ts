@@ -142,9 +142,10 @@ export async function setShared(jobId: string, fileId: string, shared: boolean, 
 }
 
 /**
- * Puts a type label on a file (or clears it) and logs the change. Labelling is
- * not sharing: this statement never reads or writes shared_at, so a document
- * stays private until setShared is called for it.
+ * Puts a type label on a document (or clears it) and logs the change. Labelling
+ * is not sharing: this statement never reads or writes shared_at, so a document
+ * stays private until setShared is called for it. `kind = 'document'` keeps a
+ * photo from carrying a document label.
  */
 export async function setDocType(
   jobId: string, fileId: string, type: DocType | null, actor: string,
@@ -153,7 +154,7 @@ export async function setDocType(
   const rows = await db()`
     with changed as (
       update job_files set doc_type = ${type}
-      where id = ${fileId} and lead_id = ${jobId}
+      where id = ${fileId} and lead_id = ${jobId} and kind = 'document'
       returning lead_id, name
     )
     insert into job_events (lead_id, actor, kind, body)

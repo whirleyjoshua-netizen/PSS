@@ -49,7 +49,7 @@ export default async function JobPage({ params, searchParams }: {
       {tab === "files" ? (
         <div className="flex flex-col gap-4">
           <h2 className={HEADING}>Files</h2>
-          <JobFiles jobId={job.id} measurements={measurements} files={files} showMeasurements={false} />
+          <JobFiles jobId={job.id} measurements={measurements} files={files} />
         </div>
       ) : null}
       {tab === "activity" ? <ActivityTab jobId={job.id} events={events} now={now} /> : null}
