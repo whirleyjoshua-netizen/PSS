@@ -205,20 +205,20 @@ describe("assignJobAction", () => {
   it("checks the session first, and '' unassigns", async () => {
     jobs.assignJob.mockResolvedValue("ok");
     const data = form({ assignedTo: "" });
-    expect(await actions.assignJobAction(ID, {}, data)).toEqual({});
+    expect(await actions.assignJobAction(ID, {}, data)).toEqual({ ok: true });
     expect(requireAdmin).toHaveBeenCalled();
     expect(jobs.assignJob).toHaveBeenCalledWith(ID, null, "owner@example.com");
   });
 
   it("passes the chosen person through", async () => {
     jobs.assignJob.mockResolvedValue("ok");
-    expect(await actions.assignJobAction(ID, {}, form({ assignedTo: MEMBER }))).toEqual({});
+    expect(await actions.assignJobAction(ID, {}, form({ assignedTo: MEMBER }))).toEqual({ ok: true });
     expect(jobs.assignJob).toHaveBeenCalledWith(ID, MEMBER, "owner@example.com");
   });
 
   it("treats an unchanged assignment as a success", async () => {
     jobs.assignJob.mockResolvedValue("unchanged");
-    expect(await actions.assignJobAction(ID, {}, form({ assignedTo: MEMBER }))).toEqual({});
+    expect(await actions.assignJobAction(ID, {}, form({ assignedTo: MEMBER }))).toEqual({ ok: true });
   });
 
   it("explains a removed person and a missing job", async () => {

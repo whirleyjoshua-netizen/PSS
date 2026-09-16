@@ -184,7 +184,7 @@ export async function assignJobAction(id: string, _prev: FormState, formData: Fo
   if (result === "missing") return MISSING;
   if (result === "unknown-member") return { error: "That person is no longer on the team." };
   refresh(id);
-  return {};
+  return { ok: true };
 }
 
 export async function payReferral(

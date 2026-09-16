@@ -21,8 +21,10 @@ export function AssignControl({ jobId, assignedTo, team }: {
   return (
     <form action={action} className="flex flex-wrap items-center gap-2 text-sm">
       <label htmlFor={id} className="text-ink-soft">Assigned to</label>
-      {/* Remount on every save so the select shows the server's answer: the new
-          person after a success, the unchanged one after a failed attempt. */}
+      {/* React already restores the select to the server value after the action
+          settles; this key makes that reset explicit rather than incidental (and
+          guards a future change to SubmitOnChange). No test can fail if the
+          state.error term is removed. */}
       <SubmitOnChange
         key={`${assignedTo ?? "none"}:${state.error ?? ""}`}
         id={id}
