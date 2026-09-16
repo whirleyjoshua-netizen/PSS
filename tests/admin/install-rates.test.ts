@@ -52,6 +52,13 @@ describe("saveInstallRates", () => {
     expect(statements.some((s) => s.includes("update install_settings"))).toBe(true);
   });
 
+  it("stores who saved the rates on the settings row", async () => {
+    await rates.saveInstallRates([], { minimumCents: 0, hardSurfaceCents: 0, highLadderCents: 0, motorizedCents: 0 }, "owner@example.com");
+    const update = sql.mock.calls.find((call) => text(call).includes("update install_settings"));
+    expect(update && text(update)).toContain("updated_by");
+    expect(update?.slice(1)).toContain("owner@example.com");
+  });
+
   it("writes no job event, because rates belong to the business rather than to one job", async () => {
     await rates.saveInstallRates([], { minimumCents: 0, hardSurfaceCents: 0, highLadderCents: 0, motorizedCents: 0 }, "owner@example.com");
     expect(sql.mock.calls.map(text).some((s) => s.includes("insert into job_events"))).toBe(false);

@@ -29,6 +29,8 @@ create table if not exists install_settings (
   constraint install_settings_single check (id)
 );
 
+alter table install_settings add column if not exists updated_by text;
+
 insert into install_settings (id) values (true) on conflict (id) do nothing;
 
 create table if not exists install_quotes (

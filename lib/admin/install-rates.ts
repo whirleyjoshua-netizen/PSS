@@ -30,7 +30,7 @@ export async function getInstallSettings(): Promise<InstallSettings> {
   };
 }
 
-/** `actor` is recorded on the settings row so a rate change has an author. */
+/** `actor` is stored on the settings row as `updated_by`, so the last rate change has an author. */
 export async function saveInstallRates(
   rates: InstallRate[],
   settings: InstallSettings,
@@ -47,7 +47,7 @@ export async function saveInstallRates(
       hard_surface_cents = ${settings.hardSurfaceCents},
       high_ladder_cents = ${settings.highLadderCents},
       motorized_cents = ${settings.motorizedCents},
+      updated_by = ${actor},
       updated_at = now()
     where id = true`;
-  console.info(`Installation rates updated by ${actor}`);
 }
