@@ -11,6 +11,8 @@ import { dollarsToCents } from "./money";
 import { fromLocalInput } from "./time";
 import { APPOINTMENT_KINDS, type AppointmentKind } from "./appointment-kinds";
 import { TEAM_ROLES, type TeamRole } from "./team-roles";
+import { INSTALLABLE_TREATMENTS, INSTALL_BASES } from "@/lib/admin/install-pricing";
+import type { TreatmentType } from "@/lib/leads/treatment-types";
 
 export const BRANDS = ["Superior Blinds MFG", "Alta Window Fashions", "Hunter Douglas"] as const;
 export const HAND_SOURCES = ["phone", "referral", "walk-in", "other"] as const;
@@ -226,6 +228,28 @@ const TEAM_ROLE_VALUES = TEAM_ROLES.map((role) => role.value) as [TeamRole, ...T
 export const teamMemberSchema = z.object({
   name: z.string().trim().min(1, "Enter a name").max(60, "Keep the name under 60 characters"),
   role: z.enum(TEAM_ROLE_VALUES, { error: "Pick Designer or Installer" }),
+});
+
+/** A money field on the installation rates form. Blank counts as zero, not as "unset". */
+const rateAmount = z
+  .string()
+  .trim()
+  .transform((value) => (value === "" ? "0" : value))
+  .refine((value) => /^\d+(\.\d{1,2})?$/.test(value), "Enter an amount like 25 or 25.00")
+  .transform((value) => Math.round(Number(value) * 100))
+  .refine((cents) => cents <= 2_147_483_647, "Enter an amount under $21,474,836");
+
+export const installRateSchema = z.object({
+  treatment: z.enum(INSTALLABLE_TREATMENTS as [TreatmentType, ...TreatmentType[]]),
+  basis: z.enum(INSTALL_BASES),
+  rateCents: rateAmount,
+});
+
+export const installSettingsSchema = z.object({
+  minimumCents: rateAmount,
+  hardSurfaceCents: rateAmount,
+  highLadderCents: rateAmount,
+  motorizedCents: rateAmount,
 });
 
 export type MeasurementInput = z.output<typeof measurementSchema>;

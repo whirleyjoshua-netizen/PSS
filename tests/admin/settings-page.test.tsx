@@ -13,9 +13,15 @@ vi.mock("@/lib/calendar/store", () => ({ getSyncState }));
 const listTeam = vi.fn();
 vi.mock("@/lib/admin/team", () => ({ listTeam }));
 
+vi.mock("@/lib/admin/install-rates", () => ({
+  listInstallRates: vi.fn(async () => []),
+  getInstallSettings: vi.fn(async () => ({ minimumCents: 0, hardSurfaceCents: 0, highLadderCents: 0, motorizedCents: 0 })),
+}));
+
 vi.mock("@/app/admin/settings/actions", () => ({
   addMember: vi.fn(async () => ({})),
   removeMember: vi.fn(),
+  saveInstallRatesAction: vi.fn(async () => ({})),
 }));
 
 const { default: SettingsPage } = await import("@/app/admin/settings/page");
@@ -122,5 +128,13 @@ describe("team section", () => {
     expect(screen.getAllByRole("button", { name: /^Remove / })).toHaveLength(2);
     expect(screen.getByRole("button", { name: "Remove Shade" })).toBeInTheDocument();
     expect(team).toHaveTextContent("Removing someone leaves their jobs unassigned.");
+  });
+});
+
+describe("installation rates section", () => {
+  it("renders the installation rates section", async () => {
+    calendarEnabled.mockReturnValue(false);
+    render(await SettingsPage());
+    expect(screen.getByRole("region", { name: "Installation rates" })).toBeInTheDocument();
   });
 });
