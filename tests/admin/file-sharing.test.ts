@@ -7,7 +7,7 @@ const requireAdmin = vi.fn();
 vi.mock("@/lib/admin/session", () => ({ requireAdmin }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
-const { listSharedPhotos, setShared, toFile } = await import("@/lib/admin/files");
+const { listSharedDocuments, listSharedPhotos, setDocType, setShared, toFile } = await import("@/lib/admin/files");
 const actions = await import("@/app/admin/jobs/measure-actions");
 
 const JOB = "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c";
@@ -24,27 +24,53 @@ describe("toFile", () => {
     expect(toFile({ id: FILE, shared_at: "2026-09-13T10:00:00Z", size_bytes: "5" }).sharedAt).toEqual(new Date("2026-09-13T10:00:00Z"));
     expect(toFile({ id: FILE, size_bytes: "5" }).sharedAt).toBeNull();
   });
+
+  it("maps doc_type, and a missing column to null", () => {
+    expect(toFile({ id: FILE, doc_type: "quote", size_bytes: "5" }).docType).toBe("quote");
+    expect(toFile({ id: FILE, size_bytes: "5" }).docType).toBeNull();
+  });
 });
 
 describe("setShared", () => {
-  it("shares only a photo on that job, logging it in the same statement", async () => {
+  it("shares a photo or a document on that job, logging it in the same statement", async () => {
     sql.mockResolvedValue([{ lead_id: JOB }]);
     expect(await setShared(JOB, FILE, true, "owner@example.com")).toBe(true);
 
     const call = sql.mock.calls[0];
     expect(text(call)).toContain("update job_files");
-    expect(text(call)).toContain("kind = 'photo'");
+    expect(text(call)).toContain("kind in ('photo','document')");
     expect(text(call)).toContain("insert into job_events");
-    expect(call).toEqual(expect.arrayContaining([JOB, FILE, true, "owner@example.com", "Shared photo ", " with customer"]));
+    expect(call).toEqual(expect.arrayContaining([JOB, FILE, true, "owner@example.com"]));
   });
 
-  it("logs stopping, with its own wording", async () => {
+  it("keeps the lead_id guard, so one job's file cannot be shared onto another", async () => {
+    sql.mockResolvedValue([]);
+    expect(await setShared(JOB, FILE, true, "owner@example.com")).toBe(false);
+    const call = sql.mock.calls[0];
+    expect(text(call)).toContain("where id = ? and lead_id = ?");
+    // The job id is bound immediately after the file id, so the guard compares
+    // lead_id against this job and not some value the caller controls.
+    expect(call.indexOf(JOB)).toBe(call.indexOf(FILE) + 1);
+  });
+
+  it("names the file in the log without calling a document a photo", async () => {
+    sql.mockResolvedValue([{ lead_id: JOB }]);
+    await setShared(JOB, FILE, true, "owner@example.com");
+    const call = sql.mock.calls[0];
+    expect(text(call)).toContain("|| name ||");
+    expect(call).toEqual(expect.arrayContaining(["Shared ", " with customer"]));
+    expect(call).not.toContain("Shared photo ");
+  });
+
+  it("logs stopping, with its own wording, and clears shared_at", async () => {
     sql.mockResolvedValue([{ lead_id: JOB }]);
     await setShared(JOB, FILE, false, "owner@example.com");
-    expect(sql.mock.calls[0]).toEqual(expect.arrayContaining([false, "Stopped sharing photo ", ""]));
+    expect(text(sql.mock.calls[0])).toContain("else null end");
+    expect(sql.mock.calls[0]).toEqual(expect.arrayContaining([false, "Stopped sharing ", ""]));
+    expect(sql.mock.calls[0]).not.toContain("Stopped sharing photo ");
   });
 
-  it("returns false for a document, another job's file, or a bad id", async () => {
+  it("returns false for another job's file, or a bad id", async () => {
     expect(await setShared(JOB, FILE, true, "owner@example.com")).toBe(false);
     expect(await setShared(JOB, "nope", true, "owner@example.com")).toBe(false);
   });
@@ -62,6 +88,53 @@ describe("listSharedPhotos", () => {
 
   it("returns nothing for a bad id without querying", async () => {
     expect(await listSharedPhotos("nope")).toEqual([]);
+    expect(sql).not.toHaveBeenCalled();
+  });
+});
+
+describe("setDocType", () => {
+  it("labels the file on that job and logs it, without touching shared_at", async () => {
+    sql.mockResolvedValue([{ lead_id: JOB }]);
+    expect(await setDocType(JOB, FILE, "quote", "owner@example.com")).toBe(true);
+
+    const call = sql.mock.calls[0];
+    expect(text(call)).toContain("update job_files");
+    expect(text(call)).toContain("doc_type =");
+    expect(text(call)).toContain("where id = ? and lead_id = ?");
+    expect(text(call)).toContain("insert into job_events");
+    expect(text(call)).not.toContain("shared_at");
+    expect(call).toEqual(expect.arrayContaining([JOB, FILE, "quote", "owner@example.com"]));
+  });
+
+  it("clears the label", async () => {
+    sql.mockResolvedValue([{ lead_id: JOB }]);
+    expect(await setDocType(JOB, FILE, null, "owner@example.com")).toBe(true);
+    expect(sql.mock.calls[0]).toContain(null);
+    expect(text(sql.mock.calls[0])).not.toContain("shared_at");
+  });
+
+  it("returns false when nothing matched, or for a bad id without querying", async () => {
+    sql.mockResolvedValue([]);
+    expect(await setDocType(JOB, FILE, "po", "owner@example.com")).toBe(false);
+    sql.mockClear();
+    expect(await setDocType(JOB, "nope", "po", "owner@example.com")).toBe(false);
+    expect(await setDocType("nope", FILE, "po", "owner@example.com")).toBe(false);
+    expect(sql).not.toHaveBeenCalled();
+  });
+});
+
+describe("listSharedDocuments", () => {
+  it("returns only shared documents for the job, newest first", async () => {
+    await listSharedDocuments(JOB);
+    const t = text(sql.mock.calls[0]);
+    expect(t).toContain("kind = 'document'");
+    expect(t).toContain("shared_at is not null");
+    expect(t).toContain("order by created_at desc");
+    expect(sql.mock.calls[0]).toContain(JOB);
+  });
+
+  it("returns nothing for a bad id without querying", async () => {
+    expect(await listSharedDocuments("nope")).toEqual([]);
     expect(sql).not.toHaveBeenCalled();
   });
 });
