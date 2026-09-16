@@ -136,7 +136,10 @@ describe("calendar store", () => {
     sql.mockResolvedValue([{ id: ID }]);
     expect(await store.reconcileTargets()).toEqual([ID]);
     const q = flat(sql.mock.calls[0]);
-    expect(q).toMatch(/select lead_id from appointments where starts_at >= now\(\) - interval '30 days'/);
+    expect(q).toMatch(/select a\.lead_id as id from appointments a join leads l on l\.id = a\.lead_id/);
+    // Only confirmed appointments on live jobs: an unconfirmed one reaches no calendar, so syncing it is work for nothing.
+    expect(q).toMatch(/a\.confirmed_at is not null and l\.status <> 'lost'/);
+    expect(q).toMatch(/a\.starts_at >= now\(\) - interval '30 days'/);
     expect(q).toMatch(/join leads l on l\.id = e\.lead_id/);
     expect(q).toMatch(/l\.status = 'lost'/);
   });

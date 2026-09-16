@@ -118,9 +118,19 @@ export async function reconcileJob(leadId: string, pushKinds: readonly Kind[] = 
       continue;
     }
 
-    if (!sameValue(allDay, trackerValue(allDay, event), wanted)) {
+    // newEventBody sets the subject only at create, so an event synced under older wording would keep
+    // it forever. An event whose subject Graph did not return is left alone: unknown is not stale.
+    const subject = job ? `${kindLabel(kind)} · ${job.name}` : null;
+    const staleSubject = subject !== null && event.subject !== undefined && event.subject !== subject;
+    const moved = !sameValue(allDay, trackerValue(allDay, event), wanted);
+
+    if (moved || staleSubject) {
+      const body = {
+        ...(moved ? movedTimes(allDay, wanted, event) : {}),
+        ...(staleSubject ? { subject } : {}),
+      };
       const patched = await expectOk(
-        await graphFetch(eventPath, { method: "PATCH", body: movedTimes(allDay, wanted, event) }), "update",
+        await graphFetch(eventPath, { method: "PATCH", body }), "update",
       );
       const { changeKey } = (await patched.json()) as { changeKey: string };
       await store.saveLink({ ...link, changeKey });

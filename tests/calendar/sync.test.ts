@@ -350,3 +350,33 @@ describe("a moved install", () => {
     expect(graphFetch.mock.calls[1][1].body).toMatchObject({ isAllDay: true, start: { dateTime: "2026-10-03T00:00:00" } });
   });
 });
+
+describe("a subject Outlook still shows under older wording", () => {
+  beforeEach(() => { store.getLinks.mockResolvedValue([link]); });
+
+  it("patches the subject back to the kind's label, times unchanged", async () => {
+    graphFetch.mockResolvedValueOnce(Response.json(event({ subject: "Visit · Dana Reyes" })))
+      .mockResolvedValueOnce(Response.json({ id: "e1", changeKey: "ck2" }));
+    await sync.syncJobCalendar(ID);
+    expect(calls()).toEqual(["GET users/jobs@example.com/events/e1", "PATCH users/jobs@example.com/events/e1"]);
+    expect(graphFetch.mock.calls[1][1].body).toEqual({ subject: "Consultation · Dana Reyes" });
+    expect(store.saveLink).toHaveBeenCalledWith({ ...link, changeKey: "ck2" });
+  });
+
+  it("corrects the subject in the same PATCH that moves the time", async () => {
+    store.getCalendarJob.mockResolvedValue(jobWith(appt("consultation", new Date("2026-09-21T16:00:00Z"))));
+    graphFetch.mockResolvedValueOnce(Response.json(event({ subject: "Visit · Dana Reyes" })))
+      .mockResolvedValueOnce(Response.json({ id: "e1", changeKey: "ck2" }));
+    await sync.syncJobCalendar(ID);
+    expect(calls().filter((c) => c.startsWith("PATCH"))).toHaveLength(1);
+    expect(graphFetch.mock.calls[1][1].body.subject).toBe("Consultation · Dana Reyes");
+    expect(graphFetch.mock.calls[1][1].body.start.dateTime).toBe("2026-09-21T09:00:00");
+  });
+
+  it("sends no PATCH when the subject already matches", async () => {
+    graphFetch.mockResolvedValueOnce(Response.json(event({ subject: "Consultation · Dana Reyes" })));
+    await sync.syncJobCalendar(ID);
+    expect(calls()).toEqual(["GET users/jobs@example.com/events/e1"]);
+    expect(store.saveLink).not.toHaveBeenCalled();
+  });
+});

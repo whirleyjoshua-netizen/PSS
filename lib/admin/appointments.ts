@@ -24,7 +24,7 @@ function toAppointment(row: Record<string, unknown>): Appointment {
     kind: row.kind as AppointmentKind,
     startsAt: new Date(row.starts_at as string | Date),
     allDay: row.all_day === true,
-    confirmedAt: row.confirmed_at ? new Date(row.confirmed_at as string) : null,
+    confirmedAt: row.confirmed_at ? new Date(row.confirmed_at as string | Date) : null,
     confirmedBy: (row.confirmed_by as string | null) ?? null,
   };
 }

@@ -155,7 +155,9 @@ export async function reconcileTargets(): Promise<string[]> {
      where status <> 'lost'
        and (visit_at >= now() - interval '30 days' or install_on >= current_date - 30)
     union
-    select lead_id from appointments where starts_at >= now() - interval '30 days'
+    select a.lead_id as id from appointments a join leads l on l.id = a.lead_id
+     where a.confirmed_at is not null and l.status <> 'lost'
+       and a.starts_at >= now() - interval '30 days'
     union
     select e.lead_id as id from job_calendar_events e join leads l on l.id = e.lead_id
      where l.status = 'lost'
