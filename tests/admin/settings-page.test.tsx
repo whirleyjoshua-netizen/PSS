@@ -13,9 +13,13 @@ vi.mock("@/lib/calendar/store", () => ({ getSyncState }));
 const listTeam = vi.fn();
 vi.mock("@/lib/admin/team", () => ({ listTeam }));
 
+const ROUTE_DEFAULTS = { dayStart: "09:00", dayEnd: "18:00", minutes: { consultation: 60, measure: 60, install: 240, service: 90 } };
+vi.mock("@/lib/routes/settings", () => ({ getRouteSettings: vi.fn(async () => ROUTE_DEFAULTS) }));
+
 vi.mock("@/app/admin/settings/actions", () => ({
   addMember: vi.fn(async () => ({})),
   removeMember: vi.fn(),
+  saveRouteSettingsAction: vi.fn(async () => ({})),
 }));
 
 const { default: SettingsPage } = await import("@/app/admin/settings/page");
@@ -122,5 +126,14 @@ describe("team section", () => {
     expect(screen.getAllByRole("button", { name: /^Remove / })).toHaveLength(2);
     expect(screen.getByRole("button", { name: "Remove Shade" })).toBeInTheDocument();
     expect(team).toHaveTextContent("Removing someone leaves their jobs unassigned.");
+  });
+});
+
+describe("routes section", () => {
+  it("shows the saved working day", async () => {
+    calendarEnabled.mockReturnValue(false);
+    render(await SettingsPage());
+    expect(screen.getByRole("heading", { name: "Routes" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Day ends")).toHaveValue("18:00");
   });
 });

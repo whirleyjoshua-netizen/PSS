@@ -232,3 +232,24 @@ export type MeasurementInput = z.output<typeof measurementSchema>;
 
 export type DetailsInput = z.output<typeof detailsSchema>;
 export type NewJobInput = z.output<typeof newJobSchema>;
+
+const CLOCK = /^([01]\d|2[0-3]):(00|30)$/;
+export const clockField = z.string().regex(CLOCK, "Pick a time");
+
+/** Hours in quarter steps, stored as minutes. */
+export const hoursField = z.coerce
+  .number({ error: "Enter the length in hours" })
+  .refine((h) => h >= 0.25 && h <= 12, "Lengths are between 0.25 and 12 hours")
+  .refine((h) => Number.isInteger(h * 4), "Use quarter hours")
+  .transform((h) => Math.round(h * 60));
+
+export const routeSettingsSchema = z
+  .object({
+    dayStart: clockField, dayEnd: clockField,
+    consultationHours: hoursField, measureHours: hoursField, installHours: hoursField, serviceHours: hoursField,
+  })
+  .refine((v) => v.dayStart < v.dayEnd, { message: "The day must end after it starts", path: ["dayEnd"] })
+  .transform((v) => ({
+    dayStart: v.dayStart, dayEnd: v.dayEnd,
+    minutes: { consultation: v.consultationHours, measure: v.measureHours, install: v.installHours, service: v.serviceHours },
+  }));

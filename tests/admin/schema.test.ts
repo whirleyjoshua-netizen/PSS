@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { appointmentSchema, detailsSchema, newJobSchema, noteSchema, lostSchema, teamMemberSchema } from "@/lib/admin/schema";
+import { appointmentSchema, detailsSchema, newJobSchema, noteSchema, lostSchema, routeSettingsSchema, teamMemberSchema } from "@/lib/admin/schema";
 import { APPOINTMENT_KINDS } from "@/lib/admin/appointment-kinds";
 import { TEAM_ROLES } from "@/lib/admin/team-roles";
 
@@ -141,5 +141,31 @@ describe("teamMemberSchema", () => {
       expect(teamMemberSchema.safeParse({ name: "Shade", role: role.value }).success).toBe(true);
     }
     expect(teamMemberSchema.safeParse({ name: "Shade", role: "owner" }).success).toBe(false);
+  });
+});
+
+describe("routeSettingsSchema", () => {
+  const form = { dayStart: "09:00", dayEnd: "18:00", consultationHours: "1", measureHours: "1", installHours: "4", serviceHours: "1.5" };
+  const message = (input: Record<string, string>) => routeSettingsSchema.safeParse(input).error?.issues[0].message;
+
+  it("turns hours into minutes", () => {
+    expect(routeSettingsSchema.parse(form)).toEqual({
+      dayStart: "09:00", dayEnd: "18:00",
+      minutes: { consultation: 60, measure: 60, install: 240, service: 90 },
+    });
+  });
+
+  it("rejects a day that ends before it starts", () => {
+    expect(message({ ...form, dayStart: "18:00", dayEnd: "09:00" })).toBe("The day must end after it starts");
+  });
+
+  it("keeps lengths between a quarter hour and 12 hours, in quarter steps", () => {
+    expect(message({ ...form, installHours: "0.1" })).toBe("Lengths are between 0.25 and 12 hours");
+    expect(message({ ...form, installHours: "12.25" })).toBe("Lengths are between 0.25 and 12 hours");
+    expect(message({ ...form, installHours: "1.3" })).toBe("Use quarter hours");
+  });
+
+  it("only accepts half-hour clock times", () => {
+    expect(message({ ...form, dayStart: "09:15" })).toBe("Pick a time");
   });
 });

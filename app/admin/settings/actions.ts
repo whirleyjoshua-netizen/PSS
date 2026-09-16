@@ -2,8 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/admin/session";
-import { teamMemberSchema } from "@/lib/admin/schema";
+import { routeSettingsSchema, teamMemberSchema } from "@/lib/admin/schema";
 import { addTeamMember, removeTeamMember } from "@/lib/admin/team";
+import { saveRouteSettings } from "@/lib/routes/settings";
 
 export type TeamFormState = { error?: string; ok?: boolean; name?: string };
 
@@ -28,4 +29,21 @@ export async function removeMember(id: string): Promise<void> {
   await requireAdmin();
   await removeTeamMember(id);
   refresh();
+}
+
+export type RouteSettingsState = { error?: string; ok?: boolean };
+
+export async function saveRouteSettingsAction(_prev: RouteSettingsState, formData: FormData): Promise<RouteSettingsState> {
+  await requireAdmin();
+  const parsed = routeSettingsSchema.safeParse({
+    dayStart: formData.get("dayStart"), dayEnd: formData.get("dayEnd"),
+    consultationHours: formData.get("consultationHours"), measureHours: formData.get("measureHours"),
+    installHours: formData.get("installHours"), serviceHours: formData.get("serviceHours"),
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  await saveRouteSettings(parsed.data);
+  revalidatePath("/admin/settings");
+  // The schedule plans routes with the working day and these lengths.
+  revalidatePath("/admin/schedule");
+  return { ok: true };
 }
