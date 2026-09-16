@@ -53,6 +53,16 @@ export async function loadDay(date: string): Promise<DayStop[]> {
   }));
 }
 
+/** The day's leads whose last geocode errored, for a build to retry. */
+export async function listGeocodeErrors(date: string): Promise<string[]> {
+  const { from, to } = dayBounds(date);
+  const rows = await db()`
+    select distinct l.id as lead_id
+      from appointments a join leads l on l.id = a.lead_id
+     where l.geocode_status = 'error' and l.status <> 'lost' and a.starts_at >= ${from} and a.starts_at < ${to}`;
+  return rows.map((r) => r.lead_id as string);
+}
+
 export async function listInstallers(): Promise<Installer[]> {
   const rows = await db()`select id, name from team_members where role = 'installer' order by lower(name), created_at`;
   return rows.map((r) => ({ id: r.id as string, name: r.name as string }));

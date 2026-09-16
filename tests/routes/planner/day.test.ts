@@ -7,7 +7,7 @@ vi.mock("@/lib/routes/settings", async () => {
   const actual = await vi.importActual<typeof import("@/lib/routes/settings")>("@/lib/routes/settings");
   return { ...actual, getRouteSettings: async () => actual.DEFAULT_ROUTE_SETTINGS };
 });
-const { isRouteDay, loadDay, listInstallers, loadSavedPlan, saveRoutePlan, routeNotes, DIDNT_FIT_REASON } =
+const { isRouteDay, loadDay, listGeocodeErrors, listInstallers, loadSavedPlan, saveRoutePlan, routeNotes, DIDNT_FIT_REASON } =
   await import("@/lib/routes/day");
 
 const text = (call: unknown[]) => (call[0] as TemplateStringsArray).join("?").replace(/\s+/g, " ");
@@ -71,6 +71,19 @@ describe("loadDay", () => {
     sql.mockResolvedValue([row({ geocode_status: "error" })]);
     await loadDay(D);
     expect(sql).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("listGeocodeErrors", () => {
+  it("lists the day's leads whose geocode errored, once each", async () => {
+    sql.mockResolvedValue([{ lead_id: "L1" }]);
+    expect(await listGeocodeErrors(D)).toEqual(["L1"]);
+    const q = text(sql.mock.calls[0]);
+    expect(q).toContain("select distinct l.id as lead_id");
+    expect(q).toContain("l.geocode_status = 'error'");
+    expect(q).toContain("l.status <> 'lost'");
+    expect(q).toContain("a.starts_at >= ? and a.starts_at < ?");
+    expect((sql.mock.calls[0][1] as Date).toISOString()).toBe("2026-09-24T07:00:00.000Z");
   });
 });
 
