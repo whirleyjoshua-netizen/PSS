@@ -1,6 +1,8 @@
 import { fromLocalInput, toLocalInput } from "@/lib/admin/time";
+import { kindLabel, type AppointmentKind } from "@/lib/admin/appointment-kinds";
 
-export type Kind = "visit" | "install";
+/** One Outlook event per appointment kind; the kinds are the appointment kinds. */
+export type Kind = AppointmentKind;
 type GraphTime = { dateTime: string; timeZone: string };
 export type GraphEvent = {
   id: string;
@@ -46,7 +48,13 @@ export type EventBody = {
   body: { contentType: "text"; content: string };
 };
 
-export function newEventBody(kind: Kind, job: EventJob, value: Date | string, jobUrl: string): EventBody {
+/**
+ * The Graph body for a new appointment's event. `allDay` decides the shape — a whole day, or one
+ * hour from `value` — so any kind can be booked either way; the kind only names it.
+ */
+export function newEventBody(
+  kind: Kind, job: EventJob, value: Date | string, jobUrl: string, allDay: boolean,
+): EventBody {
   const lines = [
     `Phone: ${formatPhone(job.phone)}`,
     job.email ? `Email: ${job.email}` : null,
@@ -54,24 +62,23 @@ export function newEventBody(kind: Kind, job: EventJob, value: Date | string, jo
     "",
     `Open the job: ${jobUrl}`,
   ].filter((line) => line !== null);
-  const timing =
-    kind === "visit"
-      ? { isAllDay: false, start: local(value as Date), end: local(new Date((value as Date).getTime() + HOUR)) }
-      : { isAllDay: true, start: midnight(value as string), end: midnight(nextDay(value as string)) };
+  const timing = allDay
+    ? { isAllDay: true, start: midnight(value as string), end: midnight(nextDay(value as string)) }
+    : { isAllDay: false, start: local(value as Date), end: local(new Date((value as Date).getTime() + HOUR)) };
   return {
-    subject: `${kind === "visit" ? "Visit" : "Install"} · ${job.name}`,
+    subject: `${kindLabel(kind)} · ${job.name}`,
     ...timing,
     location: { displayName: job.address ? `${job.address}, ${job.city}` : job.city },
     body: { contentType: "text", content: lines.join("\n") },
   };
 }
 
-/** New start and end for a date moved in the tracker. A visit keeps its current length in Outlook. */
+/** New start and end for a date moved in the tracker. A timed one keeps its current length in Outlook. */
 export function movedTimes(
-  kind: Kind, value: Date | string, current: GraphEvent,
+  allDay: boolean, value: Date | string, current: GraphEvent,
 ): { isAllDay: boolean; start: GraphTime; end: GraphTime } {
   // isAllDay is always sent, so an event someone changed in Outlook comes back to the right shape.
-  if (kind === "install") {
+  if (allDay) {
     return { isAllDay: true, start: midnight(value as string), end: midnight(nextDay(value as string)) };
   }
   const length = current.isAllDay ? 0 : instantOf(current.end).getTime() - instantOf(current.start).getTime();
@@ -79,13 +86,13 @@ export function movedTimes(
   return { isAllDay: false, start: local(start), end: local(new Date(start.getTime() + (length > 0 ? length : HOUR))) };
 }
 
-/** The tracker value an Outlook event implies: an instant for a visit, a date for an install. */
-export function trackerValue(kind: Kind, event: GraphEvent): Date | string {
-  return kind === "visit" ? instantOf(event.start) : event.start.dateTime.slice(0, 10);
+/** The value an Outlook event implies: a date for an all-day appointment, otherwise an instant. */
+export function trackerValue(allDay: boolean, event: GraphEvent): Date | string {
+  return allDay ? event.start.dateTime.slice(0, 10) : instantOf(event.start);
 }
 
-export function sameValue(kind: Kind, a: Date | string | null, b: Date | string | null): boolean {
+export function sameValue(allDay: boolean, a: Date | string | null, b: Date | string | null): boolean {
   if (a === null || b === null) return a === b;
-  if (kind === "install") return a === b;
+  if (allDay) return a === b;
   return Math.floor((a as Date).getTime() / 60_000) === Math.floor((b as Date).getTime() / 60_000);
 }

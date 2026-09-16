@@ -3,12 +3,12 @@ import { db } from "@/lib/db";
 import { fromLocalInput, lasVegasDate } from "@/lib/admin/time";
 import type { Stage } from "@/lib/admin/stages";
 import { calendarConfig, calendarEnabled } from "./config";
-import { nextDay, type GraphEvent } from "./events";
+import { nextDay, type GraphEvent, type Kind } from "./events";
 import { graphJson } from "./graph";
 
 export type ScheduleItem = {
   key: string; day: string; allDay: boolean; start: Date | null; end: Date | null; title: string;
-  job: { id: string; name: string; city: string; status: Stage; kind: "visit" | "install" } | null;
+  job: { id: string; name: string; city: string; status: Stage; kind: Kind } | null;
 };
 export type Week = { days: string[]; items: ScheduleItem[]; source: "outlook" | "tracker"; notice: string | null };
 
@@ -74,8 +74,8 @@ async function trackerItems(days: string[], from: Date, to: Date): Promise<Sched
     const base = { id: row.id as string, name: row.name as string, city: row.city as string, status: row.status as Stage };
     const visit = row.visit_at ? new Date(row.visit_at as string) : null;
     if (visit && visit >= from && visit < to) {
-      items.push({ key: `${base.id}:visit`, day: lasVegasDate(visit), allDay: false, start: visit,
-        end: new Date(visit.getTime() + 3_600_000), title: `Visit · ${base.name}`, job: { ...base, kind: "visit" } });
+      items.push({ key: `${base.id}:consultation`, day: lasVegasDate(visit), allDay: false, start: visit,
+        end: new Date(visit.getTime() + 3_600_000), title: `Consultation · ${base.name}`, job: { ...base, kind: "consultation" } });
     }
     const install = row.install_on as string | null;
     if (install && install >= first && install <= last) {
@@ -122,7 +122,7 @@ async function loadRange(days: string[]): Promise<{ items: ScheduleItem[]; sourc
         end: allDay ? null : fromLocalInput(event.end.dateTime.slice(0, 16)),
         title: event.subject || "(no title)",
         job: link ? { id: link.id as string, name: link.name as string, city: link.city as string,
-          status: link.status as Stage, kind: link.kind as "visit" | "install" } : null,
+          status: link.status as Stage, kind: link.kind as Kind } : null,
       };
       return coveredDays(event, days).map((day) => ({ key: `${event.id}:${day}`, day, ...base }));
     });

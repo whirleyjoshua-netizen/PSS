@@ -62,7 +62,7 @@ describe("logCallAction", () => {
     await expect(logCallAction(JOB, {}, form([["outcome", "booked"], ["visitAt", "2026-09-20T10:00"]])))
       .rejects.toThrow("NEXT_REDIRECT");
     await runAfter();
-    expect(syncJobCalendar).toHaveBeenCalledWith(JOB, ["visit"]);
+    expect(syncJobCalendar).toHaveBeenCalledWith(JOB, ["consultation"]);
   });
 
   it("syncs without pushing after any other outcome", async () => {
@@ -112,10 +112,10 @@ describe("callDaySchedule", () => {
       source: "tracker",
       notice: null,
       items: [
-        { key: `${JOB}:visit`, day: "2026-09-20", allDay: false, start: new Date("2026-09-20T17:00:00Z"),
-          end: new Date("2026-09-20T18:00:00Z"), title: "Visit · This Job", job: { id: JOB, name: "This Job", city: "Reno", status: "visit_booked", kind: "visit" } },
-        { key: "other:visit", day: "2026-09-20", allDay: false, start: new Date("2026-09-20T20:00:00Z"),
-          end: new Date("2026-09-20T21:00:00Z"), title: "Visit · Other Job", job: { id: "other", name: "Other Job", city: "Reno", status: "visit_booked", kind: "visit" } },
+        { key: `${JOB}:consultation`, day: "2026-09-20", allDay: false, start: new Date("2026-09-20T17:00:00Z"),
+          end: new Date("2026-09-20T18:00:00Z"), title: "Consultation · This Job", job: { id: JOB, name: "This Job", city: "Reno", status: "visit_booked", kind: "consultation" } },
+        { key: "other:consultation", day: "2026-09-20", allDay: false, start: new Date("2026-09-20T20:00:00Z"),
+          end: new Date("2026-09-20T21:00:00Z"), title: "Consultation · Other Job", job: { id: "other", name: "Other Job", city: "Reno", status: "visit_booked", kind: "consultation" } },
       ],
     });
     const result = await callDaySchedule(JOB, "2026-09-20");
@@ -123,7 +123,7 @@ describe("callDaySchedule", () => {
       ok: true,
       notice: null,
       items: [
-        { key: "other:visit", allDay: false, start: "2026-09-20T20:00:00.000Z", end: "2026-09-20T21:00:00.000Z", title: "Visit · Other Job" },
+        { key: "other:consultation", allDay: false, start: "2026-09-20T20:00:00.000Z", end: "2026-09-20T21:00:00.000Z", title: "Consultation · Other Job" },
       ],
     });
   });

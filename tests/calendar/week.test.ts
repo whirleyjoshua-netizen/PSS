@@ -177,7 +177,7 @@ describe("getWeek", () => {
     expect(result.source).toBe("tracker");
     expect(result.notice).toBe("Outlook isn't connected yet.");
     expect(result.items).toEqual([
-      expect.objectContaining({ day: "2026-09-17", allDay: false, job: expect.objectContaining({ id: ID, kind: "visit" }) }),
+      expect.objectContaining({ day: "2026-09-17", allDay: false, job: expect.objectContaining({ id: ID, kind: "consultation" }) }),
       expect.objectContaining({ day: "2026-09-19", allDay: true, job: expect.objectContaining({ kind: "install" }) }),
     ]);
   });
@@ -185,19 +185,19 @@ describe("getWeek", () => {
   it("merges Outlook events with their jobs, and greys the rest", async () => {
     enabled.mockReturnValue(true);
     graphJson.mockResolvedValue({ value: [
-      { id: "e1", changeKey: "c", subject: "Visit · Dana Reyes", isAllDay: false,
+      { id: "e1", changeKey: "c", subject: "Consultation · Dana Reyes", isAllDay: false,
         start: { dateTime: "2026-09-17T10:00:00.0000000", timeZone: PST }, end: { dateTime: "2026-09-17T11:00:00.0000000", timeZone: PST } },
       { id: "e2", changeKey: "c", subject: "Dentist", isAllDay: false,
         start: { dateTime: "2026-09-17T08:00:00.0000000", timeZone: PST }, end: { dateTime: "2026-09-17T09:00:00.0000000", timeZone: PST } },
     ] });
     sql.mockResolvedValueOnce([]) // tracker rows
-      .mockResolvedValueOnce([{ event_id: "e1", kind: "visit", id: ID, name: "Dana Reyes", city: "Henderson", status: "visit_booked" }]);
+      .mockResolvedValueOnce([{ event_id: "e1", kind: "consultation", id: ID, name: "Dana Reyes", city: "Henderson", status: "visit_booked" }]);
     const result = await week.getWeek(undefined, NOW);
     expect(result.source).toBe("outlook");
     expect(result.notice).toBeNull();
-    expect(result.items.map((i) => i.title)).toEqual(["Dentist", "Visit · Dana Reyes"]);
+    expect(result.items.map((i) => i.title)).toEqual(["Dentist", "Consultation · Dana Reyes"]);
     expect(result.items[0].job).toBeNull();
-    expect(result.items[1].job).toMatchObject({ id: ID, kind: "visit" });
+    expect(result.items[1].job).toMatchObject({ id: ID, kind: "consultation" });
     expect(result.items[1].start).toEqual(new Date("2026-09-17T17:00:00Z"));
     expect(String(graphJson.mock.calls[0][0])).toMatch(/^users\/jobs@example.com\/calendar\/calendarView\?startDateTime=2026-09-13T07:00:00.000Z&endDateTime=2026-09-20T07:00:00.000Z/);
   });

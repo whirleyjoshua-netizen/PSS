@@ -45,7 +45,7 @@ export async function logCallAction(jobId: string, _prev: FormState, formData: F
   if (!saved) return { error: "That job no longer exists." };
   // A booked call sets the visit, so the tracker wins for it; otherwise Outlook just stays in step.
   const booked = parsed.data.outcome === "booked";
-  after(() => syncJobCalendar(jobId, booked ? ["visit"] : []));
+  after(() => syncJobCalendar(jobId, booked ? ["consultation"] : []));
 
   revalidatePath("/admin");
   revalidatePath(`/admin/jobs/${jobId}`);
@@ -61,7 +61,7 @@ export async function callDaySchedule(jobId: string, date: string): Promise<DayS
   try {
     const day = await getDay(date);
     const items = day.items
-      .filter((item) => !(item.job?.id === jobId && item.job?.kind === "visit"))
+      .filter((item) => !(item.job?.id === jobId && item.job?.kind === "consultation"))
       .map((item) => ({
         key: item.key, allDay: item.allDay,
         start: item.start ? item.start.toISOString() : null,

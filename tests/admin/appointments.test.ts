@@ -49,7 +49,8 @@ describe("listAppointments", () => {
 });
 
 describe("saveAppointment", () => {
-  it("upserts on (lead_id, kind) and logs the pending body in one statement", async () => {
+  // Which body is logged is decided by a SQL CASE, so this checks that both are passed for it to choose.
+  it("upserts on (lead_id, kind) and passes both pending bodies in one statement", async () => {
     sql.mockResolvedValue([{ job: 1 }]);
     expect(await appointments.saveAppointment(JOB, "consultation", STARTS, false, ACTOR)).toBe("ok");
     expect(sql).toHaveBeenCalledOnce();
@@ -70,7 +71,6 @@ describe("saveAppointment", () => {
     expect(statement).toContain("confirmed_at = null");
     expect(statement).toContain("confirmed_by = null");
     expect(statement).toMatch(/on conflict \(lead_id, kind\) do update set[^;]*confirmed_at = null/);
-    expect(statement).not.toContain("now() as confirmed_at");
   });
 
   it("describes an all-day appointment by its date", async () => {

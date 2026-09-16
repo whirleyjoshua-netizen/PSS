@@ -20,16 +20,18 @@ vi.mock("@/lib/portal/login", () => ({ portalOrigin: () => "https://pss.example"
 const sync = await import("@/lib/calendar/sync");
 const ID = "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c";
 const PST = "Pacific Standard Time";
-const job = {
+const appt = (kind: string, startsAt: Date, allDay = false) => ({ kind, startsAt, allDay });
+const jobWith = (...appointments: ReturnType<typeof appt>[]) => ({
   id: ID, name: "Dana Reyes", phone: "7025550134", email: null, address: null, city: "Henderson", treatments: [],
-  status: "visit_booked", visitAt: new Date("2026-09-20T17:00:00Z"), installOn: null,
-};
+  status: "visit_booked", visitAt: null, installOn: null, appointments,
+});
+const job = jobWith(appt("consultation", new Date("2026-09-20T17:00:00Z")));
 const event = (over: Record<string, unknown> = {}) => ({
   id: "e1", changeKey: "ck1", isAllDay: false,
   start: { dateTime: "2026-09-20T10:00:00.0000000", timeZone: PST },
   end: { dateTime: "2026-09-20T11:00:00.0000000", timeZone: PST }, ...over,
 });
-const link = { leadId: ID, kind: "visit", eventId: "e1", changeKey: "ck1" };
+const link = { leadId: ID, kind: "consultation", eventId: "e1", changeKey: "ck1" };
 const calls = () => graphFetch.mock.calls.map(([path, init]) => `${init?.method ?? "GET"} ${path}`);
 
 beforeEach(() => {
@@ -49,16 +51,30 @@ afterEach(() => { vi.useRealTimers(); });
 describe("applyOutlookChange (Outlook wins when its changeKey moved)", () => {
   beforeEach(() => { store.getLinkByEvent.mockResolvedValue(link); store.getLinks.mockResolvedValue([link]); });
 
-  it("moves the job's visit to the time set in Outlook and logs it", async () => {
+  it("moves the job's consultation to the time set in Outlook and logs it", async () => {
     graphFetch.mockResolvedValueOnce(Response.json(event({
       changeKey: "ck2", start: { dateTime: "2026-09-22T14:00:00.0000000", timeZone: PST },
       end: { dateTime: "2026-09-22T15:00:00.0000000", timeZone: PST },
     })));
     await sync.applyOutlookChange("e1");
-    expect(store.setJobDate).toHaveBeenCalledWith(ID, "visit", new Date("2026-09-22T21:00:00Z"),
-      expect.stringMatching(/^Visit moved in Outlook to Tue, Sep 22/));
+    expect(store.setJobDate).toHaveBeenCalledWith(ID, "consultation", new Date("2026-09-22T21:00:00Z"),
+      expect.stringMatching(/^Consultation moved in Outlook to Tue, Sep 22/));
     expect(store.saveLink).toHaveBeenCalledWith({ ...link, changeKey: "ck2" });
     expect(calls()).not.toContain("PATCH users/jobs@example.com/events/e1");
+  });
+
+  it("applies an edit to a measure, because every linked kind is read back", async () => {
+    const measureLink = { ...link, kind: "measure", eventId: "e3" };
+    store.getLinkByEvent.mockResolvedValue(measureLink);
+    store.getLinks.mockResolvedValue([measureLink]);
+    store.getCalendarJob.mockResolvedValue(jobWith(appt("measure", new Date("2026-09-20T17:00:00Z"))));
+    graphFetch.mockResolvedValueOnce(Response.json(event({
+      id: "e3", changeKey: "ck2", start: { dateTime: "2026-09-22T14:00:00.0000000", timeZone: PST },
+      end: { dateTime: "2026-09-22T15:00:00.0000000", timeZone: PST },
+    })));
+    await sync.applyOutlookChange("e3");
+    expect(store.setJobDate).toHaveBeenCalledWith(ID, "measure", new Date("2026-09-22T21:00:00Z"),
+      expect.stringMatching(/^Measure moved in Outlook to Tue, Sep 22/));
   });
 
   it("ignores its own write echoing back (same changeKey)", async () => {
@@ -69,43 +85,43 @@ describe("applyOutlookChange (Outlook wins when its changeKey moved)", () => {
   });
 
   it("stores the new changeKey but keeps the date for a text-only edit", async () => {
-    graphFetch.mockResolvedValueOnce(Response.json(event({ changeKey: "ck3", subject: "Visit · Dana (gate code 1234)" })));
+    graphFetch.mockResolvedValueOnce(Response.json(event({ changeKey: "ck3", subject: "Consultation · Dana (gate code 1234)" })));
     await sync.applyOutlookChange("e1");
     expect(store.setJobDate).not.toHaveBeenCalled();
     expect(store.saveLink).toHaveBeenCalledWith({ ...link, changeKey: "ck3" });
   });
 
-  it("clears the visit when the event was deleted in Outlook", async () => {
+  it("clears the consultation when the event was deleted in Outlook", async () => {
     graphFetch.mockResolvedValueOnce(new Response(null, { status: 404 }));
     await sync.applyOutlookChange("e1");
-    expect(store.deleteLink).toHaveBeenCalledWith(ID, "visit", "e1");
-    expect(store.setJobDate).toHaveBeenCalledWith(ID, "visit", null, "Visit removed in Outlook");
+    expect(store.deleteLink).toHaveBeenCalledWith(ID, "consultation", "e1");
+    expect(store.setJobDate).toHaveBeenCalledWith(ID, "consultation", null, "Consultation removed in Outlook");
   });
 
-  it("keeps a past visit's date when Outlook no longer has its event, and only drops the link", async () => {
-    store.getCalendarJob.mockResolvedValue({ ...job, visitAt: new Date("2026-09-14T15:00:00Z") }); // 8 AM today
+  it("keeps a past timed appointment when Outlook no longer has its event, and only drops the link", async () => {
+    store.getCalendarJob.mockResolvedValue(jobWith(appt("consultation", new Date("2026-09-14T15:00:00Z")))); // 8 AM today
     graphFetch.mockResolvedValueOnce(new Response(null, { status: 404 }));
     await sync.applyOutlookChange("e1");
-    expect(store.deleteLink).toHaveBeenCalledWith(ID, "visit", "e1");
+    expect(store.deleteLink).toHaveBeenCalledWith(ID, "consultation", "e1");
     expect(store.setJobDate).not.toHaveBeenCalled();
   });
 
-  it("keeps a past install date (before today in Las Vegas) when its event is gone", async () => {
+  it("keeps a past all-day install (before today in Las Vegas) when its event is gone", async () => {
     const installLink = { ...link, kind: "install", eventId: "e2" };
     store.getLinkByEvent.mockResolvedValue(installLink);
     store.getLinks.mockResolvedValue([installLink]);
-    store.getCalendarJob.mockResolvedValue({ ...job, visitAt: null, installOn: "2026-09-13" });
+    store.getCalendarJob.mockResolvedValue(jobWith(appt("install", new Date("2026-09-13T15:00:00Z"), true)));
     graphFetch.mockResolvedValueOnce(new Response(null, { status: 404 }));
     await sync.applyOutlookChange("e2");
     expect(store.deleteLink).toHaveBeenCalledWith(ID, "install", "e2");
     expect(store.setJobDate).not.toHaveBeenCalled();
   });
 
-  it("still clears today's install when its event is deleted in Outlook", async () => {
+  it("still clears today's all-day install when its event is deleted in Outlook", async () => {
     const installLink = { ...link, kind: "install", eventId: "e2" };
     store.getLinkByEvent.mockResolvedValue(installLink);
     store.getLinks.mockResolvedValue([installLink]);
-    store.getCalendarJob.mockResolvedValue({ ...job, visitAt: null, installOn: "2026-09-14" });
+    store.getCalendarJob.mockResolvedValue(jobWith(appt("install", new Date("2026-09-14T15:00:00Z"), true)));
     graphFetch.mockResolvedValueOnce(new Response(null, { status: 404 }));
     await sync.applyOutlookChange("e2");
     expect(store.setJobDate).toHaveBeenCalledWith(ID, "install", null, "Install removed in Outlook");
@@ -128,7 +144,7 @@ describe("reconcileCalendar", () => {
   it("pushes a date whose earlier sync failed (same changeKey, different date)", async () => {
     store.reconcileTargets.mockResolvedValue([ID]);
     store.getLinks.mockResolvedValue([link]);
-    store.getCalendarJob.mockResolvedValue({ ...job, visitAt: new Date("2026-09-21T16:00:00Z") });
+    store.getCalendarJob.mockResolvedValue(jobWith(appt("consultation", new Date("2026-09-21T16:00:00Z"))));
     graphFetch.mockResolvedValueOnce(Response.json(event())).mockResolvedValueOnce(Response.json({ changeKey: "ck2" }));
     expect(await sync.reconcileCalendar({ clearErrorWhenClean: true })).toEqual({ jobs: 1, failed: 0 });
     expect(calls()).toContain("PATCH users/jobs@example.com/events/e1");

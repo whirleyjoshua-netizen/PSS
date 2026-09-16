@@ -234,10 +234,10 @@ describe("Outlook calendar sync", () => {
   it("pushes only the dates this save changed", async () => {
     jobs.updateDetails.mockResolvedValue({ visitChanged: true, installChanged: false });
     await actions.saveDetails(ID, {}, form({ visitAt: "2026-09-20T10:00" }));
-    expect(syncJobCalendar).toHaveBeenCalledWith(ID, ["visit"]);
+    expect(syncJobCalendar).toHaveBeenCalledWith(ID, ["consultation"]);
     jobs.updateDetails.mockResolvedValue({ visitChanged: true, installChanged: true });
     await actions.saveDetails(ID, {}, form({ visitAt: "2026-09-20T10:00", installOn: "2026-10-02" }));
-    expect(syncJobCalendar).toHaveBeenLastCalledWith(ID, ["visit", "install"]);
+    expect(syncJobCalendar).toHaveBeenLastCalledWith(ID, ["consultation", "install"]);
   });
 
   it("passes the dates the form was loaded with through to the save", async () => {

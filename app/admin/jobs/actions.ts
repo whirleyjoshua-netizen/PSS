@@ -93,7 +93,7 @@ export async function saveDetails(id: string, _prev: FormState, formData: FormDa
   if (!result) return MISSING;
   // Only a date this save changed overrides Outlook; the rest keep any move made there.
   const pushKinds: Kind[] = [];
-  if (result.visitChanged) pushKinds.push("visit");
+  if (result.visitChanged) pushKinds.push("consultation");
   if (result.installChanged) pushKinds.push("install");
   after(() => syncJobCalendar(id, pushKinds));
   refresh(id);

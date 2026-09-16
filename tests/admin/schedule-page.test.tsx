@@ -27,7 +27,7 @@ beforeEach(() => {
   getWeek.mockReset().mockResolvedValue({
     days, source: "outlook", notice: null, items: [
       { key: "e1", day: "2026-09-17", allDay: false, start: new Date("2026-09-17T17:00:00Z"), title: "Visit · Dana Reyes",
-        job: { id: ID, name: "Dana Reyes", city: "Henderson", status: "visit_booked", kind: "visit" } },
+        job: { id: ID, name: "Dana Reyes", city: "Henderson", status: "visit_booked", kind: "consultation" } },
       { key: "e2", day: "2026-09-17", allDay: false, start: new Date("2026-09-17T15:00:00Z"), title: "Dentist", job: null },
     ],
   });
@@ -37,7 +37,7 @@ beforeEach(() => {
     source: "outlook", notice: null,
     items: [
       { key: "e1", day: "2026-09-17", allDay: false, start: new Date("2026-09-17T17:00:00Z"), title: "Visit · Dana Reyes",
-        job: { id: ID, name: "Dana Reyes", city: "Henderson", status: "visit_booked", kind: "visit" } },
+        job: { id: ID, name: "Dana Reyes", city: "Henderson", status: "visit_booked", kind: "consultation" } },
       { key: "e2", day: "2026-09-17", allDay: false, start: new Date("2026-09-17T15:00:00Z"), title: "Dentist", job: null },
     ],
   });

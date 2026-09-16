@@ -1,10 +1,15 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { isUuid } from "@/lib/admin/jobs";
+import { mirrorToJob } from "@/lib/admin/appointments";
 import type { Stage } from "@/lib/admin/stages";
 import type { EventJob, Kind } from "./events";
 
-export type CalendarJob = EventJob & { status: Stage; visitAt: Date | null; installOn: string | null };
+/** A confirmed appointment, the only kind that reaches Outlook. */
+export type JobAppointment = { kind: Kind; startsAt: Date; allDay: boolean };
+export type CalendarJob = EventJob & {
+  status: Stage; visitAt: Date | null; installOn: string | null; appointments: JobAppointment[];
+};
 /** eventId starts with "pending:" while a sync holds the claim to create that event (see claimLink). */
 export type Link = { leadId: string; kind: Kind; eventId: string; changeKey: string; syncedAt?: Date };
 
@@ -21,6 +26,10 @@ export async function getCalendarJob(leadId: string): Promise<CalendarJob | null
     from leads where id = ${leadId}`;
   const row = rows[0];
   if (!row) return null;
+  // Unconfirmed appointments are invisible to Outlook, so they are never read back here.
+  const appointments = await db()`
+    select kind, starts_at, all_day from appointments
+    where lead_id = ${leadId} and confirmed_at is not null order by starts_at`;
   return {
     id: row.id as string, name: row.name as string, phone: row.phone as string,
     email: (row.email as string | null) ?? null, address: (row.address as string | null) ?? null,
@@ -28,6 +37,11 @@ export async function getCalendarJob(leadId: string): Promise<CalendarJob | null
     status: row.status as Stage,
     visitAt: row.visit_at ? new Date(row.visit_at as string) : null,
     installOn: (row.install_on as string | null) ?? null,
+    appointments: appointments.map((a) => ({
+      kind: a.kind as Kind,
+      startsAt: new Date(a.starts_at as string | Date),
+      allDay: a.all_day === true,
+    })),
   };
 }
 
@@ -75,17 +89,33 @@ export async function deleteLink(leadId: string, kind: Kind, eventId?: string): 
   }
 }
 
-/** Changes a job date from Outlook and logs it, in one statement. */
+/**
+ * Applies an Outlook edit to the APPOINTMENT row and logs it, then refreshes the mirrors. The
+ * appointment is the record and leads.visit_at / leads.install_on follow from it, so the next mirror
+ * cannot undo what someone changed in Outlook. An already-confirmed appointment stays confirmed:
+ * moving an event in Outlook is not a re-booking, so it never sends the job back for confirmation.
+ */
 export async function setJobDate(leadId: string, kind: Kind, value: Date | string | null, note: string): Promise<void> {
-  if (kind === "visit") {
+  if (value === null) {
     await db()`
-      with changed as (update leads set visit_at = ${value}, updated_at = now() where id = ${leadId} returning id)
-      insert into job_events (lead_id, actor, kind, body) select id, ${"Outlook"}, ${"edit"}, ${note} from changed`;
+      with gone as (delete from appointments where lead_id = ${leadId} and kind = ${kind} returning lead_id)
+      insert into job_events (lead_id, actor, kind, body) select lead_id, ${"Outlook"}, ${"edit"}, ${note} from gone`;
+  } else if (typeof value === "string") {
+    // An all-day appointment is kept at Las Vegas midnight on its date.
+    await db()`
+      with changed as (
+        update appointments
+           set starts_at = (${value}::text || ' 00:00')::timestamp at time zone 'America/Los_Angeles', updated_at = now()
+         where lead_id = ${leadId} and kind = ${kind} returning lead_id)
+      insert into job_events (lead_id, actor, kind, body) select lead_id, ${"Outlook"}, ${"edit"}, ${note} from changed`;
   } else {
     await db()`
-      with changed as (update leads set install_on = ${value}::date, updated_at = now() where id = ${leadId} returning id)
-      insert into job_events (lead_id, actor, kind, body) select id, ${"Outlook"}, ${"edit"}, ${note} from changed`;
+      with changed as (
+        update appointments set starts_at = ${value}::timestamptz, updated_at = now()
+         where lead_id = ${leadId} and kind = ${kind} returning lead_id)
+      insert into job_events (lead_id, actor, kind, body) select lead_id, ${"Outlook"}, ${"edit"}, ${note} from changed`;
   }
+  await mirrorToJob(leadId);
 }
 
 export async function recordError(message: string): Promise<void> {
@@ -114,9 +144,10 @@ export async function saveSubscription(id: string | null, expiresAt: Date | null
 }
 
 /**
- * The daily catch-up's jobs: every recently dated open job, plus linked jobs whose event may need removing
- * (lost, or the date cleared) or is in the same 30-day window. Links to long-past dates are left alone,
- * which keeps the daily work bounded.
+ * The daily catch-up's jobs: every recently dated open job, every job with a recent appointment, plus
+ * linked jobs whose event may need removing — the job is lost, or the confirmed appointment behind the
+ * link is gone. A link whose appointment is still there but long past is left alone, which keeps the
+ * daily work bounded.
  */
 export async function reconcileTargets(): Promise<string[]> {
   const rows = await db()`
@@ -124,9 +155,12 @@ export async function reconcileTargets(): Promise<string[]> {
      where status <> 'lost'
        and (visit_at >= now() - interval '30 days' or install_on >= current_date - 30)
     union
+    select lead_id from appointments where starts_at >= now() - interval '30 days'
+    union
     select e.lead_id as id from job_calendar_events e join leads l on l.id = e.lead_id
      where l.status = 'lost'
-        or (e.kind = 'visit' and (l.visit_at is null or l.visit_at >= now() - interval '30 days'))
-        or (e.kind = 'install' and (l.install_on is null or l.install_on >= current_date - 30))`;
+        or not exists (
+              select 1 from appointments a
+               where a.lead_id = e.lead_id and a.kind = e.kind and a.confirmed_at is not null)`;
   return rows.map((row) => row.id as string);
 }
