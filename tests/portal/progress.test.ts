@@ -177,3 +177,13 @@ describe("a date that has not happened yet", () => {
     expect(step(buildSteps({ status: "quoted" }), "ready").future).toBe(false);
   });
 });
+
+describe("today", () => {
+  it("comes from the caller, so a step near midnight in Las Vegas cannot flip", () => {
+    const input = { status: "ordered" as const, installAppointmentAt: new Date("2026-10-13T17:00:00Z") };
+    expect(step(buildSteps({ ...input, today: "2026-10-12" }), "ready").future).toBe(true);
+    // The day itself is not "still to come", nor is any day after it.
+    expect(step(buildSteps({ ...input, today: "2026-10-13" }), "ready").future).toBe(false);
+    expect(step(buildSteps({ ...input, today: "2026-10-14" }), "ready").future).toBe(false);
+  });
+});

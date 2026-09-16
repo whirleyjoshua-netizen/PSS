@@ -1,6 +1,7 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { JOB_COLUMNS, toJob, type Job } from "@/lib/admin/jobs";
+import { lasVegasDate } from "@/lib/admin/time";
 import { buildSteps, PORTAL_STATUSES, toPortalStage, type PortalStage, type ProjectStep, type StepInput } from "./progress";
 import { formatProjectNo } from "./project-no";
 import type { Finish } from "@/lib/leads/finish";
@@ -67,6 +68,8 @@ export function toProject(job: Job, timeline: Timeline): ProjectSummary {
     orderedOn: job.orderedOn,
     steps: buildSteps({
       ...timeline,
+      // The clock is read here, at the edge, so buildSteps itself stays pure and testable.
+      today: lasVegasDate(new Date()),
       status: job.status,
       visitAt: job.visitAt,
       orderedOn: job.orderedOn,

@@ -109,6 +109,19 @@ describe("ProjectView details and updates", () => {
     expect(within(details).getByText("Not scheduled yet")).toBeInTheDocument();
   });
 
+  it("promises to call about the installation when none is booked", async () => {
+    render(await ProjectView({ job }));
+    const install = screen.getByRole("region", { name: "Installation" });
+    expect(within(install).getByText(/We will call you to arrange a day/)).toBeInTheDocument();
+  });
+
+  it("gives the booked installation its own section once one is confirmed", async () => {
+    installAppointmentAt.mockResolvedValue(new Date("2099-10-13T17:00:00Z"));
+    render(await ProjectView({ job }));
+    const install = screen.getByRole("region", { name: "Installation" });
+    expect(within(install).getByText(/Your installation is booked for Oct 13, 2099/)).toBeInTheDocument();
+  });
+
   it("lists updates from fixed labels, never an event body", async () => {
     render(await ProjectView({ job }));
     const updates = screen.getByRole("region", { name: "Project updates" });
@@ -157,7 +170,8 @@ describe("ProjectView photos and documents", () => {
     expect(html).toContain("photo panel");
     expect(html).toContain("document panel");
     expect(html).not.toContain("aria-selected");
-    expect(html).not.toContain("hidden");
+    // The attribute itself, not merely the word: neither panel may be hidden without JavaScript.
+    expect(html).not.toMatch(/\bhidden(=|\s|>)/);
   });
 });
 
@@ -166,11 +180,18 @@ describe("ProjectView keeps everything internal off the page", () => {
     const lost = { ...job, notes: "Gate code 1234, dog in the yard", gateCode: "8812#", lostReason: "went with a competitor" };
     const { container } = render(await ProjectView({ job: lost }));
     const text = container.textContent ?? "";
+    // Positive anchor: the page really rendered its own content, so the absences below mean something.
+    expect(text).toContain("Hi Maria");
+    expect(text).toContain("PSS-1048");
+
     for (const secret of ["Gate code 1234", "dog in the yard", "8812#", "went with a competitor", "Hunter Douglas", "premium"]) {
       expect(text).not.toContain(secret);
     }
     expect(text.replace("$100", "")).not.toMatch(/\$\s?\d/);
     expect(text).not.toMatch(/4,500|4,200|1,000/);
+    // Money would leak as raw cents if a field were ever passed through unformatted,
+    // with no dollar sign or comma for the checks above to catch.
+    expect(text).not.toMatch(/450000|420000|100000/);
     expect(text).not.toContain(JOB);
   });
 });

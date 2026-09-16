@@ -81,8 +81,12 @@ describe("installAppointmentAt", () => {
     expect(await installAppointmentAt(JOB)).toEqual(new Date("2026-10-13T17:00:00Z"));
 
     const statement = text(sql.mock.calls[0]);
+    expect(statement).toContain("appointments");
+    expect(statement).toContain("starts_at");
     expect(statement).toContain("kind = 'install'");
     expect(statement).toContain("confirmed_at is not null");
+    // Symmetric with lastMeasuredAt: only the time may be selected, never free text.
+    expect(statement).not.toMatch(/notes|body/i);
   });
 
   it("is null when no install appointment is confirmed", async () => {

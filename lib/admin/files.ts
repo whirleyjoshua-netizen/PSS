@@ -175,11 +175,17 @@ export async function listSharedPhotos(leadId: string): Promise<JobFile[]> {
   return rows.map(toFile);
 }
 
-/** The documents a customer may see for one job, newest first. */
+/**
+ * The documents a customer may see for one job, newest first. The columns are named rather
+ * than starred: this feeds a customer-facing page, so a column added to job_files later
+ * cannot reach the portal by accident.
+ */
 export async function listSharedDocuments(leadId: string): Promise<JobFile[]> {
   if (!UUID.test(leadId)) return [];
   const rows = await db()`
-    select * from job_files
+    select id, lead_id, created_at, uploaded_by, kind, name, content_type, size_bytes,
+           blob_pathname, shared_at, doc_type
+    from job_files
     where lead_id = ${leadId} and kind = 'document' and shared_at is not null
     order by created_at desc`;
   return rows.map(toFile);

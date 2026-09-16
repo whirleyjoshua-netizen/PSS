@@ -51,6 +51,12 @@ export type StepInput = {
   stageDates?: Partial<Record<Stage, Date>>;
   /** The confirmed install appointment, if there is one. */
   installAppointmentAt?: Date | null;
+  /**
+   * Today's Las Vegas day as YYYY-MM-DD, used to decide whether a step's date is still to
+   * come. Injectable so this stays pure and so tests cannot turn flaky over a midnight in
+   * Las Vegas; it falls back to the current day when a caller leaves it out.
+   */
+  today?: string;
 };
 
 /** How far the job has come. Lost is never a portal status, so it ranks below New. */
@@ -115,7 +121,8 @@ const SPECS: readonly StepSpec[] = [
 ];
 
 /**
- * The seven steps for one job. Pure: everything it needs is passed in.
+ * The seven steps for one job. Pure, given `today`: everything else it needs is passed in,
+ * and `today` falls back to the current Las Vegas day only when a caller omits it.
  *
  * Every step up to the furthest one reached reads as done — a step the job skipped
  * (no measurements were saved, say) is behind the customer either way, and a tracker
@@ -127,7 +134,7 @@ export function buildSteps(input: StepInput): ProjectStep[] {
   const at = rank(input.status);
   const reached = SPECS.map((spec) => spec.reached(input, at));
   const furthest = reached.lastIndexOf(true);
-  const today = lasVegasDate(new Date());
+  const today = input.today ?? lasVegasDate(new Date());
 
   return SPECS.map((spec, index) => {
     const day = reached[index] ? spec.on(input) : null;

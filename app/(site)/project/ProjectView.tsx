@@ -81,6 +81,18 @@ export async function ProjectView({ job }: { job: Job }) {
 
       <DetailsCard project={project} installLabel={installLabel} inProduction={current.key === "production"} />
 
+      <section className="flex flex-col gap-2" aria-labelledby="install-heading">
+        <h2 id="install-heading" className={heading}>Installation</h2>
+        {project.installOn || installAt ? (
+          <p>Your installation is booked for {installLabel}. We will be in touch to confirm the details.</p>
+        ) : (
+          <p>
+            Your installation is not booked yet. We will call you to arrange a day as soon as your
+            treatments arrive, and you will get an email once it is on the calendar.
+          </p>
+        )}
+      </section>
+
       <UpdatesList steps={project.steps} />
 
       <section className="flex flex-col gap-4" aria-labelledby="files-heading">
