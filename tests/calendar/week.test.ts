@@ -275,7 +275,11 @@ describe("getWeek", () => {
     expect(result.items.map((i) => i.day)).toEqual(["2026-09-14", "2026-09-15", "2026-09-16", "2026-09-17"]);
   });
 
-  it("reads confirmed appointments joined to their jobs, never the lead mirror columns", async () => {
+  // A tripwire, not a behaviour test: it restates the query's text so that dropping the
+  // confirmed-only filter or going back to the lead mirror columns fails loudly here. The
+  // behaviour itself — a pending appointment never reaching the Schedule page — is covered
+  // against a real database by e2e/appointments.spec.ts.
+  it("tripwire: the query still reads confirmed appointments, never the lead mirror columns", async () => {
     await week.getWeek(undefined, NOW);
     const sqlText = (sql.mock.calls[0][0] as string[]).join(" ? ");
     expect(sqlText).toMatch(/from appointments/i);

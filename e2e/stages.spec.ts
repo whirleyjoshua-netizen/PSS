@@ -32,14 +32,22 @@ test.afterAll(async () => {
   await sql()`delete from admin_sessions where email = ${OWNER}`;
 });
 
-test("saving a visit date books a new lead's appointment", async ({ page }) => {
+// Booking used to be a "Visit date and time" field on Job details. That field is gone: a
+// consultation is booked in the Schedule dialog and only advances the stage once it is confirmed.
+test("confirming a consultation books a new lead's appointment", async ({ page }) => {
   const id = await lead(`E2E Stages Book ${STAMP}`);
   await signIn(page);
-  await page.goto(`/admin/jobs/${id}?tab=overview&edit=details`);
-  await page.getByLabel("Visit date and time").fill("2026-10-14T14:00");
-  await page.getByRole("button", { name: "Save details" }).click();
-  await expect(page.getByRole("status")).toHaveText("Saved");
   await page.goto(`/admin/jobs/${id}`);
+  // The job page has more than one Schedule control, so this is scoped to the Appointments card.
+  const card = page.getByRole("region", { name: "Appointments" });
+  await card.getByRole("button", { name: "Schedule" }).click();
+  const modal = page.getByRole("dialog", { name: "Schedule" });
+  await modal.getByLabel("Date and time").fill("2026-10-14T14:00");
+  await modal.getByRole("radio", { name: "Consultation" }).check();
+  await modal.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(card.getByText("Pending confirmation")).toBeVisible();
+  await card.getByRole("button", { name: "Confirm schedule" }).click();
+  await expect(card.getByText("Confirmed", { exact: true })).toBeVisible();
   await expect(page.getByRole("list", { name: "Stage" }).locator('[aria-current="step"]')).toContainText("Appointment booked");
   const [row] = await sql()`select status from leads where id = ${id}`;
   expect(row.status).toBe("visit_booked");
