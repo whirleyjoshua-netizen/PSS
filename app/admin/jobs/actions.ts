@@ -14,31 +14,11 @@ import { isPortalStatus } from "@/lib/portal/progress";
 import { ensureReferralCode, markReferralPaid } from "@/lib/referrals/db";
 import { releaseReview, restoreReviewRequested, setReviewOptOut, stampReviewRequested } from "@/lib/reviews/db";
 import { sendReviewRequest } from "@/lib/reviews/send";
+import { captureValues, MISSING, refresh, type FormState } from "./form-state";
 
-export type FormState = {
-  error?: string;
-  ok?: boolean;
-  /** The submitted values, echoed back so a failed submit can keep them. */
-  values?: Record<string, string | string[]>;
-};
-
-const MISSING: FormState = { error: "That job no longer exists." };
-
-const refresh = (id: string) => {
-  revalidatePath("/admin");
-  revalidatePath(`/admin/jobs/${id}`);
-};
-
-/** Captures a FormData's entries so a failed submit can restore them as defaults. */
-function captureValues(formData: FormData, keys: string[]): Record<string, string | string[]> {
-  const values: Record<string, string | string[]> = {};
-  for (const key of keys) {
-    const all = formData.getAll(key);
-    if (all.length === 0) continue;
-    values[key] = all.length > 1 ? all.map(String) : String(all[0]);
-  }
-  return values;
-}
+// The form helpers live in ./form-state so the appointment actions share one FormState shape.
+// Re-exported here because every form in the admin imports the type from this module.
+export type { FormState };
 
 // Every action calls requireAdmin() before reading its input.
 

@@ -173,3 +173,50 @@ describe("module boundaries", () => {
     expect(source).toContain('import "server-only"');
   });
 });
+
+describe("logConfirmation", () => {
+  it("logs the kind and when it is booked for, as the signed-in owner", async () => {
+    await appointments.logConfirmation(
+      { id: APPT, jobId: JOB, kind: "consultation", startsAt: STARTS, allDay: false, confirmedAt: new Date(), confirmedBy: ACTOR },
+      ACTOR,
+    );
+    const statement = flat(sql.mock.calls[0]);
+    expect(statement).toContain("insert into job_events");
+    expect(sql.mock.calls[0]).toEqual(
+      expect.arrayContaining([JOB, ACTOR, "Consultation confirmed for Sun, Sep 20, 10:00 AM"]),
+    );
+  });
+
+  it("describes an all-day appointment by its date alone", async () => {
+    await appointments.logConfirmation(
+      { id: APPT, jobId: JOB, kind: "install", startsAt: STARTS, allDay: true, confirmedAt: new Date(), confirmedBy: ACTOR },
+      ACTOR,
+    );
+    expect(sql.mock.calls[0]).toContain("Install confirmed for Sep 20, 2026");
+  });
+
+  it("does nothing for a non-uuid job id", async () => {
+    await appointments.logConfirmation(
+      { id: APPT, jobId: "../etc", kind: "install", startsAt: STARTS, allDay: true, confirmedAt: new Date(), confirmedBy: ACTOR },
+      ACTOR,
+    );
+    expect(sql).not.toHaveBeenCalled();
+  });
+});
+
+describe("logAppointmentEmail", () => {
+  it("records the address the confirmation went to", async () => {
+    await appointments.logAppointmentEmail(JOB, "dana@example.com", ACTOR);
+    const statement = flat(sql.mock.calls[0]);
+    expect(statement).toContain("insert into job_events");
+    expect(statement).toContain("'email'");
+    expect(sql.mock.calls[0]).toEqual(
+      expect.arrayContaining([JOB, ACTOR, "Appointment email sent to dana@example.com"]),
+    );
+  });
+
+  it("does nothing for a non-uuid job id", async () => {
+    await appointments.logAppointmentEmail("../etc", "dana@example.com", ACTOR);
+    expect(sql).not.toHaveBeenCalled();
+  });
+});

@@ -9,6 +9,7 @@ import { callBackProblem, FOLLOW_UP_NOTE_MAX } from "./follow-up";
 import { CONTACT_METHOD_KEYS, CONTACT_NOTE_MAX, type ContactMethod } from "./contact";
 import { dollarsToCents } from "./money";
 import { fromLocalInput } from "./time";
+import { APPOINTMENT_KINDS, type AppointmentKind } from "./appointment-kinds";
 import { TEAM_ROLES, type TeamRole } from "./team-roles";
 
 export const BRANDS = ["Superior Blinds MFG", "Alta Window Fashions", "Hunter Douglas"] as const;
@@ -61,6 +62,26 @@ export const detailsSchema = z
     depositCents: deposit,
     budgetTier: budget ?? null,
     ...rest,
+  }));
+
+const APPOINTMENT_KIND_VALUES = APPOINTMENT_KINDS.map((kind) => kind.value) as [AppointmentKind, ...AppointmentKind[]];
+
+/**
+ * One booking from the Schedule button. The saved appointment is always pending: nothing here
+ * confirms it, so neither Outlook nor the customer hears about it until the owner confirms.
+ */
+export const appointmentSchema = z
+  .object({
+    kind: z.enum(APPOINTMENT_KIND_VALUES, { error: "Pick what this is for" }),
+    startsAt: z.string({ error: "Pick a date and time" }).refine(isValidLocalInput, "Pick a date and time"),
+    // An unchecked checkbox sends nothing, so a timed appointment is the default.
+    allDay: z.boolean().default(false),
+  })
+  .transform((value) => ({
+    kind: value.kind,
+    // An all-day booking still carries an instant; its Las Vegas date is the part that matters.
+    startsAt: fromLocalInput(value.startsAt),
+    allDay: value.allDay,
   }));
 
 export const noteSchema = z.object({ body: z.string().trim().min(1, "Write a note first").max(2000) });

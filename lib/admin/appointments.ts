@@ -113,6 +113,26 @@ export async function cancelAppointment(id: string, actor: string): Promise<Appo
   return result ? toAppointment(result) : "missing";
 }
 
+/**
+ * "Consultation confirmed for Sun, Sep 20, 10:00 AM". confirmAppointment only stamps the row; the
+ * confirm action logs it, so the log line and the customer's email are written by the same step.
+ */
+export async function logConfirmation(appointment: Appointment, actor: string): Promise<void> {
+  if (!isUuid(appointment.jobId)) return;
+  const body = `${kindLabel(appointment.kind)} confirmed for ${whenLabel(appointment.startsAt, appointment.allDay)}`;
+  await db()`
+    insert into job_events (lead_id, actor, kind, body)
+    select id, ${actor}, 'edit', ${body} from leads where id = ${appointment.jobId}`;
+}
+
+/** Records that the confirmation email went out, and to which address. */
+export async function logAppointmentEmail(jobId: string, email: string, actor: string): Promise<void> {
+  if (!isUuid(jobId)) return;
+  await db()`
+    insert into job_events (lead_id, actor, kind, body)
+    select id, ${actor}, 'email', ${`Appointment email sent to ${email}`} from leads where id = ${jobId}`;
+}
+
 /** The one place leads.visit_at / leads.install_on are maintained: mirrors of the CONFIRMED rows. */
 export async function mirrorToJob(jobId: string): Promise<void> {
   if (!isUuid(jobId)) return;
