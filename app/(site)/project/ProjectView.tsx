@@ -11,6 +11,7 @@ import { installAppointmentAt, lastMeasuredAt, stageDates } from "@/lib/portal/t
 import { ensureReferralCode } from "@/lib/referrals/db";
 import { referralUrl } from "@/lib/referrals/codes";
 import { signOutCustomer } from "./actions";
+import { AfterWork } from "./AfterWork";
 import { CopyLinkButton } from "./CopyLinkButton";
 import { DetailsCard } from "./DetailsCard";
 import { FilesTabs } from "./FilesTabs";
@@ -154,6 +155,8 @@ export async function ProjectView({ job }: { job: Job }) {
           }
         />
       </section>
+
+      <AfterWork project={project} />
 
       <section className="flex flex-col gap-4" aria-labelledby="contact-heading">
         <h2 id="contact-heading" className={heading}>Questions?</h2>

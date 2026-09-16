@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { business } from "@/content/business";
 
 const listSharedPhotos = vi.fn();
 const listSharedDocuments = vi.fn();
@@ -254,6 +255,32 @@ describe("ProjectView keeps everything internal off the page", () => {
     // with no dollar sign or comma for the checks above to catch.
     expect(text).not.toMatch(/450000|420000|100000/);
     expect(text).not.toContain(JOB);
+  });
+});
+
+describe("ProjectView after the work is done", () => {
+  // The wiring, not the component: the section must actually reach the page, and only
+  // for a finished job. Both portal statuses a finished job can have are covered.
+  it.each(["installed", "completed"] as const)("offers a review link on a %s job", async (status) => {
+    render(await ProjectView({ job: { ...job, status, installOn: "2025-10-13" } }));
+    const section = screen.getByRole("region", { name: "After the work is done" });
+    expect(within(section).getByRole("link", { name: "Leave a review" })).toHaveAttribute(
+      "href",
+      business.socials.googleBusinessProfile,
+    );
+  });
+
+  it("stays off the page while the work is still in production", async () => {
+    render(await ProjectView({ job }));
+    expect(screen.queryByRole("region", { name: "After the work is done" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Leave a review" })).not.toBeInTheDocument();
+  });
+
+  // Opting out of the review email is not opting out of reviewing. The flag suppresses
+  // what we send them; it must not remove an action from a page they opened themselves.
+  it("still offers the link to a customer who opted out of the review email", async () => {
+    render(await ProjectView({ job: { ...job, status: "installed" as const, reviewOptOut: true } }));
+    expect(screen.getByRole("link", { name: "Leave a review" })).toBeInTheDocument();
   });
 });
 
