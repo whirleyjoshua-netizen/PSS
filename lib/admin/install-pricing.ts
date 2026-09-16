@@ -53,6 +53,10 @@ export type PricedQuote = {
   minimumApplied: boolean;
 };
 
+/** The largest value a Postgres integer column holds; every stored amount must fit. */
+const MAX_CENTS = 2_147_483_647;
+const TOO_LARGE = "This job is too large to price.";
+
 const EIGHTHS_PER_FOOT = 96; // 12 inches
 const SQ_EIGHTHS_PER_SQ_FOOT = 9216; // 144 sq in, in eighths squared
 
@@ -92,11 +96,15 @@ export function priceQuote(
     if (!rate) throw new Error(`No installation rate is set for ${LABEL.get(line.treatment) ?? line.treatment}`);
     const quantity = quantityFor(rate.basis, line);
     const amountCents = rate.rateCents * quantity + line.count * surchargeFor(line, settings);
+    if (amountCents > MAX_CENTS) throw new Error(TOO_LARGE);
     return { ...line, basis: rate.basis, rateCents: rate.rateCents, quantity, amountCents };
   });
   const subtotalCents = priced.reduce((sum, l) => sum + l.amountCents, 0);
-  // An empty job is not a job; the minimum should not invent a charge out of nothing.
-  const minimumApplied = priced.length > 0 && subtotalCents < settings.minimumCents;
+  if (subtotalCents > MAX_CENTS) throw new Error(TOO_LARGE);
+  // A job with nothing to install is not a job — no lines, or only lines with a count of 0 —
+  // so the minimum should not invent a charge out of nothing.
+  const hasWork = priced.some((l) => l.quantity > 0);
+  const minimumApplied = hasWork && subtotalCents < settings.minimumCents;
   return {
     lines: priced,
     subtotalCents,

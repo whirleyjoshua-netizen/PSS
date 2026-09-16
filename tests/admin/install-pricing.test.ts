@@ -53,6 +53,11 @@ describe("quantityFor", () => {
     expect(() => quantityFor("sq_ft", line({ widthEighths: 240, heightEighths: null })))
       .toThrow("Width and height are needed to price by the square foot");
   });
+
+  it("refuses to price by the square foot without a width", () => {
+    expect(() => quantityFor("sq_ft", line({ widthEighths: null, heightEighths: 320 })))
+      .toThrow("Width and height are needed to price by the square foot");
+  });
 });
 
 describe("priceQuote", () => {
@@ -122,6 +127,43 @@ describe("priceQuote", () => {
   it("says which treatment has no rate rather than pricing it at zero", () => {
     expect(() => priceQuote([line({ treatment: "shutters" })], [rate()], settings))
       .toThrow("No installation rate is set for Shutters");
+  });
+
+  it("does not charge the minimum for a job whose lines all have a count of zero", () => {
+    const priced = priceQuote([line({ count: 0 }), line({ count: 0 })], [rate()], { ...settings, minimumCents: 15_000 });
+    expect(priced.totalCents).toBe(0);
+    expect(priced.minimumApplied).toBe(false);
+  });
+
+  it("refuses to price a line whose amount would overflow the database column", () => {
+    expect(() => priceQuote([line({ count: 1000 })], [rate({ rateCents: 2_147_484 })], settings))
+      .toThrow("This job is too large to price.");
+  });
+
+  it("refuses to price a job whose total would overflow, even when each line fits", () => {
+    const big = line({ count: 1000 });
+    expect(() => priceQuote([big, big], [rate({ rateCents: 1_500_000 })], settings))
+      .toThrow("This job is too large to price.");
+  });
+
+  it("adds the high ladder surcharge alone", () => {
+    const priced = priceQuote(
+      [line({ count: 2, highLadder: true })],
+      [rate()],
+      { ...settings, hardSurfaceCents: 1000, highLadderCents: 5000, motorizedCents: 1500 },
+    );
+    // 2 x 2500 labour, plus 2 x 5000 high ladder.
+    expect(priced.lines[0].amountCents).toBe(15_000);
+  });
+
+  it("adds all three surcharges together on one line", () => {
+    const priced = priceQuote(
+      [line({ count: 3, hardSurface: true, highLadder: true, motorized: true })],
+      [rate()],
+      { ...settings, hardSurfaceCents: 1000, highLadderCents: 5000, motorizedCents: 1500 },
+    );
+    // 3 x 2500 labour, plus 3 x (1000 + 5000 + 1500).
+    expect(priced.lines[0].amountCents).toBe(7500 + 22_500);
   });
 
   it("ignores a line with a count of zero", () => {
