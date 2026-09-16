@@ -108,8 +108,10 @@ line amount   = (rate_cents × quantity)
               + (count × sum of the line's flagged surcharges)
 
 subtotal      = sum of line amounts
-total         = max(subtotal, minimum_cents)
+total         = max(subtotal, minimum_cents)    — but a job with no lines totals 0
 ```
+
+A job with no lines is not a job, so the minimum does not turn an empty calculator into a $150 charge. The minimum applies only once there is something to price.
 
 Everything is integer cents throughout, matching `quote_cents` and `sold_cents` already in the schema. No floating point touches a price at any point.
 
@@ -129,7 +131,7 @@ A section listing the seven treatments, each with a basis select and a rate fiel
 - **The total** and its subtotal, with the minimum shown when it is the number that applied — a job that priced at $50 against a $150 minimum should say so, not silently read $150.
 - **Save as estimate** or **Save as final.**
 - **Past snapshots**, newest first, each with its kind, total, author and date. Estimate and final sit side by side so a difference is visible.
-- **Fill from measurements** appears only when the job has measurements. It pre-fills lines from them — `hard_surface` and `high_ladder` map from each window's `requirements`, and windows are grouped into lines by treatment and flags. It is a starting point the owner can edit before saving, never an automatic save.
+- **Fill from measurements** appears only when the job has measurements. It pre-fills one line per measured window — `hard_surface` and `high_ladder` map from each window's `requirements`. Windows are deliberately not merged into shared lines: a line holds one width and height, so merging windows of different sizes would misprice anything sold by the foot or square foot. It is a starting point the owner can edit before saving, never an automatic save.
 
 Measurements do not currently record a treatment, so filling from them asks the owner which treatment applies. Putting a treatment on the measurement is a better long-term answer and is noted as out of scope below.
 
