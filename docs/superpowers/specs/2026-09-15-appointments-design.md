@@ -22,6 +22,8 @@ This builds on the job tracker, the Outlook calendar sync, the Completed stage a
 - Nothing reaches the shared calendar or the customer until **Confirm schedule** is pressed. Confirming emails the customer their appointment.
 - The job page shows appointments as information with clear actions, and drops the figures that are moving to Hunter Douglas.
 
+> **Superseded on 2026-09-16.** The owner reversed the money half of this: Direct Connect is now only the source of the Hunter Douglas product price, and PSS is the system of record for quote, deposit and balance. Installation labour is priced in PSS — see `2026-09-16-install-calculator-design.md`. Orders are still placed in Direct Connect, so the Order tile and the Hunter Douglas integration notes below still stand.
+
 **Success means:**
 - The owner books a measure for Tuesday, sees "Pending confirmation", presses Confirm schedule, and the customer gets an email saying when we are coming.
 - A job can hold a consultation and an install at the same time, each its own colour.
