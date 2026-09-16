@@ -44,11 +44,15 @@ export type ProjectSummary = {
   steps: ProjectStep[];
 };
 
-/** The dated facts the steps need, which the page loads alongside the job. */
+/**
+ * The dated facts the steps need, which the page loads alongside the job. Required,
+ * not optional: a caller that forgot it would silently tick Measurements and Ready to
+ * Install with no date. Pass `{}` only when there is genuinely nothing to date them with.
+ */
 export type Timeline = Pick<StepInput, "lastMeasuredAt" | "stageDates" | "installAppointmentAt">;
 
 /** Only call with a job from visibleJobs(), so its status is a portal status. */
-export function toProject(job: Job, timeline: Timeline = {}): ProjectSummary {
+export function toProject(job: Job, timeline: Timeline): ProjectSummary {
   return {
     id: job.id,
     firstName: job.name.trim().split(/\s+/)[0],

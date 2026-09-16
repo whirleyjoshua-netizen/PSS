@@ -7,6 +7,8 @@ const ensureReferralCode = vi.fn();
 vi.mock("@/lib/referrals/db", () => ({ ensureReferralCode }));
 const countReferred = vi.fn();
 vi.mock("@/lib/portal/project", () => ({ countReferred }));
+const stageDates = vi.fn();
+vi.mock("@/lib/portal/timeline", () => ({ stageDates }));
 vi.mock("@/app/(site)/project/actions", () => ({ signOutCustomer: vi.fn() }));
 
 const { ProjectView } = await import("@/app/(site)/project/ProjectView");
@@ -25,6 +27,7 @@ beforeEach(() => {
   listSharedPhotos.mockReset().mockResolvedValue([{ id: "p1", name: "Living room.jpg" }]);
   ensureReferralCode.mockReset().mockResolvedValue("K7QX2M");
   countReferred.mockReset().mockResolvedValue(2);
+  stageDates.mockReset().mockResolvedValue({ sold: new Date("2026-09-18T17:00:00Z") });
 });
 
 describe("ProjectView", () => {

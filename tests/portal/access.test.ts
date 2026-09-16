@@ -50,7 +50,7 @@ describe("toProject", () => {
   it("keeps only what a customer may see", async () => {
     query.mockResolvedValue([row({ lost_reason: "Went with a cheaper quote" })]);
     const [job] = await visibleJobs("maria@example.com");
-    const project = toProject(job);
+    const project = toProject(job, {});
 
     expect(project).toEqual({
       id: "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c", firstName: "Maria", address: "12 Palm Way",
@@ -95,7 +95,7 @@ describe("toProject", () => {
   it("carries the customer's own order details and nothing more", async () => {
     query.mockResolvedValue([row({ ordered_on: "2026-09-15", window_count_exact: null, treatment_types: [], finish: null })]);
     const [job] = await visibleJobs("maria@example.com");
-    const project = toProject(job);
+    const project = toProject(job, {});
     expect(project.orderedOn).toBe("2026-09-15");
     expect(project.windowCount).toBeNull();
     expect(project.treatmentTypes).toEqual([]);
@@ -105,16 +105,16 @@ describe("toProject", () => {
   it("shows the project number as PSS-#### and a missing one as null", async () => {
     query.mockResolvedValue([row({ project_no: 7 })]);
     const [small] = await visibleJobs("maria@example.com");
-    expect(toProject(small).projectNo).toBe("PSS-0007");
+    expect(toProject(small, {}).projectNo).toBe("PSS-0007");
 
     query.mockResolvedValue([row({ project_no: null })]);
     const [none] = await visibleJobs("maria@example.com");
-    expect(toProject(none).projectNo).toBeNull();
+    expect(toProject(none, {}).projectNo).toBeNull();
   });
 
   it("shows a completed job to the customer as installed", async () => {
     query.mockResolvedValue([row({ status: "completed" })]);
     const [job] = await visibleJobs("maria@example.com");
-    expect(toProject(job).status).toBe("installed");
+    expect(toProject(job, {}).status).toBe("installed");
   });
 });

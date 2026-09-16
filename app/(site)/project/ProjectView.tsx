@@ -3,6 +3,7 @@ import type { Job } from "@/lib/admin/jobs";
 import { listSharedPhotos } from "@/lib/admin/files";
 import { toProject } from "@/lib/portal/access";
 import { countReferred } from "@/lib/portal/project";
+import { stageDates } from "@/lib/portal/timeline";
 import { ensureReferralCode } from "@/lib/referrals/db";
 import { referralUrl } from "@/lib/referrals/codes";
 import { signOutCustomer } from "./actions";
@@ -15,13 +16,15 @@ const heading = "font-display text-xs uppercase tracking-[0.2em] text-champagne-
  * no money, notes or contact fields, so nothing private can slip onto the page.
  */
 export async function ProjectView({ job }: { job: Job }) {
-  const project = toProject(job);
-  const [photos, code, referred] = await Promise.all([
-    listSharedPhotos(project.id),
-    ensureReferralCode(project.id),
-    countReferred(project.id),
+  const [photos, code, referred, dates] = await Promise.all([
+    listSharedPhotos(job.id),
+    ensureReferralCode(job.id),
+    countReferred(job.id),
+    stageDates(job.id),
   ]);
-  const steps = project.steps;
+  // Task 5 adds the measurement and install-appointment dates; the stage dates are what
+  // this page can date its steps with today.
+  const project = toProject(job, { stageDates: dates });
   const place = [project.address, project.city].filter(Boolean).join(", ");
 
   return (
@@ -39,7 +42,7 @@ export async function ProjectView({ job }: { job: Job }) {
       <section className="flex flex-col gap-4" aria-labelledby="progress-heading">
         <h2 id="progress-heading" className={heading}>Your project</h2>
         <ol className="flex flex-col gap-3">
-          {steps.map((step) => (
+          {project.steps.map((step) => (
             <li key={step.key} aria-current={step.state === "current" ? "step" : undefined}
               className={`flex gap-3 border-l-2 pl-4 ${step.state === "upcoming" ? "border-rule text-ink-soft" : "border-charcoal"}`}>
               <span aria-hidden="true" className="w-4 shrink-0">{step.state === "done" ? "✓" : step.state === "current" ? "●" : "○"}</span>

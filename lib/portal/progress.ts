@@ -48,7 +48,8 @@ export type StepInput = {
 };
 
 /** How far the job has come. Lost is never a portal status, so it ranks below New. */
-const rank = (status: Stage): number => STAGES.findIndex((s) => s.value === status);
+const RANKS = new Map<string, number>(STAGES.map((stage, index) => [stage.value, index]));
+const rank = (status: Stage): number => RANKS.get(status) ?? -1;
 
 const onDay = (day: string | null | undefined): string | null => (day ? formatMonthDay(day) : null);
 const onInstant = (at: Date | null | undefined): string | null => (at ? formatMonthDay(lasVegasDate(at)) : null);
