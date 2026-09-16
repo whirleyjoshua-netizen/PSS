@@ -23,30 +23,41 @@ beforeEach(() => {
 });
 
 describe("saveInstallQuote", () => {
-  it("writes the snapshot and returns its id", async () => {
+  it("writes the whole snapshot in exactly one statement and returns its id", async () => {
     const id = await quotes.saveInstallQuote(JOB, "estimate", priced, 15_000, "owner@example.com");
     expect(id).toBe(QUOTE);
-    expect(sql.mock.calls.map(text).some((s) => s.includes("insert into install_quotes"))).toBe(true);
+    // One statement is all-or-nothing; splitting the writes apart again would allow half-saved snapshots.
+    expect(sql).toHaveBeenCalledTimes(1);
+    const statement = text(sql.mock.calls[0]);
+    expect(statement).toContain("insert into install_quotes");
+    expect(statement).toContain("insert into install_quote_lines");
+    expect(statement).toContain("unnest(");
+    expect(statement).toContain("insert into job_events");
   });
 
-  it("writes one line row per priced line, carrying its rate and basis", async () => {
+  it("binds the quote and each line column in exact order", async () => {
     await quotes.saveInstallQuote(JOB, "estimate", priced, 15_000, "owner@example.com");
-    const lineCall = sql.mock.calls.find((c) => text(c).includes("insert into install_quote_lines"));
-    expect(lineCall).toBeDefined();
-    expect(lineCall!.slice(1)).toEqual(
-      expect.arrayContaining([QUOTE, 0, "roller_shades", "window", 4, 2500, false, true, false, 30_000]),
-    );
+    expect(sql.mock.calls[0].slice(1)).toEqual([
+      JOB, "estimate", 15_000, 30_000, 30_000, "owner@example.com",
+      [0], ["roller_shades"], ["window"], [4], [2500], [false], [true], [false], [30_000],
+      "owner@example.com", "Estimate installation price: $300",
+    ]);
   });
 
   it("records the job event, so the snapshot shows in the job's history", async () => {
     await quotes.saveInstallQuote(JOB, "final", priced, 15_000, "owner@example.com");
-    const eventSql = sql.mock.calls.map(text).find((s) => s.includes("insert into job_events"));
-    expect(eventSql).toBeDefined();
+    const statement = text(sql.mock.calls[0]);
     // job_events_kind_check only allows the known kinds; 'install_price' would throw in production.
-    expect(eventSql).toContain("'edit'");
-    expect(eventSql).not.toContain("install_price");
+    expect(statement).toMatch(/insert into job_events .*'edit'/);
+    expect(statement).not.toContain("install_price");
   });
 
+  it("still writes the quote and event when there are no lines", async () => {
+    const id = await quotes.saveInstallQuote(JOB, "estimate", { ...priced, lines: [] }, 0, "owner@example.com");
+    expect(id).toBe(QUOTE);
+    expect(sql).toHaveBeenCalledTimes(1);
+    expect(sql.mock.calls[0].slice(7, 16)).toEqual([[], [], [], [], [], [], [], [], []]);
+  });
   it("refuses an id that is not a uuid rather than querying with it", async () => {
     await expect(quotes.saveInstallQuote("nope", "estimate", priced, 0, "owner@example.com"))
       .rejects.toThrow("Not a job id");

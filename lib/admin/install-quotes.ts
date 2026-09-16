@@ -41,22 +41,39 @@ export async function saveInstallQuote(
   actor: string,
 ): Promise<string> {
   if (!isUuid(leadId)) throw new Error("Not a job id");
-  const [row] = await db()`insert into install_quotes
-      (lead_id, kind, minimum_cents, subtotal_cents, total_cents, created_by)
-    values (${leadId}, ${kind}, ${minimumCents}, ${priced.subtotalCents}, ${priced.totalCents}, ${actor})
-    returning id`;
-  const id = row.id as string;
-  for (const [position, line] of priced.lines.entries()) {
-    await db()`insert into install_quote_lines
+  const lines = priced.lines;
+  const label = kind === "estimate" ? "Estimate" : "Final";
+  // One data-modifying statement, so the quote, its lines and its history event are saved all-or-nothing.
+  const [row] = await db()`
+    with quote as (
+      insert into install_quotes (lead_id, kind, minimum_cents, subtotal_cents, total_cents, created_by)
+      values (${leadId}, ${kind}, ${minimumCents}, ${priced.subtotalCents}, ${priced.totalCents}, ${actor})
+      returning id, lead_id
+    ),
+    lines as (
+      insert into install_quote_lines
         (install_quote_id, position, treatment, basis, quantity, rate_cents,
          hard_surface, high_ladder, motorized, amount_cents)
-      values (${id}, ${position}, ${line.treatment}, ${line.basis}, ${line.quantity}, ${line.rateCents},
-         ${line.hardSurface}, ${line.highLadder}, ${line.motorized}, ${line.amountCents})`;
-  }
-  const label = kind === "estimate" ? "Estimate" : "Final";
-  await db()`insert into job_events (lead_id, actor, kind, body)
-    values (${leadId}, ${actor}, 'edit', ${`${label} installation price: ${formatCents(priced.totalCents)}`})`;
-  return id;
+      select quote.id, l.position, l.treatment, l.basis, l.quantity, l.rate_cents,
+             l.hard_surface, l.high_ladder, l.motorized, l.amount_cents
+      from quote, unnest(
+        ${lines.map((_, position) => position)}::int[],
+        ${lines.map((line) => line.treatment)}::text[],
+        ${lines.map((line) => line.basis)}::text[],
+        ${lines.map((line) => line.quantity)}::int[],
+        ${lines.map((line) => line.rateCents)}::int[],
+        ${lines.map((line) => line.hardSurface)}::boolean[],
+        ${lines.map((line) => line.highLadder)}::boolean[],
+        ${lines.map((line) => line.motorized)}::boolean[],
+        ${lines.map((line) => line.amountCents)}::int[]
+      ) as l(position, treatment, basis, quantity, rate_cents, hard_surface, high_ladder, motorized, amount_cents)
+    ),
+    logged as (
+      insert into job_events (lead_id, actor, kind, body)
+      select lead_id, ${actor}, 'edit', ${`${label} installation price: ${formatCents(priced.totalCents)}`} from quote
+    )
+    select id from quote`;
+  return row.id as string;
 }
 
 export async function listInstallQuotes(leadId: string): Promise<SavedInstallQuote[]> {
