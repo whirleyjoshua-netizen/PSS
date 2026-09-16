@@ -17,9 +17,12 @@ const GONE: FormState = { error: "That appointment no longer exists." };
 // Every action calls requireAdmin() before reading its input.
 
 /**
- * Books or moves one appointment. It is saved pending, so nothing reaches Outlook or the customer
- * here — only confirmSchedule does that. The mirror still runs: a re-booked appointment loses its
- * confirmation, and leads.visit_at must lose the date with it.
+ * Books or moves one appointment. It is saved pending, so the customer is not told here — only
+ * confirmSchedule does that. The mirror still runs: a re-booked appointment loses its confirmation,
+ * and leads.visit_at must lose the date with it. The sync runs for the same reason: rescheduling a
+ * confirmed appointment un-confirms it, and an unconfirmed appointment must come OFF the shared
+ * calendar at once. With no confirmed row left, the sync finds nothing wanted for this kind and
+ * deletes the stale event, rather than leaving the old time on the calendar until the daily cron.
  */
 export async function bookAppointment(jobId: string, _prev: FormState, formData: FormData): Promise<FormState> {
   const { email } = await requireAdmin();
@@ -33,6 +36,7 @@ export async function bookAppointment(jobId: string, _prev: FormState, formData:
   const saved = await saveAppointment(jobId, parsed.data.kind, parsed.data.startsAt, parsed.data.allDay, email);
   if (saved === "missing") return MISSING;
   await mirrorToJob(jobId);
+  after(() => syncJobCalendar(jobId, [parsed.data.kind]));
   refresh(jobId);
   return { ok: true };
 }

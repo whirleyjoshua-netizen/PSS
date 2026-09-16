@@ -55,6 +55,8 @@ export async function logCall(jobId: string, input: CallInput, actor: string): P
      insert into job_events (lead_id, actor, kind, body)
      select id, $10, 'note', $11 from updated
      returning id`,
+    // $7 is NOT input.visitAt: it is consultationAt, null unless this was a booked call WITH a date.
+    // It only ever feeds the appointments upsert above — nothing here writes leads.visit_at.
     [jobId, input.treatmentTypes, input.motorized, input.windowCountExact, input.gateCode, input.budgetTier, consultationAt,
       move?.to ?? null, move?.from ?? [], actor, body, input.followUpAt, input.followUpNote],
   );

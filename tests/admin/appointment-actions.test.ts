@@ -86,9 +86,29 @@ describe("bookAppointment", () => {
     expect(appointments.mirrorToJob).toHaveBeenCalledWith(JOB);
   });
 
-  it("neither emails nor syncs: a booking is pending until it is confirmed", async () => {
+  it("never emails: a booking is pending until it is confirmed", async () => {
     await actions.bookAppointment(JOB, {}, booking());
     expect(sendAppointmentConfirmation).not.toHaveBeenCalled();
+  });
+
+  // Rescheduling a confirmed appointment un-confirms it, and an unconfirmed appointment must not sit
+  // on the shared calendar showing the customer's old time until the daily cron notices.
+  it("syncs that kind, so a re-booked appointment's stale Outlook event goes at once", async () => {
+    await actions.bookAppointment(JOB, {}, booking({ kind: "measure" }));
+    expect(syncJobCalendar).toHaveBeenCalledWith(JOB, ["measure"]);
+  });
+
+  it("mirrors before the sync, so the sync reads the cleared date", async () => {
+    const order: string[] = [];
+    appointments.mirrorToJob.mockImplementation(async () => { order.push("mirror"); });
+    syncJobCalendar.mockImplementation(async () => { order.push("sync"); });
+    await actions.bookAppointment(JOB, {}, booking());
+    expect(order).toEqual(["mirror", "sync"]);
+  });
+
+  it("does not sync a booking that never saved", async () => {
+    appointments.saveAppointment.mockResolvedValue("missing");
+    await actions.bookAppointment(JOB, {}, booking());
     expect(syncJobCalendar).not.toHaveBeenCalled();
   });
 
