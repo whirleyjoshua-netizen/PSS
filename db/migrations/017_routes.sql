@@ -21,12 +21,18 @@ alter table appointments add constraint appointments_window_check check (
 );
 
 -- All-day installs were stored at 08:00 Las Vegas time. The working day now starts at 09:00.
--- updated_at is left alone so this never looks like an owner edit. A second run matches nothing.
+-- updated_at is left alone so this never looks like an owner edit. It runs only while
+-- route_settings does not exist yet, which is the first run of this migration. Later runs
+-- leave new 08:00 all-day bookings alone.
 
 update appointments
    set starts_at = starts_at + interval '1 hour'
  where all_day
-   and (starts_at at time zone 'America/Los_Angeles')::time = '08:00';
+   and (starts_at at time zone 'America/Los_Angeles')::time = '08:00'
+   and not exists (
+     select 1 from information_schema.tables
+      where table_schema = current_schema() and table_name = 'route_settings'
+   );
 
 alter table leads add column if not exists lat double precision;
 

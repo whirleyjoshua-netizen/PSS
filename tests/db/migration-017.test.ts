@@ -14,8 +14,8 @@ describe("migration 017", () => {
     expect(all).toContain("alter table appointments add column if not exists duration_minutes integer");
   });
 
-  it("drops then re-adds the length and window checks", () => {
-    for (const name of ["appointments_duration_minutes_check", "appointments_window_check"]) {
+  it("drops then re-adds the length, window and geocode status checks", () => {
+    for (const name of ["appointments_duration_minutes_check", "appointments_window_check", "leads_geocode_status_check"]) {
       const dropAt = statements.findIndex((s) => s.includes(`drop constraint if exists ${name}`));
       const addAt = statements.findIndex((s) => s.includes(`add constraint ${name}`));
       expect(dropAt).toBeGreaterThanOrEqual(0);
@@ -27,12 +27,22 @@ describe("migration 017", () => {
     );
   });
 
-  it("moves 08:00 all-day installs to 09:00 without touching updated_at, so a re-run changes nothing", () => {
+  it("moves 08:00 all-day installs to 09:00 without touching updated_at", () => {
     const move = statements.find((s) => s.startsWith("update appointments"));
     expect(move).toBeDefined();
     expect(move).toContain("all_day");
     expect(move).toContain("(starts_at at time zone 'America/Los_Angeles')::time = '08:00'");
     expect(move).not.toContain("updated_at");
+  });
+
+  it("moves all-day installs only on the first run, before route_settings exists", () => {
+    const moveAt = statements.findIndex((s) => s.startsWith("update appointments"));
+    const createAt = statements.findIndex((s) => s.startsWith("create table if not exists route_settings"));
+    expect(moveAt).toBeGreaterThanOrEqual(0);
+    expect(createAt).toBeGreaterThan(moveAt);
+    expect(statements[moveAt]).toContain(
+      "and not exists ( select 1 from information_schema.tables where table_schema = current_schema() and table_name = 'route_settings' )",
+    );
   });
 
   it("adds the geocode columns to leads", () => {
@@ -49,6 +59,9 @@ describe("migration 017", () => {
     expect(table).toContain("day_start time not null default '09:00'");
     expect(table).toContain("day_end time not null default '18:00'");
     expect(table).toContain("install_minutes integer not null default 240");
+    expect(table).toContain("consultation_minutes integer not null default 60");
+    expect(table).toContain("measure_minutes integer not null default 60");
+    expect(table).toContain("service_minutes integer not null default 90");
     expect(all).toContain("insert into route_settings (id) values (true) on conflict (id) do nothing");
   });
 
@@ -57,7 +70,11 @@ describe("migration 017", () => {
     expect(table).toContain("appointment_id uuid not null unique references appointments(id) on delete cascade");
     expect(table).toContain("team_member_id uuid not null references team_members(id) on delete cascade");
     expect(table).toContain("unique (route_date, team_member_id, position)");
-    // How many stops the day had when saved: a cancelled appointment cascades its stop away, and this is how that is noticed.
+    expect(table).toContain("route_date date not null");
+    expect(table).toContain("position integer not null");
+    expect(table).toContain("planned_arrival timestamptz not null");
+    expect(table).toContain("drive_minutes integer not null");
+    // Stops plus didn't-fit appointments at save time. The day is stale when its count of appointments with coordinates differs.
     expect(table).toContain("saved_count integer not null default 0");
     expect(all).toContain("create index if not exists route_stops_date_idx on route_stops (route_date)");
   });
