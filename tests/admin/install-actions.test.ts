@@ -62,6 +62,7 @@ describe("saveInstallQuoteAction", () => {
   });
 
   it("asks for a line when there are none", async () => {
+    // The fingerprint is irrelevant here: an empty job is refused before any price is compared.
     expect(await saveInstallQuoteAction(JOB, "estimate", [], MATCHING())).toEqual({ error: "Add at least one line before saving." });
     expect(saveInstallQuote).not.toHaveBeenCalled();
   });
@@ -104,7 +105,9 @@ describe("saveInstallQuoteAction", () => {
 
   it("refuses when only the minimum changed, since the saved price records it", async () => {
     rates.getInstallSettings.mockImplementation(async () => ({ ...settings, minimumCents: 16_000 }));
-    // Lines come to $200 either way and clear both minimums, so the total is unchanged.
+    // Lines come to $200 either way and clear both minimums, so the total is unchanged and the
+    // minimum is not even shown. The save is still refused on purpose: the saved price records
+    // the minimum in force (spec §3), and that must be the one this page was loaded with.
     const result = await saveInstallQuoteAction(JOB, "final", [line], MATCHING());
     expect(result.error).toMatch(/^Rates changed since this page loaded/);
     expect(saveInstallQuote).not.toHaveBeenCalled();

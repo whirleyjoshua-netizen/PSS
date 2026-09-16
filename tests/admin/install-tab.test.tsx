@@ -117,6 +117,27 @@ describe("InstallCalculator", () => {
     expect(widths[0]).toHaveValue("48");
   });
 
+  it("edits and removes the line the owner acted on, after earlier lines have shifted", async () => {
+    const user = userEvent.setup();
+    render(<InstallCalculator jobId={JOB} rates={footRates} settings={settings} saved={[]} measurements={[]} />);
+    for (const width of ["30", "48", "60", "84"]) {
+      await user.click(screen.getByRole("button", { name: /add line/i }));
+      const boxes = screen.getAllByLabelText("Width (in)");
+      await user.type(boxes[boxes.length - 1], width);
+    }
+    // Remove the 48" line, then edit the 60" line — now second, and neither first nor last, so
+    // an edit aimed at the wrong position cannot land on it by accident.
+    await user.click(screen.getAllByRole("button", { name: "Remove" })[1]);
+    const survivor = screen.getAllByLabelText("Width (in)")[1];
+    expect(survivor).toHaveValue("60");
+    await user.clear(survivor);
+    await user.type(survivor, "72");
+    await user.click(screen.getByRole("button", { name: /save as estimate/i }));
+
+    const sent = saveInstallQuoteAction.mock.calls[0][2];
+    expect(sent.map((l: { widthEighths: number }) => l.widthEighths)).toEqual([30 * 8, 72 * 8, 84 * 8]);
+  });
+
   it("sends the fingerprint of the price the owner saw, so the server can refuse one that moved", async () => {
     const user = userEvent.setup();
     render(<InstallCalculator jobId={JOB} rates={rates} settings={settings} saved={[]} measurements={[]} />);
