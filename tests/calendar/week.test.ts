@@ -43,9 +43,17 @@ describe("rangeLabel and addDays", () => {
   });
 });
 
+/** One confirmed appointment row as the schedule query returns it. */
+const appt = (kind: string, startsAt: string, allDay: boolean) => ({
+  id: `a-${kind}`, kind, starts_at: startsAt, all_day: allDay,
+  job_id: ID, name: "Dana Reyes", city: "Henderson", status: "visit_booked",
+});
+
 describe("getDay", () => {
-  const trackerRow = { id: ID, name: "Dana Reyes", city: "Henderson", status: "visit_booked",
-    visit_at: "2026-09-17T17:00:00Z", install_on: "2026-09-19" };
+  const trackerRows = [
+    appt("consultation", "2026-09-17T17:00:00Z", false),
+    appt("install", "2026-09-19T15:00:00Z", true),
+  ];
 
   it("rejects an invalid date", async () => {
     await expect(week.getDay("nope")).rejects.toThrow("Invalid date");
@@ -53,7 +61,7 @@ describe("getDay", () => {
   });
 
   it("returns only tracker items for that day, with visit end times", async () => {
-    sql.mockResolvedValueOnce([trackerRow]);
+    sql.mockResolvedValueOnce(trackerRows);
     const result = await week.getDay("2026-09-17");
     expect(result.date).toBe("2026-09-17");
     expect(result.source).toBe("tracker");
@@ -77,7 +85,7 @@ describe("getDay", () => {
   });
 
   it("only returns items whose day matches", async () => {
-    sql.mockResolvedValueOnce([trackerRow]);
+    sql.mockResolvedValueOnce(trackerRows);
     const result = await week.getDay("2026-09-19");
     expect(result.items).toEqual([expect.objectContaining({ day: "2026-09-19", allDay: true })]);
   });
@@ -168,11 +176,13 @@ describe("getMonth", () => {
 });
 
 describe("getWeek", () => {
-  const trackerRow = { id: ID, name: "Dana Reyes", city: "Henderson", status: "visit_booked",
-    visit_at: "2026-09-17T17:00:00Z", install_on: "2026-09-19" };
+  const trackerRows = [
+    appt("consultation", "2026-09-17T17:00:00Z", false),
+    appt("install", "2026-09-19T15:00:00Z", true),
+  ];
 
   it("shows tracker dates with a notice when Outlook is not connected", async () => {
-    sql.mockResolvedValueOnce([trackerRow]);
+    sql.mockResolvedValueOnce(trackerRows);
     const result = await week.getWeek(undefined, NOW);
     expect(result.source).toBe("tracker");
     expect(result.notice).toBe("Outlook isn't connected yet.");
@@ -250,10 +260,48 @@ describe("getWeek", () => {
     });
   });
 
+  it("shows every appointment kind, each carrying its own kind", async () => {
+    sql.mockResolvedValueOnce([
+      appt("consultation", "2026-09-14T17:00:00Z", false),
+      appt("measure", "2026-09-15T17:00:00Z", false),
+      appt("install", "2026-09-16T15:00:00Z", true),
+      appt("service", "2026-09-17T20:00:00Z", false),
+    ]);
+    const result = await week.getWeek(undefined, NOW);
+    expect(result.items.map((i) => i.job?.kind)).toEqual(["consultation", "measure", "install", "service"]);
+    expect(result.items.map((i) => i.title)).toEqual([
+      "Consultation · Dana Reyes", "Measure · Dana Reyes", "Install · Dana Reyes", "Service · Dana Reyes",
+    ]);
+    expect(result.items.map((i) => i.day)).toEqual(["2026-09-14", "2026-09-15", "2026-09-16", "2026-09-17"]);
+  });
+
+  it("reads confirmed appointments joined to their jobs, never the lead mirror columns", async () => {
+    await week.getWeek(undefined, NOW);
+    const sqlText = (sql.mock.calls[0][0] as string[]).join(" ? ");
+    expect(sqlText).toMatch(/from appointments/i);
+    expect(sqlText).toMatch(/join leads/i);
+    expect(sqlText).toMatch(/confirmed_at is not null/i);
+    expect(sqlText).toMatch(/status <> 'lost'/i);
+    expect(sqlText).not.toMatch(/install_on/i);
+  });
+
+  it("keeps an all-day appointment all day and a timed one timed", async () => {
+    sql.mockResolvedValueOnce([
+      appt("install", "2026-09-16T15:00:00Z", true),
+      appt("measure", "2026-09-15T17:00:00Z", false),
+    ]);
+    const result = await week.getWeek(undefined, NOW);
+    const install = result.items.find((i) => i.job?.kind === "install")!;
+    const measure = result.items.find((i) => i.job?.kind === "measure")!;
+    expect(install).toMatchObject({ day: "2026-09-16", allDay: true, start: null, end: null });
+    expect(measure).toMatchObject({ day: "2026-09-15", allDay: false, start: new Date("2026-09-15T17:00:00Z"),
+      end: new Date("2026-09-15T18:00:00Z") });
+  });
+
   it("falls back to tracker dates when Outlook can't be reached", async () => {
     enabled.mockReturnValue(true);
     graphJson.mockRejectedValue(new Error("down"));
-    sql.mockResolvedValueOnce([trackerRow]);
+    sql.mockResolvedValueOnce(trackerRows);
     const result = await week.getWeek(undefined, NOW);
     expect(result.source).toBe("tracker");
     expect(result.notice).toBe("Couldn't reach Outlook, showing tracker dates only.");

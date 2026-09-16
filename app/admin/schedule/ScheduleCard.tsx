@@ -1,6 +1,5 @@
 import Link from "next/link";
-import { kindLabel } from "@/lib/admin/appointment-kinds";
-import { STAGE_STYLE } from "@/lib/admin/stages";
+import { APPOINTMENT_STYLE, kindLabel } from "@/lib/admin/appointment-kinds";
 import { whenLabel } from "@/lib/calendar/labels";
 import type { ScheduleItem } from "@/lib/calendar/week";
 
@@ -18,7 +17,7 @@ export function ScheduleCard({ item }: { item: ScheduleItem }) {
   return (
     <Link
       href={`/admin/jobs/${job.id}`}
-      className={`flex flex-col gap-0.5 rounded-lg border border-rule border-l-4 ${STAGE_STYLE[job.status].left} bg-ivory p-2 text-xs shadow-sm hover:shadow-md`}
+      className={`flex flex-col gap-0.5 rounded-lg border border-rule border-l-4 ${APPOINTMENT_STYLE[job.kind].left} bg-ivory p-2 text-xs shadow-sm hover:shadow-md`}
     >
       <span className="text-ink-soft">{when} · {kindLabel(job.kind)}</span>
       <span className="text-sm font-semibold text-charcoal">{job.name}</span>

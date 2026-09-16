@@ -1,6 +1,5 @@
 import Link from "next/link";
-import { STAGE_STYLE } from "@/lib/admin/stages";
-import { kindLabel } from "@/lib/admin/appointment-kinds";
+import { APPOINTMENT_STYLE, kindLabel } from "@/lib/admin/appointment-kinds";
 import { lasVegasDate } from "@/lib/admin/time";
 import { monthLabel, type ScheduleItem } from "@/lib/calendar/week";
 import { cellWhen } from "@/lib/calendar/labels";
@@ -25,7 +24,7 @@ function cellLine(item: ScheduleItem): { text: string; className: string } {
   const when = cellWhen(item, item.day);
   if (item.job) {
     const kind = kindLabel(item.job.kind);
-    return { text: `${when} · ${kind} · ${item.job.name}`, className: `border-l-2 pl-1 ${STAGE_STYLE[item.job.status].left}` };
+    return { text: `${when} · ${kind} · ${item.job.name}`, className: `border-l-2 pl-1 ${APPOINTMENT_STYLE[item.job.kind].left}` };
   }
   return { text: `${when} · ${item.title}`, className: "text-ink-soft" };
 }
