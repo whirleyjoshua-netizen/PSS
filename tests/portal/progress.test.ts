@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { buildSteps, isPortalStatus, PORTAL_STAGES, PORTAL_STATUSES, toPortalStage } from "@/lib/portal/progress";
+import {
+  buildSteps, isPortalStatus, PORTAL_STAGES, PORTAL_STATUSES, stageRank, STEP_KEYS,
+  STEP_MIN_STAGE, toPortalStage,
+} from "@/lib/portal/progress";
 
 describe("portal stages", () => {
   it("are quoted through installed, in order", () => {
@@ -43,7 +46,8 @@ describe("buildSteps", () => {
     const steps = buildSteps({ status: "quoted" });
     expect(steps).toHaveLength(7);
     expect(dates(steps)).toEqual([null, null, null, null, null, null, null]);
-    expect(step(steps, "quote").state).toBe("done");
+    // Corrected: a quoted job stands AT Quote Ready — the last step it has reached.
+    expect(step(steps, "quote").state).toBe("current");
   });
 
   it("dates the consultation from the confirmed appointment, else the stage event", () => {
@@ -59,19 +63,24 @@ describe("buildSteps", () => {
     }), "consultation").on).toBe("Sep 1");
   });
 
-  it("marks measurements done and dated, with Quote Ready next, before a quote exists", () => {
+  // Corrected to the spec's rule: the current step is the last one REACHED, so a job with
+  // measurements but no quote is at Measurements, not at Quote Ready.
+  it("makes measurements the current step, dated, before a quote exists", () => {
     const steps = buildSteps({
       status: "visit_booked",
       visitAt: new Date("2026-09-10T17:00:00Z"),
       lastMeasuredAt: new Date("2026-09-13T17:00:00Z"),
     });
-    expect(step(steps, "measurements").state).toBe("done");
+    expect(step(steps, "consultation").state).toBe("done");
+    expect(step(steps, "measurements").state).toBe("current");
     expect(step(steps, "measurements").on).toBe("Sep 13");
-    expect(step(steps, "quote").state).toBe("current");
+    expect(step(steps, "quote").state).toBe("upcoming");
     expect(step(steps, "order").state).toBe("upcoming");
   });
 
-  it("shows a sold job as Order Confirmed done and In Production next", () => {
+  // Corrected: a sold job has reached Order Confirmed and nothing further, so that is where
+  // it stands. It is not "in production" until it has actually been ordered.
+  it("shows a sold job standing at Order Confirmed", () => {
     const steps = buildSteps({
       status: "sold",
       stageDates: {
@@ -81,15 +90,16 @@ describe("buildSteps", () => {
     });
     expect(step(steps, "quote").state).toBe("done");
     expect(step(steps, "quote").on).toBe("Sep 10");
-    expect(step(steps, "order").state).toBe("done");
+    expect(step(steps, "order").state).toBe("current");
     expect(step(steps, "order").on).toBe("Sep 14");
-    expect(step(steps, "production").state).toBe("current");
+    expect(step(steps, "production").state).toBe("upcoming");
     expect(step(steps, "ready").state).toBe("upcoming");
   });
 
   it("dates In Production from the order date", () => {
     const steps = buildSteps({ status: "ordered", orderedOn: "2026-09-15" });
-    expect(step(steps, "production").state).toBe("done");
+    // Ordered with no install booked: In Production is the furthest reached, so it is current.
+    expect(step(steps, "production").state).toBe("current");
     expect(step(steps, "production").on).toBe("Sep 15");
   });
 
@@ -99,9 +109,10 @@ describe("buildSteps", () => {
       orderedOn: "2026-09-15",
       installAppointmentAt: new Date("2026-10-13T17:00:00Z"),
     });
-    expect(step(steps, "ready").state).toBe("done");
+    expect(step(steps, "ready").state).toBe("current");
     expect(step(steps, "ready").on).toBe("Oct 13");
-    expect(step(steps, "installed").state).toBe("current");
+    // Corrected: Installed has not been reached, so it is still ahead of the customer.
+    expect(step(steps, "installed").state).toBe("upcoming");
   });
 
   it("leaves Ready to Install undated with no install appointment", () => {
@@ -140,7 +151,10 @@ describe("buildSteps", () => {
     const steps = buildSteps({ status: "sold" });
     expect(step(steps, "measurements").state).toBe("done");
     expect(step(steps, "measurements").on).toBeNull();
-    expect(step(steps, "production").state).toBe("current");
+    // Corrected: the job stands at Order Confirmed, the last step reached; In Production is
+    // still ahead of it.
+    expect(step(steps, "order").state).toBe("current");
+    expect(step(steps, "production").state).toBe("upcoming");
   });
 
   it("dates steps by the Las Vegas day, not the UTC one", () => {
@@ -165,7 +179,7 @@ describe("a date that has not happened yet", () => {
       installAppointmentAt: new Date("2099-10-13T17:00:00Z"),
     });
     const ready = step(steps, "ready");
-    expect(ready.state).toBe("done");
+    expect(ready.state).toBe("current");
     // Neither date is in the current year, so both carry it.
     expect(ready.on).toBe("Oct 13, 2099");
     expect(ready.future).toBe(true);
@@ -202,11 +216,13 @@ describe("a booked install never speaks for the job's status", () => {
       installAppointmentAt: new Date("2026-10-13T17:00:00Z"),
     });
 
-    expect(step(steps, "quote").state).toBe("done");
+    // Quote Ready is the furthest reached, so it is where the job stands.
+    expect(step(steps, "quote").state).toBe("current");
     for (const key of ["order", "production", "ready"]) {
       expect(step(steps, key).state).not.toBe("done");
+      expect(step(steps, key).state).not.toBe("current");
     }
-    expect(step(steps, "order").state).toBe("current");
+    expect(step(steps, "order").state).toBe("upcoming");
     expect(step(steps, "ready").on).toBeNull();
   });
 
@@ -217,7 +233,7 @@ describe("a booked install never speaks for the job's status", () => {
       installAppointmentAt: new Date("2026-10-13T17:00:00Z"),
     });
 
-    expect(step(steps, "order").state).toBe("done");
+    expect(step(steps, "order").state).toBe("current");
     expect(step(steps, "production").state).not.toBe("done");
     expect(step(steps, "ready").state).not.toBe("done");
   });
@@ -228,7 +244,7 @@ describe("a booked install never speaks for the job's status", () => {
       orderedOn: "2026-09-15",
       installAppointmentAt: new Date("2026-10-13T17:00:00Z"),
     });
-    expect(step(steps, "ready").state).toBe("done");
+    expect(step(steps, "ready").state).toBe("current");
     expect(step(steps, "ready").on).toBe("Oct 13");
   });
 });
@@ -244,5 +260,44 @@ describe("dates from another year", () => {
     expect(step(steps, "production").on).toBe("Nov 4, 2025");
     // A date inside the current year stays short.
     expect(step(steps, "ready").on).toBe("Oct 13");
+  });
+});
+
+describe("the minStage gate, over every step and every portal status", () => {
+  // Every extra fact at once — a visit, a measurement, an order date, an install date and a
+  // confirmed install appointment. Only the job's own status may decide what can be reached,
+  // so no fact here is allowed to pull a step forward of its stage.
+  const facts = {
+    today: "2026-09-16",
+    visitAt: new Date("2026-09-01T17:00:00Z"),
+    lastMeasuredAt: new Date("2026-09-03T17:00:00Z"),
+    orderedOn: "2026-09-15",
+    installOn: "2026-10-13",
+    installAppointmentAt: new Date("2026-10-13T17:00:00Z"),
+    stageDates: {
+      quoted: new Date("2026-09-05T17:00:00Z"),
+      sold: new Date("2026-09-08T17:00:00Z"),
+      installed: new Date("2026-10-20T17:00:00Z"),
+    },
+  };
+
+  for (const status of PORTAL_STATUSES) {
+    it(`claims no milestone beyond ${status}`, () => {
+      const steps = buildSteps({ ...facts, status });
+      const byKey = Object.fromEntries(steps.map((s) => [s.key, s]));
+
+      for (const key of STEP_KEYS) {
+        if (stageRank(status) >= stageRank(STEP_MIN_STAGE[key])) continue;
+        // The job has not reached this step's stage, so it may be neither ticked nor current,
+        // and it may carry no date — whatever facts happen to exist on the job.
+        expect(byKey[key].state).toBe("upcoming");
+        expect(byKey[key].on).toBeNull();
+      }
+    });
+  }
+
+  it("lists the steps in stage order, so no step gates lower than one before it", () => {
+    const ranks = STEP_KEYS.map((key) => stageRank(STEP_MIN_STAGE[key]));
+    expect(ranks).toEqual([...ranks].sort((a, b) => a - b));
   });
 });

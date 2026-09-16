@@ -242,17 +242,22 @@ test("an owner shares a quote, the customer opens it, and unsharing takes it awa
  * jobId/fileId body, so no encoding of the request gets through. Nothing may be
  * shared: not job A's file, not job B's, and neither customer's page may change.
  */
-test("a file cannot be shared under another job's id", async ({ page, browser }) => {
-  // This one never skips. A release gate that quietly does not run reads GREEN while proving
-  // nothing, which is worse than having no gate at all: fail loudly instead, so a missing
-  // token can never be mistaken for a guard that passed.
-  if (!process.env.E2E_BLOB_READ_WRITE_TOKEN) {
-    throw new Error(
-      "E2E_BLOB_READ_WRITE_TOKEN is not set. This cross-job sharing gate must actually run — " +
-        "set the token against the test blob store rather than skipping it.",
-    );
-  }
+test.describe("cross-job sharing release gate", () => {
+  // Checked once per run, before the gate runs, rather than inside the test body. A release
+  // gate that quietly does not run reads GREEN while proving nothing, which is worse than
+  // having no gate at all — so a missing token fails loudly here and can never be mistaken
+  // for a guard that passed. The ordinary photo and document tests above still skip: skipping
+  // a feature test without a blob store is reasonable, skipping the security gate is not.
+  test.beforeAll(() => {
+    if (!process.env.E2E_BLOB_READ_WRITE_TOKEN) {
+      throw new Error(
+        "E2E_BLOB_READ_WRITE_TOKEN is not set. This cross-job sharing gate must actually run — " +
+          "set the token against the test blob store rather than skipping it.",
+      );
+    }
+  });
 
+test("a file cannot be shared under another job's id", async ({ page, browser }) => {
   const jobA = jobId;
   const jobB = await lead(`${NAME} Other`, OTHER_CUSTOMER, "quoted");
   const nameA = `private-a-${STAMP}.pdf`;
@@ -308,6 +313,8 @@ test("a file cannot be shared under another job's id", async ({ page, browser })
   await expect(customerB.getByRole("link", { name: nameA })).toHaveCount(0);
   // The other customer cannot open it either, shared or not.
   expect((await customerB.request.get(`/project/files/${fileA}`)).status()).toBe(404);
+});
+
 });
 
 test("a lost job locks the customer out", async ({ browser }) => {

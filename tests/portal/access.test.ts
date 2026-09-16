@@ -59,8 +59,8 @@ describe("toProject", () => {
       steps: [
         { key: "consultation", label: "Consultation", state: "done", on: null, future: false },
         { key: "measurements", label: "Measurements", state: "done", on: null, future: false },
-        { key: "quote", label: "Quote Ready", state: "done", on: null, future: false },
-        { key: "order", label: "Order Confirmed", state: "current", on: null, future: false },
+        { key: "quote", label: "Quote Ready", state: "current", on: null, future: false },
+        { key: "order", label: "Order Confirmed", state: "upcoming", on: null, future: false },
         { key: "production", label: "In Production", state: "upcoming", on: null, future: false },
         { key: "ready", label: "Ready to Install", state: "upcoming", on: null, future: false },
         { key: "installed", label: "Installed", state: "upcoming", on: null, future: false },
@@ -87,7 +87,8 @@ describe("toProject", () => {
     const byKey = Object.fromEntries(project.steps.map((s) => [s.key, s]));
     expect(byKey.measurements.on).toBe("Sep 13");
     expect(byKey.quote.on).toBe("Sep 10");
-    expect(byKey.order).toEqual({ key: "order", label: "Order Confirmed", state: "done", on: "Sep 14", future: false });
+    // The job is sold, so Order Confirmed is the furthest step reached: it is the current one.
+    expect(byKey.order).toEqual({ key: "order", label: "Order Confirmed", state: "current", on: "Sep 14", future: false });
     // The job is only sold, so a booked install does not tick Ready to Install — and cannot
     // drag In Production done with it. The date still reaches the page's Installation section.
     expect(byKey.ready.on).toBeNull();

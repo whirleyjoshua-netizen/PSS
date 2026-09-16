@@ -55,10 +55,13 @@ describe("ProjectView header and tracker", () => {
   it("shows where the job is, with its dates", async () => {
     render(await ProjectView({ job }));
     const tracker = screen.getByRole("region", { name: "Your project" });
-    const done = within(tracker).getByText("In Production").closest("li")!;
-    expect(done).not.toHaveAttribute("aria-current");
-    expect(within(done).getByText("Sep 20, 2025")).toBeInTheDocument();
-    expect(within(tracker).getByText("Ready to Install").closest("li")!).toHaveAttribute("aria-current", "step");
+    // Ordered with no install booked: In Production is the furthest step reached, so it is the
+    // current one, Order Confirmed behind it reads done, and Ready to Install is still ahead.
+    const current = within(tracker).getByText("In Production").closest("li")!;
+    expect(current).toHaveAttribute("aria-current", "step");
+    expect(within(current).getByText("Sep 20, 2025")).toBeInTheDocument();
+    expect(within(tracker).getByText("Order Confirmed").closest("li")!).not.toHaveAttribute("aria-current");
+    expect(within(tracker).getByText("Ready to Install").closest("li")!).not.toHaveAttribute("aria-current");
   });
 
   it("dates Measurements and Ready to Install from the loaded timeline", async () => {
@@ -87,7 +90,7 @@ describe("ProjectView status banner", () => {
   it("is informational when no quote has been shared", async () => {
     render(await ProjectView({ job }));
     const banner = screen.getByRole("region", { name: "Where your project stands" });
-    expect(within(banner).getByRole("heading", { level: 2 })).toHaveTextContent("Ready to Install");
+    expect(within(banner).getByRole("heading", { level: 2 })).toHaveTextContent("In Production");
     expect(within(banner).queryByRole("link", { name: "Review quote" })).not.toBeInTheDocument();
   });
 
@@ -96,6 +99,19 @@ describe("ProjectView status banner", () => {
     render(await ProjectView({ job }));
     const banner = screen.getByRole("region", { name: "Where your project stands" });
     expect(within(banner).getByRole("link", { name: "Review quote" })).toHaveAttribute("href", "/project/files/d1");
+  });
+
+  // The completed-job case: every step is reached, so nothing is "current" — the tracker is all
+  // ticks and the banner falls back to the last step done. A finished job should read finished.
+  it("reads a finished job as complete, with nothing still in progress", async () => {
+    render(await ProjectView({ job: { ...job, status: "completed" as const, installOn: "2025-10-13" } }));
+
+    const banner = screen.getByRole("region", { name: "Where your project stands" });
+    expect(within(banner).getByRole("heading", { level: 2 })).toHaveTextContent("Installed");
+    expect(within(banner).getByText("Your installation is complete. Enjoy your new windows.")).toBeInTheDocument();
+
+    const tracker = screen.getByRole("region", { name: "Your project" });
+    expect(tracker.querySelectorAll('li[aria-current="step"]')).toHaveLength(0);
   });
 });
 
