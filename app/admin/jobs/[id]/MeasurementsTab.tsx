@@ -17,6 +17,7 @@ export function MeasurementsTab({ jobId, measurements, files }: {
   files: JobFile[];
 }) {
   const sharedById = new Map(files.map((file) => [file.id, Boolean(file.sharedAt)]));
+  const nameById = new Map(files.map((file) => [file.id, file.name]));
 
   return (
     <div className="flex flex-col gap-4">
@@ -61,7 +62,9 @@ export function MeasurementsTab({ jobId, measurements, files }: {
                       <Link href={`/admin/jobs/${jobId}/measure/${m.id}`}
                         className="inline-flex min-h-11 items-center px-2 underline underline-offset-4">Edit</Link>
                       {m.photoFileId ? (
-                        <ShareSwitch jobId={jobId} fileId={m.photoFileId} shared={sharedById.get(m.photoFileId) ?? false} />
+                        <ShareSwitch jobId={jobId} fileId={m.photoFileId}
+                          fileName={nameById.get(m.photoFileId) ?? `the photo of ${m.label ?? m.room}`}
+                          shared={sharedById.get(m.photoFileId) ?? false} />
                       ) : null}
                       <form action={removeMeasurement.bind(null, jobId, m.id)}>
                         <DeleteButton />

@@ -43,3 +43,10 @@ export const business = {
 } as const;
 
 export type Business = typeof business;
+
+/**
+ * How long production typically takes, shown on the customer's project page while
+ * their order is in production. A rule of thumb for every job, never per-job data —
+ * the copy says "typically" for that reason.
+ */
+export const PRODUCTION_ESTIMATE = "Typically 4–6 weeks from order to install";

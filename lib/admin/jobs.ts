@@ -37,6 +37,8 @@ export type Job = {
   reviewOptOut: boolean;
   /** When the customer was last sent a portal invite. Optional so older fixtures still type-check. */
   portalInvitedAt?: Date | null;
+  /** The short, human-friendly project number shown to the customer. Optional so older fixtures still type-check. */
+  projectNo?: number | null;
   /** Budget tier from the call screen or Job details. Optional so older fixtures still type-check. */
   budgetTier?: BudgetTier | null;
   /** The job's one next call-back, if any. Optional so older fixtures still type-check. */
@@ -74,7 +76,7 @@ export const JOB_COLUMNS = `id, created_at, name, phone, email, address, city, t
   heard_via, notes, source, status, stage_changed_at, visit_at, quote_cents, sold_cents,
   deposit_cents, brands, ordered_on::text as ordered_on, install_on::text as install_on, lost_reason,
   referral_code, referred_by, referral_paid_at, review_requested_at, review_opt_out, portal_invited_at, budget_tier,
-  follow_up_at, follow_up_note, window_count_exact, treatment_types, motorized, gate_code, finish,
+  follow_up_at, follow_up_note, window_count_exact, treatment_types, motorized, gate_code, finish, project_no,
   assigned_to,
   (select t.name from team_members t where t.id = leads.assigned_to) as assigned_name,
   (select t.role from team_members t where t.id = leads.assigned_to) as assigned_role,
@@ -110,6 +112,7 @@ export function toJob(row: Record<string, unknown>): Job {
     reviewRequestedAt: row.review_requested_at ? new Date(row.review_requested_at as string) : null,
     reviewOptOut: row.review_opt_out === true,
     portalInvitedAt: row.portal_invited_at ? new Date(row.portal_invited_at as string) : null,
+    projectNo: (row.project_no as number | null) ?? null,
     budgetTier: isBudgetTier(row.budget_tier) ? row.budget_tier : null,
     followUpAt: row.follow_up_at ? new Date(row.follow_up_at as string) : null,
     followUpNote: (row.follow_up_note as string | null) ?? null,
