@@ -41,6 +41,16 @@ const job = { id: MINE, name: "Maria Lopez", projectNo: 1002 };
 /** The one statement inserts its row: a clean send. An empty result means it was throttled. */
 const CLEAN_SEND = () => [[{ id: "e1" }]];
 
+/**
+ * Rebuilds one recorded call as the statement Postgres would see, with $1, $2 … where the
+ * bound parameters go. The raw template array alone has no placeholders in it, so a cast
+ * like `$2::text` is only visible once the two halves are interleaved.
+ */
+const statementOf = (call: unknown[]): string => {
+  const [strings, ...params] = call as [TemplateStringsArray, ...unknown[]];
+  return strings.map((part, i) => part + (i < params.length ? `$${i + 1}` : "")).join("");
+};
+
 beforeEach(() => {
   calls.length = 0;
   results = [];
@@ -111,16 +121,36 @@ describe("sendMessage", () => {
     await sendMessage(MINE, "hello", EMAIL);
     // One statement only: no read-then-write gap for a concurrent send to slip through.
     expect(calls).toEqual(["insert"]);
-    const statement = query.mock.calls[0][0].join(" ");
+    const statement = statementOf(query.mock.calls[0]);
     expect(statement).toMatch(/insert\s+into\s+job_events/i);
     expect(statement).toMatch(/where\s+not\s+exists/i);
+  });
+
+  it("binds the throttle window the way the login tokens already do", async () => {
+    results = CLEAN_SEND();
+    await sendMessage(MINE, "hello", EMAIL);
+    const statement = statementOf(query.mock.calls[0]);
+    // A text parameter with an explicit ::interval cast, as lib/portal/login.ts and
+    // lib/admin/login.ts bind a duration. make_interval(secs => $n) leaves the parameter's
+    // type to resolution that nothing here has ever run against Postgres.
+    expect(statement).toMatch(/::interval/);
+    expect(statement).not.toMatch(/make_interval/);
+    expect(query.mock.calls[0]).toContain("60 seconds");
+  });
+
+  it("states the type of every parameter whose type would otherwise be inferred", async () => {
+    results = CLEAN_SEND();
+    await sendMessage(MINE, "hello", EMAIL);
+    // The actor and body sit in a SELECT list, not a VALUES row, so the insert target does
+    // not bind them directly.
+    expect(statementOf(query.mock.calls[0])).toMatch(/select\s+\$1::uuid,\s*\$2::text,\s*'message',\s*\$3::text/i);
   });
 
   it("measures the window against the customer's own messages only", async () => {
     results = CLEAN_SEND();
     await sendMessage(MINE, "hello", EMAIL);
     // An owner-authored 'message' event on the same job must never throttle the customer.
-    const statement = query.mock.calls[0][0].join(" ");
+    const statement = statementOf(query.mock.calls[0]);
     expect(statement).toMatch(/actor\s*=/);
     expect(query.mock.calls[0]).toContain(EMAIL);
   });
@@ -138,7 +168,7 @@ describe("listMessages", () => {
     const at = new Date("2026-09-14T17:00:00Z");
     results = [[{ body: "hello", created_at: at }]];
     await expect(listMessages(MINE, EMAIL)).resolves.toEqual([{ body: "hello", createdAt: at }]);
-    const statement = query.mock.calls[0][0].join(" ");
+    const statement = statementOf(query.mock.calls[0]);
     expect(statement).toMatch(/kind\s*=\s*'message'/);
     expect(statement).toMatch(/desc/i);
   });
@@ -148,7 +178,7 @@ describe("listMessages", () => {
     // not the convention that nothing else writes this kind today.
     results = [[]];
     await listMessages(MINE, EMAIL);
-    expect(query.mock.calls[0][0].join(" ")).toMatch(/actor\s*=/);
+    expect(statementOf(query.mock.calls[0])).toMatch(/actor\s*=/);
     expect(query.mock.calls[0]).toContain(EMAIL);
   });
 });

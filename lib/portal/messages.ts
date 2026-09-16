@@ -26,6 +26,13 @@ export type SendOutcome = Exclude<MessageResult, "not-found">;
  * Both halves are scoped to `actor` as well as the job, so what the customer may send is
  * measured only against what the customer themselves sent. An owner-authored event on the
  * same job can never throttle them.
+ *
+ * Every parameter is cast where its type could be inferred rather than stated. The window
+ * is built as text and cast with `::interval`, which is how lib/portal/login.ts and
+ * lib/admin/login.ts already bind a duration — the one style in this repo, and one that
+ * runs in production on every login email. The actor and body sit in a SELECT list, where
+ * Postgres infers from the insert target instead of binding straight from a VALUES row, so
+ * they say `::text` rather than relying on that inference.
  */
 export async function sendMessage(jobId: string, body: string, actor: string): Promise<SendOutcome> {
   const text = body.trim();
@@ -36,11 +43,11 @@ export async function sendMessage(jobId: string, body: string, actor: string): P
 
   const rows = await db()`
     insert into job_events (lead_id, actor, kind, body)
-    select ${jobId}::uuid, ${actor}, 'message', ${text}
+    select ${jobId}::uuid, ${actor}::text, 'message', ${text}::text
     where not exists (
       select 1 from job_events
       where lead_id = ${jobId}::uuid and actor = ${actor} and kind = 'message'
-        and created_at > now() - make_interval(secs => ${THROTTLE_SECONDS})
+        and created_at > now() - ${`${THROTTLE_SECONDS} seconds`}::interval
     )
     returning id`;
   return rows.length > 0 ? "sent" : "throttled";
