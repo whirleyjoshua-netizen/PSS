@@ -26,7 +26,8 @@ describe("AssignControl", () => {
       "Unassigned", "Joshua — Installer", "Shade — Designer",
     ]);
     expect(select).toHaveValue("b");
-    expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
+    // "Save assignee", not "Save": ContactLog's Save is on the same page.
+    expect(screen.getByRole("button", { name: "Save assignee" })).toBeInTheDocument();
   });
 
   it("shows Unassigned when nobody is assigned", () => {

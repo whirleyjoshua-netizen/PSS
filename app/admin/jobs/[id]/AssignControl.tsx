@@ -36,7 +36,9 @@ export function AssignControl({ jobId, assignedTo, team }: {
           <option key={person.id} value={person.id}>{person.name} — {roleLabel(person.role)}</option>
         ))}
       </SubmitOnChange>
-      <button type="submit" className="sr-only">Save</button>
+      {/* Named for what it saves: ContactLog has its own "Save" on this page, and two buttons
+          with the same accessible name leave a screen-reader user guessing. */}
+      <button type="submit" className="sr-only">Save assignee</button>
       {state.error ? <p role="alert" className="w-full text-overdue">{state.error}</p> : null}
     </form>
   );
