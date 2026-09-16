@@ -65,6 +65,12 @@ export function ScheduleDialog({
   useEffect(() => { if (state.ok) close(dialog.current); }, [state]);
   // A length the owner typed, or one carried from the appointment being moved, stays put when the
   // kind changes; an untouched length follows the picked kind's default.
+  // A failed submit redraws the window as it was picked, so half a window is not lost. A select only
+  // reads defaultValue when it mounts, so the fieldset is keyed to the echoed values to remount it.
+  const seeded = (name: "windowStart" | "windowEnd", fallback: string | null) => {
+    const echoed = state.values?.[name];
+    return typeof echoed === "string" ? echoed : fallback ?? "";
+  };
   const [touched, setTouched] = useState(durationMinutes != null);
   const [hours, setHours] = useState(hoursLabel(durationMinutes ?? defaultMinutes[kind]));
 
@@ -93,17 +99,17 @@ export function ScheduleDialog({
         <input id={`allDay-${uid}`} type="checkbox" name="allDay" defaultChecked={allDay} />
         All day
       </label>
-      <fieldset className="flex flex-col gap-2">
+      <fieldset key={`${seeded("windowStart", windowStart)}-${seeded("windowEnd", windowEnd)}`} className="flex flex-col gap-2">
         <legend className="mb-2">Arrival window</legend>
         <div className="grid grid-cols-2 gap-2">
           <label htmlFor={`windowStart-${uid}`} className="flex flex-col gap-1">From
-            <select id={`windowStart-${uid}`} name="windowStart" className={CONTROL} defaultValue={windowStart ?? ""}>
+            <select id={`windowStart-${uid}`} name="windowStart" className={CONTROL} defaultValue={seeded("windowStart", windowStart)}>
               <option value="">Any time</option>
               {WINDOW_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
           </label>
           <label htmlFor={`windowEnd-${uid}`} className="flex flex-col gap-1">To
-            <select id={`windowEnd-${uid}`} name="windowEnd" className={CONTROL} defaultValue={windowEnd ?? ""}>
+            <select id={`windowEnd-${uid}`} name="windowEnd" className={CONTROL} defaultValue={seeded("windowEnd", windowEnd)}>
               <option value="">Any time</option>
               {WINDOW_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>

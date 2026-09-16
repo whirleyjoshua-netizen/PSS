@@ -204,3 +204,13 @@ describe("appointmentSchema timing", () => {
     expect(appointmentSchema.safeParse({ ...base, windowStart: "", windowEnd: "", hours: "13" }).success).toBe(false);
   });
 });
+
+describe("appointmentSchema length", () => {
+  const base = { kind: "install", startsAt: "2026-09-24T09:00", allDay: false, windowStart: "", windowEnd: "" };
+  it("rejects a length that is not a quarter hour", () => {
+    expect(appointmentSchema.safeParse({ ...base, hours: "1.1" }).error!.issues[0].message).toBe("Use quarter hours");
+  });
+  it("rejects a zero length", () => {
+    expect(appointmentSchema.safeParse({ ...base, hours: "0" }).error!.issues[0].message).toBe("Lengths are between 0.25 and 12 hours");
+  });
+});

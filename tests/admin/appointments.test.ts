@@ -91,7 +91,9 @@ describe("saveAppointment", () => {
     expect(statement).toMatch(
       /on conflict \(lead_id, kind\) do update set[^;]*window_start = excluded.window_start, window_end = excluded.window_end, duration_minutes = excluded.duration_minutes, confirmed_at = null/,
     );
-    expect(sql.mock.calls[0]).toEqual(expect.arrayContaining(["08:00", "10:00", 240]));
+    const params = sql.mock.calls[0].slice(1);
+    const at = params.indexOf("08:00");
+    expect(params.slice(at, at + 3)).toEqual(["08:00", "10:00", 240]);
   });
 
   it("describes an all-day appointment by its date", async () => {

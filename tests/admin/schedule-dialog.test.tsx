@@ -118,6 +118,20 @@ describe("ScheduleDialog", () => {
     expect(data.get("hours")).toBe("1");
   });
 
+  it("keeps a half-picked window when the submit fails", async () => {
+    bookAppointment.mockResolvedValueOnce({
+      error: "Pick both ends of the arrival window, or Any time", values: { windowStart: "08:00", windowEnd: "" },
+    });
+    const user = userEvent.setup();
+    render(<ScheduleDialog jobId={ID} defaultMinutes={MINUTES} />);
+    await user.click(screen.getByRole("button", { name: "Schedule" }));
+    await user.selectOptions(screen.getByRole("combobox", { name: "From" }), "08:00");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await screen.findByRole("alert");
+    expect(screen.getByRole("combobox", { name: "From" })).toHaveValue("08:00");
+    expect(screen.getByRole("combobox", { name: "To" })).toHaveValue("");
+  });
+
   it("carries the window and length of the appointment being moved", async () => {
     const user = userEvent.setup();
     render(<ScheduleDialog jobId={ID} defaultMinutes={MINUTES} label="Reschedule" kind="install"

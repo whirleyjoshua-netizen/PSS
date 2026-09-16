@@ -25,6 +25,10 @@ describe("logCall", () => {
     expect(text).toContain("'consultation'");
     expect(text).toContain("where $7::timestamptz is not null");
     expect(text).toMatch(/confirmed_at = now\(\)/);
+    // A call has no timing inputs, so re-booking by call clears any window and length left from before.
+    expect(text.replace(/\s+/g, " ")).toMatch(
+      /on conflict \(lead_id, kind\) do update set[^;]*window_start = null, window_end = null, duration_minutes = null/,
+    );
     expect(text).toContain("status = any($9::text[])");
     expect(text).toContain("where updated.status = $8::text and prev.status <> $8::text");
     expect(text).toContain("'note'");

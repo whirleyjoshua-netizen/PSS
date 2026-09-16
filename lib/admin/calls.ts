@@ -45,6 +45,7 @@ export async function logCall(jobId: string, input: CallInput, actor: string): P
        from updated where $7::timestamptz is not null
        on conflict (lead_id, kind) do update set
          starts_at = excluded.starts_at, all_day = false,
+         window_start = null, window_end = null, duration_minutes = null,
          confirmed_at = now(), confirmed_by = excluded.confirmed_by, updated_at = now()
      ),
      moved as (
