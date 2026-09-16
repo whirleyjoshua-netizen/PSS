@@ -262,6 +262,27 @@ export const installSettingsSchema = z.object({
   motorizedCents: rateAmount,
 });
 
+const lineEighths = z.number().int().positive().max(MAX_EIGHTHS).nullable();
+
+/**
+ * Lines sent from the Install tab. The pricing engine trusts its inputs, so they are checked here:
+ * a fractional or negative count would otherwise write fractional cents into an integer column.
+ */
+export const installLinesSchema = z
+  .array(z.object({
+    treatment: z.enum(INSTALLABLE_TREATMENTS as [TreatmentType, ...TreatmentType[]], { error: "Pick a treatment" }),
+    count: z.number({ error: "Enter a whole number of windows" }).int("Enter a whole number of windows")
+      .min(0, "Enter a whole number of windows").max(1000, "That is more windows than one job can hold"),
+    widthEighths: lineEighths,
+    heightEighths: lineEighths,
+    hardSurface: z.boolean(),
+    highLadder: z.boolean(),
+    motorized: z.boolean(),
+  }))
+  .min(1, "Add at least one line before saving.");
+
+export const installKindSchema = z.enum(["estimate", "final"], { error: "Save as an estimate or a final price" });
+
 export type MeasurementInput = z.output<typeof measurementSchema>;
 
 export type DetailsInput = z.output<typeof detailsSchema>;

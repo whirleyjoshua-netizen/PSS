@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { appointmentSchema, detailsSchema, newJobSchema, noteSchema, lostSchema, teamMemberSchema, installRateSchema, installSettingsSchema } from "@/lib/admin/schema";
+import { appointmentSchema, detailsSchema, newJobSchema, noteSchema, lostSchema, teamMemberSchema, installRateSchema, installSettingsSchema, installLinesSchema, installKindSchema } from "@/lib/admin/schema";
 import { APPOINTMENT_KINDS } from "@/lib/admin/appointment-kinds";
 import { TEAM_ROLES } from "@/lib/admin/team-roles";
 
@@ -165,5 +165,41 @@ describe("installation rate money fields", () => {
 
   it("rejects an amount that is not money", () => {
     expect(installSettingsSchema.safeParse({ ...settings, motorizedCents: "abc" }).success).toBe(false);
+  });
+});
+
+describe("installLinesSchema", () => {
+  const line = {
+    treatment: "roller_shades", count: 3, widthEighths: 240, heightEighths: null,
+    hardSurface: false, highLadder: true, motorized: false,
+  };
+
+  it("accepts a valid line", () => {
+    expect(installLinesSchema.safeParse([line]).data).toEqual([line]);
+  });
+
+  it("rejects a fractional count", () => {
+    expect(installLinesSchema.safeParse([{ ...line, count: 1.5 }]).success).toBe(false);
+  });
+
+  it("rejects a negative count", () => {
+    expect(installLinesSchema.safeParse([{ ...line, count: -1 }]).success).toBe(false);
+  });
+
+  it("rejects an unknown treatment", () => {
+    expect(installLinesSchema.safeParse([{ ...line, treatment: "moat" }]).success).toBe(false);
+  });
+
+  it("rejects a width beyond the measurable maximum", () => {
+    expect(installLinesSchema.safeParse([{ ...line, widthEighths: 600 * 8 + 1 }]).success).toBe(false);
+  });
+
+  it("asks for a line when there are none", () => {
+    expect(installLinesSchema.safeParse([]).error?.issues[0].message).toBe("Add at least one line before saving.");
+  });
+
+  it("accepts only estimate or final as a kind", () => {
+    expect(installKindSchema.safeParse("final").success).toBe(true);
+    expect(installKindSchema.safeParse("draft").success).toBe(false);
   });
 });
