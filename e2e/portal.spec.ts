@@ -131,7 +131,8 @@ test("a customer sees the rebuilt project page, with no money on it", async ({ b
 });
 
 // A job part-way through: ordered, with the stage dates behind it. The tracker must
-// tick everything reached, mark the next one current, and date the steps it reached.
+// tick everything before the furthest step reached, mark that step itself current, and
+// date the steps it reached.
 test("a mid-flow job shows the right current step with its dates", async ({ browser }) => {
   const id = await lead(`${NAME} Mid`, MID_CUSTOMER, "ordered");
   await sql()`update leads set ordered_on = '2026-09-10' where id = ${id}`;
@@ -142,12 +143,15 @@ test("a mid-flow job shows the right current step with its dates", async ({ brow
 
   const page = await customerPage(browser, MID_CUSTOMER);
 
-  // Nothing was measured and no install is booked, so In Production is the furthest
-  // step reached and Ready to Install is the current one.
-  await expect(page.locator('li[aria-current="step"]')).toContainText("Ready to Install");
+  // Nothing was measured and no install is booked, so In Production is the furthest step
+  // reached, and the spec makes the furthest step reached the current one. The customer is
+  // never told a later milestone has happened: Ready to Install stays upcoming until an
+  // install is actually booked.
+  await expect(page.locator('li[aria-current="step"]')).toContainText("In Production");
   await expect(page.getByRole("region", { name: "Where your project stands" })
-    .getByRole("heading", { name: "Ready to Install" })).toBeVisible();
-  await expect(page.getByText("We will confirm your installation date with you.")).toBeVisible();
+    .getByRole("heading", { name: "In Production" })).toBeVisible();
+  await expect(page.getByText("We will call you to book your installation as soon as your order arrives.")).toBeVisible();
+  await expect(page.locator('li[aria-current="step"]')).not.toContainText("Ready to Install");
 
   const steps = page.getByRole("listitem");
   await expect(steps.filter({ hasText: "Quote Ready" })).toContainText("Sep 2");
