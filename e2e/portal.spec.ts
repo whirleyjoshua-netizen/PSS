@@ -271,18 +271,40 @@ test("an owner shares a quote, the customer opens it, and unsharing takes it awa
 });
 
 /**
- * The release gate. A quote reaching the wrong customer is the worst thing this
- * feature can do, and setShared's `and lead_id = ${jobId}` clause is what stops it.
+ * A quote reaching the wrong customer is the worst thing this feature can do. This
+ * gate covers the part of that threat a browser can actually reach.
  *
- * The attempt: two jobs belonging to two different customers, each with its own
- * private document. The owner's browser takes the share request the page builds for
- * job B's own file and re-sends it with job A's file id in place of job B's — the
- * mismatched pair (job B's id, job A's file) is exactly the request the guard exists
- * to refuse. It is sent both as the page's own encoded payload and as a plain
- * jobId/fileId body, so no encoding of the request gets through. Nothing may be
- * shared: not job A's file, not job B's, and neither customer's page may change.
+ * WHY THERE IS NO CROSS-JOB SHARING TEST HERE, and where that proof lives instead:
+ *
+ * An earlier version of this file tried to forge a mismatched (jobId, fileId) share —
+ * job B's id carrying job A's file — to prove setShared's `and lead_id = ${jobId}`
+ * clause. It could not be done, and the test passed with the guard deleted from the
+ * source and the app rebuilt. It was removed rather than left looking like cover.
+ *
+ * The reason is the dispatch path. `ShareSwitch` renders
+ * `<form action={setFileShared.bind(null, jobId, fileId, !shared)}>`, and Next's docs
+ * on Server Actions state that action IDs are "encrypted, non-deterministic" and that
+ * closed-over/bound arguments are "automatically encrypted" under a private key
+ * regenerated on every build. In the DOM that is all a client sees: an empty `action`
+ * and opaque `$ACTION_REF_n` / `$ACTION_n:0` fields. The three arguments travel as ONE
+ * per-build ciphertext, so a client can replay a whole valid triple but cannot mint a
+ * mixed pair — swapping blobs between two forms swaps jobId, fileId and shared
+ * together, which is never a mismatch. A hand-built POST without the framework's own
+ * dispatch is handled as an ordinary navigation and never reaches the action at all.
+ *
+ * So the lead_id guard defends against OUR OWN code passing a wrong id, not against a
+ * customer or a tampering owner. That is a real thing worth guarding, but it is not an
+ * end-to-end fact, and the honest proof is the unit test at
+ * tests/admin/file-sharing.test.ts:50 ("keeps the lead_id guard, so one job's file
+ * cannot be shared onto another"), which has been watched failing under exactly that
+ * mutation. If you change setShared, that is the test that must stay green.
+ *
+ * What IS reachable from a browser, and what this gate therefore proves: one
+ * customer's session must not be able to open another customer's file, even a file
+ * that is genuinely shared. That is enforced by the ownership check in
+ * app/(site)/project/files/[fileId]/route.ts, and removing it turns this test red.
  */
-test.describe("cross-job sharing release gate", () => {
+test.describe("customer file isolation", () => {
   // Checked once per run, before the gate runs, rather than inside the test body. A release
   // gate that quietly does not run reads GREEN while proving nothing, which is worse than
   // having no gate at all — so a missing token fails loudly here and can never be mistaken
@@ -291,70 +313,52 @@ test.describe("cross-job sharing release gate", () => {
   test.beforeAll(() => {
     if (!process.env.E2E_BLOB_READ_WRITE_TOKEN) {
       throw new Error(
-        "E2E_BLOB_READ_WRITE_TOKEN is not set. This cross-job sharing gate must actually run — " +
+        "E2E_BLOB_READ_WRITE_TOKEN is not set. This file isolation gate must actually run — " +
           "set the token against the test blob store rather than skipping it.",
       );
     }
   });
 
-test("a file cannot be shared under another job's id", async ({ page, browser }) => {
+test("one customer cannot open another customer's file, shared or not", async ({ page, browser }) => {
   const jobA = jobId;
   const jobB = await lead(`${NAME} Other`, OTHER_CUSTOMER, "quoted");
-  const nameA = `private-a-${STAMP}.pdf`;
+  const nameA = `shared-a-${STAMP}.pdf`;
   const nameB = `private-b-${STAMP}.pdf`;
 
   await signInOwner(page);
   const fileA = await uploadDocument(page, jobA, nameA);
   const fileB = await uploadDocument(page, jobB, nameB);
 
-  // Harvest the share request the owner's own page would send for job B's file.
-  await page.goto(`/admin/jobs/${jobB}?tab=files`);
-  const request = await page.evaluate((label) => {
-    const button = document.querySelector(`[aria-label="${label}"]`)!;
-    const form = button.closest("form") as HTMLFormElement;
-    const fields: [string, string][] = [];
-    for (const [key, value] of new FormData(form)) if (typeof value === "string") fields.push([key, value]);
-    return { action: form.getAttribute("action") ?? window.location.pathname, fields };
-  }, `Share ${nameB} with customer`);
+  // Share job A's file through the real switch — the framework's own dispatch, the
+  // only path that actually reaches setFileShared.
+  await page.goto(`/admin/jobs/${jobA}?tab=files`);
+  const share = page.getByRole("switch", { name: `Share ${nameA} with customer` });
+  await share.click();
+  await expect(share).toHaveAttribute("aria-checked", "true");
 
-  // Re-send it against job A's file: same session, same owner, wrong pairing.
-  const status = await page.evaluate(
-    async ({ action, fields, jobBId, fileAId, fileBId }) => {
-      // Every place the payload names job B's file becomes job A's, so what is sent
-      // is the mismatched pair: job B's id carrying a file that belongs to job A.
-      const body = new URLSearchParams(
-        fields.map(([key, value]) => [key, value.split(fileBId).join(fileAId)] as [string, string]),
-      );
-      body.set("jobId", jobBId);
-      body.set("fileId", fileAId);
-      const response = await fetch(action, { method: "POST", body });
-      return response.status;
-    },
-    { action: request.action, fields: request.fields, jobBId: jobB, fileAId: fileA, fileBId: fileB },
-  );
-  // Whatever the server answers — a refusal, or a page that simply did not change —
-  // the assertions below are what decide this test. Nothing may have been shared.
-  expect(typeof status).toBe("number");
-
-  // Nothing was shared, in the database...
-  const rows = await sql()`select id, shared_at from job_files where id in (${fileA}, ${fileB})`;
-  for (const row of rows) expect(row.shared_at).toBeNull();
-
-  // ...and nothing appears on either customer's page.
+  // The positive control, and it is what keeps the refusals below honest: the file is
+  // genuinely shared and genuinely downloadable, so a 404 for anyone else is the
+  // ownership check doing its work rather than the route being broken for everybody.
   const customerA = await customerPage(browser, CUSTOMER);
   await customerA.getByRole("tab", { name: "Documents" }).click();
-  await expect(customerA.getByText("Paperwork we share with you will appear here.")).toBeVisible();
-  await expect(customerA.getByRole("link", { name: nameA })).toHaveCount(0);
-  // Signed in as the file's own customer, so a 404 here can only mean "still private"
-  // — it cannot be an unauthenticated request quietly bouncing to sign-in.
-  expectNotFound(await download(customerA, `/project/files/${fileA}`));
+  await expect(customerA.getByRole("link", { name: nameA })).toBeVisible();
+  expectFile(await download(customerA, `/project/files/${fileA}`), "application/pdf");
 
+  // The other customer must not reach it, though it IS shared — this is the assertion
+  // the gate exists for. It goes red if route.ts stops checking that the file's job is
+  // one of the caller's own. It proves ownership, not sharing: that route refuses a
+  // non-owner whether or not the file is shared.
   const customerB = await customerPage(browser, OTHER_CUSTOMER);
   await customerB.getByRole("tab", { name: "Documents" }).click();
   await expect(customerB.getByText("Paperwork we share with you will appear here.")).toBeVisible();
   await expect(customerB.getByRole("link", { name: nameA })).toHaveCount(0);
-  // The other customer cannot open it either, shared or not.
   expectNotFound(await download(customerB, `/project/files/${fileA}`));
+
+  // And their own unshared file stays private to them too, so the refusal above is not
+  // just "customer B can download nothing": private-by-default is the other half.
+  const [row] = await sql()`select shared_at from job_files where id = ${fileB}`;
+  expect(row.shared_at).toBeNull();
+  expectNotFound(await download(customerB, `/project/files/${fileB}`));
 });
 
 });
