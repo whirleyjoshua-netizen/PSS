@@ -2,6 +2,7 @@ import "server-only";
 import { db } from "@/lib/db";
 import { JOB_COLUMNS, toJob, type Job } from "@/lib/admin/jobs";
 import { PORTAL_STATUSES, toPortalStage, type PortalStage } from "./progress";
+import { formatProjectNo } from "./project-no";
 
 export const normalizeEmail = (raw: string | null | undefined): string => (raw ?? "").trim().toLowerCase();
 
@@ -30,6 +31,8 @@ export type ProjectSummary = {
   city: string;
   status: PortalStage;
   installOn: string | null;
+  /** Already formatted as PSS-1048; the internal id never appears here. */
+  projectNo: string | null;
 };
 
 /** Only call with a job from visibleJobs(), so its status is a portal status. */
@@ -41,5 +44,6 @@ export function toProject(job: Job): ProjectSummary {
     city: job.city,
     status: toPortalStage(job.status),
     installOn: job.installOn,
+    projectNo: formatProjectNo(job.projectNo ?? null),
   };
 }
