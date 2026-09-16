@@ -15,7 +15,7 @@ const removeTeamMember = vi.fn(async () => {
   return true;
 });
 vi.mock("@/lib/admin/team", () => ({ addTeamMember, removeTeamMember }));
-const saveInstallRates = vi.fn(async () => {
+const saveInstallRates = vi.fn(async (..._args: unknown[]) => {
   order.push("saveRates");
 });
 vi.mock("@/lib/admin/install-rates", () => ({ saveInstallRates }));
