@@ -18,6 +18,7 @@ vi.mock("@/lib/calendar/config", () => ({
 vi.mock("@/lib/portal/login", () => ({ portalOrigin: () => "https://pss.example" }));
 
 const sync = await import("@/lib/calendar/sync");
+const { eventSubject } = await import("@/lib/calendar/events");
 const ID = "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c";
 const PST = "Pacific Standard Time";
 const CONSULT_AT = new Date("2026-09-20T17:00:00Z"); // 10:00 AM in Las Vegas
@@ -28,8 +29,9 @@ const jobWith = (...appointments: ReturnType<typeof appt>[]) => ({
   status: "visit_booked", visitAt: null, installOn: null, appointments,
 });
 const job = jobWith(appt("consultation", CONSULT_AT));
+// Graph's GET sends no $select, so a real event always comes back with its subject.
 const event = (over: Record<string, unknown> = {}) => ({
-  id: "e1", changeKey: "ck1", isAllDay: false,
+  id: "e1", changeKey: "ck1", isAllDay: false, subject: "Consultation · Dana Reyes",
   start: { dateTime: "2026-09-20T10:00:00.0000000", timeZone: PST },
   end: { dateTime: "2026-09-20T11:00:00.0000000", timeZone: PST }, ...over,
 });
@@ -359,7 +361,8 @@ describe("a subject Outlook still shows under older wording", () => {
       .mockResolvedValueOnce(Response.json({ id: "e1", changeKey: "ck2" }));
     await sync.syncJobCalendar(ID);
     expect(calls()).toEqual(["GET users/jobs@example.com/events/e1", "PATCH users/jobs@example.com/events/e1"]);
-    expect(graphFetch.mock.calls[1][1].body).toEqual({ subject: "Consultation · Dana Reyes" });
+    // Pinned to the one source the create also uses, so the two can never drift apart.
+    expect(graphFetch.mock.calls[1][1].body).toEqual({ subject: eventSubject("consultation", { name: "Dana Reyes" }) });
     expect(store.saveLink).toHaveBeenCalledWith({ ...link, changeKey: "ck2" });
   });
 

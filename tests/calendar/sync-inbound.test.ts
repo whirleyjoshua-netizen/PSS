@@ -26,8 +26,9 @@ const jobWith = (...appointments: ReturnType<typeof appt>[]) => ({
   status: "visit_booked", visitAt: null, installOn: null, appointments,
 });
 const job = jobWith(appt("consultation", new Date("2026-09-20T17:00:00Z")));
+// Graph's GET sends no $select, so a real event always comes back with its subject.
 const event = (over: Record<string, unknown> = {}) => ({
-  id: "e1", changeKey: "ck1", isAllDay: false,
+  id: "e1", changeKey: "ck1", isAllDay: false, subject: "Consultation · Dana Reyes",
   start: { dateTime: "2026-09-20T10:00:00.0000000", timeZone: PST },
   end: { dateTime: "2026-09-20T11:00:00.0000000", timeZone: PST }, ...over,
 });

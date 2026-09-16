@@ -49,6 +49,12 @@ export type EventBody = {
 };
 
 /**
+ * The one wording for an event's subject. The reconcile compares against it to spot an event left
+ * under older wording, so it must come from here and never be re-typed there.
+ */
+export const eventSubject = (kind: Kind, job: { name: string }): string => `${kindLabel(kind)} · ${job.name}`;
+
+/**
  * The Graph body for a new appointment's event. `allDay` decides the shape — a whole day, or one
  * hour from `value` — so any kind can be booked either way; the kind only names it.
  */
@@ -66,7 +72,7 @@ export function newEventBody(
     ? { isAllDay: true, start: midnight(value as string), end: midnight(nextDay(value as string)) }
     : { isAllDay: false, start: local(value as Date), end: local(new Date((value as Date).getTime() + HOUR)) };
   return {
-    subject: `${kindLabel(kind)} · ${job.name}`,
+    subject: eventSubject(kind, job),
     ...timing,
     location: { displayName: job.address ? `${job.address}, ${job.city}` : job.city },
     body: { contentType: "text", content: lines.join("\n") },

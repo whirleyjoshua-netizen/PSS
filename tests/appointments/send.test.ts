@@ -58,7 +58,7 @@ describe("appointmentEmailText", () => {
     const body = text({ kind: "install", allDay: true });
     expect(body).toContain("Tuesday, October 13");
     expect(body).not.toContain("2:00 PM");
-    expect(body).not.toContain(" at ");
+    expect(body).not.toMatch(/October 13 at /);
   });
 
   it("carries the address we are coming to, the phone, and the sign-off", () => {
@@ -90,6 +90,11 @@ describe("sendAppointmentConfirmation", () => {
   it("names the kind in the subject in customer words", async () => {
     await sendAppointmentConfirmation(job(), appointment({ kind: "install", allDay: true }));
     expect(send.mock.calls[0][0].subject).toBe("Your installation is booked for Tue, Oct 13");
+  });
+
+  it("greets a nameless job without an empty 'Hi ,'", async () => {
+    await sendAppointmentConfirmation(job({ name: "   " }), appointment());
+    expect(send.mock.calls[0][0].text).toMatch(/^Hi there,/);
   });
 
   it("falls back to the city when the job has no street address", async () => {

@@ -95,7 +95,8 @@ export async function sendAppointmentConfirmation(job: Job, appointment: Appoint
   if (!apiKey) throw new Error("RESEND_API_KEY is not set");
   if (!job.email) throw new Error("This job has no email address");
 
-  const firstName = job.name.trim().split(/\s+/)[0];
+  // A job saved without a name would otherwise greet the customer with "Hi ,".
+  const firstName = job.name.trim().split(/\s+/)[0] || "there";
   const address = job.address ? `${job.address}, ${job.city}` : job.city;
   const { error } = await new Resend(apiKey).emails.send({
     from: `${business.name} <${from}>`,

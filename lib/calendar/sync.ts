@@ -3,7 +3,7 @@ import { formatWhen, lasVegasDate } from "@/lib/admin/time";
 import { APPOINTMENT_KINDS, kindLabel } from "@/lib/admin/appointment-kinds";
 import { portalOrigin } from "@/lib/portal/login";
 import { calendarConfig, calendarEnabled } from "./config";
-import { movedTimes, newEventBody, sameValue, trackerValue, type GraphEvent, type Kind } from "./events";
+import { eventSubject, movedTimes, newEventBody, sameValue, trackerValue, type GraphEvent, type Kind } from "./events";
 import { GraphError, graphFetch } from "./graph";
 import * as store from "./store";
 
@@ -115,13 +115,16 @@ export async function reconcileJob(leadId: string, pushKinds: readonly Kind[] = 
         await store.setJobDate(leadId, kind, value, `${kindLabel(kind)} moved in Outlook to ${when}`);
       }
       await store.saveLink({ ...link, changeKey: event.changeKey });
+      // Deliberately no subject check here: we just accepted Outlook's change, so we send nothing back
+      // in the same pass. A stale subject on this event is corrected by the next reconcile.
       continue;
     }
 
     // newEventBody sets the subject only at create, so an event synced under older wording would keep
-    // it forever. An event whose subject Graph did not return is left alone: unknown is not stale.
-    const subject = job ? `${kindLabel(kind)} · ${job.name}` : null;
-    const staleSubject = subject !== null && event.subject !== undefined && event.subject !== subject;
+    // it forever. eventSubject is the single source: comparing against a re-typed template here would
+    // PATCH every event on every reconcile as soon as either copy drifted.
+    const subject = job ? eventSubject(kind, job) : null;
+    const staleSubject = subject !== null && event.subject !== subject;
     const moved = !sameValue(allDay, trackerValue(allDay, event), wanted);
 
     if (moved || staleSubject) {

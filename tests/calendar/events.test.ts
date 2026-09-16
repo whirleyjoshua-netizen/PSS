@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { newEventBody, movedTimes, trackerValue, sameValue, type GraphEvent } from "@/lib/calendar/events";
+import { newEventBody, movedTimes, trackerValue, sameValue, eventSubject, type GraphEvent } from "@/lib/calendar/events";
+import { APPOINTMENT_KINDS } from "@/lib/admin/appointment-kinds";
 
 const job = {
   id: "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c", name: "Dana Reyes", phone: "7025550134",
@@ -9,6 +10,18 @@ const URL_ = "https://example.com/admin?job=" + job.id;
 const PST = "Pacific Standard Time";
 const ev = (start: string, end: string, isAllDay = false): GraphEvent => ({
   id: "e1", changeKey: "ck", isAllDay, start: { dateTime: start, timeZone: PST }, end: { dateTime: end, timeZone: PST },
+});
+
+describe("eventSubject", () => {
+  // The reconcile compares an existing event's subject against this same function. If a create built
+  // its subject from a second copy of the template, any drift would PATCH every event, every day.
+  it("is the single source for the subject a create writes", () => {
+    for (const kind of APPOINTMENT_KINDS) {
+      expect(newEventBody(kind.value, job, new Date("2026-09-20T17:00:00Z"), URL_, false).subject)
+        .toBe(eventSubject(kind.value, job));
+    }
+    expect(eventSubject("consultation", job)).toBe("Consultation · Dana Reyes");
+  });
 });
 
 describe("newEventBody", () => {
