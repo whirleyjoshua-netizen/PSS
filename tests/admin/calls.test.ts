@@ -18,7 +18,13 @@ describe("logCall", () => {
     const [text, params] = query.mock.calls[0];
     expect(text).toContain("treatment_types = $2::text[], motorized = $3, window_count_exact = $4, gate_code = $5, budget_tier = $6");
     expect(text).not.toMatch(/\btreatments =|\bwindow_count =/);
-    expect(text).toContain("coalesce($7::timestamptz, visit_at)");
+    // leads.visit_at is a mirror of the confirmed consultation now; the call statement must not write it.
+    expect(text).not.toContain("visit_at");
+    // The booked visit becomes a CONFIRMED consultation, in the same statement as the stage move.
+    expect(text).toContain("insert into appointments");
+    expect(text).toContain("'consultation'");
+    expect(text).toContain("where $7::timestamptz is not null");
+    expect(text).toMatch(/confirmed_at = now\(\)/);
     expect(text).toContain("status = any($9::text[])");
     expect(text).toContain("where updated.status = $8::text and prev.status <> $8::text");
     expect(text).toContain("'note'");
@@ -53,6 +59,16 @@ describe("logCall", () => {
   it("passes null, null for the follow-up on a booked call", async () => {
     await logCall(JOB, input, "o@example.com");
     expect(query.mock.calls[0][1].slice(11, 13)).toEqual([null, null]);
+  });
+
+  it("books no consultation for a non-booked outcome that somehow carries a date", async () => {
+    await logCall(JOB, { ...input, outcome: "talked" }, "o@example.com");
+    expect(query.mock.calls[0][1][6]).toBeNull();
+  });
+
+  it("books no consultation for a booked call with no date", async () => {
+    await logCall(JOB, { ...input, visitAt: null }, "o@example.com");
+    expect(query.mock.calls[0][1][6]).toBeNull();
   });
 
   it("returns false for a missing job or a bad id", async () => {

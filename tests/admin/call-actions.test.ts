@@ -11,6 +11,8 @@ const afterCallbacks: Array<() => unknown> = [];
 vi.mock("next/server", () => ({ after: (cb: () => unknown) => { afterCallbacks.push(cb); } }));
 const syncJobCalendar = vi.fn();
 vi.mock("@/lib/calendar/sync", () => ({ syncJobCalendar }));
+const mirrorToJob = vi.fn();
+vi.mock("@/lib/admin/appointments", () => ({ mirrorToJob }));
 const getDay = vi.fn();
 vi.mock("@/lib/calendar/week", () => ({ getDay: (...args: unknown[]) => getDay(...args) }));
 
@@ -23,6 +25,7 @@ beforeEach(() => {
   logCall.mockReset().mockResolvedValue(true);
   redirect.mockClear();
   syncJobCalendar.mockReset();
+  mirrorToJob.mockReset();
   getDay.mockReset();
   afterCallbacks.length = 0;
 });
@@ -65,10 +68,27 @@ describe("logCallAction", () => {
     expect(syncJobCalendar).toHaveBeenCalledWith(JOB, ["consultation"]);
   });
 
+  it("mirrors the confirmed consultation onto the job before the sync runs", async () => {
+    await expect(logCallAction(JOB, {}, form([["outcome", "booked"], ["visitAt", "2026-09-20T10:00"]])))
+      .rejects.toThrow("NEXT_REDIRECT");
+    // The mirror is the only writer of leads.visit_at, and the Outlook push reads it.
+    expect(mirrorToJob).toHaveBeenCalledWith(JOB);
+    expect(syncJobCalendar).not.toHaveBeenCalled();
+    await runAfter();
+    expect(syncJobCalendar).toHaveBeenCalledWith(JOB, ["consultation"]);
+  });
+
   it("syncs without pushing after any other outcome", async () => {
     await expect(logCallAction(JOB, {}, form([["outcome", "talked"]]))).rejects.toThrow("NEXT_REDIRECT");
     await runAfter();
     expect(syncJobCalendar).toHaveBeenCalledWith(JOB, []);
+    expect(mirrorToJob).not.toHaveBeenCalled();
+  });
+
+  it("does not mirror when the call did not save", async () => {
+    logCall.mockResolvedValue(false);
+    await logCallAction(JOB, {}, form([["outcome", "booked"], ["visitAt", "2026-09-20T10:00"]]));
+    expect(mirrorToJob).not.toHaveBeenCalled();
   });
 
   it("does not sync when the call did not save", async () => {

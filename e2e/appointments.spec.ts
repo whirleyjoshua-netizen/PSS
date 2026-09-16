@@ -129,6 +129,45 @@ test("confirming a consultation books the job and mirrors the date onto the lead
   expect(row).toMatchObject({ status: "visit_booked", visit_local: `${day} 11:00` });
 });
 
+// This lives here rather than in call.spec.ts: the assertions that matter are the appointment row,
+// the Appointments card and the Schedule page, and this file already carries the helpers for all
+// three (lasVegasDay for ?week=, the card scoping, the appointments cleanup by cascade).
+test("a visit booked on a call is a confirmed consultation, and reaches the schedule", async ({ page }) => {
+  const name = `E2E Appt Call ${STAMP}`;
+  const day = lasVegasDay(6);
+  const id = await lead(name);
+  await signIn(page);
+  await page.goto(`/admin/jobs/${id}/call`);
+
+  await page.getByRole("button", { name: "Booked a visit" }).click();
+  await page.getByLabel("Visit date and time").fill(`${day}T13:00`);
+  await page.getByRole("button", { name: "Save booked visit" }).click();
+  await expect(page).toHaveURL(new RegExp(`/admin/jobs/${id}$`));
+
+  // (a) the row exists and is confirmed — the call screen must not leave a pending appointment,
+  // and leads.visit_at must have been mirrored from it, not written by the call statement.
+  const [row] = await sql()`select kind, all_day, confirmed_at is not null as confirmed,
+      to_char(starts_at at time zone 'America/Los_Angeles', 'YYYY-MM-DD HH24:MI') as starts_local,
+      (select to_char(l.visit_at at time zone 'America/Los_Angeles', 'YYYY-MM-DD HH24:MI')
+         from leads l where l.id = ${id}) as visit_local
+    from appointments where lead_id = ${id}`;
+  expect(row).toMatchObject({
+    kind: "consultation", all_day: false, confirmed: true,
+    starts_local: `${day} 13:00`, visit_local: `${day} 13:00`,
+  });
+
+  // (b) the job shows it, confirmed, and the booked call still moved the stage.
+  await expect(card(page).getByText("Confirmed", { exact: true })).toBeVisible();
+  await expect(kindChip(page, "Consultation")).toBeVisible();
+  await expect(page.getByRole("list", { name: "Stage" }).locator('[aria-current="step"]')).toContainText("Appointment booked");
+
+  // (c) the assertion that would have caught the bug: the Schedule page reads confirmed appointments.
+  await page.goto(`/admin/schedule?week=${day}`);
+  const booked = page.getByRole("link", { name: new RegExp(name) });
+  await expect(booked).toBeVisible();
+  await expect(booked).toContainText("Consultation");
+});
+
 test("cancelling asks first, then takes the appointment off the schedule", async ({ page }) => {
   // This books its own appointment rather than reusing the first test's: a failure there would
   // otherwise surface here as a confusing failure against a job that was never created.
