@@ -6,6 +6,7 @@ import { formatDateOnly, formatShortDate } from "@/lib/admin/time";
 import { toProject } from "@/lib/portal/access";
 import { countReferred } from "@/lib/portal/project";
 import { listMessages } from "@/lib/portal/messages";
+import { requireCustomer } from "@/lib/portal/session";
 import { installAppointmentAt, lastMeasuredAt, stageDates } from "@/lib/portal/timeline";
 import { ensureReferralCode } from "@/lib/referrals/db";
 import { referralUrl } from "@/lib/referrals/codes";
@@ -27,6 +28,8 @@ const heading = "font-display text-xs uppercase tracking-[0.2em] text-champagne-
  * which are the words they themselves sent from this page.
  */
 export async function ProjectView({ job }: { job: Job }) {
+  // Request-cached, so this costs no extra round trip: the page's own guard already ran it.
+  const { email } = await requireCustomer();
   const [photos, documents, code, referred, dates, measuredAt, installAt, messages] = await Promise.all([
     listSharedPhotos(job.id),
     listSharedDocuments(job.id),
@@ -35,7 +38,7 @@ export async function ProjectView({ job }: { job: Job }) {
     stageDates(job.id),
     lastMeasuredAt(job.id),
     installAppointmentAt(job.id),
-    listMessages(job.id),
+    listMessages(job.id, email),
   ]);
   const project = toProject(job, {
     stageDates: dates,

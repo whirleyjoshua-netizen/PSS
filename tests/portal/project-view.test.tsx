@@ -16,6 +16,8 @@ vi.mock("@/lib/portal/timeline", () => ({ stageDates, lastMeasuredAt, installApp
 vi.mock("@/app/(site)/project/actions", () => ({ signOutCustomer: vi.fn(), sendMessageAction: vi.fn() }));
 const listMessages = vi.fn();
 vi.mock("@/lib/portal/messages", () => ({ listMessages }));
+const requireCustomer = vi.fn();
+vi.mock("@/lib/portal/session", () => ({ requireCustomer }));
 
 const { ProjectView } = await import("@/app/(site)/project/ProjectView");
 const { FilesTabs } = await import("@/app/(site)/project/FilesTabs");
@@ -44,6 +46,7 @@ beforeEach(() => {
   lastMeasuredAt.mockReset().mockResolvedValue(new Date("2025-09-08T17:00:00Z"));
   installAppointmentAt.mockReset().mockResolvedValue(null);
   listMessages.mockReset().mockResolvedValue([]);
+  requireCustomer.mockReset().mockResolvedValue({ email: "maria@example.com", jobs: [job] });
 });
 
 describe("ProjectView header and tracker", () => {

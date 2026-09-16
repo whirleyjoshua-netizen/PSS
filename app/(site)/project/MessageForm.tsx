@@ -38,7 +38,9 @@ export function MessageForm({
           // Remounts after a successful send so the box is empty for the next message, and
           // keeps what was typed when the message came back too long.
           key={`message-body-${state.sent ?? 0}`}
-          defaultValue={state.status === "too-long" ? state.text : undefined}
+          // Every outcome that is not "sent" hands the text back, so nothing a customer
+          // typed is ever lost to a no-JS post — not to a too-long body, not to not-found.
+          defaultValue={state.text}
           className="w-full max-w-full border border-rule bg-white p-3 text-base"
         />
         {state.status === "too-long" ? (

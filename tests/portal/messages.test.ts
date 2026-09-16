@@ -38,8 +38,8 @@ const THEIRS = "9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d";
 const EMAIL = "maria@example.com";
 const job = { id: MINE, name: "Maria Lopez", projectNo: 1002 };
 
-/** The throttle read finds nothing, then the insert returns its row: a clean send. */
-const CLEAN_SEND = () => [[], [{ id: "e1" }]];
+/** The one statement inserts its row: a clean send. An empty result means it was throttled. */
+const CLEAN_SEND = () => [[{ id: "e1" }]];
 
 beforeEach(() => {
   calls.length = 0;
@@ -56,6 +56,12 @@ beforeEach(() => {
 describe("ownership", () => {
   it("refuses a job the customer does not own, and writes nothing at all", async () => {
     await expect(sendCustomerMessage(THEIRS, "hello")).resolves.toBe("not-found");
+
+    // These two assertions are the ownership guard's only real teeth. Do not remove them.
+    // The return-value assertion above would still pass with the guard deleted: the
+    // unguarded path reaches the database, inserts nothing for a job that is not there,
+    // and answers "not-found" anyway. Only proving that no statement ran at all
+    // distinguishes "refused before touching anything" from "tried and happened to fail".
     expect(query).not.toHaveBeenCalled();
     expect(notifyOwnersOfMessage).not.toHaveBeenCalled();
     expect(calls).toEqual([]);
@@ -91,22 +97,39 @@ describe("sendMessage", () => {
   });
 
   it("accepts a second message inside the window without erroring", async () => {
-    results = [[{ created_at: new Date() }]];
+    results = [[]]; // the guarded insert wrote nothing
     await expect(sendMessage(MINE, "again", EMAIL)).resolves.toBe("throttled");
-    expect(calls).toEqual(["select"]); // read the last message, wrote nothing
   });
 
   it("lets a message through once the window has passed", async () => {
-    results = [[{ created_at: new Date(Date.now() - 10 * 60_000) }], [{ id: "e1" }]];
+    results = CLEAN_SEND();
     await expect(sendMessage(MINE, "again", EMAIL)).resolves.toBe("sent");
+  });
+
+  it("decides the throttle in the same statement that writes, so two sends cannot race", async () => {
+    results = CLEAN_SEND();
+    await sendMessage(MINE, "hello", EMAIL);
+    // One statement only: no read-then-write gap for a concurrent send to slip through.
+    expect(calls).toEqual(["insert"]);
+    const statement = query.mock.calls[0][0].join(" ");
+    expect(statement).toMatch(/insert\s+into\s+job_events/i);
+    expect(statement).toMatch(/where\s+not\s+exists/i);
+  });
+
+  it("measures the window against the customer's own messages only", async () => {
+    results = CLEAN_SEND();
+    await sendMessage(MINE, "hello", EMAIL);
+    // An owner-authored 'message' event on the same job must never throttle the customer.
+    const statement = query.mock.calls[0][0].join(" ");
+    expect(statement).toMatch(/actor\s*=/);
+    expect(query.mock.calls[0]).toContain(EMAIL);
   });
 
   it("stores the trimmed body under the customer's own address", async () => {
     results = CLEAN_SEND();
     await sendMessage(MINE, "  when will you arrive?  ", EMAIL);
-    expect(calls).toEqual(["select", "insert"]);
-    expect(query.mock.calls[1]).toContain("when will you arrive?");
-    expect(query.mock.calls[1]).toContain(EMAIL);
+    expect(query.mock.calls[0]).toContain("when will you arrive?");
+    expect(query.mock.calls[0]).toContain(EMAIL);
   });
 });
 
@@ -114,10 +137,19 @@ describe("listMessages", () => {
   it("returns the customer's own messages, newest first", async () => {
     const at = new Date("2026-09-14T17:00:00Z");
     results = [[{ body: "hello", created_at: at }]];
-    await expect(listMessages(MINE)).resolves.toEqual([{ body: "hello", createdAt: at }]);
+    await expect(listMessages(MINE, EMAIL)).resolves.toEqual([{ body: "hello", createdAt: at }]);
     const statement = query.mock.calls[0][0].join(" ");
     expect(statement).toMatch(/kind\s*=\s*'message'/);
     expect(statement).toMatch(/desc/i);
+  });
+
+  it("returns only rows written by this customer, not every 'message' event on the job", async () => {
+    // These bodies render on the customer's page, so the query decides what qualifies —
+    // not the convention that nothing else writes this kind today.
+    results = [[]];
+    await listMessages(MINE, EMAIL);
+    expect(query.mock.calls[0][0].join(" ")).toMatch(/actor\s*=/);
+    expect(query.mock.calls[0]).toContain(EMAIL);
   });
 });
 
@@ -125,7 +157,7 @@ describe("sendCustomerMessage", () => {
   it("writes the message as a job event before sending any email", async () => {
     results = CLEAN_SEND();
     await expect(sendCustomerMessage(MINE, "hello")).resolves.toBe("sent");
-    expect(calls).toEqual(["select", "insert", "email"]);
+    expect(calls).toEqual(["insert", "email"]);
     expect(calls.indexOf("insert")).toBeLessThan(calls.indexOf("email"));
   });
 
@@ -137,7 +169,7 @@ describe("sendCustomerMessage", () => {
   });
 
   it("sends no email for a throttled or empty message", async () => {
-    results = [[{ created_at: new Date() }]];
+    results = [[]];
     await expect(sendCustomerMessage(MINE, "again")).resolves.toBe("throttled");
     await expect(sendCustomerMessage(MINE, "  ")).resolves.toBe("empty");
     expect(notifyOwnersOfMessage).not.toHaveBeenCalled();
