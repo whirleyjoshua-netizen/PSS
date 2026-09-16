@@ -16,7 +16,7 @@ export function ScheduleCard({ item }: { item: ScheduleItem }) {
   const { job } = item;
   return (
     <Link
-      href={`/admin?job=${job.id}`}
+      href={`/admin/jobs/${job.id}`}
       className={`flex flex-col gap-0.5 rounded-lg border border-rule border-l-4 ${STAGE_STYLE[job.status].left} bg-ivory p-2 text-xs shadow-sm hover:shadow-md`}
     >
       <span className="text-ink-soft">{when} · {job.kind === "visit" ? "Visit" : "Install"}</span>

@@ -11,7 +11,8 @@ const LABEL: Record<Kind, string> = { visit: "Visit", install: "Install" };
 /** A claim older than this was left by a sync that died mid-create, so it may be taken over. */
 const CLAIM_TIMEOUT_MS = 10 * 60_000;
 
-export const jobUrl = (id: string): string => `${portalOrigin()}/admin?job=${id}`;
+/** Calendar events are opened from phones, so they link to the full job page, not the board panel. */
+export const jobUrl = (id: string): string => `${portalOrigin()}/admin/jobs/${id}`;
 
 const formatDate = (date: string): string =>
   new Date(`${date}T12:00:00Z`).toLocaleDateString("en-US", { timeZone: "UTC", weekday: "short", month: "short", day: "numeric" });

@@ -51,7 +51,10 @@ describe("board page", () => {
     expect(jobs.getJob).not.toHaveBeenCalled();
     // The team is only for the panel's Assigned to, so it isn't loaded either.
     expect(listTeam).not.toHaveBeenCalled();
-    expect(within(screen.getByRole("region", { name: "Board" })).getByRole("link", { name: /dana reyes/i })).toHaveAttribute("href", `/admin?job=${ID}`);
+    // Each card carries a mobile link to the full page and a desktop link to the panel.
+    const [mobile, desktop] = within(screen.getByRole("region", { name: "Board" })).getAllByRole("link", { name: /dana reyes/i });
+    expect(mobile).toHaveAttribute("href", `/admin/jobs/${ID}`);
+    expect(desktop).toHaveAttribute("href", `/admin?job=${ID}`);
   });
 
   it("opens the panel for ?job, marks the card, and closes back to the board", async () => {
@@ -175,8 +178,9 @@ describe("board look and conveniences", () => {
   it("treats an unknown ?list as all jobs", async () => {
     await open({ list: "bogus", job: ID });
     expect(screen.getByLabelText("Stage")).toHaveValue("");
-    const card = within(screen.getByRole("region", { name: "Board" })).getByRole("link", { name: /dana reyes/i });
-    const row = within(screen.getByRole("region", { name: /all jobs/i })).getByRole("link", { name: /dana reyes/i });
+    // The desktop link of each pair is the one that carries board state.
+    const card = within(screen.getByRole("region", { name: "Board" })).getAllByRole("link", { name: /dana reyes/i })[1];
+    const row = within(screen.getByRole("region", { name: /all jobs/i })).getAllByRole("link", { name: /dana reyes/i })[1];
     const close = screen.getByRole("link", { name: "Close" });
     expect(card).toHaveAttribute("href", `/admin?job=${ID}`);
     expect(row).toHaveAttribute("href", `/admin?job=${ID}`);

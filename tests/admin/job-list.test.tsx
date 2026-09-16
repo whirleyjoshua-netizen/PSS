@@ -37,20 +37,29 @@ describe("JobList", () => {
     expect(within(rows[1]).getAllByRole("cell")[2]).toHaveTextContent("—");
   });
 
-  it("links each row to its panel, keeping the search and filter", () => {
+  it("links each row to the full job page on mobile and to its panel on desktop", () => {
     render(<JobList jobs={[base]} now={NOW} filter="completed" q="reyes" openId={base.id} />);
-    const link = screen.getByRole("link", { name: /dana reyes/i });
-    expect(link).toHaveAttribute("href", `/admin?q=reyes&list=completed&job=${base.id}`);
-    expect(link).toHaveAttribute("aria-current", "true");
+    const [mobile, desktop] = screen.getAllByRole("link", { name: /dana reyes/i });
+    expect(mobile).toHaveAttribute("href", `/admin/jobs/${base.id}`);
+    expect(mobile).toHaveClass("lg:hidden");
+    expect(mobile).not.toHaveAttribute("aria-current");
+    // The panel only exists on desktop, so only that link keeps the search and filter.
+    expect(desktop).toHaveAttribute("href", `/admin?q=reyes&list=completed&job=${base.id}`);
+    expect(desktop).toHaveClass("hidden");
+    expect(desktop).toHaveAttribute("aria-current", "true");
   });
 
-  it("makes the whole row one link", () => {
+  it("makes the whole row one link at each breakpoint", () => {
     render(<JobList jobs={[base]} now={NOW} filter={null} q="" openId={undefined} />);
     const row = screen.getAllByRole("row")[1];
-    expect(within(row).getAllByRole("link")).toHaveLength(1);
+    const links = within(row).getAllByRole("link");
+    // Two in the DOM, but only one is displayed at a time, so a row is never two tap targets.
+    expect(links).toHaveLength(2);
     expect(row.className).toContain("relative");
-    expect(within(row).getByRole("link").className).toContain("after:absolute");
-    expect(within(row).getByRole("link").className).toContain("after:inset-0");
+    for (const link of links) {
+      expect(link.className).toContain("after:absolute");
+      expect(link.className).toContain("after:inset-0");
+    }
   });
 
   it("tags a referred job", () => {

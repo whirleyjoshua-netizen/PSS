@@ -68,7 +68,7 @@ describe("schedule page - week view", () => {
   it("links job appointments to the job and leaves other appointments as plain text", async () => {
     await open();
     const thursday = within(screen.getByRole("listitem", { name: /thu 17/i }));
-    expect(thursday.getByRole("link", { name: /dana reyes/i })).toHaveAttribute("href", `/admin?job=${ID}`);
+    expect(thursday.getByRole("link", { name: /dana reyes/i })).toHaveAttribute("href", `/admin/jobs/${ID}`);
     expect(thursday.getByText(/10:00 AM/)).toBeInTheDocument();
     expect(thursday.getByText("Dentist")).toBeInTheDocument();
     expect(thursday.queryByRole("link", { name: /dentist/i })).toBeNull();
@@ -142,7 +142,7 @@ describe("schedule page - month view", () => {
   it("selects a day via &day= and shows the day section with a job link", async () => {
     await open({ view: "month", day: "2026-09-17" });
     const section = screen.getByRole("region", { name: "Thursday, September 17" });
-    expect(within(section).getByRole("link", { name: /dana reyes/i })).toHaveAttribute("href", `/admin?job=${ID}`);
+    expect(within(section).getByRole("link", { name: /dana reyes/i })).toHaveAttribute("href", `/admin/jobs/${ID}`);
     const cell = screen.getByRole("link", { name: /thu, sep 17/i });
     expect(cell).toHaveAttribute("aria-current", "date");
   });
