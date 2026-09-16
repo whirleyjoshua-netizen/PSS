@@ -142,10 +142,8 @@ export function OverviewTab({ job, editing, now, measurements, files, events, re
                     </li>
                   ))}
                 </ul>
-              ) : (
-                <p className="text-sm text-ink-soft">{plural(documents.length, "document")}</p>
-              )}
-              {photos.length ? <p className="text-sm text-ink-soft">{plural(documents.length, "document")}</p> : null}
+              ) : null}
+              <p className="text-sm text-ink-soft">{plural(documents.length, "document")}</p>
             </>
           )}
         </section>

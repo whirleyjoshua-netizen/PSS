@@ -1,9 +1,8 @@
 import { Icon } from "@/components/admin/icons";
-import { Button } from "@/components/ui/Button";
 import type { Appointment } from "@/lib/admin/appointments";
 import { APPOINTMENT_STYLE, kindLabel } from "@/lib/admin/appointment-kinds";
 import { formatShortDate, formatWhen, toLocalInput } from "@/lib/admin/time";
-import { cancelAppointmentAction, confirmSchedule } from "../appointment-actions";
+import { CancelAppointmentButton, ConfirmScheduleButton } from "./AppointmentActions";
 import { StatusCard } from "./OverviewCards";
 import { ScheduleDialog } from "./ScheduleDialog";
 
@@ -37,27 +36,13 @@ function Row({ jobId, appointment }: { jobId: string; appointment: Appointment }
       </span>
       <span className="font-display text-base">{when}</span>
       <span className="text-xs text-ink-soft">{confirmed ? "Confirmed" : "Pending confirmation"}</span>
-      <span className="flex w-full flex-wrap items-center gap-2">
-        {confirmed ? null : (
-          <form action={async () => {
-            "use server";
-            // The card shows no error of its own; the action refreshes the page either way.
-            await confirmSchedule(appointment.id, jobId);
-          }}>
-            <Button type="submit" variant="solid" className="px-3">Confirm schedule</Button>
-          </form>
-        )}
+      {/* A div, not a span: these hold forms, which a span may not contain. */}
+      <div className="flex w-full flex-wrap items-center gap-2">
+        {confirmed ? null : <ConfirmScheduleButton appointmentId={appointment.id} jobId={jobId} />}
         <ScheduleDialog jobId={jobId} label="Reschedule" kind={appointment.kind} allDay={appointment.allDay}
           startsAt={toLocalInput(appointment.startsAt)} />
-        {confirmed ? (
-          <form action={async () => {
-            "use server";
-            await cancelAppointmentAction(appointment.id, jobId);
-          }}>
-            <button type="submit" className="min-h-11 px-3 text-sm text-ink-soft underline underline-offset-4">Cancel</button>
-          </form>
-        ) : null}
-      </span>
+        {confirmed ? <CancelAppointmentButton appointmentId={appointment.id} jobId={jobId} /> : null}
+      </div>
     </li>
   );
 }

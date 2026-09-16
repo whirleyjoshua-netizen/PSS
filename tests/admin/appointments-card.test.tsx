@@ -1,12 +1,20 @@
 import { render, screen, within } from "@testing-library/react";
-import { describe, it, expect, vi } from "vitest";
+import userEvent from "@testing-library/user-event";
+import { renderToStaticMarkup } from "react-dom/server";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Appointment } from "@/lib/admin/appointments";
+import type { FormState } from "@/app/admin/jobs/actions";
 
+const confirmSchedule = vi.fn<(...args: unknown[]) => Promise<FormState>>(async () => ({ ok: true }));
+const cancelAppointmentAction = vi.fn<(...args: unknown[]) => Promise<FormState>>(async () => ({ ok: true }));
 vi.mock("@/app/admin/jobs/appointment-actions", () => ({
-  bookAppointment: vi.fn(async () => ({})),
-  confirmSchedule: vi.fn(async () => ({})),
-  cancelAppointmentAction: vi.fn(async () => ({})),
+  bookAppointment: vi.fn(async () => ({})), confirmSchedule, cancelAppointmentAction,
 }));
+
+beforeEach(() => {
+  confirmSchedule.mockClear().mockResolvedValue({ ok: true });
+  cancelAppointmentAction.mockClear().mockResolvedValue({ ok: true });
+});
 
 const { AppointmentsCard } = await import("@/app/admin/jobs/[id]/AppointmentsCard");
 
@@ -21,6 +29,9 @@ const appointment = (over: Partial<Appointment> = {}): Appointment => ({
 });
 
 const card = () => screen.getByRole("region", { name: "Appointments" });
+const renderConfirmed = () => render(<AppointmentsCard jobId={ID} appointments={[appointment({
+  confirmedAt: new Date("2026-09-18T12:00:00Z"), confirmedBy: "owner@example.com",
+})]} />);
 
 describe("AppointmentsCard", () => {
   it("says nothing is scheduled, with a way to schedule one", () => {
@@ -78,6 +89,76 @@ describe("AppointmentsCard", () => {
     const ids = [...container.querySelectorAll("input[id]")].map((input) => input.id);
     expect(ids.length).toBeGreaterThan(1);
     expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it("confirms as the signed-in owner, for this appointment", async () => {
+    const user = userEvent.setup();
+    render(<AppointmentsCard jobId={ID} appointments={[appointment()]} />);
+    await user.click(screen.getByRole("button", { name: "Confirm schedule" }));
+    expect(confirmSchedule).toHaveBeenCalled();
+    expect(confirmSchedule.mock.calls[0].slice(0, 2)).toEqual([APPT, ID]);
+  });
+
+  // A confirmation whose email did not go out must say so: the customer was not told.
+  it("shows the owner when confirming could not email the customer", async () => {
+    confirmSchedule.mockResolvedValue({ error: "Confirmed, but the email could not be sent." });
+    const user = userEvent.setup();
+    render(<AppointmentsCard jobId={ID} appointments={[appointment()]} />);
+    await user.click(screen.getByRole("button", { name: "Confirm schedule" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Confirmed, but the email could not be sent.");
+  });
+
+  it("shows the owner when cancelling failed", async () => {
+    cancelAppointmentAction.mockResolvedValue({ error: "That appointment no longer exists." });
+    const user = userEvent.setup();
+    renderConfirmed();
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    await user.click(screen.getByRole("button", { name: "Yes, cancel" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("That appointment no longer exists.");
+  });
+
+  // Cancelling deletes the appointment and its calendar event, with no undo: one stray tap must not do it.
+  it("asks before cancelling, naming what a cancellation removes", async () => {
+    const user = userEvent.setup();
+    renderConfirmed();
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(cancelAppointmentAction).not.toHaveBeenCalled();
+    expect(card()).toHaveTextContent("Cancel this appointment? It will be removed from the calendar.");
+    expect(screen.getByRole("button", { name: "Keep it" })).toBeInTheDocument();
+  });
+
+  it("cancels this appointment only once the owner says yes", async () => {
+    const user = userEvent.setup();
+    renderConfirmed();
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    await user.click(screen.getByRole("button", { name: "Yes, cancel" }));
+    expect(cancelAppointmentAction).toHaveBeenCalled();
+    expect(cancelAppointmentAction.mock.calls[0].slice(0, 2)).toEqual([APPT, ID]);
+  });
+
+  it("puts the row back, untouched, on Keep it", async () => {
+    const user = userEvent.setup();
+    renderConfirmed();
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    await user.click(screen.getByRole("button", { name: "Keep it" }));
+    expect(cancelAppointmentAction).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Yes, cancel" })).toBeNull();
+    expect(card()).toHaveTextContent("Confirmed");
+  });
+
+  it("degrades the cancel confirmation to a disclosure without JavaScript", () => {
+    const html = renderToStaticMarkup(<AppointmentsCard jobId={ID} appointments={[appointment({
+      confirmedAt: new Date("2026-09-18T12:00:00Z"), confirmedBy: "owner@example.com",
+    })]} />);
+    expect(html).toContain("<details");
+    expect(html).toContain("It will be removed from the calendar.");
+    expect(html).toContain("Yes, cancel");
+  });
+
+  it("keeps a form out of phrasing-only markup", () => {
+    const { container } = render(<AppointmentsCard jobId={ID} appointments={[appointment()]} />);
+    expect(container.querySelector("span form")).toBeNull();
   });
 
   it("lists every appointment it is given", () => {

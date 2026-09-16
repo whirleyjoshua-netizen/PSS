@@ -91,8 +91,9 @@ export function ScheduleDialog({
   );
 
   if (!enhanced) {
+    // No w-full: this sits in the header's wrapping action row, where the hydrated button does too.
     return (
-      <details className="w-full">
+      <details>
         <summary className={`${className} cursor-pointer list-none [&::-webkit-details-marker]:hidden`}>{label}</summary>
         <div className="mt-3 border border-rule bg-ivory p-4">{fields}</div>
       </details>

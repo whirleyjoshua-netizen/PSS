@@ -220,3 +220,20 @@ describe("logAppointmentEmail", () => {
     expect(sql).not.toHaveBeenCalled();
   });
 });
+
+describe("logAppointmentProblem", () => {
+  it("records why the customer was not told, against the job", async () => {
+    await appointments.logAppointmentProblem(JOB, "Appointment confirmed but no email address on file", ACTOR);
+    const statement = flat(sql.mock.calls[0]);
+    expect(statement).toContain("insert into job_events");
+    expect(statement).toContain("'email'");
+    expect(sql.mock.calls[0]).toEqual(
+      expect.arrayContaining([JOB, ACTOR, "Appointment confirmed but no email address on file"]),
+    );
+  });
+
+  it("does nothing for a non-uuid job id", async () => {
+    await appointments.logAppointmentProblem("../etc", "anything", ACTOR);
+    expect(sql).not.toHaveBeenCalled();
+  });
+});

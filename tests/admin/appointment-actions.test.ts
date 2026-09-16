@@ -5,6 +5,7 @@ vi.mock("@/lib/admin/session", () => ({ requireAdmin }));
 const appointments = {
   listAppointments: vi.fn(), saveAppointment: vi.fn(), confirmAppointment: vi.fn(),
   cancelAppointment: vi.fn(), mirrorToJob: vi.fn(), logConfirmation: vi.fn(), logAppointmentEmail: vi.fn(),
+  logAppointmentProblem: vi.fn(),
 };
 vi.mock("@/lib/admin/appointments", () => appointments);
 const jobs = { getJob: vi.fn(), setStage: vi.fn() };
@@ -173,6 +174,28 @@ describe("confirmSchedule", () => {
     expect(appointments.mirrorToJob).toHaveBeenCalledWith(JOB);
     expect(syncJobCalendar).toHaveBeenCalledWith(JOB, ["consultation"]);
     expect(sendAppointmentConfirmation).not.toHaveBeenCalled();
+  });
+
+  // The owner may never see the card's error, so a customer who was not told must show up in Activity.
+  it("logs the silence when there is no address to email", async () => {
+    jobs.getJob.mockResolvedValue(job({ email: null }));
+    await actions.confirmSchedule(APPT, JOB);
+    expect(appointments.logAppointmentProblem).toHaveBeenCalledWith(
+      JOB, "Appointment confirmed but no email address on file", "owner@example.com",
+    );
+  });
+
+  it("logs a rejected email, with the reason", async () => {
+    sendAppointmentConfirmation.mockRejectedValue(new Error("domain not verified"));
+    await actions.confirmSchedule(APPT, JOB);
+    expect(appointments.logAppointmentProblem).toHaveBeenCalledWith(
+      JOB, "Appointment email not sent to dana@example.com — domain not verified", "owner@example.com",
+    );
+  });
+
+  it("logs no problem when the email goes out", async () => {
+    await actions.confirmSchedule(APPT, JOB);
+    expect(appointments.logAppointmentProblem).not.toHaveBeenCalled();
   });
 
   it("says so plainly when the job itself is gone, rather than blaming a missing email", async () => {

@@ -2,7 +2,8 @@
 
 import { after } from "next/server";
 import {
-  cancelAppointment, confirmAppointment, logAppointmentEmail, logConfirmation, mirrorToJob, saveAppointment,
+  cancelAppointment, confirmAppointment, logAppointmentEmail, logAppointmentProblem, logConfirmation,
+  mirrorToJob, saveAppointment,
 } from "@/lib/admin/appointments";
 import { getJob, setStage } from "@/lib/admin/jobs";
 import { appointmentSchema } from "@/lib/admin/schema";
@@ -60,16 +61,22 @@ export async function confirmSchedule(appointmentId: string, jobId: string): Pro
   after(() => syncJobCalendar(jobId, [confirmed.kind]));
 
   let error: string | undefined;
-  // The confirmation stands either way; these only explain why no email went out.
+  // The confirmation stands either way; these only explain why no email went out. Each one is also
+  // logged against the job: a customer who was not told must be visible in Activity, whether or not
+  // anyone reads the message on the card.
   if (!job) error = MISSING.error;
-  else if (!job.email) error = "This job has no email address.";
-  else {
+  else if (!job.email) {
+    error = "This job has no email address.";
+    await logAppointmentProblem(jobId, "Appointment confirmed but no email address on file", email);
+  } else {
     try {
       await sendAppointmentConfirmation(job, confirmed);
       await logAppointmentEmail(jobId, job.email, email);
     } catch (sendError) {
       console.error("Appointment confirmation email failed", sendError);
       error = "Confirmed, but the email could not be sent.";
+      const reason = sendError instanceof Error ? sendError.message : String(sendError);
+      await logAppointmentProblem(jobId, `Appointment email not sent to ${job.email} — ${reason}`, email);
     }
   }
   refresh(jobId);

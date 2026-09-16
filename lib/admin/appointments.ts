@@ -133,6 +133,17 @@ export async function logAppointmentEmail(jobId: string, email: string, actor: s
     select id, ${actor}, 'email', ${`Appointment email sent to ${email}`} from leads where id = ${jobId}`;
 }
 
+/**
+ * Why a confirmed customer was never told. The confirm action returns this to the card as well, but
+ * the owner may never look at the card, so the job's Activity is where it has to survive.
+ */
+export async function logAppointmentProblem(jobId: string, body: string, actor: string): Promise<void> {
+  if (!isUuid(jobId)) return;
+  await db()`
+    insert into job_events (lead_id, actor, kind, body)
+    select id, ${actor}, 'email', ${body} from leads where id = ${jobId}`;
+}
+
 /** The one place leads.visit_at / leads.install_on are maintained: mirrors of the CONFIRMED rows. */
 export async function mirrorToJob(jobId: string): Promise<void> {
   if (!isUuid(jobId)) return;
