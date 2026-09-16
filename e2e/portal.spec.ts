@@ -300,17 +300,18 @@ test("an owner shares a quote, the customer opens it, and unsharing takes it awa
  *    and fails the moment the `and lead_id = ${jobId}` clause leaves the statement, so
  *    it is the tripwire for anyone editing setShared — but it asserts a string, not
  *    that a database refuses anything.
- *  - The guard's BEHAVIOUR was proven by calling setShared directly against a real
- *    database with the genuine mismatched pair (a document on lead A, shared under
- *    lead B's id) and a positive control with the correct pair, so that "refused"
- *    could not be confused with "the function is broken". With the guard in place the
- *    mismatched call returned false and left shared_at NULL while the correct call
- *    returned true and set it; with the clause removed the mismatched call returned
- *    true and a real cross-job share happened.
+ *  - scripts/verify-share-guard.ts checks the guard's BEHAVIOUR: it calls setShared
+ *    against a real database with the genuine mismatched pair (a document on lead A,
+ *    shared under lead B's id) and a positive control with the correct pair, so that
+ *    "refused" cannot be confused with "the function is broken". With the guard in
+ *    place the mismatched call returns false and leaves shared_at NULL while the
+ *    correct call returns true and sets it; with the clause removed the mismatched
+ *    call returns true and a real cross-job share happens.
  *
- * That behavioural check was a MANUAL run against a Neon branch. It is not part of any
- * suite and nothing here runs it, so do not read the tests above as covering it; if you
- * change setShared's guard, it has to be redone by hand.
+ * That script is run BY HAND against a Neon branch. It is in no suite, CI does not
+ * execute it, and nothing here runs it — so do not read the tests above as covering
+ * it. If you change setShared's guard, run the script yourself; if you cannot, the
+ * guard is unverified rather than assumed good.
  *
  * What IS reachable from a browser, and what this gate therefore proves: one
  * customer's session must not be able to open another customer's file, even a file

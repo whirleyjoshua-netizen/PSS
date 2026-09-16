@@ -123,6 +123,14 @@ export async function readFile(file: JobFile) {
  *
  * The `lead_id = ${jobId}` clause is what stops one job's file being shared
  * onto another job. Do not remove or loosen it.
+ *
+ * Two different things check that clause, and only one of them runs on its own:
+ * tests/admin/file-sharing.test.ts:50 pins its presence in this statement, which
+ * is a tripwire rather than a proof — it asserts a string. What the database
+ * actually does is checked by scripts/verify-share-guard.ts, a manual script
+ * that calls this function against a real Neon branch with a mismatched pair and
+ * a positive control. Nothing runs that script for you. If you change this
+ * guard, run it, and if you cannot, call the guard unverified.
  */
 export async function setShared(jobId: string, fileId: string, shared: boolean, actor: string): Promise<boolean> {
   if (!UUID.test(jobId) || !UUID.test(fileId)) return false;
