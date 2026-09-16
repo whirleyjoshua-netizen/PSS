@@ -113,6 +113,30 @@ describe("ProjectView status banner", () => {
     const tracker = screen.getByRole("region", { name: "Your project" });
     expect(tracker.querySelectorAll('li[aria-current="step"]')).toHaveLength(0);
   });
+
+  // The banner and the Installation section describe the same job, so they must never
+  // disagree. A finished job's install_on is in the past: promising to call and confirm it
+  // would contradict the banner's "your installation is complete" on the same page.
+  it.each(["installed", "completed"] as const)("reads a %s job's installation as finished", async (status) => {
+    render(await ProjectView({ job: { ...job, status, installOn: "2025-10-13" } }));
+
+    const banner = screen.getByRole("region", { name: "Where your project stands" });
+    expect(within(banner).getByText("Your installation is complete. Enjoy your new windows.")).toBeInTheDocument();
+
+    const install = screen.getByRole("region", { name: "Installation" });
+    expect(within(install).getByText(/Your installation was completed on Oct 13, 2025/)).toBeInTheDocument();
+    expect(within(install).getByText(/call us and we will come back out/)).toBeInTheDocument();
+    expect(within(install).queryByText(/booked for/)).not.toBeInTheDocument();
+    expect(within(install).queryByText(/We will be in touch to confirm/)).not.toBeInTheDocument();
+    expect(within(install).queryByText(/not booked yet/)).not.toBeInTheDocument();
+  });
+
+  it("says a finished job is complete even with no install date recorded", async () => {
+    render(await ProjectView({ job: { ...job, status: "completed" as const, installOn: null } }));
+    const install = screen.getByRole("region", { name: "Installation" });
+    expect(within(install).getByText(/Your installation is complete\./)).toBeInTheDocument();
+    expect(within(install).queryByText(/booked for/)).not.toBeInTheDocument();
+  });
 });
 
 describe("ProjectView details and updates", () => {
@@ -123,6 +147,21 @@ describe("ProjectView details and updates", () => {
     expect(within(details).getByText("Shutters")).toBeInTheDocument();
     expect(within(details).getByText("Designer")).toBeInTheDocument();
     expect(within(details).getByText("Not scheduled yet")).toBeInTheDocument();
+  });
+
+  // A tick claims the work happened. This job was quoted off the consultation with no
+  // measurement saved, so Measurements is behind the customer but must not be ticked.
+  it("does not tick a step whose work was never done", async () => {
+    lastMeasuredAt.mockResolvedValue(null);
+    render(await ProjectView({ job: { ...job, status: "quoted" as const } }));
+
+    const tracker = screen.getByRole("region", { name: "Your project" });
+    const measurements = within(tracker).getByText("Measurements").closest("li")!;
+    expect(within(measurements).getByText("(not yet)")).toBeInTheDocument();
+    expect(within(measurements).queryByText("(done)")).not.toBeInTheDocument();
+
+    // A step that did happen still reads as done.
+    expect(within(within(tracker).getByText("Consultation").closest("li")!).getByText("(done)")).toBeInTheDocument();
   });
 
   it("promises to call about the installation when none is booked", async () => {

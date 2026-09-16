@@ -11,6 +11,15 @@ const MARK = { done: "✓", current: "●", upcoming: "○" } as const;
 const SR = { done: "(done)", current: "(current step)", upcoming: "(coming up)" } as const;
 
 /**
+ * A step can be behind the customer without having happened — a job quoted off the
+ * consultation, with the measure visit still to come, has Measurements behind it and
+ * unreached. It keeps its place in the run so the tracker never goes backwards, but it
+ * gets no tick: a tick claims the work was done.
+ */
+const SKIPPED_MARK = "○";
+const SKIPPED_SR = "(not yet)";
+
+/**
  * The seven steps: stacked until there is genuinely desktop room for them. Seven columns
  * at 640px leaves about 70px of text each, which "Ready to Install" plus "Scheduled Oct 13"
  * cannot wear, so the row starts at md:.
@@ -18,20 +27,23 @@ const SR = { done: "(done)", current: "(current step)", upcoming: "(coming up)" 
 export function StepTracker({ steps }: { steps: ProjectStep[] }) {
   return (
     <ol className="flex flex-col gap-3 md:flex-row md:gap-3">
-      {steps.map((step) => (
+      {steps.map((step) => {
+        const skipped = step.state === "done" && !step.reached;
+        return (
         <li
           key={step.key}
           aria-current={step.state === "current" ? "step" : undefined}
           className={`flex gap-3 md:flex-1 md:flex-col md:gap-1 ${EDGE[step.state]}`}
         >
-          <span aria-hidden="true" className="w-4 shrink-0">{MARK[step.state]}</span>
+          <span aria-hidden="true" className="w-4 shrink-0">{skipped ? SKIPPED_MARK : MARK[step.state]}</span>
           <div className="flex flex-col">
             <span className={step.state === "current" ? "font-semibold" : undefined}>{step.label}</span>
-            <span className="sr-only">{SR[step.state]}</span>
+            <span className="sr-only">{skipped ? SKIPPED_SR : SR[step.state]}</span>
             {step.on ? <span className="text-sm text-ink-soft">{stepDateLabel(step)}</span> : null}
           </div>
         </li>
-      ))}
+        );
+      })}
     </ol>
   );
 }

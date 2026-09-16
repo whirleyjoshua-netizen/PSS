@@ -301,3 +301,38 @@ describe("the minStage gate, over every step and every portal status", () => {
     expect(ranks).toEqual([...ranks].sort((a, b) => a - b));
   });
 });
+
+describe("reached, as distinct from behind you", () => {
+  it("does not claim a measurement that was never taken", () => {
+    // The ordinary case: quoted off the consultation, with the measure visit still ahead.
+    const steps = buildSteps({ status: "quoted", stageDates: { quoted: new Date("2026-09-10T17:00:00Z") } });
+    const measurements = step(steps, "measurements");
+
+    // Behind the customer, so the tracker does not go backwards...
+    expect(measurements.state).toBe("done");
+    // ...but it did not happen, so nothing may tick it or date it.
+    expect(measurements.reached).toBe(false);
+    expect(measurements.on).toBeNull();
+  });
+
+  it("marks a step reached once its fact exists", () => {
+    const steps = buildSteps({
+      status: "quoted",
+      lastMeasuredAt: new Date("2026-09-13T17:00:00Z"),
+    });
+    expect(step(steps, "measurements").reached).toBe(true);
+    expect(step(steps, "measurements").on).toBe("Sep 13");
+  });
+
+  it("reaches every step on a completed job", () => {
+    const steps = buildSteps({
+      status: "completed",
+      visitAt: new Date("2026-09-01T17:00:00Z"),
+      lastMeasuredAt: new Date("2026-09-03T17:00:00Z"),
+      orderedOn: "2026-09-15",
+      installOn: "2026-10-13",
+      installAppointmentAt: new Date("2026-10-13T17:00:00Z"),
+    });
+    expect(steps.map((s) => s.reached)).toEqual([true, true, true, true, true, true, true]);
+  });
+});

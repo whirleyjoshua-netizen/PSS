@@ -57,13 +57,15 @@ describe("toProject", () => {
       city: "Henderson", status: "quoted", installOn: "2026-10-13", projectNo: "PSS-1048",
       windowCount: 9, treatmentTypes: ["shutters"], finish: "luxury", orderedOn: null,
       steps: [
-        { key: "consultation", label: "Consultation", state: "done", on: null, future: false },
-        { key: "measurements", label: "Measurements", state: "done", on: null, future: false },
-        { key: "quote", label: "Quote Ready", state: "current", on: null, future: false },
-        { key: "order", label: "Order Confirmed", state: "upcoming", on: null, future: false },
-        { key: "production", label: "In Production", state: "upcoming", on: null, future: false },
-        { key: "ready", label: "Ready to Install", state: "upcoming", on: null, future: false },
-        { key: "installed", label: "Installed", state: "upcoming", on: null, future: false },
+        // Measurements is behind the customer but never happened, so it is not reached: the
+        // tracker leaves it unticked rather than claiming work nobody did.
+        { key: "consultation", label: "Consultation", reached: true, state: "done", on: null, future: false },
+        { key: "measurements", label: "Measurements", reached: false, state: "done", on: null, future: false },
+        { key: "quote", label: "Quote Ready", reached: true, state: "current", on: null, future: false },
+        { key: "order", label: "Order Confirmed", reached: false, state: "upcoming", on: null, future: false },
+        { key: "production", label: "In Production", reached: false, state: "upcoming", on: null, future: false },
+        { key: "ready", label: "Ready to Install", reached: false, state: "upcoming", on: null, future: false },
+        { key: "installed", label: "Installed", reached: false, state: "upcoming", on: null, future: false },
       ],
     });
 
@@ -88,7 +90,9 @@ describe("toProject", () => {
     expect(byKey.measurements.on).toBe("Sep 13");
     expect(byKey.quote.on).toBe("Sep 10");
     // The job is sold, so Order Confirmed is the furthest step reached: it is the current one.
-    expect(byKey.order).toEqual({ key: "order", label: "Order Confirmed", state: "current", on: "Sep 14", future: false });
+    expect(byKey.order).toEqual({
+      key: "order", label: "Order Confirmed", reached: true, state: "current", on: "Sep 14", future: false,
+    });
     // The job is only sold, so a booked install does not tick Ready to Install — and cannot
     // drag In Production done with it. The date still reaches the page's Installation section.
     expect(byKey.ready.on).toBeNull();

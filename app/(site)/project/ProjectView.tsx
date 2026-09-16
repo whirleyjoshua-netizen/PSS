@@ -83,7 +83,17 @@ export async function ProjectView({ job }: { job: Job }) {
 
       <section className="flex flex-col gap-2" aria-labelledby="install-heading">
         <h2 id="install-heading" className={heading}>Installation</h2>
-        {project.installOn || installAt ? (
+        {/* A finished job is finished: its install_on is in the past, and telling a customer whose
+            blinds are already up that we will call to confirm the date would contradict the banner
+            on this same page. toPortalStage folds completed into installed, so this covers both. */}
+        {project.status === "installed" ? (
+          <p>
+            {project.installOn
+              ? `Your installation was completed on ${formatDateOnly(project.installOn)}.`
+              : "Your installation is complete."}{" "}
+            If anything needs adjusting, call us and we will come back out.
+          </p>
+        ) : project.installOn || installAt ? (
           <p>Your installation is booked for {installLabel}. We will be in touch to confirm the details.</p>
         ) : (
           <p>

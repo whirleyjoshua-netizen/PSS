@@ -25,6 +25,13 @@ export type ProjectStep = {
   key: StepKey;
   label: string;
   state: "done" | "current" | "upcoming";
+  /**
+   * Whether this step actually happened. A step before the current one reads as behind the
+   * customer even if the job skipped it (see buildSteps), so `state` alone cannot be used to
+   * claim the work was done: a job quoted off the consultation, with the measure visit still
+   * ahead, has Measurements behind it and unreached. The page ticks only what is reached.
+   */
+  reached: boolean;
   /** A Las Vegas day such as "Sep 13", or null when the step has no date. */
   on: string | null;
   /**
@@ -181,6 +188,7 @@ export function buildSteps(input: StepInput): ProjectStep[] {
     return {
       key: spec.key,
       label: spec.label,
+      reached: reached[index],
       state:
         index < furthest || (index === furthest && finished)
           ? "done"
