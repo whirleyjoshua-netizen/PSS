@@ -58,26 +58,10 @@ describe("job page", () => {
     expect(screen.getByRole("checkbox", { name: "Alta Window Fashions" })).not.toBeChecked();
   });
 
-  it("records the dates the details form was rendered with, in the visible inputs' formats", () => {
-    const { container } = render(
-      <DetailsForm job={{ ...job, visitAt: new Date("2026-09-20T17:00:00Z"), installOn: "2027-01-10" }} />,
-    );
-    const hidden = (name: string) => container.querySelector<HTMLInputElement>(`input[type="hidden"][name="${name}"]`);
-    expect(hidden("visitAtLoaded")?.value).toBe("2026-09-20T10:00");
-    expect(hidden("installOnLoaded")?.value).toBe("2027-01-10");
-    expect(screen.getByLabelText(/visit date and time/i)).toHaveValue("2026-09-20T10:00");
-  });
-
-  it("records empty loaded dates for a job with none", () => {
-    const { container } = render(<DetailsForm job={job} />);
-    expect(container.querySelector<HTMLInputElement>('input[name="visitAtLoaded"]')?.value).toBe("");
-    expect(container.querySelector<HTMLInputElement>('input[name="installOnLoaded"]')?.value).toBe("");
-  });
-
   it("keeps typed values on the details form after a failed save", async () => {
     saveDetails.mockResolvedValueOnce({
       error: "Enter an amount under $21,474,836",
-      values: { quote: "999999999", installOn: "2027-03-01" },
+      values: { quote: "999999999", orderedOn: "2027-03-01" },
     });
     const user = userEvent.setup();
     render(<DetailsForm job={job} />);
@@ -89,9 +73,7 @@ describe("job page", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent(/under \$21,474,836/);
     expect(screen.getByLabelText(/quote/i)).toHaveValue("999999999");
-    expect(screen.getByLabelText(/install date/i)).toHaveValue("2027-03-01");
-    // The loaded value stays what the form was rendered with, so the typed date still counts as an edit.
-    expect(document.querySelector<HTMLInputElement>('input[name="installOnLoaded"]')?.value).toBe("");
+    expect(screen.getByLabelText("Order date")).toHaveValue("2027-03-01");
   });
 
   it("shows the budget tier in the details form", () => {

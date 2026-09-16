@@ -11,6 +11,8 @@ const afterCallbacks: Array<() => unknown> = [];
 vi.mock("next/server", () => ({ after: (cb: () => unknown) => { afterCallbacks.push(cb); } }));
 const syncJobCalendar = vi.fn();
 vi.mock("@/lib/calendar/sync", () => ({ syncJobCalendar }));
+const mirrorToJob = vi.fn();
+vi.mock("@/lib/admin/appointments", () => ({ mirrorToJob }));
 const getDay = vi.fn();
 vi.mock("@/lib/calendar/week", () => ({ getDay: (...args: unknown[]) => getDay(...args) }));
 
@@ -23,6 +25,7 @@ beforeEach(() => {
   logCall.mockReset().mockResolvedValue(true);
   redirect.mockClear();
   syncJobCalendar.mockReset();
+  mirrorToJob.mockReset();
   getDay.mockReset();
   afterCallbacks.length = 0;
 });
@@ -62,13 +65,30 @@ describe("logCallAction", () => {
     await expect(logCallAction(JOB, {}, form([["outcome", "booked"], ["visitAt", "2026-09-20T10:00"]])))
       .rejects.toThrow("NEXT_REDIRECT");
     await runAfter();
-    expect(syncJobCalendar).toHaveBeenCalledWith(JOB, ["visit"]);
+    expect(syncJobCalendar).toHaveBeenCalledWith(JOB, ["consultation"]);
+  });
+
+  it("mirrors the confirmed consultation onto the job before the sync runs", async () => {
+    await expect(logCallAction(JOB, {}, form([["outcome", "booked"], ["visitAt", "2026-09-20T10:00"]])))
+      .rejects.toThrow("NEXT_REDIRECT");
+    // The mirror is the only writer of leads.visit_at, and the Outlook push reads it.
+    expect(mirrorToJob).toHaveBeenCalledWith(JOB);
+    expect(syncJobCalendar).not.toHaveBeenCalled();
+    await runAfter();
+    expect(syncJobCalendar).toHaveBeenCalledWith(JOB, ["consultation"]);
   });
 
   it("syncs without pushing after any other outcome", async () => {
     await expect(logCallAction(JOB, {}, form([["outcome", "talked"]]))).rejects.toThrow("NEXT_REDIRECT");
     await runAfter();
     expect(syncJobCalendar).toHaveBeenCalledWith(JOB, []);
+    expect(mirrorToJob).not.toHaveBeenCalled();
+  });
+
+  it("does not mirror when the call did not save", async () => {
+    logCall.mockResolvedValue(false);
+    await logCallAction(JOB, {}, form([["outcome", "booked"], ["visitAt", "2026-09-20T10:00"]]));
+    expect(mirrorToJob).not.toHaveBeenCalled();
   });
 
   it("does not sync when the call did not save", async () => {
@@ -112,10 +132,10 @@ describe("callDaySchedule", () => {
       source: "tracker",
       notice: null,
       items: [
-        { key: `${JOB}:visit`, day: "2026-09-20", allDay: false, start: new Date("2026-09-20T17:00:00Z"),
-          end: new Date("2026-09-20T18:00:00Z"), title: "Visit · This Job", job: { id: JOB, name: "This Job", city: "Reno", status: "visit_booked", kind: "visit" } },
-        { key: "other:visit", day: "2026-09-20", allDay: false, start: new Date("2026-09-20T20:00:00Z"),
-          end: new Date("2026-09-20T21:00:00Z"), title: "Visit · Other Job", job: { id: "other", name: "Other Job", city: "Reno", status: "visit_booked", kind: "visit" } },
+        { key: `${JOB}:consultation`, day: "2026-09-20", allDay: false, start: new Date("2026-09-20T17:00:00Z"),
+          end: new Date("2026-09-20T18:00:00Z"), title: "Consultation · This Job", job: { id: JOB, name: "This Job", city: "Reno", status: "visit_booked", kind: "consultation" } },
+        { key: "other:consultation", day: "2026-09-20", allDay: false, start: new Date("2026-09-20T20:00:00Z"),
+          end: new Date("2026-09-20T21:00:00Z"), title: "Consultation · Other Job", job: { id: "other", name: "Other Job", city: "Reno", status: "visit_booked", kind: "consultation" } },
       ],
     });
     const result = await callDaySchedule(JOB, "2026-09-20");
@@ -123,7 +143,7 @@ describe("callDaySchedule", () => {
       ok: true,
       notice: null,
       items: [
-        { key: "other:visit", allDay: false, start: "2026-09-20T20:00:00.000Z", end: "2026-09-20T21:00:00.000Z", title: "Visit · Other Job" },
+        { key: "other:consultation", allDay: false, start: "2026-09-20T20:00:00.000Z", end: "2026-09-20T21:00:00.000Z", title: "Consultation · Other Job" },
       ],
     });
   });

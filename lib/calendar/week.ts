@@ -2,13 +2,14 @@ import "server-only";
 import { db } from "@/lib/db";
 import { fromLocalInput, lasVegasDate } from "@/lib/admin/time";
 import type { Stage } from "@/lib/admin/stages";
+import { kindLabel } from "@/lib/admin/appointment-kinds";
 import { calendarConfig, calendarEnabled } from "./config";
-import { nextDay, type GraphEvent } from "./events";
+import { nextDay, type GraphEvent, type Kind } from "./events";
 import { graphJson } from "./graph";
 
 export type ScheduleItem = {
   key: string; day: string; allDay: boolean; start: Date | null; end: Date | null; title: string;
-  job: { id: string; name: string; city: string; status: Stage; kind: "visit" | "install" } | null;
+  job: { id: string; name: string; city: string; status: Stage; kind: Kind } | null;
 };
 export type Week = { days: string[]; items: ScheduleItem[]; source: "outlook" | "tracker"; notice: string | null };
 
@@ -62,35 +63,45 @@ function coveredDays(event: GraphEvent, days: string[]): string[] {
 const order = (a: ScheduleItem, b: ScheduleItem) =>
   a.day.localeCompare(b.day) || Number(b.allDay) - Number(a.allDay) || (a.start?.getTime() ?? 0) - (b.start?.getTime() ?? 0);
 
-async function trackerItems(days: string[], from: Date, to: Date): Promise<ScheduleItem[]> {
-  const first = days[0];
-  const last = days[days.length - 1];
+/**
+ * The tracker's own view of the range: every CONFIRMED appointment of any kind, from the appointments
+ * table rather than the leads.visit_at / leads.install_on mirrors, so Measure and Service appear too.
+ * A pending appointment is not a commitment and is not on Outlook either, so it never shows here.
+ */
+async function trackerItems(from: Date, to: Date): Promise<ScheduleItem[]> {
   const rows = await db()`
-    select id, name, city, status, visit_at, install_on::text as install_on from leads
-     where status <> 'lost'
-       and ((visit_at >= ${from} and visit_at < ${to}) or install_on between ${first}::date and ${last}::date)`;
-  const items: ScheduleItem[] = [];
-  for (const row of rows) {
-    const base = { id: row.id as string, name: row.name as string, city: row.city as string, status: row.status as Stage };
-    const visit = row.visit_at ? new Date(row.visit_at as string) : null;
-    if (visit && visit >= from && visit < to) {
-      items.push({ key: `${base.id}:visit`, day: lasVegasDate(visit), allDay: false, start: visit,
-        end: new Date(visit.getTime() + 3_600_000), title: `Visit · ${base.name}`, job: { ...base, kind: "visit" } });
-    }
-    const install = row.install_on as string | null;
-    if (install && install >= first && install <= last) {
-      items.push({ key: `${base.id}:install`, day: install, allDay: true, start: null, end: null,
-        title: `Install · ${base.name}`, job: { ...base, kind: "install" } });
-    }
-  }
-  return items;
+    select a.kind, a.starts_at, a.all_day, j.id as job_id, j.name, j.city, j.status
+      from appointments a join leads j on j.id = a.lead_id
+     where j.status <> 'lost'
+       and a.confirmed_at is not null
+       and a.starts_at >= ${from} and a.starts_at < ${to}`;
+  return rows.map((row): ScheduleItem => {
+    const kind = row.kind as Kind;
+    const job = {
+      id: row.job_id as string, name: row.name as string, city: row.city as string,
+      status: row.status as Stage, kind,
+    };
+    const startsAt = new Date(row.starts_at as string | Date);
+    const allDay = row.all_day === true;
+    return {
+      key: `${job.id}:${kind}`,
+      // Correct only because an all-day appointment is stored at 08:00 America/Los_Angeles
+      // (migration 014). Storing one at 00:00 UTC instead would land this on the previous day.
+      day: lasVegasDate(startsAt),
+      allDay,
+      start: allDay ? null : startsAt,
+      end: allDay ? null : new Date(startsAt.getTime() + 3_600_000),
+      title: `${kindLabel(kind)} · ${job.name}`,
+      job,
+    };
+  });
 }
 
 async function loadRange(days: string[]): Promise<{ items: ScheduleItem[]; source: "outlook" | "tracker"; notice: string | null }> {
   const from = fromLocalInput(`${days[0]}T00:00`);
   const to = fromLocalInput(`${nextDay(days[days.length - 1])}T00:00`);
   const displayed = new Set(days);
-  const tracker = (await trackerItems(days, from, to)).filter((item) => displayed.has(item.day)).sort(order);
+  const tracker = (await trackerItems(from, to)).filter((item) => displayed.has(item.day)).sort(order);
   if (!calendarEnabled()) return { items: tracker, source: "tracker", notice: "Outlook isn't connected yet." };
   try {
     const mailbox = calendarConfig()!.mailbox;
@@ -122,7 +133,7 @@ async function loadRange(days: string[]): Promise<{ items: ScheduleItem[]; sourc
         end: allDay ? null : fromLocalInput(event.end.dateTime.slice(0, 16)),
         title: event.subject || "(no title)",
         job: link ? { id: link.id as string, name: link.name as string, city: link.city as string,
-          status: link.status as Stage, kind: link.kind as "visit" | "install" } : null,
+          status: link.status as Stage, kind: link.kind as Kind } : null,
       };
       return coveredDays(event, days).map((day) => ({ key: `${event.id}:${day}`, day, ...base }));
     });

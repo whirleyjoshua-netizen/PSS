@@ -47,6 +47,11 @@
   --color-stage-ordered: #B07D4F;
   --color-stage-installed: #1E1E1E;
   --color-stage-completed: #3F7D6B;
+  /* Appointment kinds — edges, dots and icon tints only, like the stage colors. */
+  --color-appt-consult: #5B8DB8;
+  --color-appt-measure: #8A6A9E;
+  --color-appt-install: #C98A2E;
+  --color-appt-service: #3F7D6B;
   --color-overdue: #B3261E;
 }
 

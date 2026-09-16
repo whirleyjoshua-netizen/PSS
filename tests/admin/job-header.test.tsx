@@ -6,6 +6,10 @@ vi.mock("@/app/admin/jobs/actions", () => ({
   moveStage: vi.fn(), markLost: vi.fn(async () => ({})), assignJobAction: vi.fn(async () => ({})),
 }));
 vi.mock("@/app/admin/jobs/contact-actions", () => ({ logContactAction: vi.fn(async () => ({})) }));
+vi.mock("@/app/admin/jobs/appointment-actions", () => ({
+  bookAppointment: vi.fn(async () => ({})), confirmSchedule: vi.fn(async () => ({})),
+  cancelAppointmentAction: vi.fn(async () => ({})),
+}));
 vi.mock("@/app/admin/jobs/follow-up-actions", () => ({ saveFollowUp: vi.fn(async () => ({})), clearFollowUpAction: vi.fn(async () => {}) }));
 const { JobHeader } = await import("@/app/admin/jobs/[id]/JobHeader");
 
@@ -40,9 +44,9 @@ describe("JobHeader", () => {
     expect(screen.getByRole("link", { name: "Log a call" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Text" })).toHaveAttribute("href", "sms:+17025550134");
     expect(screen.getByRole("link", { name: "Email" })).toHaveAttribute("href", "mailto:dana@example.com");
-    expect(screen.getByRole("link", { name: "Schedule" })).toHaveAttribute(
-      "href", `/admin/jobs/${ID}?tab=overview&edit=details#visitAt`,
-    );
+    // Scheduling is a dialog now, not a trip to the details form.
+    expect(screen.getByRole("button", { name: "Schedule" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Schedule" })).toBeNull();
   });
 
   it("hides Email when there is no email", () => {

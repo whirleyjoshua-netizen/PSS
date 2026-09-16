@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { after } from "next/server";
+import { mirrorToJob } from "@/lib/admin/appointments";
 import { logCall } from "@/lib/admin/calls";
 import { callSchema } from "@/lib/admin/schema";
 import { requireAdmin } from "@/lib/admin/session";
@@ -43,9 +44,12 @@ export async function logCallAction(jobId: string, _prev: FormState, formData: F
 
   const saved = await logCall(jobId, parsed.data, email);
   if (!saved) return { error: "That job no longer exists." };
-  // A booked call sets the visit, so the tracker wins for it; otherwise Outlook just stays in step.
-  const booked = parsed.data.outcome === "booked";
-  after(() => syncJobCalendar(jobId, booked ? ["visit"] : []));
+  // A booked call books a confirmed consultation, so the tracker wins for it; otherwise Outlook just
+  // stays in step. The mirror runs first, as in confirmSchedule: logCall stamps the appointment only,
+  // and leads.visit_at — which the job page and the calendar read — is a mirror of it.
+  const booked = parsed.data.outcome === "booked" && parsed.data.visitAt !== null;
+  if (booked) await mirrorToJob(jobId);
+  after(() => syncJobCalendar(jobId, booked ? ["consultation"] : []));
 
   revalidatePath("/admin");
   revalidatePath(`/admin/jobs/${jobId}`);
@@ -61,7 +65,7 @@ export async function callDaySchedule(jobId: string, date: string): Promise<DayS
   try {
     const day = await getDay(date);
     const items = day.items
-      .filter((item) => !(item.job?.id === jobId && item.job?.kind === "visit"))
+      .filter((item) => !(item.job?.id === jobId && item.job?.kind === "consultation"))
       .map((item) => ({
         key: item.key, allDay: item.allDay,
         start: item.start ? item.start.toISOString() : null,

@@ -227,6 +227,9 @@ test("the schedule shows this week's visits from the tracker and opens the full 
   const [row] = await sql()`insert into leads (name, phone, email, city, source, status, visit_at)
     values (${`${NAME} Schedule`}, '7025550188', 'sched@example.com', 'Henderson', 'phone', 'visit_booked', ${visit})
     returning id`;
+  // The Schedule page reads confirmed appointments, not leads.visit_at, which is only a mirror.
+  await sql()`insert into appointments (lead_id, kind, starts_at, all_day, confirmed_at, confirmed_by)
+    values (${row.id}, 'consultation', ${visit}, false, now(), 'e2e')`;
   await signIn(page);
   // Visiting the week that contains the visit keeps this stable on a Saturday night.
   const day = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Los_Angeles" }).format(visit);
@@ -247,6 +250,9 @@ test("the schedule's month view shows a day's visit and opens the full job page"
     values (${`${NAME} Month`}, '7025550189', 'sched-month@example.com', 'Henderson', 'phone', 'visit_booked',
       ${`${day} 10:00 America/Los_Angeles`}::timestamptz)
     returning id`;
+  // The Schedule page reads confirmed appointments, not leads.visit_at, which is only a mirror.
+  await sql()`insert into appointments (lead_id, kind, starts_at, all_day, confirmed_at, confirmed_by)
+    values (${row.id}, 'consultation', ${`${day} 10:00 America/Los_Angeles`}::timestamptz, false, now(), 'e2e')`;
   await signIn(page);
   await page.goto("/admin/schedule");
   await page.getByRole("navigation", { name: "View" }).getByRole("link", { name: "Month", exact: true }).click();
@@ -273,6 +279,9 @@ test("the call screen shows that day's calendar and flags a clash", async ({ pag
     values (${`${NAME} Booked`}, '7025550190', 'e2e-booked@example.com', 'Henderson', 'phone', 'visit_booked',
       ${`${day} 10:00 America/Los_Angeles`}::timestamptz)
     returning id`;
+  // The call screen's day calendar reads confirmed appointments, not leads.visit_at.
+  await sql()`insert into appointments (lead_id, kind, starts_at, all_day, confirmed_at, confirmed_by)
+    values (${booked.id}, 'consultation', ${`${day} 10:00 America/Los_Angeles`}::timestamptz, false, now(), 'e2e')`;
   const [toCall] = await sql()`insert into leads (name, phone, email, city, source, status)
     values (${`${NAME} ToCall`}, '7025550191', 'e2e-tocall@example.com', 'Henderson', 'phone', 'quoted')
     returning id`;
@@ -288,6 +297,4 @@ test("the call screen shows that day's calendar and flags a clash", async ({ pag
 
   await page.getByLabel("Visit date and time").fill(`${day}T13:00`);
   await expect(panel.getByText("clashes with this time")).toHaveCount(0);
-
-  void booked;
 });

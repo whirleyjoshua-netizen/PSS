@@ -3,7 +3,6 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { after } from "next/server";
-import type { Kind } from "@/lib/calendar/events";
 import { syncJobCalendar } from "@/lib/calendar/sync";
 import { requireAdmin } from "@/lib/admin/session";
 import { addNote, assignJob, createJob, getJob, setStage, updateDetails } from "@/lib/admin/jobs";
@@ -14,31 +13,11 @@ import { isPortalStatus } from "@/lib/portal/progress";
 import { ensureReferralCode, markReferralPaid } from "@/lib/referrals/db";
 import { releaseReview, restoreReviewRequested, setReviewOptOut, stampReviewRequested } from "@/lib/reviews/db";
 import { sendReviewRequest } from "@/lib/reviews/send";
+import { captureValues, MISSING, refresh, type FormState } from "./form-state";
 
-export type FormState = {
-  error?: string;
-  ok?: boolean;
-  /** The submitted values, echoed back so a failed submit can keep them. */
-  values?: Record<string, string | string[]>;
-};
-
-const MISSING: FormState = { error: "That job no longer exists." };
-
-const refresh = (id: string) => {
-  revalidatePath("/admin");
-  revalidatePath(`/admin/jobs/${id}`);
-};
-
-/** Captures a FormData's entries so a failed submit can restore them as defaults. */
-function captureValues(formData: FormData, keys: string[]): Record<string, string | string[]> {
-  const values: Record<string, string | string[]> = {};
-  for (const key of keys) {
-    const all = formData.getAll(key);
-    if (all.length === 0) continue;
-    values[key] = all.length > 1 ? all.map(String) : String(all[0]);
-  }
-  return values;
-}
+// The form helpers live in ./form-state so the appointment actions share one FormState shape.
+// Re-exported here because every form in the admin imports the type from this module.
+export type { FormState };
 
 // Every action calls requireAdmin() before reading its input.
 
@@ -69,33 +48,25 @@ export async function markLost(id: string, _prev: FormState, formData: FormData)
 export async function saveDetails(id: string, _prev: FormState, formData: FormData): Promise<FormState> {
   const { email } = await requireAdmin();
   const values = captureValues(formData, [
-    "visitAt", "quote", "sold", "deposit", "brands", "orderedOn", "installOn", "budget",
+    "quote", "sold", "deposit", "brands", "orderedOn", "budget",
     "windowCountExact", "treatmentTypes", "motorized", "gateCode",
   ]);
   const parsed = detailsSchema.safeParse({
-    visitAt: formData.get("visitAt") ?? "",
     quote: formData.get("quote") ?? "",
     sold: formData.get("sold") ?? "",
     deposit: formData.get("deposit") ?? "",
     brands: formData.getAll("brands"),
     orderedOn: formData.get("orderedOn") ?? "",
-    installOn: formData.get("installOn") ?? "",
     budget: formData.get("budget") ?? "",
     windowCountExact: formData.get("windowCountExact") ?? "",
     treatmentTypes: formData.getAll("treatmentTypes").map(String),
     motorized: formData.get("motorized") === "on",
     gateCode: formData.get("gateCode") ?? "",
-    visitAtLoaded: formData.get("visitAtLoaded") ?? undefined,
-    installOnLoaded: formData.get("installOnLoaded") ?? undefined,
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message, values };
-  const result = await updateDetails(id, parsed.data, email);
-  if (!result) return MISSING;
-  // Only a date this save changed overrides Outlook; the rest keep any move made there.
-  const pushKinds: Kind[] = [];
-  if (result.visitChanged) pushKinds.push("visit");
-  if (result.installChanged) pushKinds.push("install");
-  after(() => syncJobCalendar(id, pushKinds));
+  // No date is edited here any more, so this save never touches Outlook.
+  const saved = await updateDetails(id, parsed.data, email);
+  if (!saved) return MISSING;
   refresh(id);
   return { ok: true };
 }

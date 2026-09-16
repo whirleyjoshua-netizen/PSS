@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { listAppointments } from "@/lib/admin/appointments";
 import { getEvents, getJob } from "@/lib/admin/jobs";
 import { listFiles } from "@/lib/admin/files";
 import { listMeasurements } from "@/lib/admin/measurements";
@@ -22,7 +23,7 @@ export default async function JobPage({ params, searchParams }: {
   const { id } = await params;
   const job = await getJob(id);
   if (!job) notFound();
-  const [query, events, referrals, referrer, measurements, files, team] = await Promise.all([
+  const [query, events, referrals, referrer, measurements, files, team, appointments] = await Promise.all([
     searchParams,
     getEvents(id),
     listReferrals(id),
@@ -30,6 +31,7 @@ export default async function JobPage({ params, searchParams }: {
     listMeasurements(id),
     listFiles(id),
     listTeam(),
+    listAppointments(id),
   ]);
   const tab = parseJobTab(query.tab);
   const editing = tab === "overview" && firstParam(query.edit) === "details";
@@ -41,7 +43,7 @@ export default async function JobPage({ params, searchParams }: {
       <JobTabs jobId={job.id} active={tab} counts={{ measurements: measurements.length, files: files.length }} />
       {tab === "overview" ? (
         <OverviewTab job={job} editing={editing} now={now} measurements={measurements} files={files}
-          events={events} referrals={referrals} referrer={referrer} />
+          events={events} referrals={referrals} referrer={referrer} appointments={appointments} />
       ) : null}
       {tab === "measurements" ? <MeasurementsTab jobId={job.id} measurements={measurements} files={files} /> : null}
       {tab === "files" ? (

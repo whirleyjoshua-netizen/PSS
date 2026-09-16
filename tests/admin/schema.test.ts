@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { detailsSchema, newJobSchema, noteSchema, lostSchema, teamMemberSchema } from "@/lib/admin/schema";
+import { appointmentSchema, detailsSchema, newJobSchema, noteSchema, lostSchema, teamMemberSchema } from "@/lib/admin/schema";
+import { APPOINTMENT_KINDS } from "@/lib/admin/appointment-kinds";
 import { TEAM_ROLES } from "@/lib/admin/team-roles";
 
 describe("new job stage", () => {
@@ -22,13 +23,12 @@ describe("new job stage", () => {
 describe("detailsSchema", () => {
   it("turns form strings into typed values, with blanks as null", () => {
     const parsed = detailsSchema.parse({
-      visitAt: "2026-12-15T14:30", quote: "$4,500", sold: "", deposit: "2250",
-      brands: ["Alta Window Fashions"], orderedOn: "", installOn: "2027-01-10",
+      quote: "$4,500", sold: "", deposit: "2250",
+      brands: ["Alta Window Fashions"], orderedOn: "2027-01-10",
     });
     expect(parsed).toEqual({
-      visitAt: new Date("2026-12-15T22:30:00.000Z"),
       quoteCents: 450000, soldCents: null, depositCents: 225000,
-      brands: ["Alta Window Fashions"], orderedOn: null, installOn: "2027-01-10",
+      brands: ["Alta Window Fashions"], orderedOn: "2027-01-10",
       budgetTier: null,
       windowCountExact: null, treatmentTypes: [], motorized: false, gateCode: null,
     });
@@ -39,10 +39,10 @@ describe("detailsSchema", () => {
     expect(detailsSchema.safeParse({ quote: "lots" }).success).toBe(false);
   });
 
-  it("rejects an impossible visit date without throwing", () => {
-    const result = detailsSchema.safeParse({ visitAt: "2026-13-45T25:99" });
-    expect(result.success).toBe(false);
-    expect(result.error!.issues[0].message).toBe("Pick a valid visit date and time");
+  it("has no appointment dates: the Schedule button owns those", () => {
+    const parsed = detailsSchema.parse({ quote: "", visitAt: "2026-12-15T14:30", installOn: "2027-01-10" });
+    expect(parsed).not.toHaveProperty("visitAt");
+    expect(parsed).not.toHaveProperty("installOn");
   });
 });
 
@@ -81,6 +81,41 @@ describe("newJobSchema", () => {
   it("requires a known source and a service-area city", () => {
     expect(newJobSchema.safeParse({ name: "Dana", phone: "7025550134", city: "Henderson", source: "hero" }).success).toBe(false);
     expect(newJobSchema.safeParse({ name: "Dana", phone: "7025550134", city: "Phoenix", source: "phone" }).success).toBe(false);
+  });
+});
+
+describe("appointmentSchema", () => {
+  const base = { kind: "consultation", startsAt: "2026-09-20T10:00", allDay: false };
+
+  it("parses the datetime-local value as a Las Vegas instant", () => {
+    const parsed = appointmentSchema.parse(base);
+    expect(parsed.startsAt).toEqual(new Date("2026-09-20T17:00:00Z"));
+    expect(parsed.kind).toBe("consultation");
+    expect(parsed.allDay).toBe(false);
+  });
+
+  it("treats a missing checkbox as a timed appointment and 'on' as all day", () => {
+    expect(appointmentSchema.parse({ kind: "install", startsAt: base.startsAt }).allDay).toBe(false);
+    expect(appointmentSchema.parse({ ...base, kind: "install", allDay: true }).allDay).toBe(true);
+  });
+
+  it("accepts exactly the four kinds the Schedule button offers", () => {
+    for (const kind of APPOINTMENT_KINDS) {
+      expect(appointmentSchema.safeParse({ ...base, kind: kind.value }).success).toBe(true);
+    }
+    expect(appointmentSchema.safeParse({ ...base, kind: "visit" }).success).toBe(false);
+  });
+
+  it("asks for a date and time when it is missing or not a real one", () => {
+    for (const startsAt of ["", "not-a-date", "2026-02-30T10:00", "2026-09-20"]) {
+      const parsed = appointmentSchema.safeParse({ ...base, startsAt });
+      expect(parsed.success).toBe(false);
+      expect(parsed.error?.issues[0].message).toBe("Pick a date and time");
+    }
+  });
+
+  it("asks what the appointment is for when no kind was chosen", () => {
+    expect(appointmentSchema.safeParse({ ...base, kind: "" }).error?.issues[0].message).toBe("Pick what this is for");
   });
 });
 

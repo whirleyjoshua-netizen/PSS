@@ -81,6 +81,9 @@ test("the schedule opens the full job page", async ({ page }) => {
   const [row] = await sql()`insert into leads (name, phone, email, city, source, status, visit_at)
     values (${name}, '7025550312', 'e2e-mobile@example.com', 'Henderson', 'phone', 'visit_booked', ${visit})
     returning id`;
+  // The Schedule page reads confirmed appointments, not leads.visit_at, which is only a mirror.
+  await sql()`insert into appointments (lead_id, kind, starts_at, all_day, confirmed_at, confirmed_by)
+    values (${row.id}, 'consultation', ${visit}, false, now(), 'e2e')`;
   await signIn(page);
 
   const day = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Los_Angeles" }).format(visit);

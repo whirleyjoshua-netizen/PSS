@@ -1,5 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import type { AppointmentKind } from "@/lib/admin/appointment-kinds";
+import type { ScheduleItem } from "@/lib/calendar/week";
 
 const ID = "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c";
 const getWeek = vi.fn();
@@ -27,7 +29,7 @@ beforeEach(() => {
   getWeek.mockReset().mockResolvedValue({
     days, source: "outlook", notice: null, items: [
       { key: "e1", day: "2026-09-17", allDay: false, start: new Date("2026-09-17T17:00:00Z"), title: "Visit · Dana Reyes",
-        job: { id: ID, name: "Dana Reyes", city: "Henderson", status: "visit_booked", kind: "visit" } },
+        job: { id: ID, name: "Dana Reyes", city: "Henderson", status: "visit_booked", kind: "consultation" } },
       { key: "e2", day: "2026-09-17", allDay: false, start: new Date("2026-09-17T15:00:00Z"), title: "Dentist", job: null },
     ],
   });
@@ -37,7 +39,7 @@ beforeEach(() => {
     source: "outlook", notice: null,
     items: [
       { key: "e1", day: "2026-09-17", allDay: false, start: new Date("2026-09-17T17:00:00Z"), title: "Visit · Dana Reyes",
-        job: { id: ID, name: "Dana Reyes", city: "Henderson", status: "visit_booked", kind: "visit" } },
+        job: { id: ID, name: "Dana Reyes", city: "Henderson", status: "visit_booked", kind: "consultation" } },
       { key: "e2", day: "2026-09-17", allDay: false, start: new Date("2026-09-17T15:00:00Z"), title: "Dentist", job: null },
     ],
   });
@@ -230,6 +232,28 @@ describe("multi-day timed events", () => {
     expect(within(cell).getByText("Continues · Long job")).toBeInTheDocument();
     const section = within(screen.getByRole("region", { name: "Monday, September 14" }));
     expect(section.getByText("Sun 9:00 AM – Tue 10:00 AM")).toBeInTheDocument();
+  });
+});
+
+describe("appointment kinds are coloured and labelled by kind", () => {
+  const item = (kind: AppointmentKind, day: string): ScheduleItem => ({
+    key: `${ID}:${kind}`, day, allDay: false, start: new Date(`${day}T17:00:00Z`), end: null,
+    title: "x", job: { id: ID, name: "Dana Reyes", city: "Henderson", status: "visit_booked", kind },
+  });
+
+  it("gives a week card the kind's edge colour and label", async () => {
+    const { WeekView } = await import("@/app/admin/schedule/WeekView");
+    render(<WeekView days={days} notice={null} now={NOW} items={[item("measure", "2026-09-15")]} />);
+    const link = screen.getByRole("link", { name: /dana reyes/i });
+    expect(link.className).toMatch(/\bborder-l-appt-measure\b/);
+    expect(link.textContent).toMatch(/Measure/);
+  });
+
+  it("gives a month cell line the kind's colour", () => {
+    render(<MonthView month="2026-09" days={monthDays} notice={null} now={NOW} items={[item("service", "2026-09-15")]} />);
+    const cell = screen.getByRole("link", { name: /tue, sep 15/i });
+    const line = within(cell).getByText(/Service · Dana Reyes/);
+    expect(line.className).toMatch(/\bborder-l-appt-service\b/);
   });
 });
 

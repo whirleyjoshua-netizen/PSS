@@ -6,7 +6,6 @@ import { TextField } from "@/components/forms/Field";
 import { BUDGET_OPTIONS } from "@/lib/admin/budget";
 import type { Job } from "@/lib/admin/jobs";
 import { BRANDS } from "@/lib/admin/schema";
-import { toLocalInput } from "@/lib/admin/time";
 import { TREATMENT_TYPES } from "@/lib/leads/treatment-types";
 import { WINDOW_EXACT_OPTIONS } from "@/lib/leads/window-count";
 import { saveDetails, type FormState } from "../actions";
@@ -42,24 +41,13 @@ export function DetailsForm({ job }: { job: Job }) {
       action={action}
       className="grid gap-4 sm:grid-cols-2"
     >
-      {/* What the dates were when this form was rendered, so an untouched date never overwrites an Outlook move. */}
-      <input type="hidden" name="visitAtLoaded" defaultValue={job.visitAt ? toLocalInput(job.visitAt) : ""} />
-      <input type="hidden" name="installOnLoaded" defaultValue={job.installOn ?? ""} />
-      <label htmlFor="visitAt" className="flex flex-col gap-2 text-sm">
-        Visit date and time
-        <input id="visitAt" name="visitAt" type="datetime-local" className={CONTROL}
-          defaultValue={field("visitAt", job.visitAt ? toLocalInput(job.visitAt) : "")} />
-      </label>
+      {/* Appointment dates are not edited here: the Schedule button owns them. */}
       <Money id="quote" label="Quote" value={field("quote", dollars(job.quoteCents))} />
       <Money id="sold" label="Sold amount" value={field("sold", dollars(job.soldCents))} />
       <Money id="deposit" label="Deposit received" value={field("deposit", dollars(job.depositCents))} />
       <label htmlFor="orderedOn" className="flex flex-col gap-2 text-sm">
         Order date
         <input id="orderedOn" name="orderedOn" type="date" className={CONTROL} defaultValue={field("orderedOn", job.orderedOn ?? "")} />
-      </label>
-      <label htmlFor="installOn" className="flex flex-col gap-2 text-sm">
-        Install date
-        <input id="installOn" name="installOn" type="date" className={CONTROL} defaultValue={field("installOn", job.installOn ?? "")} />
       </label>
       <label htmlFor="budget" className="flex flex-col gap-2 text-sm">
         Budget

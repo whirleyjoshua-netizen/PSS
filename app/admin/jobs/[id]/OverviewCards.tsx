@@ -62,20 +62,25 @@ export function ProjectCard({ job, editHref }: { job: Job; editHref: string }) {
   );
 }
 
-export function StatusCard({ title, value, detail, empty, actions }: {
+export function StatusCard({ title, value, detail, empty, actions = [], children }: {
   title: string;
   value: string | null;
   detail?: string;
-  empty: string;
-  actions: { label: string; href: string }[];
+  /** What to say instead of a value. Left out when the card fills the space itself. */
+  empty?: string;
+  actions?: { label: string; href: string }[];
+  /** Controls or a list under the value, for a card that does more than link somewhere. */
+  children?: React.ReactNode;
 }) {
   const id = `status-${title.toLowerCase()}`;
   return (
     <section aria-labelledby={id} className={CARD}>
       <h2 id={id} className={HEADING}>{title}</h2>
-      <div className="flex flex-1 flex-col gap-1 text-sm">
-        {value ? <p className="font-display text-lg">{value}</p> : <p className="text-ink-soft">{empty}</p>}
+      <div className="flex flex-1 flex-col gap-3 text-sm">
+        {value ? <p className="font-display text-lg">{value}</p> : null}
+        {!value && empty ? <p className="text-ink-soft">{empty}</p> : null}
         {detail ? <p className="text-xs text-ink-soft">{detail}</p> : null}
+        {children}
       </div>
       {actions.map((action) => (
         <ButtonLink key={action.label} href={action.href} variant="outline" className="w-full px-3">{action.label}</ButtonLink>

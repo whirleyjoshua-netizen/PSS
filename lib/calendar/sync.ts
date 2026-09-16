@@ -1,13 +1,13 @@
 import "server-only";
 import { formatWhen, lasVegasDate } from "@/lib/admin/time";
+import { APPOINTMENT_KINDS, kindLabel } from "@/lib/admin/appointment-kinds";
 import { portalOrigin } from "@/lib/portal/login";
 import { calendarConfig, calendarEnabled } from "./config";
-import { movedTimes, newEventBody, sameValue, trackerValue, type GraphEvent, type Kind } from "./events";
+import { eventSubject, movedTimes, newEventBody, sameValue, trackerValue, type GraphEvent, type Kind } from "./events";
 import { GraphError, graphFetch } from "./graph";
 import * as store from "./store";
 
-const KINDS: Kind[] = ["visit", "install"];
-const LABEL: Record<Kind, string> = { visit: "Visit", install: "Install" };
+const KINDS: Kind[] = APPOINTMENT_KINDS.map((kind) => kind.value);
 /** A claim older than this was left by a sync that died mid-create, so it may be taken over. */
 const CLAIM_TIMEOUT_MS = 10 * 60_000;
 
@@ -17,9 +17,12 @@ export const jobUrl = (id: string): string => `${portalOrigin()}/admin/jobs/${id
 const formatDate = (date: string): string =>
   new Date(`${date}T12:00:00Z`).toLocaleDateString("en-US", { timeZone: "UTC", weekday: "short", month: "short", day: "numeric" });
 
-/** A visit that has started, or an install before today in Las Vegas: history, not something to clear. */
-const isPast = (kind: Kind, value: Date | string): boolean =>
-  kind === "visit" ? (value as Date).getTime() < Date.now() : (value as string) < lasVegasDate(new Date());
+/**
+ * A timed appointment that has started, or an all-day one before today in Las Vegas:
+ * history, not something to clear.
+ */
+const isPast = (allDay: boolean, value: Date | string): boolean =>
+  allDay ? (value as string) < lasVegasDate(new Date()) : (value as Date).getTime() < Date.now();
 
 async function expectOk(response: Response, what: string): Promise<Response> {
   if (!response.ok) throw new GraphError(`Outlook ${what} failed (${response.status})`, response.status);
@@ -27,7 +30,7 @@ async function expectOk(response: Response, what: string): Promise<Response> {
 }
 
 /**
- * Brings one job's visit and install events in line. A kind in pushKinds is one the tracker just changed,
+ * Brings one job's appointment events in line, one per kind. A kind in pushKinds is one the tracker just changed,
  * so the tracker wins and a missing event is re-created. Every other kind is "auto": the side whose
  * changeKey moved wins, and an event deleted in Outlook clears the tracker date.
  */
@@ -41,7 +44,10 @@ export async function reconcileJob(leadId: string, pushKinds: readonly Kind[] = 
   for (const kind of KINDS) {
     const push = pushKinds.includes(kind);
     let link = links.find((l) => l.kind === kind) ?? null;
-    const current = kind === "visit" ? job?.visitAt ?? null : job?.installOn ?? null;
+    // Only confirmed appointments are returned, so an unconfirmed one reads exactly like no date at all.
+    const appointment = job?.appointments.find((a) => a.kind === kind) ?? null;
+    const allDay = appointment?.allDay ?? false;
+    const current = appointment ? (allDay ? lasVegasDate(appointment.startsAt) : appointment.startsAt) : null;
     const wanted = job && job.status !== "lost" ? current : null;
 
     // Only the sync that wins the claim creates the event. A failed create gives back only its own claim,
@@ -53,7 +59,7 @@ export async function reconcileJob(leadId: string, pushKinds: readonly Kind[] = 
       let created: { id: string; changeKey: string };
       try {
         const response = await expectOk(
-          await graphFetch(events, { method: "POST", body: newEventBody(kind, job, wanted, jobUrl(job.id)) }), "create",
+          await graphFetch(events, { method: "POST", body: newEventBody(kind, job, wanted, jobUrl(job.id), allDay) }), "create",
         );
         created = (await response.json()) as { id: string; changeKey: string };
       } catch (error) {
@@ -88,8 +94,8 @@ export async function reconcileJob(leadId: string, pushKinds: readonly Kind[] = 
       await store.deleteLink(leadId, kind, link.eventId);
       if (push) await create();
       // Outlook drops old appointments on its own; a past date stays in the tracker as history.
-      else if (current !== null && !isPast(kind, current)) {
-        await store.setJobDate(leadId, kind, null, `${LABEL[kind]} removed in Outlook`);
+      else if (current !== null && !isPast(allDay, current)) {
+        await store.setJobDate(leadId, kind, null, `${kindLabel(kind)} removed in Outlook`);
       }
       continue;
     }
@@ -103,18 +109,31 @@ export async function reconcileJob(leadId: string, pushKinds: readonly Kind[] = 
     }
 
     if (!push && event.changeKey !== link.changeKey) {
-      const value = trackerValue(kind, event);
-      if (!sameValue(kind, value, current)) {
-        const when = kind === "visit" ? formatWhen(value as Date) : formatDate(value as string);
-        await store.setJobDate(leadId, kind, value, `${LABEL[kind]} moved in Outlook to ${when}`);
+      const value = trackerValue(allDay, event);
+      if (!sameValue(allDay, value, current)) {
+        const when = allDay ? formatDate(value as string) : formatWhen(value as Date);
+        await store.setJobDate(leadId, kind, value, `${kindLabel(kind)} moved in Outlook to ${when}`);
       }
       await store.saveLink({ ...link, changeKey: event.changeKey });
+      // Deliberately no subject check here: we just accepted Outlook's change, so we send nothing back
+      // in the same pass. A stale subject on this event is corrected by the next reconcile.
       continue;
     }
 
-    if (!sameValue(kind, trackerValue(kind, event), wanted)) {
+    // newEventBody sets the subject only at create, so an event synced under older wording would keep
+    // it forever. eventSubject is the single source: comparing against a re-typed template here would
+    // PATCH every event on every reconcile as soon as either copy drifted.
+    const subject = job ? eventSubject(kind, job) : null;
+    const staleSubject = subject !== null && event.subject !== subject;
+    const moved = !sameValue(allDay, trackerValue(allDay, event), wanted);
+
+    if (moved || staleSubject) {
+      const body = {
+        ...(moved ? movedTimes(allDay, wanted, event) : {}),
+        ...(staleSubject ? { subject } : {}),
+      };
       const patched = await expectOk(
-        await graphFetch(eventPath, { method: "PATCH", body: movedTimes(kind, wanted, event) }), "update",
+        await graphFetch(eventPath, { method: "PATCH", body }), "update",
       );
       const { changeKey } = (await patched.json()) as { changeKey: string };
       await store.saveLink({ ...link, changeKey });

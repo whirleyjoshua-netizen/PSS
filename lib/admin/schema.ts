@@ -9,6 +9,7 @@ import { callBackProblem, FOLLOW_UP_NOTE_MAX } from "./follow-up";
 import { CONTACT_METHOD_KEYS, CONTACT_NOTE_MAX, type ContactMethod } from "./contact";
 import { dollarsToCents } from "./money";
 import { fromLocalInput } from "./time";
+import { APPOINTMENT_KINDS, type AppointmentKind } from "./appointment-kinds";
 import { TEAM_ROLES, type TeamRole } from "./team-roles";
 
 export const BRANDS = ["Superior Blinds MFG", "Alta Window Fashions", "Hunter Douglas"] as const;
@@ -31,36 +32,47 @@ const cents = z
 const day = z.preprocess(blank, z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a date").optional())
   .transform((value) => value ?? null);
 
+// Appointment dates are not part of Job details: the Schedule button owns them, and only a
+// confirmed appointment mirrors to leads.visit_at / leads.install_on.
 export const detailsSchema = z
   .object({
-    visitAt: z.preprocess(blank, z.string().optional()),
     quote: cents,
     sold: cents,
     deposit: cents,
     brands: z.array(z.enum(BRANDS)).default([]),
     orderedOn: day,
-    installOn: day,
     budget: z.preprocess(blank, z.enum(BUDGET_TIERS, { error: "Pick a budget tier" }).optional()),
     windowCountExact: windowCountExactField,
     treatmentTypes: treatmentTypesField,
     motorized: z.boolean().default(false),
     gateCode: gateCodeField,
-    // The dates the form was rendered with, in the visible inputs' formats. Absent from older forms.
-    visitAtLoaded: z.string().optional(),
-    installOnLoaded: z.string().optional(),
   })
-  .superRefine((value, ctx) => {
-    if (value.visitAt !== undefined && !isValidLocalInput(value.visitAt)) {
-      ctx.addIssue({ code: "custom", path: ["visitAt"], message: "Pick a valid visit date and time" });
-    }
-  })
-  .transform(({ visitAt, quote, sold, deposit, budget, ...rest }) => ({
-    visitAt: visitAt ? fromLocalInput(visitAt) : null,
+  .transform(({ quote, sold, deposit, budget, ...rest }) => ({
     quoteCents: quote,
     soldCents: sold,
     depositCents: deposit,
     budgetTier: budget ?? null,
     ...rest,
+  }));
+
+const APPOINTMENT_KIND_VALUES = APPOINTMENT_KINDS.map((kind) => kind.value) as [AppointmentKind, ...AppointmentKind[]];
+
+/**
+ * One booking from the Schedule button. The saved appointment is always pending: nothing here
+ * confirms it, so neither Outlook nor the customer hears about it until the owner confirms.
+ */
+export const appointmentSchema = z
+  .object({
+    kind: z.enum(APPOINTMENT_KIND_VALUES, { error: "Pick what this is for" }),
+    startsAt: z.string({ error: "Pick a date and time" }).refine(isValidLocalInput, "Pick a date and time"),
+    // An unchecked checkbox sends nothing, so a timed appointment is the default.
+    allDay: z.boolean().default(false),
+  })
+  .transform((value) => ({
+    kind: value.kind,
+    // An all-day booking still carries an instant; its Las Vegas date is the part that matters.
+    startsAt: fromLocalInput(value.startsAt),
+    allDay: value.allDay,
   }));
 
 export const noteSchema = z.object({ body: z.string().trim().min(1, "Write a note first").max(2000) });
