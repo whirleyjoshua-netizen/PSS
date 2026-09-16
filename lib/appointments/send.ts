@@ -4,6 +4,7 @@ import { business } from "@/content/business";
 import type { Job } from "@/lib/admin/jobs";
 import type { Appointment } from "@/lib/admin/appointments";
 import type { AppointmentKind } from "@/lib/admin/appointment-kinds";
+import { emailWindowLine } from "@/lib/routes/window";
 
 /** Las Vegas shares Pacific time, including daylight saving. */
 const ZONE = "America/Los_Angeles";
@@ -57,6 +58,9 @@ export type AppointmentEmailInput = {
   startsAt: Date;
   allDay: boolean;
   address: string;
+  /** The arrival window as "HH:MM", or null when none was set. */
+  windowStart: string | null;
+  windowEnd: string | null;
 };
 
 /** Plain text, like the other customer emails, so it reads the same on every phone. */
@@ -65,10 +69,12 @@ export function appointmentEmailText(input: AppointmentEmailInput): string {
   const when = input.allDay
     ? longDay(input.startsAt)
     : `${longDay(input.startsAt)} at ${timeOfDay(input.startsAt)}`;
+  const arrival = emailWindowLine(input.windowStart, input.windowEnd);
   return [
     `Hi ${input.firstName},`,
     "",
     `Your ${KIND_WORDS[input.kind]} is booked for ${when}.`,
+    ...(arrival ? ["", arrival] : []),
     "",
     `We'll come to ${input.address}.`,
     "",
@@ -106,6 +112,7 @@ export async function sendAppointmentConfirmation(job: Job, appointment: Appoint
     text: appointmentEmailText({
       firstName, kind: appointment.kind, startsAt: appointment.startsAt,
       allDay: appointment.allDay, address,
+      windowStart: appointment.windowStart, windowEnd: appointment.windowEnd,
     }),
   });
   if (error) throw new Error(`Resend rejected the appointment confirmation: ${error.message}`);

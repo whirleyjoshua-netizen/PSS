@@ -38,7 +38,7 @@ describe("appointmentEmailText", () => {
   const text = (over: Partial<Input> = {}) =>
     appointmentEmailText({
       firstName: "Dana", kind: "consultation", startsAt: AT, allDay: false,
-      address: "88 Palm Ct, Henderson", ...over,
+      address: "88 Palm Ct, Henderson", windowStart: null, windowEnd: null, ...over,
     });
 
   it("greets by first name and gives the Las Vegas day and time", () => {
@@ -69,6 +69,23 @@ describe("appointmentEmailText", () => {
     expect(body).toContain(business.name);
   });
 
+  it("says when we'll arrive when a window is set", () => {
+    const body = text({ allDay: true, windowStart: "08:00", windowEnd: "10:00" });
+    expect(body).toContain("We'll arrive between 8:00 and 10:00 am.");
+    expect(body.indexOf("We'll arrive")).toBeGreaterThan(body.indexOf("is booked for"));
+    expect(body.indexOf("We'll arrive")).toBeLessThan(body.indexOf("We'll come to"));
+  });
+
+  it("reads naturally for a window ending at noon or running into the afternoon", () => {
+    expect(text({ windowStart: "10:00", windowEnd: "12:00" })).toContain("We'll arrive between 10:00 am and 12:00 pm.");
+    expect(text({ windowStart: "11:30", windowEnd: "13:30" })).toContain("We'll arrive between 11:30 am and 1:30 pm.");
+    expect(text({ windowStart: "12:00", windowEnd: "14:00" })).toContain("We'll arrive between 12:00 and 2:00 pm.");
+  });
+
+  it("adds nothing new without a window", () => {
+    expect(text({ windowStart: null, windowEnd: null })).not.toContain("arrive");
+  });
+
   it("never leaks internal wording or the job id", () => {
     const body = text();
     expect(body).not.toMatch(/pending/i);
@@ -86,6 +103,11 @@ describe("sendAppointmentConfirmation", () => {
     expect(message.subject).toBe("Your consultation is booked for Tue, Oct 13");
     expect(message.text).toContain("Tuesday, October 13 at 2:00 PM");
     expect(message.text).toContain("88 Palm Ct, Henderson");
+  });
+
+  it("passes the appointment's arrival window into the email", async () => {
+    await sendAppointmentConfirmation(job(), appointment({ windowStart: "13:00", windowEnd: "15:00" }));
+    expect(send.mock.calls[0][0].text).toContain("We'll arrive between 1:00 and 3:00 pm.");
   });
 
   it("names the kind in the subject in customer words", async () => {
