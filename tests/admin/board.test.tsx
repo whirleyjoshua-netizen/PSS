@@ -35,6 +35,22 @@ describe("board", () => {
     expect(link).not.toHaveAttribute("aria-current");
   });
 
+  it("names who the job is assigned to, with their tag", () => {
+    render(
+      <JobCard
+        job={job({ assignedTo: "b", assignedName: "Shade", assignedRole: "designer" })}
+        now={new Date("2026-09-10T00:00:00Z")}
+        href="/admin"
+      />,
+    );
+    expect(screen.getByRole("link", { name: /dana reyes/i })).toHaveTextContent("Shade · Designer");
+  });
+
+  it("says nothing about an assignee when the job has none", () => {
+    render(<JobCard job={job({})} now={new Date("2026-09-10T00:00:00Z")} href="/admin" />);
+    expect(screen.getByRole("link", { name: /dana reyes/i })).not.toHaveTextContent("Designer");
+  });
+
   it("flags a job that is overdue in its stage", () => {
     // New lead for 3 days: the limit is 1.
     render(<JobCard job={job({ status: "new" })} now={new Date("2026-09-10T00:00:00Z")} href="/admin" />);

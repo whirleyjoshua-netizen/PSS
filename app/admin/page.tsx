@@ -7,6 +7,7 @@ import { boardHref } from "@/lib/admin/links";
 import { listMeasurements } from "@/lib/admin/measurements";
 import { requireAdmin } from "@/lib/admin/session";
 import { BOARD_STAGES, STAGE_STYLE, parseListFilter } from "@/lib/admin/stages";
+import { listTeam } from "@/lib/admin/team";
 import { formatDay } from "@/lib/admin/time";
 import { FollowUpsDue } from "./FollowUpsDue";
 import { JobCard, groupByStage } from "./JobCard";
@@ -39,10 +40,11 @@ export default async function BoardPage({
   const openId = first(params.job);
   const q = (first(params.q) ?? "").trim().slice(0, SEARCH_MAX);
   const now = new Date();
-  const [jobs, panel, followUps] = await Promise.all([
+  const [jobs, panel, followUps, team] = await Promise.all([
     listJobs({ search: q }),
     openId ? loadPanel(openId) : Promise.resolve(null),
     listDueFollowUps(now),
+    listTeam(),
   ]);
   const groups = groupByStage(jobs, BOARD_STAGES);
   const listed = filter ? jobs.filter((job) => job.status === filter) : jobs;
@@ -152,6 +154,7 @@ export default async function BoardPage({
         <JobPanel
           {...panel}
           now={now}
+          team={team}
           closeHref={boardHref(here)}
           key={panel.job ? `${panel.job.id}:${panel.job.status}` : `missing:${openId}`}
         />

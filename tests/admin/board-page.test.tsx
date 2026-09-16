@@ -24,7 +24,11 @@ vi.mock("@/lib/admin/files", () => ({ listFiles }));
 const listDueFollowUps = vi.fn();
 vi.mock("@/lib/admin/follow-ups", () => ({ listDueFollowUps }));
 vi.mock("@/lib/admin/session", () => ({ requireAdmin: vi.fn(async () => ({ email: "owner@example.com" })) }));
-vi.mock("@/app/admin/jobs/actions", () => ({ moveStage: vi.fn(), markLost: vi.fn(async () => ({})) }));
+vi.mock("@/app/admin/jobs/actions", () => ({
+  moveStage: vi.fn(), markLost: vi.fn(async () => ({})), assignJobAction: vi.fn(async () => ({})),
+}));
+const listTeam = vi.fn();
+vi.mock("@/lib/admin/team", () => ({ listTeam }));
 vi.mock("@/app/admin/jobs/measure-actions", () => ({ removeMeasurement: vi.fn(), removeFile: vi.fn(), setFileShared: vi.fn() }));
 
 const { default: BoardPage } = await import("@/app/admin/page");
@@ -37,6 +41,7 @@ beforeEach(() => {
   listMeasurements.mockReset().mockResolvedValue([]);
   listFiles.mockReset().mockResolvedValue([]);
   listDueFollowUps.mockReset().mockResolvedValue([]);
+  listTeam.mockReset().mockResolvedValue([]);
 });
 
 describe("board page", () => {
@@ -54,6 +59,11 @@ describe("board page", () => {
     expect(listFiles).toHaveBeenCalledWith(ID);
     expect(within(screen.getByRole("region", { name: "Board" })).getByRole("link", { name: /dana reyes/i, current: true })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Close" })).toHaveAttribute("href", "/admin");
+  });
+
+  it("points the panel at Settings while there is no team", async () => {
+    await open({ job: ID });
+    expect(screen.getByRole("link", { name: "Add people in Settings" })).toBeInTheDocument();
   });
 
   it("shows the not-found panel for a job that no longer exists", async () => {

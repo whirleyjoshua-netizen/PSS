@@ -27,6 +27,16 @@ describe("JobList", () => {
     expect(rows[1]).toHaveTextContent("Lost");
   });
 
+  it("has an Assigned to column after City, showing the person or a dash", () => {
+    const assigned: Job = { ...base, assignedTo: "b", assignedName: "Shade", assignedRole: "designer" };
+    render(<JobList jobs={[assigned, lost]} now={NOW} filter={null} q="" openId={undefined} />);
+    const headers = screen.getAllByRole("columnheader").map((h) => h.textContent);
+    expect(headers).toEqual(["Customer", "City", "Assigned to", "Stage", "In stage"]);
+    const rows = screen.getAllByRole("row").slice(1);
+    expect(within(rows[0]).getAllByRole("cell")[2]).toHaveTextContent("Shade · Designer");
+    expect(within(rows[1]).getAllByRole("cell")[2]).toHaveTextContent("—");
+  });
+
   it("links each row to its panel, keeping the search and filter", () => {
     render(<JobList jobs={[base]} now={NOW} filter="completed" q="reyes" openId={base.id} />);
     const link = screen.getByRole("link", { name: /dana reyes/i });

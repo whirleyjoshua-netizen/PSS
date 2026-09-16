@@ -2,11 +2,13 @@ import Link from "next/link";
 import type { JobFile } from "@/lib/admin/files";
 import type { Job } from "@/lib/admin/jobs";
 import type { WindowMeasurement } from "@/lib/admin/measurements";
+import type { TeamMember } from "@/lib/admin/team";
 import { mapsHref } from "@/lib/admin/links";
 import { formatCents } from "@/lib/admin/money";
 import { formatWhen } from "@/lib/admin/time";
 import { formatPhone } from "@/lib/leads/schema";
 import { DaysInStage } from "./DaysInStage";
+import { AssignControl } from "./jobs/[id]/AssignControl";
 import { CallButton } from "./jobs/[id]/CallButton";
 import { JobFiles } from "./jobs/[id]/JobFiles";
 import { StageControls } from "./jobs/[id]/StageControls";
@@ -34,12 +36,13 @@ function Row({ label, value }: { label: string; value: string }) {
   );
 }
 
-export function JobPanel({ job, measurements, files, now, closeHref }: {
+export function JobPanel({ job, measurements, files, now, closeHref, team }: {
   job: Job | null;
   measurements: WindowMeasurement[];
   files: JobFile[];
   now: Date;
   closeHref: string;
+  team: TeamMember[];
 }) {
   if (!job) {
     return (
@@ -63,6 +66,7 @@ export function JobPanel({ job, measurements, files, now, closeHref }: {
       </header>
 
       <Section title="Contact">
+        <AssignControl jobId={job.id} assignedTo={job.assignedTo ?? null} team={team} />
         <CallButton jobId={job.id} name={job.name} phone={job.phone} />
         <div className="flex flex-col gap-1">
           <a href={`tel:+1${job.phone}`} className="underline-offset-4 hover:underline">{formatPhone(job.phone)}</a>

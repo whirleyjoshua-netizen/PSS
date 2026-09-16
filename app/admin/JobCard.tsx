@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Icon } from "@/components/admin/icons";
 import type { Job } from "@/lib/admin/jobs";
 import { stageLabel, type Stage } from "@/lib/admin/stages";
+import { roleLabel } from "@/lib/admin/team-roles";
 import { isOverdue } from "@/lib/admin/overdue";
 import { DaysInStage } from "./DaysInStage";
 
@@ -38,6 +39,9 @@ export function JobCard({ job, now, href, selected = false }: {
         <Icon name="pin" className="size-4 shrink-0" />
         {job.city}
       </span>
+      {job.assignedName && job.assignedRole ? (
+        <span className="text-ink-soft">{job.assignedName} · {roleLabel(job.assignedRole)}</span>
+      ) : null}
       {job.treatments.length ? <span className="text-ink-soft">{job.treatments.join(", ")}</span> : null}
       <span className="flex items-center gap-1.5 text-xs uppercase tracking-[0.1em] text-ink-soft">
         <DaysInStage job={job} now={now} />

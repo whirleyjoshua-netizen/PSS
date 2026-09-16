@@ -11,6 +11,7 @@ vi.mock("@/app/admin/jobs/actions", () => ({
   moveStage, saveNote, saveDetails,
   markLost: vi.fn(async () => ({})),
   sendPortalInviteNow: vi.fn(),
+  assignJobAction: vi.fn(async () => ({})),
 }));
 
 const { StageControls } = await import("@/app/admin/jobs/[id]/StageControls");

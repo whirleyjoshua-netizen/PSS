@@ -25,7 +25,9 @@ vi.mock("@/app/admin/jobs/actions", () => ({
   moveStage: vi.fn(), markLost: vi.fn(async () => ({})), saveDetails: vi.fn(async () => ({})),
   saveNote: vi.fn(async () => ({})), sendPortalInviteNow: vi.fn(), sendReviewNow: vi.fn(),
   saveReviewOptOut: vi.fn(), createReferralLink: vi.fn(), payReferral: vi.fn(),
+  assignJobAction: vi.fn(async () => ({})),
 }));
+vi.mock("@/lib/admin/team", () => ({ listTeam: vi.fn(async () => []) }));
 vi.mock("@/app/admin/jobs/measure-actions", () => ({ removeMeasurement: vi.fn(), removeFile: vi.fn(), setFileShared: vi.fn() }));
 
 const { default: JobPage } = await import("@/app/admin/jobs/[id]/page");

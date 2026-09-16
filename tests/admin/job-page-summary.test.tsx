@@ -32,7 +32,9 @@ vi.mock("@/app/admin/jobs/actions", () => ({
   saveReviewOptOut: vi.fn(async () => {}),
   createReferralLink: vi.fn(async () => ({})),
   payReferral: vi.fn(async () => ({})),
+  assignJobAction: vi.fn(async () => ({})),
 }));
+vi.mock("@/lib/admin/team", () => ({ listTeam: vi.fn(async () => []) }));
 
 vi.mock("@/app/admin/jobs/measure-actions", () => ({
   removeFile: vi.fn(async () => {}),

@@ -3,6 +3,7 @@ import { getEvents, getJob } from "@/lib/admin/jobs";
 import { listFiles } from "@/lib/admin/files";
 import { listMeasurements } from "@/lib/admin/measurements";
 import { requireAdmin } from "@/lib/admin/session";
+import { listTeam } from "@/lib/admin/team";
 import { listReferrals } from "@/lib/referrals/db";
 import { ActivityTab } from "./ActivityTab";
 import { JobFiles } from "./JobFiles";
@@ -21,13 +22,14 @@ export default async function JobPage({ params, searchParams }: {
   const { id } = await params;
   const job = await getJob(id);
   if (!job) notFound();
-  const [query, events, referrals, referrer, measurements, files] = await Promise.all([
+  const [query, events, referrals, referrer, measurements, files, team] = await Promise.all([
     searchParams,
     getEvents(id),
     listReferrals(id),
     job.referredBy ? getJob(job.referredBy) : Promise.resolve(null),
     listMeasurements(id),
     listFiles(id),
+    listTeam(),
   ]);
   const tab = parseJobTab(query.tab);
   const editing = tab === "overview" && firstParam(query.edit) === "details";
@@ -35,7 +37,7 @@ export default async function JobPage({ params, searchParams }: {
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-6">
-      <JobHeader job={job} now={now} />
+      <JobHeader job={job} now={now} team={team} />
       <JobTabs jobId={job.id} active={tab} counts={{ measurements: measurements.length, files: files.length }} />
       {tab === "overview" ? (
         <OverviewTab job={job} editing={editing} now={now} measurements={measurements} files={files}

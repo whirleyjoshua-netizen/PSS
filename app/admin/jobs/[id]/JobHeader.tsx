@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { Icon } from "@/components/admin/icons";
 import type { Job } from "@/lib/admin/jobs";
+import type { TeamMember } from "@/lib/admin/team";
 import { editDetailsHref } from "@/lib/admin/next-action";
 import { STAGE_STYLE, stageLabel } from "@/lib/admin/stages";
 import { daysBetween, formatShortDate, formatShortDay } from "@/lib/admin/time";
+import { AssignControl } from "./AssignControl";
 import { CallButton } from "./CallButton";
 import { ContactLog } from "./ContactLog";
 import { FollowUpBox } from "./FollowUpBox";
@@ -16,7 +18,7 @@ function inStage(days: number): string {
   return `${days} ${days === 1 ? "day" : "days"} in stage`;
 }
 
-export function JobHeader({ job, now }: { job: Job; now: Date }) {
+export function JobHeader({ job, now, team }: { job: Job; now: Date; team: TeamMember[] }) {
   const style = STAGE_STYLE[job.status];
 
   return (
@@ -41,6 +43,7 @@ export function JobHeader({ job, now }: { job: Job; now: Date }) {
           {job.lastContactAt ? (
             <p className="text-sm text-ink-soft">Last contacted {formatShortDay(job.lastContactAt)}</p>
           ) : null}
+          <AssignControl jobId={job.id} assignedTo={job.assignedTo ?? null} team={team} />
         </div>
 
         <div className="flex flex-wrap items-center gap-2">

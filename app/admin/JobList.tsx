@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Job } from "@/lib/admin/jobs";
 import { boardHref } from "@/lib/admin/links";
 import { LIST_FILTERS, STAGE_STYLE, stageLabel, type Stage } from "@/lib/admin/stages";
+import { roleLabel } from "@/lib/admin/team-roles";
 import { DaysInStage } from "./DaysInStage";
 import { SubmitOnChange } from "./SubmitOnChange";
 
@@ -37,6 +38,7 @@ export function JobList({ jobs, now, filter, q, openId }: {
               <tr>
                 <th scope="col" className="px-4 py-3 font-medium">Customer</th>
                 <th scope="col" className="px-4 py-3 font-medium">City</th>
+                <th scope="col" className="px-4 py-3 font-medium">Assigned to</th>
                 <th scope="col" className="px-4 py-3 font-medium">Stage</th>
                 <th scope="col" className="px-4 py-3 font-medium">In stage</th>
               </tr>
@@ -63,6 +65,9 @@ export function JobList({ jobs, now, filter, q, openId }: {
                       ) : null}
                     </td>
                     <td className="px-4 py-3 text-ink-soft">{job.city}</td>
+                    <td className="px-4 py-3 text-ink-soft">
+                      {job.assignedName && job.assignedRole ? `${job.assignedName} · ${roleLabel(job.assignedRole)}` : "—"}
+                    </td>
                     <td className="px-4 py-3">
                       <span className={`inline-block border-l-[3px] ${style.left} pl-2 font-medium ${style.tint}`}>
                         {stageLabel(job.status)}

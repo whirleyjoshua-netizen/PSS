@@ -5,6 +5,7 @@ import type { Job } from "@/lib/admin/jobs";
 vi.mock("@/app/admin/jobs/actions", () => ({
   moveStage: vi.fn(async () => {}),
   markLost: vi.fn(async () => ({})),
+  assignJobAction: vi.fn(async () => ({})),
 }));
 vi.mock("@/app/admin/jobs/measure-actions", () => ({
   removeMeasurement: vi.fn(async () => {}),
@@ -24,9 +25,10 @@ const job: Job = {
   referralCode: null, referredBy: null, referralPaidAt: null, reviewRequestedAt: null, reviewOptOut: false,
 };
 const NOW = new Date("2026-09-10T18:00:00Z");
+const team = [{ id: "b", name: "Shade", role: "designer" as const }];
 const panel = (overrides: Partial<Job> | null = {}) =>
   render(
-    <JobPanel job={overrides === null ? null : { ...job, ...overrides }} measurements={[]} files={[]} now={NOW} closeHref="/admin" />,
+    <JobPanel job={overrides === null ? null : { ...job, ...overrides }} measurements={[]} files={[]} now={NOW} closeHref="/admin" team={team} />,
   );
 
 describe("client panel", () => {
@@ -41,6 +43,12 @@ describe("client panel", () => {
   it("offers a Call button at the top of the Contact section", () => {
     panel();
     expect(screen.getByRole("link", { name: "Log a call" })).toHaveAttribute("href", `/admin/jobs/${ID}/call`);
+  });
+
+  it("offers the Assigned to control in the Contact section", () => {
+    panel();
+    const contact = screen.getByRole("region", { name: "Contact" });
+    expect(within(contact).getByLabelText("Assigned to")).toBeInTheDocument();
   });
 
   it("shows contact and address links", () => {
