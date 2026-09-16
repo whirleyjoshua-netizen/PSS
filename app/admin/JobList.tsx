@@ -1,18 +1,16 @@
 import Link from "next/link";
 import type { Job } from "@/lib/admin/jobs";
-import { boardHref } from "@/lib/admin/links";
 import { LIST_FILTERS, STAGE_STYLE, stageLabel, type Stage } from "@/lib/admin/stages";
 import { roleLabel } from "@/lib/admin/team-roles";
 import { DaysInStage } from "./DaysInStage";
 import { SubmitOnChange } from "./SubmitOnChange";
 
 /** The archive under the board: every job, filtered by one stage or none. */
-export function JobList({ jobs, now, filter, q, openId }: {
+export function JobList({ jobs, now, filter, q }: {
   jobs: Job[];
   now: Date;
   filter: Stage | null;
   q: string;
-  openId: string | undefined;
 }) {
   return (
     <section aria-labelledby="job-list" className="flex flex-col gap-3">
@@ -26,7 +24,6 @@ export function JobList({ jobs, now, filter, q, openId }: {
             ))}
           </SubmitOnChange>
           {q ? <input type="hidden" name="q" value={q} /> : null}
-          {openId ? <input type="hidden" name="job" value={openId} /> : null}
           <button type="submit" className="sr-only">Show</button>
         </form>
       </div>
@@ -46,22 +43,13 @@ export function JobList({ jobs, now, filter, q, openId }: {
             <tbody>
               {jobs.map((job) => {
                 const style = STAGE_STYLE[job.status];
-                const selected = job.id === openId;
                 return (
-                  <tr key={job.id} className={`relative border-b border-rule last:border-0 ${selected ? "bg-sand/60" : "hover:bg-sand/30"}`}>
+                  <tr key={job.id} className="relative border-b border-rule last:border-0 hover:bg-sand/30">
                     <td className="px-4 py-3">
-                      {/* One link per row, and its overlay makes the whole row clickable. Two of them,
-                          one per breakpoint: the panel is desktop-only, so phones open the full page. */}
+                      {/* One link per row; its overlay makes the whole row clickable. */}
                       <Link
                         href={`/admin/jobs/${job.id}`}
-                        className="font-semibold text-charcoal underline-offset-4 after:absolute after:inset-0 hover:underline lg:hidden"
-                      >
-                        {job.name}
-                      </Link>
-                      <Link
-                        href={boardHref({ q, list: filter, job: job.id })}
-                        aria-current={selected ? "true" : undefined}
-                        className="hidden font-semibold text-charcoal underline-offset-4 after:absolute after:inset-0 hover:underline lg:inline"
+                        className="font-semibold text-charcoal underline-offset-4 after:absolute after:inset-0 hover:underline"
                       >
                         {job.name}
                       </Link>

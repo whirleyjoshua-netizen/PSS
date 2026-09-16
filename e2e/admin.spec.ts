@@ -178,25 +178,24 @@ test("an owner measures a window with a photo", async ({ page, baseURL }) => {
   expect(goneResponse.status()).toBe(404);
 });
 
-test("a job opens in the panel beside the board, survives a reload, and closes", async ({ page }) => {
+test("a board card opens the full job page, and an old ?job= link redirects there", async ({ page }) => {
   const name = `E2E Tracker Panel ${Date.now()}`;
-  await sql()`insert into leads (name, phone, email, city, source, status)
-    values (${name}, '7025550102', 'e2e-panel@example.com', 'Henderson', 'phone', 'quoted')`;
+  const [row] = await sql()`insert into leads (name, phone, email, city, source, status)
+    values (${name}, '7025550102', 'e2e-panel@example.com', 'Henderson', 'phone', 'quoted')
+    returning id`;
 
   await signIn(page);
   // The All jobs list under the board has a link with the same name; open the board card.
   await page.getByRole("region", { name: "Board" }).getByRole("link", { name: new RegExp(name) }).click();
-  await expect(page).toHaveURL(/\/admin\?job=/);
-  const panel = page.getByRole("complementary", { name: new RegExp(name) });
-  await expect(panel).toBeVisible();
-  await expect(panel.getByRole("region", { name: "Money" })).toBeVisible();
-
-  await page.reload();
-  await expect(page.getByRole("complementary", { name: new RegExp(name) })).toBeVisible();
-
-  await page.getByRole("complementary", { name: new RegExp(name) }).getByRole("link", { name: "Close" }).click();
-  await expect(page).toHaveURL(/\/admin$/);
+  await expect(page).toHaveURL(new RegExp(`/admin/jobs/${row.id}`));
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(name);
+  // Nothing opens beside the board any more, at any width.
   await expect(page.getByRole("complementary", { name: new RegExp(name) })).toHaveCount(0);
+
+  // Bookmarks and already-sent calendar invites still carry the old URL.
+  await page.goto(`/admin?job=${row.id}`);
+  await expect(page).toHaveURL(new RegExp(`/admin/jobs/${row.id}`));
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(name);
 });
 
 test("search finds a job, and a column's add button starts a job in that stage", async ({ page }) => {

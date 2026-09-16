@@ -1,26 +1,15 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Icon } from "@/components/admin/icons";
-import { listFiles } from "@/lib/admin/files";
 import { listDueFollowUps } from "@/lib/admin/follow-ups";
-import { getJob, listJobs, SEARCH_MAX } from "@/lib/admin/jobs";
+import { listJobs, SEARCH_MAX } from "@/lib/admin/jobs";
 import { boardHref } from "@/lib/admin/links";
-import { listMeasurements } from "@/lib/admin/measurements";
 import { requireAdmin } from "@/lib/admin/session";
 import { BOARD_STAGES, STAGE_STYLE, parseListFilter } from "@/lib/admin/stages";
-import { listTeam } from "@/lib/admin/team";
 import { formatDay } from "@/lib/admin/time";
 import { FollowUpsDue } from "./FollowUpsDue";
 import { JobCard, groupByStage } from "./JobCard";
 import { JobList } from "./JobList";
-import { JobPanel } from "./JobPanel";
-
-/** The panel's data, loaded only when a job is open. A missing job still gets a panel that says so. */
-async function loadPanel(id: string) {
-  const job = await getJob(id);
-  if (!job) return { job: null, measurements: [], files: [] };
-  const [measurements, files] = await Promise.all([listMeasurements(id), listFiles(id)]);
-  return { job, measurements, files };
-}
 
 /** `?job=a&job=b` arrives as an array; treat it as the first value. */
 function first(value: string | string[] | undefined): string | undefined {
@@ -34,22 +23,21 @@ export default async function BoardPage({
 }) {
   await requireAdmin();
   const params = await searchParams;
+  // The board once opened a job beside it. That panel is gone, so an old ?job= link
+  // — a bookmark, or an already-sent calendar invite — goes to the job's own page.
+  const openId = first(params.job);
+  if (openId) redirect(`/admin/jobs/${openId}`);
   const filter = parseListFilter(first(params.list));
   // Only a known stage is carried into links, so an unknown ?list drops out.
   const list = filter ?? undefined;
-  const openId = first(params.job);
   const q = (first(params.q) ?? "").trim().slice(0, SEARCH_MAX);
   const now = new Date();
-  const [jobs, panel, followUps, team] = await Promise.all([
+  const [jobs, followUps] = await Promise.all([
     listJobs({ search: q }),
-    openId ? loadPanel(openId) : Promise.resolve(null),
     listDueFollowUps(now),
-    // Only the panel names the team, and the panel only renders with a job open.
-    openId ? listTeam() : Promise.resolve([]),
   ]);
   const groups = groupByStage(jobs, BOARD_STAGES);
   const listed = filter ? jobs.filter((job) => job.status === filter) : jobs;
-  const here = { q, list };
 
   return (
     <div className="mx-auto flex max-w-[110rem] items-start gap-6">
@@ -80,7 +68,6 @@ export default async function BoardPage({
               className="min-h-11 flex-1 bg-transparent text-sm outline-none"
             />
             {list ? <input type="hidden" name="list" value={list} /> : null}
-            {openId ? <input type="hidden" name="job" value={openId} /> : null}
             <button type="submit" className="sr-only">Search</button>
           </form>
           <Link href="/admin/jobs/new" className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-charcoal px-4 text-sm font-medium text-ivory">
@@ -93,7 +80,7 @@ export default async function BoardPage({
           <p className="text-sm text-ink-soft">
             {listed.length === 0 ? `No jobs match "${q}"` : `${listed.length} ${listed.length === 1 ? "job matches" : "jobs match"} "${q}"`}
             {" · "}
-            <Link href={boardHref({ list, job: openId })} className="underline underline-offset-4">Clear search</Link>
+            <Link href={boardHref({ list })} className="underline underline-offset-4">Clear search</Link>
           </p>
         ) : null}
 
@@ -116,13 +103,7 @@ export default async function BoardPage({
                   </h2>
                   {group.jobs.length ? (
                     group.jobs.map((job) => (
-                      <JobCard
-                        key={job.id}
-                        job={job}
-                        now={now}
-                        href={boardHref({ ...here, job: job.id })}
-                        selected={job.id === openId}
-                      />
+                      <JobCard key={job.id} job={job} now={now} />
                     ))
                   ) : (
                     <div className="flex flex-col items-center gap-2 py-8 text-center text-sm text-ink-soft">
@@ -142,24 +123,9 @@ export default async function BoardPage({
           </div>
         </section>
 
-        <JobList
-          jobs={listed}
-          now={now}
-          filter={filter}
-          q={q}
-          openId={openId}
-        />
+        <JobList jobs={listed} now={now} filter={filter} q={q} />
       </div>
 
-      {panel ? (
-        <JobPanel
-          {...panel}
-          now={now}
-          team={team}
-          closeHref={boardHref(here)}
-          key={panel.job ? `${panel.job.id}:${panel.job.status}` : `missing:${openId}`}
-        />
-      ) : null}
     </div>
   );
 }

@@ -49,7 +49,7 @@ test("a board card opens the full job page, not the panel", async ({ page }) => 
 
   await expect(page).toHaveURL(new RegExp(`/admin/jobs/${id}`));
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(name);
-  // The half profile is desktop-only; on a phone it must not appear at all.
+  // The half profile is gone entirely; nothing opens beside the board.
   await expect(page.getByRole("complementary", { name: new RegExp(name) })).toHaveCount(0);
 });
 
@@ -64,15 +64,15 @@ test("an All jobs row opens the full job page, not the panel", async ({ page }) 
   await expect(page.getByRole("complementary", { name: new RegExp(name) })).toHaveCount(0);
 });
 
-test("a stale ?job= link shows the board with no panel", async ({ page }) => {
+test("an old ?job= link redirects to the full job page", async ({ page }) => {
   const { name, id } = await makeJob("Stale");
   await signIn(page);
 
   // Old bookmarks and already-sent calendar invites still carry this URL.
   await page.goto(`/admin?job=${id}`);
 
-  await expect(page.getByRole("heading", { name: "Jobs", exact: true })).toBeVisible();
-  await expect(page.getByRole("complementary", { name: new RegExp(name) })).toHaveCount(0);
+  await expect(page).toHaveURL(new RegExp(`/admin/jobs/${id}`));
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(name);
 });
 
 test("the schedule opens the full job page", async ({ page }) => {

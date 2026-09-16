@@ -24,13 +24,13 @@ describe("board", () => {
   });
 
   const ID = "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c";
-  /** The card is a div now; the two name links inside it are [mobile, desktop]. */
-  const links = () => screen.getAllByRole("link", { name: /dana reyes/i });
-  const card = () => links()[0].closest("div")!;
+  /** The card is a div wrapping one link: the customer's name. */
+  const link = () => screen.getByRole("link", { name: /dana reyes/i });
+  const card = () => link().closest("div")!;
 
   it("shows the name, city, interests, and days in stage", () => {
     // Quoted for 3 days: the limit is 7, so not overdue.
-    render(<JobCard job={job({ status: "quoted" })} now={new Date("2026-09-10T00:00:00Z")} href={`/admin?job=${ID}`} />);
+    render(<JobCard job={job({ status: "quoted" })} now={new Date("2026-09-10T00:00:00Z")} />);
     expect(card()).toHaveTextContent("Dana Reyes");
     expect(card()).toHaveTextContent("Henderson");
     expect(card()).toHaveTextContent("Shades, Shutters");
@@ -38,14 +38,12 @@ describe("board", () => {
     expect(card()).not.toHaveTextContent("Overdue");
   });
 
-  it("links to the full job page on mobile and to the given panel href on desktop", () => {
-    render(<JobCard job={job({ status: "quoted" })} now={new Date("2026-09-10T00:00:00Z")} href={`/admin?job=${ID}`} />);
-    const [mobile, desktop] = links();
-    expect(mobile).toHaveAttribute("href", `/admin/jobs/${ID}`);
-    expect(mobile).toHaveClass("lg:hidden");
-    expect(desktop).toHaveAttribute("href", `/admin?job=${ID}`);
-    expect(desktop).toHaveClass("hidden");
-    expect(desktop).not.toHaveAttribute("aria-current");
+  it("links to the full job page, and the link covers the whole card", () => {
+    render(<JobCard job={job({ status: "quoted" })} now={new Date("2026-09-10T00:00:00Z")} />);
+    expect(link()).toHaveAttribute("href", `/admin/jobs/${ID}`);
+    // The overlay is what makes the card clickable, not just the name.
+    expect(link().className).toContain("after:absolute");
+    expect(link().className).toContain("after:inset-0");
   });
 
   it("names who the job is assigned to, with their tag", () => {
@@ -53,7 +51,7 @@ describe("board", () => {
       <JobCard
         job={job({ assignedTo: "b", assignedName: "Shade", assignedRole: "designer" })}
         now={new Date("2026-09-10T00:00:00Z")}
-        href="/admin"
+       
       />,
     );
     // Same matcher the unassigned case asserts is absent, so that case can't pass vacuously.
@@ -61,7 +59,7 @@ describe("board", () => {
   });
 
   it("says nothing about an assignee when the job has none", () => {
-    render(<JobCard job={job({})} now={new Date("2026-09-10T00:00:00Z")} href="/admin" />);
+    render(<JobCard job={job({})} now={new Date("2026-09-10T00:00:00Z")} />);
     // No "Name · Role" line at all — not merely the absence of the word "Designer".
     expect(within(card()).queryByText(/\S+ · (Designer|Installer)$/)).toBeNull();
     expect(card()).not.toHaveTextContent("Designer");
@@ -69,25 +67,22 @@ describe("board", () => {
 
   it("flags a job that is overdue in its stage", () => {
     // New lead for 3 days: the limit is 1.
-    render(<JobCard job={job({ status: "new" })} now={new Date("2026-09-10T00:00:00Z")} href="/admin" />);
+    render(<JobCard job={job({ status: "new" })} now={new Date("2026-09-10T00:00:00Z")} />);
     expect(card()).toHaveTextContent("Overdue");
   });
 
-  it("marks only the desktop link of the card whose panel is open", () => {
-    render(<JobCard job={job({})} now={new Date("2026-09-10T00:00:00Z")} href="/admin" selected />);
-    const [mobile, desktop] = links();
-    expect(desktop).toHaveAttribute("aria-current", "true");
-    // The panel is desktop-only, so the mobile link never claims to be the open one.
-    expect(mobile).not.toHaveAttribute("aria-current");
+  it("never marks a card as current, now that nothing opens beside the board", () => {
+    render(<JobCard job={job({})} now={new Date("2026-09-10T00:00:00Z")} />);
+    expect(link()).not.toHaveAttribute("aria-current");
   });
 
   it("marks referred jobs with a Referral badge", () => {
-    render(<JobCard job={job({ referredBy: "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6d" })} now={new Date("2026-09-10T00:00:00Z")} href="/admin" />);
+    render(<JobCard job={job({ referredBy: "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6d" })} now={new Date("2026-09-10T00:00:00Z")} />);
     expect(card()).toHaveTextContent("Referral");
   });
 
   it("shows the city with a pin and the days with a clock, both decorative", () => {
-    const { container } = render(<JobCard job={job({ status: "quoted" })} now={new Date("2026-09-10T00:00:00Z")} href="/admin" />);
+    const { container } = render(<JobCard job={job({ status: "quoted" })} now={new Date("2026-09-10T00:00:00Z")} />);
     expect(container.querySelectorAll('svg[aria-hidden="true"]').length).toBeGreaterThanOrEqual(2);
   });
 });
