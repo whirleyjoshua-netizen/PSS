@@ -6,14 +6,18 @@ import { listTeam } from "@/lib/admin/team";
 import { TeamSection } from "./TeamSection";
 import { getRouteSettings } from "@/lib/routes/settings";
 import { RoutesSection } from "./RoutesSection";
+import { getInstallSettings, listInstallRates } from "@/lib/admin/install-rates";
+import { InstallRatesSection } from "./InstallRatesSection";
 
 /** The team list, plus account and client-portal options as later portal steps land. */
 export default async function SettingsPage() {
   await requireAdmin();
   const enabled = calendarEnabled();
   // Read both together, so neither rejection is left unhandled while the other is awaited.
-  const [team, calendar, routeSettings] = await Promise.all([
+  const [team, rates, installSettings, calendar, routeSettings] = await Promise.all([
     listTeam(),
+    listInstallRates(),
+    getInstallSettings(),
     enabled
       ? getSyncState().then(
           (state) => ({ state, unreadable: false }),
@@ -34,6 +38,7 @@ export default async function SettingsPage() {
       <h1 className="text-2xl font-semibold">Settings</h1>
       <TeamSection team={team} />
       <RoutesSection settings={routeSettings} />
+      <InstallRatesSection rates={rates} settings={installSettings} />
       <section aria-labelledby="outlook-heading" className="flex flex-col gap-2">
         <h2 id="outlook-heading" className="text-lg font-semibold">
           Outlook calendar

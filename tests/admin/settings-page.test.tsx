@@ -15,11 +15,16 @@ vi.mock("@/lib/admin/team", () => ({ listTeam }));
 
 const ROUTE_SETTINGS = { dayStart: "08:00", dayEnd: "17:00", minutes: { consultation: 60, measure: 60, install: 240, service: 90 } };
 vi.mock("@/lib/routes/settings", () => ({ getRouteSettings: vi.fn(async () => ROUTE_SETTINGS) }));
+vi.mock("@/lib/admin/install-rates", () => ({
+  listInstallRates: vi.fn(async () => []),
+  getInstallSettings: vi.fn(async () => ({ minimumCents: 0, hardSurfaceCents: 0, highLadderCents: 0, motorizedCents: 0 })),
+}));
 
 vi.mock("@/app/admin/settings/actions", () => ({
   addMember: vi.fn(async () => ({})),
   removeMember: vi.fn(),
   saveRouteSettingsAction: vi.fn(async () => ({})),
+  saveInstallRatesAction: vi.fn(async () => ({})),
 }));
 
 const { default: SettingsPage } = await import("@/app/admin/settings/page");
@@ -136,5 +141,13 @@ describe("routes section", () => {
     expect(screen.getByRole("heading", { name: "Routes" })).toBeInTheDocument();
     expect(screen.getByLabelText("Day starts")).toHaveValue("08:00");
     expect(screen.getByLabelText("Day ends")).toHaveValue("17:00");
+  });
+});
+
+describe("installation rates section", () => {
+  it("renders the installation rates section", async () => {
+    calendarEnabled.mockReturnValue(false);
+    render(await SettingsPage());
+    expect(screen.getByRole("region", { name: "Installation rates" })).toBeInTheDocument();
   });
 });

@@ -11,6 +11,8 @@ import { dollarsToCents } from "./money";
 import { fromLocalInput } from "./time";
 import { APPOINTMENT_KINDS, type AppointmentKind } from "./appointment-kinds";
 import { TEAM_ROLES, type TeamRole } from "./team-roles";
+import { INSTALLABLE_TREATMENTS, INSTALL_BASES } from "@/lib/admin/install-pricing";
+import type { TreatmentType } from "@/lib/leads/treatment-types";
 
 export const BRANDS = ["Superior Blinds MFG", "Alta Window Fashions", "Hunter Douglas"] as const;
 export const HAND_SOURCES = ["phone", "referral", "walk-in", "other"] as const;
@@ -254,6 +256,63 @@ export const teamMemberSchema = z.object({
   name: z.string().trim().min(1, "Enter a name").max(60, "Keep the name under 60 characters"),
   role: z.enum(TEAM_ROLE_VALUES, { error: "Pick Designer or Installer" }),
 });
+
+/**
+ * A money field on the installation rates form, parsed like every other money field ("$1,500" works).
+ * Blank is rejected: a job-level number must be entered, even if it is 0. The action skips blank
+ * treatment rates before this runs, since a blank rate means "not priced".
+ */
+const rateAmount = z.string().transform((value, ctx) => {
+  try {
+    const cents = dollarsToCents(value);
+    if (cents === null) {
+      ctx.addIssue({ code: "custom", message: "Enter an amount, or 0" });
+      return z.NEVER;
+    }
+    return cents;
+  } catch (error) {
+    ctx.addIssue({ code: "custom", message: (error as Error).message });
+    return z.NEVER;
+  }
+});
+
+export const installRateSchema = z.object({
+  treatment: z.enum(INSTALLABLE_TREATMENTS as [TreatmentType, ...TreatmentType[]]),
+  basis: z.enum(INSTALL_BASES, { error: "Pick how this treatment is priced" }),
+  rateCents: rateAmount,
+});
+
+export const installSettingsSchema = z.object({
+  minimumCents: rateAmount,
+  hardSurfaceCents: rateAmount,
+  highLadderCents: rateAmount,
+  motorizedCents: rateAmount,
+});
+
+/** Whole eighths, as the Install tab sends them. The messages are shown to the owner as written. */
+const lineEighths = (dimension: "width" | "height") => z.number().int()
+  .positive(`Enter a ${dimension} of at least 1/8 inch`)
+  .max(MAX_EIGHTHS, `Enter a ${dimension} of ${MAX_EIGHTHS / 8} inches or less`)
+  .nullable();
+
+/**
+ * Lines sent from the Install tab. The pricing engine trusts its inputs, so they are checked here:
+ * a fractional or negative count would otherwise write fractional cents into an integer column.
+ */
+export const installLinesSchema = z
+  .array(z.object({
+    treatment: z.enum(INSTALLABLE_TREATMENTS as [TreatmentType, ...TreatmentType[]], { error: "Pick a treatment" }),
+    count: z.number({ error: "Enter a whole number of windows" }).int("Enter a whole number of windows")
+      .min(0, "Enter a whole number of windows").max(1000, "That is more windows than one job can hold"),
+    widthEighths: lineEighths("width"),
+    heightEighths: lineEighths("height"),
+    hardSurface: z.boolean(),
+    highLadder: z.boolean(),
+    motorized: z.boolean(),
+  }))
+  .min(1, "Add at least one line before saving.");
+
+export const installKindSchema = z.enum(["estimate", "final"], { error: "Save as an estimate or a final price" });
 
 export type MeasurementInput = z.output<typeof measurementSchema>;
 
