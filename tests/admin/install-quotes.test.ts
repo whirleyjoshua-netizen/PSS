@@ -87,6 +87,44 @@ describe("listInstallQuotes", () => {
     expect(saved.lines[0]).toMatchObject({ treatment: "roller_shades", rateCents: 2500, highLadder: true });
   });
 
+  it("gives each snapshot only its own lines, whatever order the line rows arrive in", async () => {
+    const OTHER = "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d";
+    const lineRow = (quoteId: string, treatment: string, amount: number) => ({
+      install_quote_id: quoteId, treatment, basis: "window", quantity: 1,
+      rate_cents: amount, hard_surface: false, high_ladder: false, motorized: false, amount_cents: amount,
+    });
+    sql
+      .mockResolvedValueOnce([
+        { id: QUOTE, kind: "final", minimum_cents: 0, subtotal_cents: 300, total_cents: 300,
+          created_by: "owner@example.com", created_at: "2026-09-16T10:00:00Z" },
+        { id: OTHER, kind: "estimate", minimum_cents: 0, subtotal_cents: 700, total_cents: 700,
+          created_by: "owner@example.com", created_at: "2026-09-10T10:00:00Z" },
+      ])
+      .mockResolvedValueOnce([
+        lineRow(OTHER, "shutters", 300),
+        lineRow(QUOTE, "roller_shades", 100),
+        lineRow(OTHER, "roman_shades", 400),
+        lineRow(QUOTE, "cellular_shades", 200),
+      ]);
+    const saved = await quotes.listInstallQuotes(JOB);
+    expect(saved.map((quote) => quote.id)).toEqual([QUOTE, OTHER]);
+    expect(saved[0].lines.map((line) => line.treatment)).toEqual(["roller_shades", "cellular_shades"]);
+    expect(saved[1].lines.map((line) => line.treatment)).toEqual(["shutters", "roman_shades"]);
+  });
+
+  it("reads snapshots from their own stored figures, never from the current rates", async () => {
+    sql
+      .mockResolvedValueOnce([
+        { id: QUOTE, kind: "estimate", minimum_cents: 0, subtotal_cents: 100, total_cents: 100,
+          created_by: "owner@example.com", created_at: "2026-09-16T10:00:00Z" },
+      ])
+      .mockResolvedValueOnce([]);
+    await quotes.listInstallQuotes(JOB);
+    // A snapshot joined to install_rates would silently change when a rate changed.
+    expect(sql).toHaveBeenCalledTimes(2);
+    for (const call of sql.mock.calls) expect(text(call)).not.toContain("install_rates");
+  });
+
   it("refuses an id that is not a uuid", async () => {
     expect(await quotes.listInstallQuotes("nope")).toEqual([]);
     expect(sql).not.toHaveBeenCalled();
