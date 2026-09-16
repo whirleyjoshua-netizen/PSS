@@ -47,12 +47,17 @@ const card = (page: Page) => page.getByRole("region", { name: "Appointments" });
 /** The one open booking modal. Every ScheduleDialog on the page is labelled by its trigger's text. */
 const scheduleModal = (page: Page) => page.getByRole("dialog", { name: "Schedule" });
 
-const MEASURE_NAME = `E2E Appt Measure ${STAMP}`;
-const MEASURE_DAY = lasVegasDay(3);
-let measureJobId = "";
+/**
+ * The kind chip on an appointment row. It has to be scoped to the row's own spans: every row also
+ * carries a Reschedule dialog holding a <label>Measure</label>, so the card as a whole matches the
+ * kind twice, exact text and all. This still fails if the chip itself goes.
+ */
+const kindChip = (page: Page, kind: string) => card(page).locator("li > span").filter({ hasText: kind });
 
 test("a measure stays off the schedule until it is confirmed", async ({ page }) => {
-  measureJobId = await lead(MEASURE_NAME);
+  const MEASURE_NAME = `E2E Appt Measure ${STAMP}`;
+  const MEASURE_DAY = lasVegasDay(3);
+  const measureJobId = await lead(MEASURE_NAME);
   await signIn(page);
   await page.goto(`/admin/jobs/${measureJobId}`);
   await expect(card(page).getByText("Nothing scheduled")).toBeVisible();
@@ -66,7 +71,7 @@ test("a measure stays off the schedule until it is confirmed", async ({ page }) 
 
   // Saved bookings are pending: nothing is on the calendar and the customer has not been told.
   await expect(card(page).getByText("Pending confirmation")).toBeVisible();
-  await expect(card(page).getByText("Measure")).toBeVisible();
+  await expect(kindChip(page, "Measure")).toBeVisible();
 
   // The behavioural proof of the confirmed-only rule: a pending appointment is not a commitment,
   // so the Schedule page must not show it.
@@ -76,13 +81,17 @@ test("a measure stays off the schedule until it is confirmed", async ({ page }) 
   await page.goto(`/admin/jobs/${measureJobId}`);
   await card(page).getByRole("button", { name: "Confirm schedule" }).click();
   await expect(card(page).getByText("Confirmed", { exact: true })).toBeVisible();
-  // The e2e server runs with RESEND_API_KEY empty on purpose, so the send fails and the card says
-  // why — the confirmation itself stands, which is the behaviour this asserts.
-  await expect(card(page).getByRole("alert")).toHaveText("Confirmed, but the email could not be sent.");
 
   const [row] = await sql()`select kind, confirmed_at is not null as confirmed
     from appointments where lead_id = ${measureJobId}`;
   expect(row).toMatchObject({ kind: "measure", confirmed: true });
+
+  // The e2e server runs with RESEND_API_KEY empty on purpose, so the customer is never told. The
+  // confirmation stands anyway (the row above), and the reason survives in the job's Activity —
+  // which is where it has to survive, because the card's alert unmounts with the Confirm button.
+  const emails = await sql()`select body from job_events where lead_id = ${measureJobId} and kind = 'email'`;
+  expect(emails.map((event) => event.body as string).join("\n"))
+    .toMatch(/Appointment email not sent to e2e-appt@example\.com/);
 
   await page.goto(`/admin/schedule?week=${MEASURE_DAY}`);
   const booked = page.getByRole("link", { name: new RegExp(MEASURE_NAME) });
@@ -121,13 +130,28 @@ test("confirming a consultation books the job and mirrors the date onto the lead
 });
 
 test("cancelling asks first, then takes the appointment off the schedule", async ({ page }) => {
+  // This books its own appointment rather than reusing the first test's: a failure there would
+  // otherwise surface here as a confusing failure against a job that was never created.
+  const name = `E2E Appt Cancel ${STAMP}`;
+  const day = lasVegasDay(5);
+  const id = await lead(name);
   await signIn(page);
-  await page.goto(`/admin/jobs/${measureJobId}`);
+  await page.goto(`/admin/jobs/${id}`);
+
+  // Cancel only appears on a confirmed appointment, so this one has to be confirmed first.
+  await card(page).getByRole("button", { name: "Schedule" }).click();
+  const modal = scheduleModal(page);
+  await modal.getByLabel("Date and time").fill(`${day}T09:00`);
+  await modal.getByRole("radio", { name: "Service" }).check();
+  await modal.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(kindChip(page, "Service")).toBeVisible();
+  await card(page).getByRole("button", { name: "Confirm schedule" }).click();
+  await expect(card(page).getByText("Confirmed", { exact: true })).toBeVisible();
 
   // The first press only asks; it must not delete anything.
   await card(page).getByRole("button", { name: "Cancel", exact: true }).click();
   await expect(card(page).getByText("Cancel this appointment? It will be removed from the calendar.")).toBeVisible();
-  const [still] = await sql()`select count(*)::int as n from appointments where lead_id = ${measureJobId}`;
+  const [still] = await sql()`select count(*)::int as n from appointments where lead_id = ${id}`;
   expect(still.n).toBe(1);
 
   // Keeping it puts the row back as it was, still cancellable.
@@ -138,9 +162,9 @@ test("cancelling asks first, then takes the appointment off the schedule", async
   await card(page).getByRole("button", { name: "Yes, cancel" }).click();
   await expect(card(page).getByText("Nothing scheduled")).toBeVisible();
 
-  const gone = await sql()`select id from appointments where lead_id = ${measureJobId}`;
+  const gone = await sql()`select id from appointments where lead_id = ${id}`;
   expect(gone).toEqual([]);
 
-  await page.goto(`/admin/schedule?week=${MEASURE_DAY}`);
-  await expect(page.getByRole("link", { name: new RegExp(MEASURE_NAME) })).toHaveCount(0);
+  await page.goto(`/admin/schedule?week=${day}`);
+  await expect(page.getByRole("link", { name: new RegExp(name) })).toHaveCount(0);
 });

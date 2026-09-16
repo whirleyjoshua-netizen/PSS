@@ -297,6 +297,4 @@ test("the call screen shows that day's calendar and flags a clash", async ({ pag
 
   await page.getByLabel("Visit date and time").fill(`${day}T13:00`);
   await expect(panel.getByText("clashes with this time")).toHaveCount(0);
-
-  void booked;
 });
