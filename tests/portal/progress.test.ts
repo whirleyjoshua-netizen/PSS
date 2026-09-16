@@ -155,3 +155,25 @@ describe("buildSteps", () => {
     expect(step(buildSteps({ status: "installed", installOn: "2026-01-01" }), "installed").on).toBe("Jan 1");
   });
 });
+
+describe("a date that has not happened yet", () => {
+  it("marks a done step whose date is still to come", () => {
+    const steps = buildSteps({
+      status: "ordered",
+      orderedOn: "2025-09-20",
+      installAppointmentAt: new Date("2099-10-13T17:00:00Z"),
+    });
+    const ready = step(steps, "ready");
+    expect(ready.state).toBe("done");
+    expect(ready.on).toBe("Oct 13");
+    expect(ready.future).toBe(true);
+
+    const production = step(steps, "production");
+    expect(production.on).toBe("Sep 20");
+    expect(production.future).toBe(false);
+  });
+
+  it("leaves a step with no date as not future", () => {
+    expect(step(buildSteps({ status: "quoted" }), "ready").future).toBe(false);
+  });
+});

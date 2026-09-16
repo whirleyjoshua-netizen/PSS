@@ -7,5 +7,7 @@ export const metadata: Metadata = {
 
 /** Customer area. Every page calls requireCustomer() itself. */
 export default function ProjectLayout({ children }: { children: React.ReactNode }) {
-  return <div className="mx-auto w-full max-w-3xl px-4 py-10 sm:px-6">{children}</div>;
+  // Wide enough for the project page's tracker and two-column details. The sign-in and
+  // auth pages inside this area set their own narrow max-width, so they are unaffected.
+  return <div className="mx-auto w-full max-w-5xl px-4 py-10 sm:px-6">{children}</div>;
 }

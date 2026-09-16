@@ -27,6 +27,12 @@ export type ProjectStep = {
   state: "done" | "current" | "upcoming";
   /** A Las Vegas day such as "Sep 13", or null when the step has no date. */
   on: string | null;
+  /**
+   * True when `on` is still to come. A done step can legitimately carry a future date —
+   * an install booked for next month sits under a ticked "Ready to Install" — and a bare
+   * "Oct 13" under a tick would read as though it had already happened.
+   */
+  future: boolean;
 };
 
 /**
@@ -51,8 +57,9 @@ export type StepInput = {
 const RANKS = new Map<string, number>(STAGES.map((stage, index) => [stage.value, index]));
 const rank = (status: Stage): number => RANKS.get(status) ?? -1;
 
-const onDay = (day: string | null | undefined): string | null => (day ? formatMonthDay(day) : null);
-const onInstant = (at: Date | null | undefined): string | null => (at ? formatMonthDay(lasVegasDate(at)) : null);
+/** Both resolvers return a Las Vegas day as YYYY-MM-DD, so dates stay comparable until they are formatted. */
+const onDay = (day: string | null | undefined): string | null => day ?? null;
+const onInstant = (at: Date | null | undefined): string | null => (at ? lasVegasDate(at) : null);
 
 type StepSpec = {
   key: StepKey;
@@ -60,6 +67,14 @@ type StepSpec = {
   reached: (input: StepInput, at: number) => boolean;
   on: (input: StepInput) => string | null;
 };
+
+/**
+ * How a step's date reads to a homeowner. A date still to come is spelled out as
+ * scheduled, so a ticked step holding next month's install date cannot be misread
+ * as something that has already happened.
+ */
+export const stepDateLabel = (step: ProjectStep): string | null =>
+  step.on === null ? null : step.future ? `Scheduled ${step.on}` : step.on;
 
 const SPECS: readonly StepSpec[] = [
   {
@@ -112,11 +127,16 @@ export function buildSteps(input: StepInput): ProjectStep[] {
   const at = rank(input.status);
   const reached = SPECS.map((spec) => spec.reached(input, at));
   const furthest = reached.lastIndexOf(true);
+  const today = lasVegasDate(new Date());
 
-  return SPECS.map((spec, index) => ({
-    key: spec.key,
-    label: spec.label,
-    state: index <= furthest ? "done" : index === furthest + 1 && furthest >= 0 ? "current" : "upcoming",
-    on: reached[index] ? spec.on(input) : null,
-  }));
+  return SPECS.map((spec, index) => {
+    const day = reached[index] ? spec.on(input) : null;
+    return {
+      key: spec.key,
+      label: spec.label,
+      state: index <= furthest ? "done" : index === furthest + 1 && furthest >= 0 ? "current" : "upcoming",
+      on: day ? formatMonthDay(day) : null,
+      future: day != null && day > today,
+    };
+  });
 }

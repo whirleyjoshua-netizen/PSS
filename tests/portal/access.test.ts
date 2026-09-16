@@ -57,13 +57,13 @@ describe("toProject", () => {
       city: "Henderson", status: "quoted", installOn: "2026-10-13", projectNo: "PSS-1048",
       windowCount: 9, treatmentTypes: ["shutters"], finish: "luxury", orderedOn: null,
       steps: [
-        { key: "consultation", label: "Consultation", state: "done", on: null },
-        { key: "measurements", label: "Measurements", state: "done", on: null },
-        { key: "quote", label: "Quote Ready", state: "done", on: null },
-        { key: "order", label: "Order Confirmed", state: "current", on: null },
-        { key: "production", label: "In Production", state: "upcoming", on: null },
-        { key: "ready", label: "Ready to Install", state: "upcoming", on: null },
-        { key: "installed", label: "Installed", state: "upcoming", on: null },
+        { key: "consultation", label: "Consultation", state: "done", on: null, future: false },
+        { key: "measurements", label: "Measurements", state: "done", on: null, future: false },
+        { key: "quote", label: "Quote Ready", state: "done", on: null, future: false },
+        { key: "order", label: "Order Confirmed", state: "current", on: null, future: false },
+        { key: "production", label: "In Production", state: "upcoming", on: null, future: false },
+        { key: "ready", label: "Ready to Install", state: "upcoming", on: null, future: false },
+        { key: "installed", label: "Installed", state: "upcoming", on: null, future: false },
       ],
     });
 
@@ -87,7 +87,7 @@ describe("toProject", () => {
     const byKey = Object.fromEntries(project.steps.map((s) => [s.key, s]));
     expect(byKey.measurements.on).toBe("Sep 13");
     expect(byKey.quote.on).toBe("Sep 10");
-    expect(byKey.order).toEqual({ key: "order", label: "Order Confirmed", state: "done", on: "Sep 14" });
+    expect(byKey.order).toEqual({ key: "order", label: "Order Confirmed", state: "done", on: "Sep 14", future: false });
     expect(byKey.ready.on).toBe("Oct 13");
     expect(JSON.stringify(project)).not.toMatch(/gate code|cheaper quote/i);
   });
