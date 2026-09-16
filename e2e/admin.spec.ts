@@ -222,7 +222,7 @@ test("search finds a job, and a column's add button starts a job in that stage",
   await expect(page.getByRole("region", { name: /quoted/i }).getByRole("link", { name: new RegExp(name) })).toBeVisible();
 });
 
-test("the schedule shows this week's visits from the tracker and opens the job", async ({ page }) => {
+test("the schedule shows this week's visits from the tracker and opens the full job page", async ({ page }) => {
   const visit = new Date(Date.now() + 60 * 60 * 1000); // an hour from now is always this week or just into next
   const [row] = await sql()`insert into leads (name, phone, email, city, source, status, visit_at)
     values (${`${NAME} Schedule`}, '7025550188', 'sched@example.com', 'Henderson', 'phone', 'visit_booked', ${visit})
@@ -234,11 +234,13 @@ test("the schedule shows this week's visits from the tracker and opens the job",
   await expect(page.getByRole("heading", { level: 1, name: "Schedule" })).toBeVisible();
   await expect(page.getByRole("status").filter({ hasText: "Outlook isn't connected yet." })).toBeVisible();
   await page.getByRole("link", { name: new RegExp(`${NAME} Schedule`) }).click();
-  await expect(page).toHaveURL(new RegExp(`/admin\\?job=${row.id}`));
-  await expect(page.getByRole("complementary", { name: new RegExp(`${NAME} Schedule`) })).toBeVisible();
+  // The schedule never opens the board panel, at any width: it goes to the full job page.
+  await expect(page).toHaveURL(new RegExp(`/admin/jobs/${row.id}`));
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(`${NAME} Schedule`);
+  await expect(page.getByRole("complementary", { name: new RegExp(`${NAME} Schedule`) })).toHaveCount(0);
 });
 
-test("the schedule's month view shows a day's visit and opens the job", async ({ page }) => {
+test("the schedule's month view shows a day's visit and opens the full job page", async ({ page }) => {
   const future = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
   const day = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Los_Angeles" }).format(future);
   const [row] = await sql()`insert into leads (name, phone, email, city, source, status, visit_at)
@@ -259,8 +261,9 @@ test("the schedule's month view shows a day's visit and opens the job", async ({
   const section = page.getByRole("region", { name: dayHeading });
   await expect(section.getByRole("link", { name: new RegExp(`${NAME} Month`) })).toBeVisible();
   await section.getByRole("link", { name: new RegExp(`${NAME} Month`) }).click();
-  await expect(page).toHaveURL(new RegExp(`/admin\\?job=${row.id}`));
-  await expect(page.getByRole("complementary", { name: new RegExp(`${NAME} Month`) })).toBeVisible();
+  await expect(page).toHaveURL(new RegExp(`/admin/jobs/${row.id}`));
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(`${NAME} Month`);
+  await expect(page.getByRole("complementary", { name: new RegExp(`${NAME} Month`) })).toHaveCount(0);
 });
 
 test("the call screen shows that day's calendar and flags a clash", async ({ page }) => {

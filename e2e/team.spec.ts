@@ -53,8 +53,13 @@ test("add a person, assign a job, see it on the board, remove them", async ({ pa
   await expect(page.getByText(`Assigned to ${person} (Designer)`)).toBeVisible();
 
   await page.goto("/admin");
+  // The card's link is just the customer name now; the assignee line is its sibling,
+  // so assert against the card (the link's nearest div ancestor), not the link.
   await expect(
-    page.getByRole("region", { name: "Board" }).getByRole("link", { name: new RegExp(jobName) }),
+    page
+      .getByRole("region", { name: "Board" })
+      .getByRole("link", { name: new RegExp(jobName) })
+      .locator("xpath=ancestor::div[1]"),
   ).toContainText(`${person} · Designer`);
 
   await page.goto("/admin/settings");
