@@ -75,17 +75,24 @@ Project number, then address (city alone when there is no street), then the curr
 
 ### 5.1 The form
 
-At `/project/<jobId>/service`, reachable from the "after the work is done" section. Fields:
+At `/project/<jobId>/service`, reachable from the "after the work is done" section.
+
+**The form is deliberately shallow.** The owners' supplier portal (CDI) asks for line numbers, part numbers, quantity, a resolution and "why it cannot be repaired" — that is a trade form for ordering against a purchase order, filled in by the installer *after* seeing the problem. A homeowner knows none of it. The customer's only job here is to get the owners' attention and tell them roughly what and where; the owners open the CDI case themselves once they have looked. Anything this form asks that the customer cannot confidently answer costs a submission and gains nothing.
 
 | Field | Type | Required |
 |---|---|---|
-| Which room or window | text, 120 chars | yes |
-| What is wrong | select: will not raise or lower / crooked or uneven / damaged or broken / motor or remote / other | yes |
-| When did it start | select: just now / this week / a while ago / not sure | yes |
-| Tell us more | textarea, 2000 chars | no |
+| Which window | picker of the windows measured on this job, plus "somewhere else" with a text box | yes |
+| What is happening | select: will not go up or down / crooked or uneven / damaged or broken / remote or motor not working / something else | yes |
+| Anything else we should know | textarea, 2000 chars | no |
 | A photo | one image, ≤ 10 MB | no |
 
-The wording is deliberately the customer's language, not the trade's.
+Two required fields and two optional ones. No dates, no counts, no part numbers, no severity scale.
+
+**The picker comes from the job's own measurements.** `window_measurements` carries `room` (not null) and an optional `label` per window, and `lib/admin/measurements.ts` already has a `describe()` helper rendering them as `"Dining Room, left window"`. Reuse it: the customer picks the actual window the owners measured — *"Dining Room, left window"* — rather than typing a room name that may match nothing. The stored answer records the measurement's id alongside its text, so the owners know exactly which window without interpreting prose.
+
+When the job has no measurements, the picker is a plain text box. "Somewhere else" is always offered, because a customer may be reporting something that was never measured.
+
+**The photo is optional but encouraged**, with one line saying why: a photo usually means the owners can bring the right part the first time. It is never required — a customer whose submission failed because their photo was too large will call instead, or not at all.
 
 ### 5.2 What it creates
 
