@@ -19,7 +19,7 @@ describe("parseOptimizeResponse", () => {
         {
           vehicleIndex: 0,
           visits: [{ shipmentIndex: 1, startTime: "2026-09-24T16:00:00Z" }, { shipmentIndex: 0, startTime: "2026-09-24T17:25:00Z" }],
-          transitions: [{ travelDuration: "0s" }, { travelDuration: "1500s" }, {}],
+          transitions: [{ travelDuration: "900s" }, { travelDuration: "1500s" }, {}],
           routePolyline: { points: "abc" },
           metrics: { travelDuration: "1500s" },
         },
@@ -35,6 +35,28 @@ describe("parseOptimizeResponse", () => {
       ] },
       { teamMemberId: "bo", polyline: null, driveMinutes: 0, stops: [] },
     ]);
+  });
+
+  it("never counts a drive before the first stop, even when Google reports one", () => {
+    const plan = parseOptimizeResponse({
+      routes: [{ visits: [{ shipmentIndex: 1, startTime: "2026-09-24T16:00:00Z" }], transitions: [{ travelDuration: "900s" }, {}] }],
+    }, ctx);
+    expect(plan.routes[0].stops[0].driveMinutes).toBe(0);
+    expect(plan.routes[0].driveMinutes).toBe(0);
+  });
+
+  it("flags outsideWindow only for promised windows, not for a stop outside the working day", () => {
+    const plan = parseOptimizeResponse({
+      routes: [{ visits: [{ shipmentIndex: 1, startTime: "2026-09-24T05:00:00Z" }] }],
+    }, ctx);
+    expect(plan.routes[0].stops[0]).toMatchObject({ appointmentId: "s2", outsideWindow: false });
+  });
+
+  it("ignores a route for a vehicle index it did not send", () => {
+    const plan = parseOptimizeResponse({
+      routes: [{ vehicleIndex: 5, visits: [{ shipmentIndex: 1, startTime: "2026-09-24T16:00:00Z" }] }],
+    }, ctx);
+    expect(plan.routes.map((r) => r.stops.length)).toEqual([0, 0]);
   });
 
   it("gives every vehicle a route even when Google omits an empty one, and treats a missing index as 0", () => {

@@ -27,6 +27,13 @@ describe("routeAccessToken", () => {
     }]);
   });
 
+  it("builds GoogleAuth once and reuses it", async () => {
+    vi.stubEnv("GOOGLE_SERVICE_ACCOUNT_JSON", "{}");
+    await routeAccessToken();
+    await routeAccessToken();
+    expect(constructed).toHaveLength(1);
+  });
+
   it("rejects when the service account is not valid JSON", async () => {
     vi.stubEnv("GOOGLE_SERVICE_ACCOUNT_JSON", "not json");
     await expect(routeAccessToken()).rejects.toThrow("GOOGLE_SERVICE_ACCOUNT_JSON is not valid JSON");

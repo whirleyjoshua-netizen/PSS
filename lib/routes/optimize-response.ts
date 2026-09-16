@@ -6,7 +6,6 @@ type Transition = { travelDuration?: string };
 type Route = { vehicleIndex?: number; visits?: Visit[]; transitions?: Transition[]; routePolyline?: { points?: string }; metrics?: { travelDuration?: string } };
 export type OptimizeToursResponse = { routes?: Route[]; skippedShipments?: { index?: number; reasons?: { code?: string }[] }[] };
 
-// Proto3 JSON omits zero values, so index 0 arrives as a missing field.
 export const durationSeconds = (value: string | undefined): number => (value ? Number.parseFloat(value) : 0);
 const minutes = (seconds: number) => Math.round(seconds / 60);
 
@@ -31,6 +30,7 @@ export function parseOptimizeResponse(
   const byId = new Map(ctx.stops.map((s) => [s.appointmentId, s]));
   const routes: PlanRoute[] = ctx.vehicles.map((teamMemberId) => ({ teamMemberId, stops: [], polyline: null, driveMinutes: 0 }));
   for (const route of response.routes ?? []) {
+    // Proto3 JSON omits zero values, so index 0 arrives as a missing field (here and below).
     const target = routes[route.vehicleIndex ?? 0];
     if (!target) continue;
     const visits = route.visits ?? [];

@@ -25,6 +25,7 @@ describe("buildOptimizeRequest", () => {
     expect(model.shipments[0]).toMatchObject({
       label: "11111111-0000-4000-8000-000000000001",
       deliveries: [{ arrivalLocation: { latitude: 36.03, longitude: -115.04 }, duration: "14400s" }],
+      penaltyCost: 1000000,
     });
   });
 
@@ -68,6 +69,9 @@ describe("buildOptimizeRequest", () => {
   it("widens the global range to cover a window outside the working day", () => {
     const { body } = buildOptimizeRequest({ day: DAY, stops: [stop({ windowStart: "07:00", windowEnd: "08:00" })], installers: [ANA], settings: SETTINGS });
     expect(modelOf(body).globalStartTime).toBe("2026-09-24T14:00:00.000Z");
+    const late = buildOptimizeRequest({ day: DAY, stops: [stop({ windowStart: "17:00", windowEnd: "20:00" })], installers: [ANA], settings: SETTINGS });
+    expect(modelOf(late.body).globalEndTime).toBe("2026-09-25T03:00:00.000Z");
+    expect(modelOf(late.body).globalStartTime).toBe("2026-09-24T16:00:00.000Z");
   });
 
   it("solves normally, without traffic, with polylines and a 15 s timeout, skipping stops with no coordinates", () => {
@@ -123,6 +127,36 @@ describe("buildRecheckRequest", () => {
       softStartTime: "2026-09-24T15:00:00.000Z", softEndTime: "2026-09-24T17:00:00.000Z",
       costPerHourBeforeSoftStartTime: 1000, costPerHourAfterSoftEndTime: 1000,
     });
+  });
+
+  it("lets the owner's move win over a job's previous assignee", () => {
+    const moved = [stop({ appointmentId: "s1", assignedTo: BO.id }), stop({ appointmentId: "s2" })];
+    const { body } = buildRecheckRequest(
+      { day: DAY, stops: moved, installers: [ANA, BO], settings: SETTINGS },
+      [{ teamMemberId: ANA.id, appointmentIds: ["s1"] }, { teamMemberId: BO.id, appointmentIds: ["s2"] }],
+    );
+    expect(modelOf(body).shipments[0].allowedVehicleIndices).toBeUndefined();
+    expect(modelOf(body).shipments[0].penaltyCost).toBe(1000000);
+  });
+
+  it("keeps a route whose installer is no longer selected, as its own vehicle", () => {
+    const { body, vehicles } = buildRecheckRequest(
+      { day: DAY, stops, installers: [ANA], settings: SETTINGS },
+      [{ teamMemberId: ANA.id, appointmentIds: ["s1"] }, { teamMemberId: BO.id, appointmentIds: ["s2", "s3"] }],
+    );
+    expect(vehicles).toEqual([ANA.id, BO.id]);
+    const model = modelOf(body);
+    expect(model.vehicles[1]).toEqual({
+      label: BO.id, travelMode: "DRIVING", costPerTraveledHour: 60,
+      startTimeWindows: [{ startTime: "2026-09-24T16:00:00.000Z", endTime: "2026-09-25T01:00:00.000Z" }],
+      endTimeWindows: [{ startTime: "2026-09-24T16:00:00.000Z", endTime: "2026-09-25T01:00:00.000Z" }],
+    });
+    expect((body.injectedSolutionConstraint as { routes: unknown }).routes).toEqual([
+      { vehicleIndex: 0, visits: [{ shipmentIndex: 0, isPickup: false }] },
+      { vehicleIndex: 1, visits: [{ shipmentIndex: 1, isPickup: false }, { shipmentIndex: 2, isPickup: false }] },
+    ]);
+    expect((body.injectedSolutionConstraint as { constraintRelaxations: { vehicleIndices: number[] }[] })
+      .constraintRelaxations[0].vehicleIndices).toEqual([0, 1]);
   });
 
   it("leaves out stops that are not on any route (they stay under Didn't fit)", () => {

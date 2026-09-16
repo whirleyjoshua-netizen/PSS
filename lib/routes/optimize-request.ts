@@ -7,6 +7,8 @@ export type OptimizeInput = { day: string; stops: DayStop[]; installers: Install
 /** A soft window this expensive is only broken when the owner's order leaves no other way. */
 const LATE_COST_PER_HOUR = 1000;
 const TRAVEL_COST_PER_HOUR = 60;
+/** Far above any travel or lateness cost, so a stop is skipped only when it truly cannot be done. */
+const SKIP_PENALTY = 1_000_000;
 
 const at = (day: string, clock: string): string => fromLocalInput(`${day}T${clock}`).toISOString();
 
@@ -38,6 +40,8 @@ function model(input: OptimizeInput, stops: DayStop[], soft: boolean) {
         duration: `${stop.durationMinutes * 60}s`,
         timeWindows: [timeWindow],
       }],
+      // Without a penalty every shipment is mandatory, and one impossible stop fails the whole request.
+      penaltyCost: SKIP_PENALTY,
       ...(lockedTo >= 0 && !soft ? { allowedVehicleIndices: [lockedTo] } : {}),
     };
   });
@@ -66,19 +70,22 @@ export function buildRecheckRequest(input: OptimizeInput, routes: { teamMemberId
   const onRoute = new Set(routes.flatMap((r) => r.appointmentIds));
   const stops = routable(input.stops).filter((s) => onRoute.has(s.appointmentId));
   const shipments = stops.map((s) => s.appointmentId);
-  const vehicles = input.installers.map((i) => i.id);
-  const injectedRoutes = routes
-    .map((route) => ({
-      vehicleIndex: vehicles.indexOf(route.teamMemberId),
-      visits: route.appointmentIds.filter((id) => shipments.includes(id))
-        .map((id) => ({ shipmentIndex: shipments.indexOf(id), isPickup: false })),
-    }))
-    .filter((route) => route.vehicleIndex >= 0);
+  // A submitted route keeps its installer even when they are no longer selected, so their stops stay bound to them.
+  const installers = [...input.installers];
+  for (const route of routes) {
+    if (!installers.some((i) => i.id === route.teamMemberId)) installers.push({ id: route.teamMemberId, name: "" });
+  }
+  const vehicles = installers.map((i) => i.id);
+  const injectedRoutes = routes.map((route) => ({
+    vehicleIndex: vehicles.indexOf(route.teamMemberId),
+    visits: route.appointmentIds.filter((id) => shipments.includes(id))
+      .map((id) => ({ shipmentIndex: shipments.indexOf(id), isPickup: false })),
+  }));
   return {
     body: {
       ...COMMON,
       solvingMode: "DEFAULT_SOLVE",
-      model: model(input, stops, true),
+      model: model({ ...input, installers }, stops, true),
       injectedSolutionConstraint: {
         routes: injectedRoutes,
         constraintRelaxations: [{

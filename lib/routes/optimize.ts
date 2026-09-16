@@ -5,10 +5,20 @@ import type { OptimizeToursResponse } from "./optimize-response";
 
 export class RoutePlanningUnavailable extends Error {}
 
+const LOCAL_HOSTS = new Set(["127.0.0.1", "localhost"]);
+
+/** The test-only optimizer override. It is honored only on this machine, so a stray env var can never send jobs elsewhere. */
 const stub = () => {
   const url = process.env.ROUTE_OPTIMIZATION_URL;
   const token = process.env.ROUTE_OPTIMIZATION_TOKEN;
-  return url && token ? { url, token } : null;
+  if (!url || !token) return null;
+  let host = "";
+  try {
+    host = new URL(url).hostname;
+  } catch {}
+  if (LOCAL_HOSTS.has(host)) return { url, token };
+  console.error("Ignoring ROUTE_OPTIMIZATION_URL: only 127.0.0.1 or localhost is allowed", url);
+  return null;
 };
 
 export const routePlanningConfigured = (): boolean =>

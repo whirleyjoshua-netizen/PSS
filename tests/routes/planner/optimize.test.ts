@@ -70,6 +70,26 @@ describe("optimizeTours", () => {
     expect(routeAccessToken).not.toHaveBeenCalled();
   });
 
+  it("ignores the override when its host is not this machine, and logs it", async () => {
+    vi.stubEnv("ROUTE_OPTIMIZATION_URL", "https://evil.example.com/optimize");
+    vi.stubEnv("ROUTE_OPTIMIZATION_TOKEN", "test");
+    expect(routePlanningConfigured()).toBe(false);
+    expect(String(errorSpy.mock.calls[0][0])).toContain("Ignoring ROUTE_OPTIMIZATION_URL");
+    google();
+    await optimizeTours({});
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("https://routeoptimization.googleapis.com/v1/projects/pss-proj:optimizeTours");
+    expect(init.headers.authorization).toBe("Bearer tok");
+  });
+
+  it("honors a localhost override", async () => {
+    vi.stubEnv("ROUTE_OPTIMIZATION_URL", "http://localhost:3199/optimize");
+    vi.stubEnv("ROUTE_OPTIMIZATION_TOKEN", "test");
+    await optimizeTours({});
+    expect(fetchMock.mock.calls[0][0]).toBe("http://localhost:3199/optimize");
+    expect(errorSpy).not.toHaveBeenCalled();
+  });
+
   it("rejects with RoutePlanningUnavailable on a non-2xx answer, logging Google's message", async () => {
     google();
     fetchMock.mockResolvedValueOnce(new Response("quota exceeded", { status: 429 }));
