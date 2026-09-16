@@ -49,7 +49,7 @@ describe("syncJobCalendar (tracker wins)", () => {
     await sync.syncJobCalendar(ID);
     expect(calls()).toEqual(["POST users/jobs@example.com/events"]);
     expect(graphFetch.mock.calls[0][1].body.subject).toBe("Visit · Dana Reyes");
-    expect(graphFetch.mock.calls[0][1].body.body.content).toContain(`https://pss.example/admin?job=${ID}`);
+    expect(graphFetch.mock.calls[0][1].body.body.content).toContain(`https://pss.example/admin/jobs/${ID}`);
     expect(store.saveLink).toHaveBeenCalledWith(link);
   });
 

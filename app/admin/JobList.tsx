@@ -50,11 +50,18 @@ export function JobList({ jobs, now, filter, q, openId }: {
                 return (
                   <tr key={job.id} className={`relative border-b border-rule last:border-0 ${selected ? "bg-sand/60" : "hover:bg-sand/30"}`}>
                     <td className="px-4 py-3">
-                      {/* One link per row; its overlay makes the whole row clickable. */}
+                      {/* One link per row, and its overlay makes the whole row clickable. Two of them,
+                          one per breakpoint: the panel is desktop-only, so phones open the full page. */}
+                      <Link
+                        href={`/admin/jobs/${job.id}`}
+                        className="font-semibold text-charcoal underline-offset-4 after:absolute after:inset-0 hover:underline lg:hidden"
+                      >
+                        {job.name}
+                      </Link>
                       <Link
                         href={boardHref({ q, list: filter, job: job.id })}
                         aria-current={selected ? "true" : undefined}
-                        className="font-semibold text-charcoal underline-offset-4 after:absolute after:inset-0 hover:underline"
+                        className="hidden font-semibold text-charcoal underline-offset-4 after:absolute after:inset-0 hover:underline lg:inline"
                       >
                         {job.name}
                       </Link>

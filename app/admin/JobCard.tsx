@@ -14,22 +14,44 @@ export function groupByStage(jobs: Job[], stages: readonly Stage[]) {
   }));
 }
 
+/** The card's one clickable target: its overlay stretches over the whole card. */
+function JobLink({ href, className, name, selected = false }: {
+  href: string;
+  className: string;
+  name: string;
+  selected?: boolean;
+}) {
+  return (
+    <Link
+      href={href}
+      aria-current={selected ? "true" : undefined}
+      className={`${className} underline-offset-4 after:absolute after:inset-0 hover:underline`}
+    >
+      {name}
+    </Link>
+  );
+}
+
 export function JobCard({ job, now, href, selected = false }: {
   job: Job;
   now: Date;
+  /** The desktop panel's URL. Phones ignore it and open the full page instead. */
   href: string;
   selected?: boolean;
 }) {
   const overdue = isOverdue(job, now);
   return (
-    <Link
-      href={href}
-      aria-current={selected ? "true" : undefined}
-      className={`flex flex-col gap-1.5 rounded-lg border bg-ivory p-3 text-sm shadow-sm transition-shadow hover:shadow-md ${
+    <div
+      className={`relative flex flex-col gap-1.5 rounded-lg border bg-ivory p-3 text-sm shadow-sm transition-shadow hover:shadow-md ${
         overdue ? "border-overdue/50" : "border-rule"
       } ${selected ? "outline outline-2 outline-offset-2 outline-champagne-ink" : ""}`}
     >
-      <span className="text-base font-semibold text-charcoal">{job.name}</span>
+      {/* Two links, one shown per breakpoint: the panel is desktop-only, so phones go straight
+          to the full job page. The hidden one is display:none, so it never reaches the a11y tree. */}
+      <span className="text-base font-semibold text-charcoal">
+        <JobLink href={`/admin/jobs/${job.id}`} className="lg:hidden" name={job.name} />
+        <JobLink href={href} className="hidden lg:inline" name={job.name} selected={selected} />
+      </span>
       {job.referredBy ? (
         <span className="w-fit rounded border border-champagne-ink px-1.5 text-[0.65rem] uppercase tracking-[0.12em] text-champagne-ink">
           Referral
@@ -46,6 +68,6 @@ export function JobCard({ job, now, href, selected = false }: {
       <span className="flex items-center gap-1.5 text-xs uppercase tracking-[0.1em] text-ink-soft">
         <DaysInStage job={job} now={now} />
       </span>
-    </Link>
+    </div>
   );
 }

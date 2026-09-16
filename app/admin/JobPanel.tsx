@@ -13,8 +13,9 @@ import { CallButton } from "./jobs/[id]/CallButton";
 import { JobFiles } from "./jobs/[id]/JobFiles";
 import { StageControls } from "./jobs/[id]/StageControls";
 
+/** Desktop only. Phones link straight to the full job page, so the panel never renders below lg. */
 const PANEL =
-  "fixed inset-0 z-40 flex flex-col gap-6 overflow-y-auto overscroll-contain bg-ivory p-5 lg:sticky lg:inset-auto lg:top-6 lg:z-auto lg:max-h-[calc(100dvh-3rem)] lg:w-[28rem] lg:shrink-0 lg:rounded-2xl lg:border lg:border-rule lg:p-6 lg:shadow-lg";
+  "hidden lg:sticky lg:top-6 lg:flex lg:max-h-[calc(100dvh-3rem)] lg:w-[28rem] lg:shrink-0 lg:flex-col lg:gap-6 lg:overflow-y-auto lg:overscroll-contain lg:rounded-2xl lg:border lg:border-rule lg:bg-ivory lg:p-6 lg:shadow-lg";
 const HEADING = "text-sm font-semibold text-charcoal";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
