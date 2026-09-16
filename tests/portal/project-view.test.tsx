@@ -13,7 +13,9 @@ const stageDates = vi.fn();
 const lastMeasuredAt = vi.fn();
 const installAppointmentAt = vi.fn();
 vi.mock("@/lib/portal/timeline", () => ({ stageDates, lastMeasuredAt, installAppointmentAt }));
-vi.mock("@/app/(site)/project/actions", () => ({ signOutCustomer: vi.fn() }));
+vi.mock("@/app/(site)/project/actions", () => ({ signOutCustomer: vi.fn(), sendMessageAction: vi.fn() }));
+const listMessages = vi.fn();
+vi.mock("@/lib/portal/messages", () => ({ listMessages }));
 
 const { ProjectView } = await import("@/app/(site)/project/ProjectView");
 const { FilesTabs } = await import("@/app/(site)/project/FilesTabs");
@@ -41,6 +43,7 @@ beforeEach(() => {
   stageDates.mockReset().mockResolvedValue({ sold: new Date("2025-09-18T17:00:00Z") });
   lastMeasuredAt.mockReset().mockResolvedValue(new Date("2025-09-08T17:00:00Z"));
   installAppointmentAt.mockReset().mockResolvedValue(null);
+  listMessages.mockReset().mockResolvedValue([]);
 });
 
 describe("ProjectView header and tracker", () => {

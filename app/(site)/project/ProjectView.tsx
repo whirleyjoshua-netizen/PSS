@@ -5,6 +5,7 @@ import { listSharedDocuments, listSharedPhotos } from "@/lib/admin/files";
 import { formatDateOnly, formatShortDate } from "@/lib/admin/time";
 import { toProject } from "@/lib/portal/access";
 import { countReferred } from "@/lib/portal/project";
+import { listMessages } from "@/lib/portal/messages";
 import { installAppointmentAt, lastMeasuredAt, stageDates } from "@/lib/portal/timeline";
 import { ensureReferralCode } from "@/lib/referrals/db";
 import { referralUrl } from "@/lib/referrals/codes";
@@ -12,6 +13,7 @@ import { signOutCustomer } from "./actions";
 import { CopyLinkButton } from "./CopyLinkButton";
 import { DetailsCard } from "./DetailsCard";
 import { FilesTabs } from "./FilesTabs";
+import { MessageForm } from "./MessageForm";
 import { StatusBanner, STEP_NEXT } from "./StatusBanner";
 import { StepTracker } from "./StepTracker";
 import { UpdatesList } from "./UpdatesList";
@@ -21,10 +23,11 @@ const heading = "font-display text-xs uppercase tracking-[0.2em] text-champagne-
 /**
  * The customer's view of one job. It renders only from toProject(), the shared photos
  * and the shared documents, so nothing private can slip onto the page: no money, notes,
- * gate code or contact fields, and never the body of a job event.
+ * gate code or contact fields, and no job event body except the customer's own messages,
+ * which are the words they themselves sent from this page.
  */
 export async function ProjectView({ job }: { job: Job }) {
-  const [photos, documents, code, referred, dates, measuredAt, installAt] = await Promise.all([
+  const [photos, documents, code, referred, dates, measuredAt, installAt, messages] = await Promise.all([
     listSharedPhotos(job.id),
     listSharedDocuments(job.id),
     ensureReferralCode(job.id),
@@ -32,6 +35,7 @@ export async function ProjectView({ job }: { job: Job }) {
     stageDates(job.id),
     lastMeasuredAt(job.id),
     installAppointmentAt(job.id),
+    listMessages(job.id),
   ]);
   const project = toProject(job, {
     stageDates: dates,
@@ -148,10 +152,16 @@ export async function ProjectView({ job }: { job: Job }) {
         />
       </section>
 
-      <section className="flex flex-col gap-2" aria-labelledby="contact-heading">
+      <section className="flex flex-col gap-4" aria-labelledby="contact-heading">
         <h2 id="contact-heading" className={heading}>Questions?</h2>
-        <a href={business.phone.href} className="underline underline-offset-4">{business.phone.display}</a>
-        <a href={`mailto:${business.email}`} className="underline underline-offset-4">{business.email}</a>
+        <div className="flex flex-col gap-2">
+          <a href={business.phone.href} className="underline underline-offset-4">{business.phone.display}</a>
+          <a href={`mailto:${business.email}`} className="underline underline-offset-4">{business.email}</a>
+        </div>
+        <MessageForm
+          jobId={job.id}
+          messages={messages.map((message) => ({ body: message.body, at: formatShortDate(message.createdAt) }))}
+        />
       </section>
 
       {code ? (
