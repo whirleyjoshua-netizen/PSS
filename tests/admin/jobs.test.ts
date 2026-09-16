@@ -7,6 +7,7 @@ vi.mock("@/lib/db", () => ({ db: () => sql }));
 const jobs = await import("@/lib/admin/jobs");
 const text = (call: unknown[]) => (call[0] as TemplateStringsArray).join("?");
 const ID = "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c";
+const PARENT = "11111111-1111-4111-8111-111111111111";
 
 const row = {
   id: ID, created_at: new Date("2026-09-01T00:00:00Z"), name: "Dana Reyes", phone: "7025550134",
@@ -210,6 +211,12 @@ describe("changing jobs", () => {
     expect(jobs.toJob({ ...row }).projectNo).toBeNull();
   });
 
+  it("selects and maps the parent job, and a row without one maps to null", () => {
+    expect(jobs.JOB_COLUMNS).toContain("parent_job_id");
+    expect(jobs.toJob({ ...row, parent_job_id: PARENT }).parentJobId).toBe(PARENT);
+    expect(jobs.toJob({ ...row }).parentJobId).toBeNull();
+  });
+
   it("never selects the questionnaire key into a Job", () => {
     expect(jobs.JOB_COLUMNS).toContain("gate_code");
     expect(jobs.JOB_COLUMNS).not.toContain("questionnaire_");
@@ -283,6 +290,30 @@ describe("changing jobs", () => {
     );
     expect(sql.mock.calls[0]).toEqual(expect.arrayContaining(["Added by hand"]));
     expect(sql.mock.calls[0]).not.toEqual(expect.arrayContaining(["Added by hand (review request off)"]));
+  });
+
+  it("records the parent job and the opening note it is given", async () => {
+    sql.mockResolvedValue([{ id: ID }]);
+    await jobs.createJob(
+      { name: "Dana Reyes", phone: "7025550134", city: "Henderson", source: "service", stage: "new" },
+      "owner@example.com",
+      { parentJobId: PARENT, eventBody: "Service requested by the customer" },
+    );
+    const [strings, ...values] = sql.mock.calls[0];
+    expect((strings as TemplateStringsArray).join("?")).toContain("parent_job_id");
+    expect(values).toContain(PARENT);
+    expect(values).toContain("Service requested by the customer");
+  });
+
+  it("without options the parent is null and the hand-entered body is kept", async () => {
+    sql.mockResolvedValue([{ id: ID }]);
+    await jobs.createJob(
+      { name: "Dana Reyes", phone: "7025550134", city: "Henderson", source: "phone", stage: "new" },
+      "owner@example.com",
+    );
+    const [, ...values] = sql.mock.calls[0];
+    expect(values).toContain(null);
+    expect(values).toContain("Added by hand");
   });
 });
 

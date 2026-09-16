@@ -17,6 +17,10 @@ import type { TreatmentType } from "@/lib/leads/treatment-types";
 export const BRANDS = ["Superior Blinds MFG", "Alta Window Fashions", "Hunter Douglas"] as const;
 export const HAND_SOURCES = ["phone", "referral", "walk-in", "other"] as const;
 
+/** Sources a job may be created with. HAND_SOURCES is what the Add-job form offers;
+ *  "service" is set by the customer's own service request and never appears in that list. */
+export const JOB_SOURCES = [...HAND_SOURCES, "service"] as const;
+
 const blank = (value: unknown) => (typeof value === "string" && value.trim() === "" ? undefined : value);
 
 const cents = z
@@ -90,7 +94,7 @@ export const newJobSchema = z.object({
   city: site.city,
   address: z.preprocess(blank, site.address),
   notes: z.preprocess(blank, site.notes),
-  source: z.enum(HAND_SOURCES),
+  source: z.enum(JOB_SOURCES),
   stage: z.preprocess(
     (value) => (value === undefined || value === "" ? "new" : value),
     z.enum(WORKING_STAGES, { error: "Pick a stage" }),
