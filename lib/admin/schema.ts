@@ -237,8 +237,9 @@ const CLOCK = /^([01]\d|2[0-3]):(00|30)$/;
 export const clockField = z.string().regex(CLOCK, "Pick a time");
 
 /** Hours in quarter steps, stored as minutes. */
-export const hoursField = z.coerce
-  .number({ error: "Enter the length in hours" })
+// A blank box would coerce to 0; treat it as missing so the message asks for a length.
+export const hoursField = z
+  .preprocess(blank, z.coerce.number({ error: "Enter the length in hours" }))
   .refine((h) => h >= 0.25 && h <= 12, "Lengths are between 0.25 and 12 hours")
   .refine((h) => Number.isInteger(h * 4), "Use quarter hours")
   .transform((h) => Math.round(h * 60));

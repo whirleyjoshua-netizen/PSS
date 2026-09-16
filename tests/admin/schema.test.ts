@@ -157,12 +157,18 @@ describe("routeSettingsSchema", () => {
 
   it("rejects a day that ends before it starts", () => {
     expect(message({ ...form, dayStart: "18:00", dayEnd: "09:00" })).toBe("The day must end after it starts");
+    expect(message({ ...form, dayStart: "09:00", dayEnd: "09:00" })).toBe("The day must end after it starts");
   });
 
   it("keeps lengths between a quarter hour and 12 hours, in quarter steps", () => {
     expect(message({ ...form, installHours: "0.1" })).toBe("Lengths are between 0.25 and 12 hours");
     expect(message({ ...form, installHours: "12.25" })).toBe("Lengths are between 0.25 and 12 hours");
     expect(message({ ...form, installHours: "1.3" })).toBe("Use quarter hours");
+  });
+
+  it("asks for a length when a box is left blank", () => {
+    expect(message({ ...form, installHours: "" })).toBe("Enter the length in hours");
+    expect(message({ ...form, installHours: "  " })).toBe("Enter the length in hours");
   });
 
   it("only accepts half-hour clock times", () => {

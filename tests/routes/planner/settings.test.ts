@@ -29,6 +29,7 @@ describe("route settings", () => {
     await saveRouteSettings({ dayStart: "09:00", dayEnd: "18:00", minutes: { consultation: 60, measure: 60, install: 240, service: 90 } });
     expect(text(sql.mock.calls[0])).toContain("insert into route_settings");
     expect(text(sql.mock.calls[0])).toContain("on conflict (id) do update set");
+    expect(sql.mock.calls[0].slice(1)).toEqual(["09:00", "18:00", 60, 60, 240, 90]);
   });
 
   it("gives each kind its default length", () => {

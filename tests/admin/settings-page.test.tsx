@@ -13,8 +13,8 @@ vi.mock("@/lib/calendar/store", () => ({ getSyncState }));
 const listTeam = vi.fn();
 vi.mock("@/lib/admin/team", () => ({ listTeam }));
 
-const ROUTE_DEFAULTS = { dayStart: "09:00", dayEnd: "18:00", minutes: { consultation: 60, measure: 60, install: 240, service: 90 } };
-vi.mock("@/lib/routes/settings", () => ({ getRouteSettings: vi.fn(async () => ROUTE_DEFAULTS) }));
+const ROUTE_SETTINGS = { dayStart: "08:00", dayEnd: "17:00", minutes: { consultation: 60, measure: 60, install: 240, service: 90 } };
+vi.mock("@/lib/routes/settings", () => ({ getRouteSettings: vi.fn(async () => ROUTE_SETTINGS) }));
 
 vi.mock("@/app/admin/settings/actions", () => ({
   addMember: vi.fn(async () => ({})),
@@ -134,6 +134,7 @@ describe("routes section", () => {
     calendarEnabled.mockReturnValue(false);
     render(await SettingsPage());
     expect(screen.getByRole("heading", { name: "Routes" })).toBeInTheDocument();
-    expect(screen.getByLabelText("Day ends")).toHaveValue("18:00");
+    expect(screen.getByLabelText("Day starts")).toHaveValue("08:00");
+    expect(screen.getByLabelText("Day ends")).toHaveValue("17:00");
   });
 });
