@@ -42,6 +42,43 @@ async function customerPage(browser: Browser, email = CUSTOMER): Promise<Page> {
   return page;
 }
 
+type Download = { status: number; type: string; html: boolean };
+
+/**
+ * Fetches a file as the customer's own browser would.
+ *
+ * NOT `page.request.get`: the session cookie is `Secure` (the e2e server runs a
+ * production build), and Playwright's APIRequestContext does not send it over plain
+ * http — so those requests arrive signed out, get 307'd to /project/sign-in and come
+ * back as 200 text/html. An assertion written that way passes even if the file route
+ * does not exist, which is exactly the failure a security gate must never have.
+ * Fetching from inside the page carries the real session.
+ *
+ * `redirect: "manual"` keeps a redirect from being followed into a 200 sign-in page:
+ * a bounced request surfaces as status 0, which matches neither 200 nor 404.
+ */
+async function download(page: Page, url: string): Promise<Download> {
+  return page.evaluate(async (target) => {
+    const response = await fetch(target, { redirect: "manual" });
+    const type = response.headers.get("content-type") ?? "";
+    const body = response.type === "opaqueredirect" ? "" : (await response.text()).slice(0, 200);
+    return { status: response.status, type, html: /^\s*<(!doctype|html)/i.test(body) };
+  }, url);
+}
+
+/** A real file came back: the right status, the right type, and not a page of HTML. */
+function expectFile(result: Download, contentType: string) {
+  expect(result.status).toBe(200);
+  expect(result.type).toContain(contentType);
+  expect(result.html).toBe(false);
+}
+
+/** The route refused it — a 404 from the route itself, not a bounce to sign-in. */
+function expectNotFound(result: Download) {
+  expect(result.status).toBe(404);
+  expect(result.html).toBe(false);
+}
+
 async function lead(name: string, email: string, status: string): Promise<string> {
   const [row] = await sql()`insert into leads (name, phone, email, city, source, status)
     values (${name}, '7025550150', ${email}, 'Henderson', 'phone', ${status}) returning id`;
@@ -181,13 +218,13 @@ test("a shared photo appears for the customer and disappears when unshared", asy
   const photo = customer.locator('img[src^="/project/files/"]');
   await expect(photo).toBeVisible();
   const src = await photo.getAttribute("src");
-  expect((await customer.request.get(src!)).status()).toBe(200);
+  expectFile(await download(customer, src!), "image/jpeg");
 
   await share.click();
   await expect(share).toHaveAttribute("aria-checked", "false");
   await customer.reload();
   await expect(customer.getByText("Photos from your install will appear here.")).toBeVisible();
-  expect((await customer.request.get(src!)).status()).toBe(404);
+  expectNotFound(await download(customer, src!));
 });
 
 // The whole point of Task 2 and 3: a quote is private until an owner ticks it, and
@@ -204,7 +241,7 @@ test("an owner shares a quote, the customer opens it, and unsharing takes it awa
   const customerBefore = await customerPage(browser);
   await customerBefore.getByRole("tab", { name: "Documents" }).click();
   await expect(customerBefore.getByText("Paperwork we share with you will appear here.")).toBeVisible();
-  expect((await customerBefore.request.get(`/project/files/${fileId}`)).status()).toBe(404);
+  expectNotFound(await download(customerBefore, `/project/files/${fileId}`));
 
   const share = page.getByRole("switch", { name: `Share ${fileName} with customer` });
   await expect(share).toHaveAttribute("aria-checked", "false");
@@ -220,10 +257,9 @@ test("an owner shares a quote, the customer opens it, and unsharing takes it awa
   await expect(link).toHaveAttribute("href", `/project/files/${fileId}`);
   await expect(customer.getByText("Quote", { exact: true })).toBeVisible();
 
-  // The customer can actually open the document they were sent.
-  const opened = await customer.request.get(`/project/files/${fileId}`);
-  expect(opened.status()).toBe(200);
-  expect(opened.headers()["content-type"]).toContain("application/pdf");
+  // The customer can actually open the document they were sent — the PDF itself,
+  // not a sign-in page wearing a 200.
+  expectFile(await download(customer, `/project/files/${fileId}`), "application/pdf");
 
   await share.click();
   await expect(share).toHaveAttribute("aria-checked", "false");
@@ -231,7 +267,7 @@ test("an owner shares a quote, the customer opens it, and unsharing takes it awa
   await customer.getByRole("tab", { name: "Documents" }).click();
   await expect(customer.getByText("Paperwork we share with you will appear here.")).toBeVisible();
   await expect(customer.getByRole("link", { name: "Review quote" })).toHaveCount(0);
-  expect((await customer.request.get(`/project/files/${fileId}`)).status()).toBe(404);
+  expectNotFound(await download(customer, `/project/files/${fileId}`));
 });
 
 /**
@@ -309,14 +345,16 @@ test("a file cannot be shared under another job's id", async ({ page, browser })
   await customerA.getByRole("tab", { name: "Documents" }).click();
   await expect(customerA.getByText("Paperwork we share with you will appear here.")).toBeVisible();
   await expect(customerA.getByRole("link", { name: nameA })).toHaveCount(0);
-  expect((await customerA.request.get(`/project/files/${fileA}`)).status()).toBe(404);
+  // Signed in as the file's own customer, so a 404 here can only mean "still private"
+  // — it cannot be an unauthenticated request quietly bouncing to sign-in.
+  expectNotFound(await download(customerA, `/project/files/${fileA}`));
 
   const customerB = await customerPage(browser, OTHER_CUSTOMER);
   await customerB.getByRole("tab", { name: "Documents" }).click();
   await expect(customerB.getByText("Paperwork we share with you will appear here.")).toBeVisible();
   await expect(customerB.getByRole("link", { name: nameA })).toHaveCount(0);
   // The other customer cannot open it either, shared or not.
-  expect((await customerB.request.get(`/project/files/${fileA}`)).status()).toBe(404);
+  expectNotFound(await download(customerB, `/project/files/${fileA}`));
 });
 
 });
