@@ -37,7 +37,7 @@ describe("findQuestionnaire", () => {
 describe("saveQuestionnaire", () => {
   it("updates only questionnaire fields and logs a note, in one statement", async () => {
     sql.mockResolvedValue([{ id: "e1" }]);
-    expect(await saveQuestionnaire(KEY, answers)).toBe(true);
+    expect(await saveQuestionnaire(KEY, answers)).toBe("e1");
     expect(sql).toHaveBeenCalledOnce();
     const call = sql.mock.calls[0];
     const statement = text(call);
@@ -46,6 +46,7 @@ describe("saveQuestionnaire", () => {
     expect(statement).toContain("budget_tier = case when ?::text is distinct from finish then coalesce(?::text, budget_tier) else budget_tier end");
     expect(statement).toContain("is distinct from finish");
     expect(statement).toContain("'note'");
+    expect(statement).toContain("returning lead_id as id");
     expect(statement).not.toContain("status");
     expect(call).toContain(HASH);
     expect(call).toContain("premium");
@@ -56,8 +57,8 @@ describe("saveQuestionnaire", () => {
     await saveQuestionnaire(KEY, { ...answers, finish: "not_sure" });
     expect(sql.mock.calls[0]).not.toContain("premium");
   });
-  it("returns false when the key is wrong or expired", async () => {
+  it("returns null when the key is wrong or expired", async () => {
     sql.mockResolvedValue([]);
-    expect(await saveQuestionnaire(KEY, answers)).toBe(false);
+    expect(await saveQuestionnaire(KEY, answers)).toBeNull();
   });
 });

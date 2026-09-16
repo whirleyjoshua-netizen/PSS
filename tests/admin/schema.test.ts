@@ -20,52 +20,67 @@ describe("new job stage", () => {
   });
 });
 
+const place = { address: "", city: "Henderson" };
+
 describe("detailsSchema", () => {
   it("turns form strings into typed values, with blanks as null", () => {
-    const parsed = detailsSchema.parse({
+    const parsed = detailsSchema.parse({ ...place, 
       quote: "$4,500", sold: "", deposit: "2250",
       brands: ["Alta Window Fashions"], orderedOn: "2027-01-10",
     });
     expect(parsed).toEqual({
       quoteCents: 450000, soldCents: null, depositCents: 225000,
       brands: ["Alta Window Fashions"], orderedOn: "2027-01-10",
+      address: null, city: "Henderson",
       budgetTier: null,
       windowCountExact: null, treatmentTypes: [], motorized: false, gateCode: null,
     });
   });
 
   it("rejects an unknown brand and a nonsense amount", () => {
-    expect(detailsSchema.safeParse({ brands: ["Acme"] }).success).toBe(false);
-    expect(detailsSchema.safeParse({ quote: "lots" }).success).toBe(false);
+    expect(detailsSchema.safeParse({ ...place,  brands: ["Acme"] }).success).toBe(false);
+    expect(detailsSchema.safeParse({ ...place,  quote: "lots" }).success).toBe(false);
   });
 
   it("has no appointment dates: the Schedule button owns those", () => {
-    const parsed = detailsSchema.parse({ quote: "", visitAt: "2026-12-15T14:30", installOn: "2027-01-10" });
+    const parsed = detailsSchema.parse({ ...place,  quote: "", visitAt: "2026-12-15T14:30", installOn: "2027-01-10" });
     expect(parsed).not.toHaveProperty("visitAt");
     expect(parsed).not.toHaveProperty("installOn");
   });
 });
 
+describe("detailsSchema address", () => {
+  it("accepts an address and city, with a blank address as null", () => {
+    expect(detailsSchema.parse({ address: "12 Sample St", city: "Henderson" })).toMatchObject({ address: "12 Sample St", city: "Henderson" });
+    expect(detailsSchema.parse({ address: "  ", city: "Henderson" }).address).toBeNull();
+  });
+  it("requires a served city", () => {
+    const result = detailsSchema.safeParse({ address: "12 Sample St", city: "" });
+    expect(result.success).toBe(false);
+    expect(result.error?.issues[0].message).toBe("We currently serve the Las Vegas valley");
+  });
+});
+
 describe("detailsSchema budget", () => {
   it("accepts a tier and maps blank to null", () => {
-    expect(detailsSchema.parse({ budget: "premium" }).budgetTier).toBe("premium");
-    expect(detailsSchema.parse({ budget: "" }).budgetTier).toBeNull();
-    expect(detailsSchema.parse({}).budgetTier).toBeNull();
+    expect(detailsSchema.parse({ ...place,  budget: "premium" }).budgetTier).toBe("premium");
+    expect(detailsSchema.parse({ ...place,  budget: "" }).budgetTier).toBeNull();
+    expect(detailsSchema.parse({ ...place, }).budgetTier).toBeNull();
   });
   it("rejects an unknown tier", () => {
-    expect(detailsSchema.safeParse({ budget: "luxury" }).success).toBe(false);
+    expect(detailsSchema.safeParse({ ...place,  budget: "luxury" }).success).toBe(false);
   });
 });
 
 describe("detailsSchema questionnaire fields", () => {
   it("parses exact windows, treatment types, motorized and gate code", () => {
-    expect(detailsSchema.parse({ windowCountExact: "31", treatmentTypes: ["shutters"], motorized: true, gateCode: " 12# " }))
+    expect(detailsSchema.parse({ ...place,  windowCountExact: "31", treatmentTypes: ["shutters"], motorized: true, gateCode: " 12# " }))
       .toMatchObject({ windowCountExact: 31, treatmentTypes: ["shutters"], motorized: true, gateCode: "12#" });
   });
   it("rejects bad values", () => {
-    expect(detailsSchema.safeParse({ windowCountExact: "0" }).success).toBe(false);
-    expect(detailsSchema.safeParse({ treatmentTypes: ["Blinds"] }).success).toBe(false);
-    expect(detailsSchema.safeParse({ gateCode: "x".repeat(41) }).success).toBe(false);
+    expect(detailsSchema.safeParse({ ...place,  windowCountExact: "0" }).success).toBe(false);
+    expect(detailsSchema.safeParse({ ...place,  treatmentTypes: ["Blinds"] }).success).toBe(false);
+    expect(detailsSchema.safeParse({ ...place,  gateCode: "x".repeat(41) }).success).toBe(false);
   });
 });
 

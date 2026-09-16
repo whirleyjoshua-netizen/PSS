@@ -2,7 +2,9 @@
 
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import { saveQuestionnaire } from "@/lib/leads/questionnaire";
+import { geocodeLead } from "@/lib/routes/geocode";
 import { QUESTIONNAIRE_COOKIE } from "@/lib/leads/questionnaire-cookie";
 import {
   isEmptyAnswers, QUESTIONNAIRE_EXPIRED, questionnaireSchema, type QuestionnaireState,
@@ -37,12 +39,16 @@ export async function submitQuestionnaire(_prev: QuestionnaireState, formData: F
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message, values };
   if (isEmptyAnswers(parsed.data)) redirect("/thank-you/all-set");
+  let savedId: string | null = null;
   try {
-    const saved = await saveQuestionnaire(key, parsed.data);
-    if (!saved) return { error: QUESTIONNAIRE_EXPIRED, values };
+    savedId = await saveQuestionnaire(key, parsed.data);
+    if (!savedId) return { error: QUESTIONNAIRE_EXPIRED, values };
   } catch (error) {
     console.error("Questionnaire save failed", error);
     return { error: "We couldn't save that. Please try again, or call us.", values };
   }
+  // A new address gets coordinates for the route planner. Never blocks the redirect.
+  const leadId = savedId;
+  if (leadId && parsed.data.address) after(() => geocodeLead(leadId));
   redirect("/thank-you/all-set");
 }

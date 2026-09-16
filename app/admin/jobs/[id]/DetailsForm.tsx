@@ -2,7 +2,8 @@
 
 import { useActionState } from "react";
 import { Button } from "@/components/ui/Button";
-import { TextField } from "@/components/forms/Field";
+import { SelectField, TextField } from "@/components/forms/Field";
+import { business } from "@/content/business";
 import { BUDGET_OPTIONS } from "@/lib/admin/budget";
 import type { Job } from "@/lib/admin/jobs";
 import { BRANDS } from "@/lib/admin/schema";
@@ -42,6 +43,8 @@ export function DetailsForm({ job }: { job: Job }) {
       className="grid gap-4 sm:grid-cols-2"
     >
       {/* Appointment dates are not edited here: the Schedule button owns them. */}
+      <TextField id="address" name="address" label="Address" defaultValue={field("address", job.address ?? "")} />
+      <SelectField id="city" name="city" label="City" options={business.serviceArea} defaultValue={field("city", job.city)} />
       <Money id="quote" label="Quote" value={field("quote", dollars(job.quoteCents))} />
       <Money id="sold" label="Sold amount" value={field("sold", dollars(job.soldCents))} />
       <Money id="deposit" label="Deposit received" value={field("deposit", dollars(job.depositCents))} />

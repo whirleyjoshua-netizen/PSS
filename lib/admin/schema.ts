@@ -34,10 +34,15 @@ const cents = z
 const day = z.preprocess(blank, z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a date").optional())
   .transform((value) => value ?? null);
 
+// Reuses the website form's rules, so a hand-entered phone number is stored the same way.
+const site = consultationSchema.shape;
+
 // Appointment dates are not part of Job details: the Schedule button owns them, and only a
 // confirmed appointment mirrors to leads.visit_at / leads.install_on.
 export const detailsSchema = z
   .object({
+    address: z.preprocess(blank, site.address),
+    city: site.city,
     quote: cents,
     sold: cents,
     deposit: cents,
@@ -55,6 +60,7 @@ export const detailsSchema = z
     depositCents: deposit,
     budgetTier: budget ?? null,
     ...rest,
+    address: rest.address ?? null,
   }));
 
 const APPOINTMENT_KIND_VALUES = APPOINTMENT_KINDS.map((kind) => kind.value) as [AppointmentKind, ...AppointmentKind[]];
@@ -106,9 +112,6 @@ export const appointmentSchema = z
 
 export const noteSchema = z.object({ body: z.string().trim().min(1, "Write a note first").max(2000) });
 export const lostSchema = z.object({ reason: z.string().trim().min(1, "Say why it was lost").max(200) });
-
-// Reuses the website form's rules, so a hand-entered phone number is stored the same way.
-const site = consultationSchema.shape;
 
 export const newJobSchema = z.object({
   name: site.name,

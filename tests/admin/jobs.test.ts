@@ -3,6 +3,11 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // Reads use sql.query (the column list is SQL text); writes use the tagged template.
 const sql = Object.assign(vi.fn(), { query: vi.fn() });
 vi.mock("@/lib/db", () => ({ db: () => sql }));
+const geocodeLead = vi.fn();
+vi.mock("@/lib/routes/geocode", () => ({ geocodeLead }));
+// after() runs the callback at once, and swallows its rejection as Next does.
+const after = vi.fn((cb: () => unknown) => { (cb() as Promise<unknown> | undefined)?.catch?.(() => {}); });
+vi.mock("next/server", () => ({ after }));
 
 const jobs = await import("@/lib/admin/jobs");
 const text = (call: unknown[]) => (call[0] as TemplateStringsArray).join("?");
@@ -19,6 +24,8 @@ const row = {
 beforeEach(() => {
   sql.mockReset().mockResolvedValue([]);
   sql.query.mockReset().mockResolvedValue([]);
+  geocodeLead.mockReset().mockResolvedValue(undefined);
+  after.mockClear();
 });
 
 describe("reading jobs", () => {
@@ -91,7 +98,7 @@ describe("changing jobs", () => {
 
   it("setStage, updateDetails and addNote return false for a non-uuid id without querying", async () => {
     expect(await jobs.setStage("../etc", "sold", "owner@example.com")).toBe(false);
-    expect(await jobs.updateDetails("../etc", { quoteCents: null, soldCents: null, depositCents: null, brands: [], orderedOn: null, budgetTier: null, windowCountExact: null, treatmentTypes: [], motorized: false, gateCode: null }, "owner@example.com")).toBe(false);
+    expect(await jobs.updateDetails("../etc", { address: null, city: "Henderson", quoteCents: null, soldCents: null, depositCents: null, brands: [], orderedOn: null, budgetTier: null, windowCountExact: null, treatmentTypes: [], motorized: false, gateCode: null }, "owner@example.com")).toEqual({ saved: false, addressChanged: false });
     expect(await jobs.addNote("../etc", "hi", "owner@example.com")).toBe(false);
     expect(sql).not.toHaveBeenCalled();
   });
@@ -128,7 +135,7 @@ describe("changing jobs", () => {
   it("updateDetails saves the questionnaire fields", async () => {
     sql.mockResolvedValue([{ id: ID }]);
     await jobs.updateDetails(ID, {
-      quoteCents: null, soldCents: null, depositCents: null, brands: [], orderedOn: null, budgetTier: null,
+      address: null, city: "Henderson", quoteCents: null, soldCents: null, depositCents: null, brands: [], orderedOn: null, budgetTier: null,
       windowCountExact: 12, treatmentTypes: ["shutters"], motorized: true, gateCode: "#4321",
     }, "owner@example.com");
     const call = sql.mock.calls[0];
@@ -141,10 +148,10 @@ describe("changing jobs", () => {
     sql.mockResolvedValue([{ id: ID }]);
     const result = await jobs.updateDetails(
       ID,
-      { quoteCents: 450000, soldCents: null, depositCents: 225000, brands: ["Alta Window Fashions"], orderedOn: "2027-01-10", budgetTier: null, windowCountExact: null, treatmentTypes: [], motorized: false, gateCode: null },
+      { address: null, city: "Henderson", quoteCents: 450000, soldCents: null, depositCents: 225000, brands: ["Alta Window Fashions"], orderedOn: "2027-01-10", budgetTier: null, windowCountExact: null, treatmentTypes: [], motorized: false, gateCode: null },
       "owner@example.com",
     );
-    expect(result).toBe(true);
+    expect(result).toEqual({ saved: true, addressChanged: false });
     expect(sql).toHaveBeenCalledOnce();
     expect(sql.mock.calls[0]).toEqual(expect.arrayContaining([450000, 225000, ["Alta Window Fashions"]]));
   });
@@ -152,7 +159,7 @@ describe("changing jobs", () => {
   it("updateDetails leaves the appointment dates and the stage alone", async () => {
     sql.mockResolvedValue([{ id: ID }]);
     await jobs.updateDetails(ID, {
-      quoteCents: null, soldCents: null, depositCents: null, brands: [], orderedOn: null, budgetTier: null,
+      address: null, city: "Henderson", quoteCents: null, soldCents: null, depositCents: null, brands: [], orderedOn: null, budgetTier: null,
       windowCountExact: null, treatmentTypes: [], motorized: false, gateCode: null,
     }, "owner@example.com");
     const statement = text(sql.mock.calls[0]).replace(/\s+/g, " ");
@@ -166,16 +173,54 @@ describe("changing jobs", () => {
     sql.mockResolvedValue([]);
     const result = await jobs.updateDetails(
       ID,
-      { quoteCents: null, soldCents: null, depositCents: null, brands: [], orderedOn: null, budgetTier: null, windowCountExact: null, treatmentTypes: [], motorized: false, gateCode: null },
+      { address: null, city: "Henderson", quoteCents: null, soldCents: null, depositCents: null, brands: [], orderedOn: null, budgetTier: null, windowCountExact: null, treatmentTypes: [], motorized: false, gateCode: null },
       "owner@example.com",
     );
-    expect(result).toBe(false);
+    expect(result).toEqual({ saved: false, addressChanged: false });
+  });
+
+  it("updateDetails saves the address and city, and reports whether they changed from before the update", async () => {
+    sql.mockResolvedValue([{ id: ID, address_changed: true }]);
+    const input = {
+      address: "12 Sample St", city: "Henderson", quoteCents: null, soldCents: null, depositCents: null, brands: [], orderedOn: null,
+      budgetTier: null, windowCountExact: null, treatmentTypes: [], motorized: false, gateCode: null,
+    };
+    expect(await jobs.updateDetails(ID, input, "owner@example.com")).toEqual({ saved: true, addressChanged: true });
+    const statement = text(sql.mock.calls[0]).replace(/\s+/g, " ");
+    expect(statement).toContain("address = ?, city = ?");
+    expect(statement).toContain("with prev as (select address, city from leads where id = ?), changed as ( update leads set");
+    expect(statement).toContain("(prev.address is distinct from ?::text or prev.city is distinct from ?::text) as address_changed");
+    expect(statement).toContain("from changed, prev");
+    expect(sql.mock.calls[0]).toEqual(expect.arrayContaining(["12 Sample St", "Henderson"]));
+    sql.mockResolvedValue([{ id: ID, address_changed: false }]);
+    expect(await jobs.updateDetails(ID, input, "owner@example.com")).toEqual({ saved: true, addressChanged: false });
+    sql.mockResolvedValue([]);
+    expect(await jobs.updateDetails(ID, input, "owner@example.com")).toEqual({ saved: false, addressChanged: false });
+  });
+
+  it("createJob schedules a geocode of the new job, so every caller gets coordinates", async () => {
+    sql.mockResolvedValue([{ id: ID }]);
+    await jobs.createJob(
+      { name: "Dana Reyes", phone: "7025550134", city: "Henderson", address: "12 Sample St", source: "phone", stage: "new" },
+      "owner@example.com",
+    );
+    expect(after).toHaveBeenCalledOnce();
+    expect(geocodeLead).toHaveBeenCalledWith(ID);
+  });
+
+  it("createJob still returns the id when the geocode fails", async () => {
+    sql.mockResolvedValue([{ id: ID }]);
+    geocodeLead.mockRejectedValue(new Error("google down"));
+    await expect(jobs.createJob(
+      { name: "Dana Reyes", phone: "7025550134", city: "Henderson", source: "phone", stage: "new" },
+      "owner@example.com",
+    )).resolves.toBe(ID);
   });
 
   it("updateDetails saves the budget tier", async () => {
     sql.mockResolvedValue([{ id: ID }]);
     await jobs.updateDetails(ID, {
-      quoteCents: null, soldCents: null, depositCents: null,
+      address: null, city: "Henderson", quoteCents: null, soldCents: null, depositCents: null,
       brands: [], orderedOn: null, budgetTier: "mid",
       windowCountExact: null, treatmentTypes: [], motorized: false, gateCode: null,
     }, "owner@example.com");

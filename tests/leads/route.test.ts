@@ -7,6 +7,9 @@ const sendCustomerConfirmation = vi.fn();
 
 vi.mock("@/lib/leads/db", () => ({ insertLead }));
 vi.mock("@/lib/leads/email", () => ({ sendLeadNotification, sendCustomerConfirmation }));
+const geocodeLead = vi.fn();
+vi.mock("@/lib/routes/geocode", () => ({ geocodeLead }));
+vi.mock("next/server", () => ({ after: (cb: () => unknown) => { (cb() as Promise<unknown> | undefined)?.catch?.(() => {}); } }));
 
 const { POST } = await import("@/app/api/consultation/route");
 
@@ -30,6 +33,21 @@ beforeEach(() => {
   insertLead.mockReset().mockResolvedValue({ id: "abc" });
   sendLeadNotification.mockReset().mockResolvedValue(undefined);
   sendCustomerConfirmation.mockReset().mockResolvedValue(undefined);
+  geocodeLead.mockReset().mockResolvedValue(undefined);
+});
+
+describe("geocoding a new lead", () => {
+  it("schedules a geocode for the stored lead, and a failure never touches the response", async () => {
+    geocodeLead.mockRejectedValue(new Error("google down"));
+    const response = await POST(request(body));
+    expect(response.status).toBe(201);
+    expect(geocodeLead).toHaveBeenCalledWith("abc");
+  });
+  it("schedules nothing when the insert failed", async () => {
+    insertLead.mockRejectedValue(new Error("Neon down"));
+    await POST(request(body));
+    expect(geocodeLead).not.toHaveBeenCalled();
+  });
 });
 
 describe("customer confirmation email", () => {

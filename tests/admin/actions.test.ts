@@ -18,7 +18,9 @@ const reviewsDb = {
   releaseReview: vi.fn(),
 };
 vi.mock("@/lib/reviews/db", () => reviewsDb);
-vi.mock("next/server", () => ({ after: (cb: () => unknown) => { cb(); } }));
+vi.mock("next/server", () => ({ after: (cb: () => unknown) => { (cb() as Promise<unknown> | undefined)?.catch?.(() => {}); } }));
+const geocodeLead = vi.fn();
+vi.mock("@/lib/routes/geocode", () => ({ geocodeLead }));
 const invite = { autoInvite: vi.fn(), sendPortalInvite: vi.fn() };
 vi.mock("@/lib/portal/invite", () => invite);
 const syncJobCalendar = vi.fn();
@@ -37,7 +39,8 @@ beforeEach(() => {
   Object.values(jobs).forEach((fn) => fn.mockReset());
   requireAdmin.mockReset().mockResolvedValue({ email: "owner@example.com" });
   jobs.setStage.mockResolvedValue(true);
-  jobs.updateDetails.mockResolvedValue(true);
+  jobs.updateDetails.mockResolvedValue({ saved: true, addressChanged: false });
+  geocodeLead.mockReset().mockResolvedValue(undefined);
   jobs.addNote.mockResolvedValue(true);
   [...Object.values(referrals), sendReviewRequest, ...Object.values(reviewsDb)].forEach((fn) => fn.mockReset());
   jobs.getJob.mockResolvedValue({ id: ID, status: "installed", email: "dana@example.com", reviewOptOut: false });
@@ -68,7 +71,7 @@ describe("without a session", () => {
     ["assignJobAction", () => actions.assignJobAction(ID, {}, form({ assignedTo: MEMBER }))],
   ])("%s touches nothing", async (_name, run) => {
     await expect(run()).rejects.toThrow("NEXT_REDIRECT");
-    [...Object.values(jobs), ...Object.values(referrals), sendReviewRequest, ...Object.values(reviewsDb), syncJobCalendar]
+    [...Object.values(jobs), ...Object.values(referrals), sendReviewRequest, ...Object.values(reviewsDb), syncJobCalendar, geocodeLead]
       .forEach((fn) => expect(fn).not.toHaveBeenCalled());
   });
 });
@@ -86,7 +89,7 @@ describe("with a session", () => {
   });
 
   it("saves details parsed from the form", async () => {
-    const state = await actions.saveDetails(ID, {}, form({ quote: "4,500", brands: ["Hunter Douglas"] }));
+    const state = await actions.saveDetails(ID, {}, form({ city: "Henderson", quote: "4,500", brands: ["Hunter Douglas"] }));
     expect(state).toEqual({ ok: true });
     expect(jobs.updateDetails).toHaveBeenCalledWith(
       ID, expect.objectContaining({ quoteCents: 450000, brands: ["Hunter Douglas"] }), "owner@example.com",
@@ -94,10 +97,30 @@ describe("with a session", () => {
   });
 
   it("saves the questionnaire fields from Job details", async () => {
-    await actions.saveDetails(ID, {}, form({ windowCountExact: "12", treatmentTypes: ["shutters", "roman_shades"], motorized: "on", gateCode: "#4321" }));
+    await actions.saveDetails(ID, {}, form({ city: "Henderson", windowCountExact: "12", treatmentTypes: ["shutters", "roman_shades"], motorized: "on", gateCode: "#4321" }));
     expect(jobs.updateDetails).toHaveBeenCalledWith(ID, expect.objectContaining({
       windowCountExact: 12, treatmentTypes: ["shutters", "roman_shades"], motorized: true, gateCode: "#4321",
     }), "owner@example.com");
+  });
+
+  it("saves an edited address and geocodes the job only when the address changed", async () => {
+    jobs.updateDetails.mockResolvedValue({ saved: true, addressChanged: true });
+    geocodeLead.mockRejectedValue(new Error("google down"));
+    const state = await actions.saveDetails(ID, {}, form({ address: "12 Sample St", city: "North Las Vegas" }));
+    expect(state).toEqual({ ok: true });
+    expect(jobs.updateDetails).toHaveBeenCalledWith(ID, expect.objectContaining({ address: "12 Sample St", city: "North Las Vegas" }), "owner@example.com");
+    expect(geocodeLead).toHaveBeenCalledWith(ID);
+  });
+
+  it("does not geocode when the address did not change", async () => {
+    expect(await actions.saveDetails(ID, {}, form({ address: "12 Sample St", city: "Henderson" }))).toEqual({ ok: true });
+    expect(geocodeLead).not.toHaveBeenCalled();
+  });
+
+  it("keeps the typed address and city when the details do not validate", async () => {
+    const state = await actions.saveDetails(ID, {}, form({ address: "12 Sample St", city: "Reno" }));
+    expect(state.values).toMatchObject({ address: "12 Sample St", city: "Reno" });
+    expect(jobs.updateDetails).not.toHaveBeenCalled();
   });
 
   it("opens the new job after adding it", async () => {
@@ -232,7 +255,7 @@ describe("assignJobAction", () => {
 
 describe("Outlook calendar sync", () => {
   it("never touches the calendar from Job details, which no longer holds a date", async () => {
-    await actions.saveDetails(ID, {}, form({ quote: "4500", orderedOn: "2026-10-02" }));
+    await actions.saveDetails(ID, {}, form({ city: "Henderson", quote: "4500", orderedOn: "2026-10-02" }));
     expect(jobs.updateDetails).toHaveBeenCalledWith(
       ID, expect.objectContaining({ quoteCents: 450000, orderedOn: "2026-10-02" }), "owner@example.com",
     );
@@ -240,8 +263,8 @@ describe("Outlook calendar sync", () => {
   });
 
   it("reports a job that no longer exists", async () => {
-    jobs.updateDetails.mockResolvedValue(false);
-    expect(await actions.saveDetails(ID, {}, form({}))).toEqual({ error: "That job no longer exists." });
+    jobs.updateDetails.mockResolvedValue({ saved: false, addressChanged: false });
+    expect(await actions.saveDetails(ID, {}, form({ city: "Henderson" }))).toEqual({ error: "That job no longer exists." });
   });
 
   it("syncs after a job is marked lost, so its events are removed", async () => {

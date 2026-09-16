@@ -38,7 +38,8 @@ export async function findQuestionnaire(
  * the address only when given, the budget tier only for a real finish, and never the stage.
  * Returns false when the key is wrong or expired.
  */
-export async function saveQuestionnaire(key: string, a: QuestionnaireAnswers): Promise<boolean> {
+/** Saves the answers against the key's lead. Returns that lead's id, or null for a wrong or expired key. */
+export async function saveQuestionnaire(key: string, a: QuestionnaireAnswers): Promise<string | null> {
   const rows = await db()`
     with updated as (
       update leads set
@@ -53,6 +54,6 @@ export async function saveQuestionnaire(key: string, a: QuestionnaireAnswers): P
     )
     insert into job_events (lead_id, actor, kind, body)
     select id, 'customer', 'note', ${questionnaireSummary(a)} from updated
-    returning id`;
-  return rows.length > 0;
+    returning lead_id as id`;
+  return (rows[0]?.id as string | undefined) ?? null;
 }

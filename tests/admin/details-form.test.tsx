@@ -25,6 +25,11 @@ describe("DetailsForm", () => {
     expect(screen.getByLabelText("Motorized")).toBeChecked();
     expect(screen.getByLabelText("Gate code")).toHaveValue("#4321");
   });
+  it("lets the owner correct the address and city", () => {
+    render(<DetailsForm job={{ ...job, address: "12 Sample St", city: "North Las Vegas" }} />);
+    expect(screen.getByLabelText("Address")).toHaveValue("12 Sample St");
+    expect(screen.getByLabelText("City")).toHaveValue("North Las Vegas");
+  });
   it("leaves the appointment dates to the Schedule button", () => {
     const { container } = render(<DetailsForm job={job} />);
     expect(screen.queryByLabelText(/visit date and time/i)).toBeNull();

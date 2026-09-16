@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { after } from "next/server";
 import { hashToken, newToken } from "@/lib/admin/tokens";
 import { consultationSchema } from "@/lib/leads/schema";
 import { insertLead } from "@/lib/leads/db";
@@ -6,6 +7,7 @@ import { sendCustomerConfirmation, sendLeadNotification } from "@/lib/leads/emai
 import { questionnaireCookie } from "@/lib/leads/questionnaire-cookie";
 import { findReferrer } from "@/lib/referrals/db";
 import { REF_COOKIE, cookieValue } from "@/lib/referrals/codes";
+import { geocodeLead } from "@/lib/routes/geocode";
 
 /**
  * The only dynamic endpoint on the site.
@@ -85,6 +87,8 @@ export async function POST(request: Request) {
   if (emailed.status === "rejected") {
     console.error("Lead notification email failed", emailed.reason);
   }
+  // Coordinates for the route planner. Never blocks or fails the visitor's request.
+  if (stored.status === "fulfilled") after(() => geocodeLead(stored.value.id));
 
   if (stored.status === "rejected" && emailed.status === "rejected") {
     return Response.json(

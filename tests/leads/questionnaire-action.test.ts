@@ -6,6 +6,9 @@ const saveQuestionnaire = vi.fn();
 vi.mock("@/lib/leads/questionnaire", () => ({ saveQuestionnaire }));
 const redirect = vi.fn((to: string) => { throw new Error(`NEXT_REDIRECT ${to}`); });
 vi.mock("next/navigation", () => ({ redirect }));
+const geocodeLead = vi.fn();
+vi.mock("@/lib/routes/geocode", () => ({ geocodeLead }));
+vi.mock("next/server", () => ({ after: (cb: () => unknown) => { (cb() as Promise<unknown> | undefined)?.catch?.(() => {}); } }));
 const { submitQuestionnaire } = await import("@/app/(site)/thank-you/actions");
 
 const EXPIRED = "This form has expired — call us and we'll take it from here.";
@@ -13,8 +16,26 @@ const form = (entries: [string, string][]) => { const d = new FormData(); for (c
 
 beforeEach(() => {
   cookieGet.mockReset().mockImplementation((name: string) => (name === "pss_q" ? { value: "the-key" } : undefined));
-  saveQuestionnaire.mockReset().mockResolvedValue(true);
+  saveQuestionnaire.mockReset().mockResolvedValue("lead-1");
+  geocodeLead.mockReset().mockResolvedValue(undefined);
   redirect.mockClear();
+});
+
+describe("submitQuestionnaire geocoding", () => {
+  it("geocodes the saved lead when an address was given, and still redirects if that fails", async () => {
+    geocodeLead.mockRejectedValue(new Error("google down"));
+    await expect(submitQuestionnaire({}, form([["address", "12 Sample St"]]))).rejects.toThrow("NEXT_REDIRECT /thank-you/all-set");
+    expect(geocodeLead).toHaveBeenCalledWith("lead-1");
+  });
+  it("does not geocode without an address", async () => {
+    await expect(submitQuestionnaire({}, form([["windowCountExact", "3"]]))).rejects.toThrow("NEXT_REDIRECT");
+    expect(geocodeLead).not.toHaveBeenCalled();
+  });
+  it("does not geocode when the save found no lead", async () => {
+    saveQuestionnaire.mockResolvedValue(null);
+    await submitQuestionnaire({}, form([["address", "12 Sample St"]]));
+    expect(geocodeLead).not.toHaveBeenCalled();
+  });
 });
 
 describe("submitQuestionnaire", () => {

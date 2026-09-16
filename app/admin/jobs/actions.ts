@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { after } from "next/server";
 import { syncJobCalendar } from "@/lib/calendar/sync";
 import { requireAdmin } from "@/lib/admin/session";
+import { geocodeLead } from "@/lib/routes/geocode";
 import { addNote, assignJob, createJob, getJob, setStage, updateDetails } from "@/lib/admin/jobs";
 import { detailsSchema, lostSchema, newJobSchema, noteSchema } from "@/lib/admin/schema";
 import { isInstalled, type Stage } from "@/lib/admin/stages";
@@ -48,10 +49,12 @@ export async function markLost(id: string, _prev: FormState, formData: FormData)
 export async function saveDetails(id: string, _prev: FormState, formData: FormData): Promise<FormState> {
   const { email } = await requireAdmin();
   const values = captureValues(formData, [
-    "quote", "sold", "deposit", "brands", "orderedOn", "budget",
+    "address", "city", "quote", "sold", "deposit", "brands", "orderedOn", "budget",
     "windowCountExact", "treatmentTypes", "motorized", "gateCode",
   ]);
   const parsed = detailsSchema.safeParse({
+    address: formData.get("address") ?? "",
+    city: formData.get("city") ?? "",
     quote: formData.get("quote") ?? "",
     sold: formData.get("sold") ?? "",
     deposit: formData.get("deposit") ?? "",
@@ -65,8 +68,10 @@ export async function saveDetails(id: string, _prev: FormState, formData: FormDa
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message, values };
   // No date is edited here any more, so this save never touches Outlook.
-  const saved = await updateDetails(id, parsed.data, email);
+  const { saved, addressChanged } = await updateDetails(id, parsed.data, email);
   if (!saved) return MISSING;
+  // Coordinates for the route planner, only when the address really changed. Never blocks the save.
+  if (addressChanged) after(() => geocodeLead(id));
   refresh(id);
   return { ok: true };
 }

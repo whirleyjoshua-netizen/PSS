@@ -8,6 +8,8 @@ vi.mock("@/lib/leads/email", () => ({
   sendCustomerConfirmation: vi.fn(async () => {}),
 }));
 vi.mock("@/lib/referrals/db", () => ({ findReferrer }));
+vi.mock("@/lib/routes/geocode", () => ({ geocodeLead: vi.fn(async () => {}) }));
+vi.mock("next/server", () => ({ after: vi.fn() }));
 
 const { POST } = await import("@/app/api/consultation/route");
 const REFERRER = "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c";
