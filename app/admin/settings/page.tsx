@@ -6,6 +6,7 @@ import { listTeam } from "@/lib/admin/team";
 import { TeamSection } from "./TeamSection";
 import { getRouteSettings } from "@/lib/routes/settings";
 import { RoutesSection } from "./RoutesSection";
+import { routePlanningConfigured } from "@/lib/routes/optimize";
 import { getInstallSettings, listInstallRates } from "@/lib/admin/install-rates";
 import { InstallRatesSection } from "./InstallRatesSection";
 
@@ -30,6 +31,11 @@ export default async function SettingsPage() {
       : Promise.resolve({ state: null, unreadable: false }),
     getRouteSettings(),
   ]);
+  const routeSetup = {
+    map: Boolean(process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY && process.env.NEXT_PUBLIC_GOOGLE_MAP_ID),
+    geocoding: Boolean(process.env.GOOGLE_GEOCODING_KEY),
+    planning: routePlanningConfigured(),
+  };
   const { state, unreadable } = calendar;
   const { expiresAt, lastError, lastErrorAt } = state ?? { expiresAt: null, lastError: null, lastErrorAt: null };
 
@@ -37,7 +43,7 @@ export default async function SettingsPage() {
     <div className="flex max-w-xl flex-col gap-4">
       <h1 className="text-2xl font-semibold">Settings</h1>
       <TeamSection team={team} />
-      <RoutesSection settings={routeSettings} />
+      <RoutesSection settings={routeSettings} setup={routeSetup} />
       <InstallRatesSection rates={rates} settings={installSettings} />
       <section aria-labelledby="outlook-heading" className="flex flex-col gap-2">
         <h2 id="outlook-heading" className="text-lg font-semibold">

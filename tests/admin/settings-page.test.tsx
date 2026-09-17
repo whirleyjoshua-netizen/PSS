@@ -15,6 +15,8 @@ vi.mock("@/lib/admin/team", () => ({ listTeam }));
 
 const ROUTE_SETTINGS = { dayStart: "08:00", dayEnd: "17:00", minutes: { consultation: 60, measure: 60, install: 240, service: 90 } };
 vi.mock("@/lib/routes/settings", () => ({ getRouteSettings: vi.fn(async () => ROUTE_SETTINGS) }));
+const routePlanningConfigured = vi.fn(() => false);
+vi.mock("@/lib/routes/optimize", () => ({ routePlanningConfigured }));
 vi.mock("@/lib/admin/install-rates", () => ({
   listInstallRates: vi.fn(async () => []),
   getInstallSettings: vi.fn(async () => ({ minimumCents: 0, hardSurfaceCents: 0, highLadderCents: 0, motorizedCents: 0 })),
@@ -141,6 +143,25 @@ describe("routes section", () => {
     expect(screen.getByRole("heading", { name: "Routes" })).toBeInTheDocument();
     expect(screen.getByLabelText("Day starts")).toHaveValue("08:00");
     expect(screen.getByLabelText("Day ends")).toHaveValue("17:00");
+  });
+
+  it("shows which pieces are set up, never the key values", async () => {
+    calendarEnabled.mockReturnValue(false);
+    vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAPS_KEY", "browser-key-secret");
+    vi.stubEnv("NEXT_PUBLIC_GOOGLE_MAP_ID", "map-id-secret");
+    vi.stubEnv("GOOGLE_GEOCODING_KEY", "");
+    routePlanningConfigured.mockReturnValueOnce(true);
+    try {
+      const { container } = render(await SettingsPage());
+      const routes = screen.getByRole("region", { name: "Routes" });
+      expect(routes).toHaveTextContent("Route planning is connected.");
+      expect(routes).toHaveTextContent("Map is connected.");
+      expect(routes).toHaveTextContent("Address lookup is not set up yet. Follow docs/route-setup.md.");
+      expect(container.innerHTML).not.toContain("browser-key-secret");
+      expect(container.innerHTML).not.toContain("map-id-secret");
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 });
 

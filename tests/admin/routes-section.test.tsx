@@ -7,11 +7,13 @@ const { RoutesSection } = await import("@/app/admin/settings/RoutesSection");
 
 const settings = { dayStart: "09:00", dayEnd: "18:00", minutes: { consultation: 60, measure: 45, install: 240, service: 90 } };
 
+const ALL_SET = { map: true, geocoding: true, planning: true };
+
 beforeEach(() => saveRouteSettingsAction.mockReset());
 
 describe("routes section", () => {
   it("shows the working day and each kind's length from the settings", () => {
-    render(<RoutesSection settings={settings} />);
+    render(<RoutesSection settings={settings} setup={ALL_SET} />);
     expect(screen.getByRole("region", { name: "Routes" })).toBeInTheDocument();
     expect(screen.getByLabelText("Day starts")).toHaveValue("09:00");
     expect(screen.getByLabelText("Day ends")).toHaveValue("18:00");
@@ -27,7 +29,7 @@ describe("routes section", () => {
     saveRouteSettingsAction
       .mockResolvedValueOnce({ error: "Use quarter hours" })
       .mockResolvedValueOnce({ ok: true });
-    render(<RoutesSection settings={settings} />);
+    render(<RoutesSection settings={settings} setup={ALL_SET} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Use quarter hours");
@@ -36,5 +38,20 @@ describe("routes section", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     expect(await screen.findByRole("status")).toHaveTextContent("Saved.");
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("says each piece is connected when it is set up", () => {
+    render(<RoutesSection settings={settings} setup={ALL_SET} />);
+    expect(screen.getByText("Route planning is connected.")).toBeInTheDocument();
+    expect(screen.getByText("Map is connected.")).toBeInTheDocument();
+    expect(screen.getByText("Address lookup is connected.")).toBeInTheDocument();
+    expect(screen.queryByText(/not set up yet/)).not.toBeInTheDocument();
+  });
+
+  it("points to the setup guide for each piece that is missing", () => {
+    render(<RoutesSection settings={settings} setup={{ map: false, geocoding: true, planning: false }} />);
+    expect(screen.getByText("Route planning is not set up yet. Follow docs/route-setup.md.")).toBeInTheDocument();
+    expect(screen.getByText("Map is not set up yet. Follow docs/route-setup.md.")).toBeInTheDocument();
+    expect(screen.getByText("Address lookup is connected.")).toBeInTheDocument();
   });
 });
