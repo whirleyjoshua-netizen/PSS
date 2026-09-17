@@ -67,8 +67,9 @@ export function ScheduleDialog({
   // kind changes; an untouched length follows the picked kind's default.
   // A failed submit redraws the window as it was picked, so half a window is not lost. A select only
   // reads defaultValue when it mounts, so the fieldset is keyed to the echoed values to remount it.
-  // The date, kind and all-day follow the same echo. An unticked checkbox is absent from the echo,
-  // so once values came back, a missing allDay means unticked.
+  // The date, kind and all-day are not remounted: React 19 resets the form after the action, and the
+  // reset restores each input's defaultValue/defaultChecked, which now come from the echo. An unticked
+  // checkbox is absent from the echo, so once values came back, a missing allDay means unticked.
   const seeded = (name: "windowStart" | "windowEnd" | "startsAt" | "kind", fallback: string | null) => {
     const echoed = state.values?.[name];
     return typeof echoed === "string" ? echoed : fallback ?? "";
