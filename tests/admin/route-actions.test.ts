@@ -24,6 +24,9 @@ const ANA = "aaaaaaaa-0000-4000-8000-000000000001";
 const BO = "bbbbbbbb-0000-4000-8000-000000000002";
 const S1 = "11111111-0000-4000-8000-000000000001";
 const S2 = "22222222-0000-4000-8000-000000000002";
+const X = "99999999-0000-4000-8000-000000000009";
+const UNREADABLE = { ok: false, error: "That route could not be read. Build again." };
+const UNAVAILABLE = { ok: false, error: "Route planning is unavailable right now" };
 const STOP = { appointmentId: S1, jobId: "j", name: "Dana", address: "12 Sample St", city: "Henderson", kind: "install",
   startsAt: "2026-09-24T16:00:00.000Z", allDay: true, confirmed: true, windowStart: null, windowEnd: null,
   durationMinutes: 240, lat: 36, lng: -115, assignedTo: null, updatedAt: "2026-09-20T00:00:00.000Z" };
@@ -66,7 +69,7 @@ describe("buildRoutes", () => {
   });
 
   it("only routes selected installers that really are installers", async () => {
-    await actions.buildRoutes(D, [ANA, "not-a-member"]);
+    await actions.buildRoutes(D, [ANA, X]);
     expect((optimize.optimizeTours.mock.calls[0][0] as Body).model.vehicles).toHaveLength(1);
   });
 
@@ -83,6 +86,38 @@ describe("buildRoutes", () => {
     expect((await pending).ok).toBe(true);
     expect(day.listGeocodeErrors).toHaveBeenCalledWith(D);
     expect(day.loadDay).toHaveBeenCalledWith(D);
+  });
+
+  it("checks the day and installers before any geocode retry", async () => {
+    day.listGeocodeErrors.mockResolvedValue(["L1"]);
+    expect(await actions.buildRoutes(D, [])).toEqual({ ok: false, error: "Pick at least one installer." });
+    expect(await actions.buildRoutes(D, [X])).toEqual({ ok: false, error: "Pick at least one installer." });
+    expect(await actions.buildRoutes("nope", [ANA])).toEqual({ ok: false, error: "Pick a day." });
+    expect(day.listGeocodeErrors).not.toHaveBeenCalled();
+    expect(geocode.geocodeLead).not.toHaveBeenCalled();
+  });
+
+  it("retries at most 5 geocodes at a time", async () => {
+    day.listGeocodeErrors.mockResolvedValue(Array.from({ length: 12 }, (_, i) => `L${i}`));
+    let active = 0;
+    let peak = 0;
+    geocode.geocodeLead.mockImplementation(async () => {
+      peak = Math.max(peak, ++active);
+      await new Promise((r) => setTimeout(r, 1));
+      active--;
+    });
+    await actions.buildRoutes(D, [ANA]);
+    expect(geocode.geocodeLead).toHaveBeenCalledTimes(12);
+    expect(peak).toBe(5);
+  });
+
+  it("rejects malformed or too many installer ids", async () => {
+    const tooMany = Array.from({ length: 51 }, () => ANA);
+    for (const ids of [["not-a-uuid"], tooMany, "nope" as never]) {
+      expect(await actions.buildRoutes(D, ids)).toEqual({ ok: false, error: "Pick at least one installer." });
+      expect(await actions.recheckRoutes(D, PLAN, ids)).toEqual(UNREADABLE);
+    }
+    expect(optimize.optimizeTours).not.toHaveBeenCalled();
   });
 
   it("does not geocode when nothing errored", async () => {
@@ -139,17 +174,39 @@ describe("recheckRoutes", () => {
   });
 
   it("keeps the plan's skipped list", async () => {
-    const result = await actions.recheckRoutes(D, { ...PLAN, skipped: [{ appointmentId: "x", reason: "r" }] }, [ANA]);
-    expect(result.ok && result.plan.skipped).toEqual([{ appointmentId: "x", reason: "r" }]);
+    const result = await actions.recheckRoutes(D, { ...PLAN, skipped: [{ appointmentId: X, reason: "r" }] }, [ANA]);
+    expect(result.ok && result.plan.skipped).toEqual([{ appointmentId: X, reason: "r" }]);
   });
 
   it("adds what Google skipped on the re-check, listed once each", async () => {
     optimize.optimizeTours.mockResolvedValue({ routes: [], skippedShipments: [{ index: 0 }] });
-    const result = await actions.recheckRoutes(D, { ...PLAN, skipped: [{ appointmentId: "x", reason: "r" }] }, [ANA]);
-    expect(result.ok && result.plan.skipped.map((s) => s.appointmentId)).toEqual(["x", S1]);
+    const result = await actions.recheckRoutes(D, { ...PLAN, skipped: [{ appointmentId: X, reason: "r" }] }, [ANA]);
+    expect(result.ok && result.plan.skipped.map((s) => s.appointmentId)).toEqual([X, S1]);
     optimize.optimizeTours.mockResolvedValue({ routes: [], skippedShipments: [{ index: 0 }, { index: 0 }] });
     const again = await actions.recheckRoutes(D, PLAN, [ANA]);
     expect(again.ok && again.plan.skipped.map((s) => s.appointmentId)).toEqual([S1]);
+  });
+
+  it("moves a dropped non-installer's stops to skipped", async () => {
+    const ghost = "cccccccc-0000-4000-8000-000000000003";
+    const plan = { ...PLAN, routes: [PLAN.routes[0], { teamMemberId: ghost, polyline: null, driveMinutes: 0, stops: [{ ...PLAN_STOP, appointmentId: S2 }] }] };
+    const result = await actions.recheckRoutes(D, plan, [ANA]);
+    expect(result.ok && result.plan.skipped).toEqual([{ appointmentId: S2, reason: "Installer no longer on the team" }]);
+    expect(result.ok && result.plan.routes.map((r) => r.teamMemberId)).toEqual([ANA]);
+  });
+
+  it("rejects a plan for another day", async () => {
+    expect(await actions.recheckRoutes("2026-09-25", PLAN, [ANA])).toEqual(UNREADABLE);
+    expect(optimize.optimizeTours).not.toHaveBeenCalled();
+  });
+
+  it("reports Google failures and missing config as unavailable", async () => {
+    optimize.optimizeTours.mockRejectedValueOnce(new RoutePlanningUnavailable("boom"));
+    expect(await actions.recheckRoutes(D, PLAN, [ANA])).toEqual(UNAVAILABLE);
+    optimize.optimizeTours.mockRejectedValueOnce(new Error("secret detail"));
+    expect(await actions.recheckRoutes(D, PLAN, [ANA])).toEqual(UNAVAILABLE);
+    optimize.routePlanningConfigured.mockReturnValueOnce(false);
+    expect(await actions.recheckRoutes(D, PLAN, [ANA])).toEqual(UNAVAILABLE);
   });
 
   it("rejects a malformed plan", async () => {
@@ -158,7 +215,6 @@ describe("recheckRoutes", () => {
 });
 
 describe("routePlanSchema", () => {
-  const UNREADABLE = { ok: false, error: "That route could not be read. Build again." };
 
   it("rejects two routes for the same installer", async () => {
     const plan = { ...PLAN, routes: [PLAN.routes[0], { ...PLAN.routes[0], stops: [] }] };
@@ -166,6 +222,24 @@ describe("routePlanSchema", () => {
     expect(await actions.recheckRoutes(D, plan, [ANA])).toEqual(UNREADABLE);
     expect(day.saveRoutePlan).not.toHaveBeenCalled();
     expect(optimize.optimizeTours).not.toHaveBeenCalled();
+  });
+
+  it("rejects a skipped id that is not a uuid", async () => {
+    expect(await actions.saveRoutes(D, { ...PLAN, skipped: [{ appointmentId: "x", reason: "r" }] })).toEqual(UNREADABLE);
+    expect(day.saveRoutePlan).not.toHaveBeenCalled();
+  });
+
+  it("caps sizes", async () => {
+    const big = "p".repeat(10_001);
+    const cases = [
+      { ...PLAN, routes: [{ ...PLAN.routes[0], polyline: big }] },
+      { ...PLAN, skipped: [{ appointmentId: X, reason: big }] },
+      { ...PLAN, routes: Array.from({ length: 51 }, (_, i) => ({ ...PLAN.routes[0], stops: [], teamMemberId: `aaaaaaaa-0000-4000-8000-${String(i).padStart(12, "0")}` })) },
+      { ...PLAN, routes: [{ ...PLAN.routes[0], stops: Array.from({ length: 201 }, (_, i) => ({ ...PLAN_STOP, appointmentId: `11111111-0000-4000-8000-${String(i).padStart(12, "0")}` })) }] },
+      { ...PLAN, routes: [], skipped: Array.from({ length: 201 }, (_, i) => ({ appointmentId: `11111111-0000-4000-8000-${String(i).padStart(12, "0")}`, reason: "r" })) },
+    ];
+    for (const plan of cases) expect(await actions.saveRoutes(D, plan)).toEqual(UNREADABLE);
+    expect(day.saveRoutePlan).not.toHaveBeenCalled();
   });
 
   it("rejects an appointment listed twice", async () => {
@@ -187,7 +261,7 @@ describe("saveRoutes", () => {
   });
 
   it("passes the full skipped list to the save", async () => {
-    const plan = { ...PLAN, skipped: [{ appointmentId: S2, reason: "r" }, { appointmentId: "x", reason: "q" }] };
+    const plan = { ...PLAN, skipped: [{ appointmentId: S2, reason: "r" }, { appointmentId: X, reason: "q" }] };
     await actions.saveRoutes(D, plan);
     expect(day.saveRoutePlan).toHaveBeenCalledWith(plan, "owner@example.com");
   });
@@ -201,6 +275,7 @@ describe("saveRoutes", () => {
   it("refuses an unknown installer, or a plan for another day", async () => {
     day.saveRoutePlan.mockResolvedValueOnce("unknown-installer");
     expect(await actions.saveRoutes(D, PLAN)).toEqual({ ok: false, error: "An installer on this route no longer exists. Build again." });
+    expect(revalidatePath).not.toHaveBeenCalled();
     expect(await actions.saveRoutes("2026-09-25", PLAN)).toEqual({ ok: false, error: "That route could not be read. Build again." });
   });
 });
