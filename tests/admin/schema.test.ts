@@ -145,7 +145,7 @@ describe("teamMemberSchema", () => {
 });
 
 describe("installation rate money fields", () => {
-  const settings = { minimumCents: "150", hardSurfaceCents: "0", highLadderCents: "50", motorizedCents: "15.50" };
+  const settings = { minimumCents: "150", hardSurfaceCents: "0", highLadderCents: "50", motorizedCents: "15.50", measureCents: "$75" };
 
   it("accepts money the way people type it", () => {
     const parsed = installSettingsSchema.safeParse({ ...settings, minimumCents: "$1,500" });
@@ -155,6 +155,14 @@ describe("installation rate money fields", () => {
 
   it("keeps 0 as a real amount", () => {
     expect(installSettingsSchema.safeParse(settings).data?.hardSurfaceCents).toBe(0);
+  });
+
+  it("parses the measurement fee as cents, and rejects it blank rather than saving zero", () => {
+    expect(installSettingsSchema.safeParse(settings).data?.measureCents).toBe(7500);
+    expect(installSettingsSchema.safeParse({ ...settings, measureCents: "0" }).data?.measureCents).toBe(0);
+    const blank = installSettingsSchema.safeParse({ ...settings, measureCents: "" });
+    expect(blank.success).toBe(false);
+    expect(blank.error?.issues[0].message).toBe("Enter an amount, or 0");
   });
 
   it("rejects a blank minimum instead of saving it as zero", () => {

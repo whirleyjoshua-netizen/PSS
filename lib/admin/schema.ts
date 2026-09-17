@@ -260,6 +260,7 @@ export const installSettingsSchema = z.object({
   hardSurfaceCents: rateAmount,
   highLadderCents: rateAmount,
   motorizedCents: rateAmount,
+  measureCents: rateAmount,
 });
 
 /** Whole eighths, as the Install tab sends them. The messages are shown to the owner as written. */

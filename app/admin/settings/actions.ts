@@ -44,6 +44,7 @@ const SETTING_LABEL: Record<string, string> = {
   hardSurfaceCents: "Hard surface",
   highLadderCents: "High ladder",
   motorizedCents: "Motorized",
+  measureCents: "Measurement fee",
 };
 
 export async function saveInstallRatesAction(
@@ -58,6 +59,7 @@ export async function saveInstallRatesAction(
     hardSurfaceCents: formData.get("hardSurfaceCents") ?? "",
     highLadderCents: formData.get("highLadderCents") ?? "",
     motorizedCents: formData.get("motorizedCents") ?? "",
+    measureCents: formData.get("measureCents") ?? "",
   });
   if (!settings.success) {
     const issue = settings.error.issues[0];

@@ -60,14 +60,14 @@ const RATES_CHANGED = "Rates changed since this page loaded.";
  * would refuse (a width under 1/8 inch, say) get the server's own message and no
  * price. The server prices again and saves only if it reaches this same price.
  */
-function preview(lines: LineInput[], rates: InstallRate[], settings: InstallSettings):
+function preview(lines: LineInput[], rates: InstallRate[], settings: InstallSettings, chargeMeasure: boolean):
   { priced: PricedQuote; error: null } | { priced: null; error: string } {
   if (lines.length > 0) {
     const checked = installLinesSchema.safeParse(lines);
     if (!checked.success) return { priced: null, error: checked.error.issues[0].message };
   }
   try {
-    return { priced: priceQuote(lines, rates, settings), error: null };
+    return { priced: priceQuote(lines, rates, settings, chargeMeasure), error: null };
   } catch (error) {
     return { priced: null, error: error instanceof Error ? error.message : "Could not price this job." };
   }
@@ -86,6 +86,8 @@ export function InstallCalculator({ jobId, rates, settings, saved, measurements 
   const nextKey = useRef(0);
   const [fillTreatment, setFillTreatment] = useState<TreatmentType>(INSTALLABLE_TREATMENTS[0]);
   const [message, setMessage] = useState<string | null>(null);
+  // Unticked until the owner chooses: a forgotten box must not bill a measure nobody meant to charge.
+  const [chargeMeasure, setChargeMeasure] = useState(false);
   const [pending, startTransition] = useTransition();
   const router = useRouter();
 
@@ -99,7 +101,7 @@ export function InstallCalculator({ jobId, rates, settings, saved, measurements 
 
   const basisOf = new Map(rates.map((rate) => [rate.treatment, rate.basis]));
   const unkeyed = lines.map(({ key: _key, ...line }) => line);
-  const { priced, error } = preview(unkeyed, rates, settings);
+  const { priced, error } = preview(unkeyed, rates, settings, chargeMeasure);
 
   const update = (key: number, patch: Partial<LineInput>) =>
     setLines((current) => current.map((line) => (line.key === key ? { ...line, ...patch } : line)));
@@ -136,7 +138,7 @@ export function InstallCalculator({ jobId, rates, settings, saved, measurements 
     // only if its own pricing produces the same fingerprint.
     const shown = priceFingerprint(priced, settings.minimumCents);
     startTransition(async () => {
-      const result = await saveInstallQuoteAction(jobId, kind, unkeyed, shown);
+      const result = await saveInstallQuoteAction(jobId, kind, unkeyed, chargeMeasure, shown);
       if (result.error) {
         setMessage(result.error);
         // Load the current rates so the preview shows the total a second save would store.
@@ -224,10 +226,19 @@ export function InstallCalculator({ jobId, rates, settings, saved, measurements 
       </button>
 
       <div className="flex flex-col gap-1">
+        <label className="flex min-h-11 items-center gap-2 text-sm">
+          <input type="checkbox" checked={chargeMeasure} onChange={(e) => setChargeMeasure(e.target.checked)} />
+          Charge for measuring
+        </label>
         {error ? <p role="alert" className="text-sm text-overdue">{error}</p> : null}
         {priced && priced.minimumApplied ? (
           <p className="text-sm text-ink-soft">
             Lines come to {formatCents(priced.subtotalCents)}. Minimum job cost applied.
+          </p>
+        ) : null}
+        {priced && priced.measureCents > 0 ? (
+          <p className="text-sm text-ink-soft">
+            Measurement <span data-testid="install-measure">{formatCents(priced.measureCents)}</span>
           </p>
         ) : null}
         <p className="text-lg font-semibold">
@@ -256,10 +267,14 @@ export function InstallCalculator({ jobId, rates, settings, saved, measurements 
                 <span className="font-semibold">{quote.kind === "estimate" ? "Estimate" : "Final"}</span>
                 <span>{formatCents(quote.totalCents)}</span>
                 <span className="text-ink-soft">{quote.createdBy} · {formatWhen(quote.createdAt)}</span>
-                {quote.subtotalCents < quote.totalCents ? (
+                {/* The measuring fee also lifts the total above the lines, so compare without it. */}
+                {quote.subtotalCents < quote.totalCents - quote.measureCents ? (
                   <span className="w-full text-ink-soft">
                     Minimum applied (lines came to {formatCents(quote.subtotalCents)})
                   </span>
+                ) : null}
+                {quote.measureCents > 0 ? (
+                  <span className="w-full text-ink-soft">Includes {formatCents(quote.measureCents)} measurement</span>
                 ) : null}
               </li>
             ))}

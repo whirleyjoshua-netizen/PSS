@@ -15,7 +15,8 @@ const priced = {
     hardSurface: false, highLadder: true, motorized: false,
     basis: "window" as const, rateCents: 2500, quantity: 4, amountCents: 30_000,
   }],
-  subtotalCents: 30_000, totalCents: 30_000, minimumApplied: false,
+  // A distinct $75 measuring fee, so a column swap between subtotal, fee and total cannot pass.
+  subtotalCents: 30_000, measureCents: 7500, totalCents: 37_500, minimumApplied: false,
 };
 
 beforeEach(() => {
@@ -38,9 +39,9 @@ describe("saveInstallQuote", () => {
   it("binds the quote and each line column in exact order", async () => {
     await quotes.saveInstallQuote(JOB, "estimate", priced, 15_000, "owner@example.com");
     expect(sql.mock.calls[0].slice(1)).toEqual([
-      JOB, "estimate", 15_000, 30_000, 30_000, "owner@example.com",
+      JOB, "estimate", 15_000, 30_000, 7500, 37_500, "owner@example.com",
       [0], ["roller_shades"], ["window"], [4], [2500], [false], [true], [false], [30_000],
-      "owner@example.com", "Estimate installation price: $300",
+      "owner@example.com", "Estimate installation price: $375",
     ]);
   });
 
@@ -56,7 +57,7 @@ describe("saveInstallQuote", () => {
     const id = await quotes.saveInstallQuote(JOB, "estimate", { ...priced, lines: [] }, 0, "owner@example.com");
     expect(id).toBe(QUOTE);
     expect(sql).toHaveBeenCalledTimes(1);
-    expect(sql.mock.calls[0].slice(7, 16)).toEqual([[], [], [], [], [], [], [], [], []]);
+    expect(sql.mock.calls[0].slice(8, 17)).toEqual([[], [], [], [], [], [], [], [], []]);
   });
   it("refuses an id that is not a uuid rather than querying with it", async () => {
     await expect(quotes.saveInstallQuote("nope", "estimate", priced, 0, "owner@example.com"))
@@ -74,15 +75,16 @@ describe("listInstallQuotes", () => {
   it("groups line rows under their snapshot, newest first", async () => {
     sql
       .mockResolvedValueOnce([
-        { id: QUOTE, kind: "estimate", minimum_cents: 15_000, subtotal_cents: 30_000,
-          total_cents: 30_000, created_by: "owner@example.com", created_at: "2026-09-16T10:00:00Z" },
+        { id: QUOTE, kind: "estimate", minimum_cents: 15_000, subtotal_cents: 30_000, measure_cents: 7500,
+          total_cents: 37_500, created_by: "owner@example.com", created_at: "2026-09-16T10:00:00Z" },
       ])
       .mockResolvedValueOnce([
         { install_quote_id: QUOTE, treatment: "roller_shades", basis: "window", quantity: 4,
           rate_cents: 2500, hard_surface: false, high_ladder: true, motorized: false, amount_cents: 30_000 },
       ]);
     const [saved] = await quotes.listInstallQuotes(JOB);
-    expect(saved.totalCents).toBe(30_000);
+    expect(saved.totalCents).toBe(37_500);
+    expect(saved.measureCents).toBe(7500);
     expect(saved.lines).toHaveLength(1);
     expect(saved.lines[0]).toMatchObject({ treatment: "roller_shades", rateCents: 2500, highLadder: true });
   });
@@ -95,9 +97,9 @@ describe("listInstallQuotes", () => {
     });
     sql
       .mockResolvedValueOnce([
-        { id: QUOTE, kind: "final", minimum_cents: 0, subtotal_cents: 300, total_cents: 300,
+        { id: QUOTE, kind: "final", minimum_cents: 0, subtotal_cents: 300, measure_cents: 0, total_cents: 300,
           created_by: "owner@example.com", created_at: "2026-09-16T10:00:00Z" },
-        { id: OTHER, kind: "estimate", minimum_cents: 0, subtotal_cents: 700, total_cents: 700,
+        { id: OTHER, kind: "estimate", minimum_cents: 0, subtotal_cents: 700, measure_cents: 0, total_cents: 700,
           created_by: "owner@example.com", created_at: "2026-09-10T10:00:00Z" },
       ])
       .mockResolvedValueOnce([
@@ -115,7 +117,7 @@ describe("listInstallQuotes", () => {
   it("reads snapshots from their own stored figures, never from the current rates", async () => {
     sql
       .mockResolvedValueOnce([
-        { id: QUOTE, kind: "estimate", minimum_cents: 0, subtotal_cents: 100, total_cents: 100,
+        { id: QUOTE, kind: "estimate", minimum_cents: 0, subtotal_cents: 100, measure_cents: 0, total_cents: 100,
           created_by: "owner@example.com", created_at: "2026-09-16T10:00:00Z" },
       ])
       .mockResolvedValueOnce([]);
