@@ -9,14 +9,13 @@ import { signOut } from "./actions";
 const LINKS: readonly { href: string; label: string; icon: IconName }[] = [
   { href: "/admin", label: "Jobs", icon: "jobs" },
   { href: "/admin/schedule", label: "Schedule", icon: "calendar" },
-  { href: "/admin/jobs/new", label: "New job", icon: "plus" },
   { href: "/admin/settings", label: "Settings", icon: "settings" },
 ];
 
-/** A job page belongs under Jobs; the new-job form has its own entry. */
+/** A job page, including the new-job form, belongs under Jobs. */
 function isActive(href: string, pathname: string): boolean {
   if (href === "/admin") {
-    return pathname === "/admin" || (pathname.startsWith("/admin/jobs/") && pathname !== "/admin/jobs/new");
+    return pathname === "/admin" || pathname.startsWith("/admin/jobs/");
   }
   return pathname === href;
 }
