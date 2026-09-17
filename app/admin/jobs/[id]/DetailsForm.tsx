@@ -36,7 +36,7 @@ export function DetailsForm({ job }: { job: Job }) {
   const cityOptions: readonly string[] = (business.serviceArea as readonly string[]).includes(job.city)
     ? business.serviceArea
     : [job.city, ...business.serviceArea];
-  const motorized =values ? values.motorized === "on" : Boolean(job.motorized);
+  const motorized = values ? values.motorized === "on" : Boolean(job.motorized);
 
   return (
     <form

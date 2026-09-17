@@ -8,6 +8,9 @@ import { isInstalled, isStage, type Stage } from "./stages";
 import { isFinish, type Finish } from "@/lib/leads/finish";
 import { isTreatmentType, type TreatmentType } from "@/lib/leads/treatment-types";
 import { isTeamRole, type TeamRole } from "./team-roles";
+import { isUuid } from "./ids";
+
+export { isUuid };
 
 export type Job = {
   id: string;
@@ -69,10 +72,6 @@ export type JobEvent = {
   toStatus: string | null;
   body: string | null;
 };
-
-import { isUuid } from "./ids";
-
-export { isUuid };
 
 // Date columns come back as strings so an install date never shifts across time zones.
 export const JOB_COLUMNS = `id, created_at, name, phone, email, address, city, treatments, window_count,
