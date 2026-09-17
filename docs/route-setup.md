@@ -18,13 +18,17 @@ Follow the steps in order. Each value you need to copy is marked **Copy this**.
 1. Go to [console.cloud.google.com](https://console.cloud.google.com) and create a
    project (for example **PSS Routes**), or choose one you already have.
 2. Turn on **billing** for the project. Google needs a card on file, but normal use
-   should stay inside Google's free monthly credit.
+   should stay within Google's free monthly usage for each product.
 3. In **Billing → Budgets & alerts**, set a budget alert at **$10**, so you get an email
    if the cost ever climbs.
 4. In **APIs & Services → Library**, search for and **Enable** each of these:
    - **Maps JavaScript API** (draws the map)
    - **Geocoding API** (address lookup)
    - **Route Optimization API** (plans the routes)
+
+   Optional: to put a hard cap on route planning, open **APIs & Services → Route
+   Optimization API → Quotas** and lower the requests-per-day limit (for example to
+   **200**). Once the cap is reached, Build routes shows an error until the next day.
 5. **Copy this:** the **Project ID** from the project dashboard (it looks like
    `pss-routes-123456`). This is `GOOGLE_CLOUD_PROJECT_ID`.
 
@@ -34,12 +38,13 @@ This key is visible to web browsers, so it's locked to your website.
 
 1. **APIs & Services → Credentials → Create credentials → API key.**
 2. Click the new key to edit it. Name it **PSS map (browser)**.
-3. Under **Application restrictions**, pick **Websites** and add the site's address with
-   `/*` on the end:
+3. Under **Application restrictions**, pick **Websites** and add both of these:
+   - `https://premiershadesolutions.com`
    - `https://premiershadesolutions.com/*`
 
    Use the same address as the site's `ADMIN_BASE_URL` setting in Vercel (the address
-   the sign-in links use). The site has no `www.` address, so you don't need to add one.
+   the sign-in links use). The `www.` address just redirects to this one, so you don't
+   need to add it.
    If the site ever moves to another address, add that one here too.
 4. Under **API restrictions**, pick **Restrict key** and tick only **Maps JavaScript API**.
 5. Save. **Copy this:** the key. This is `NEXT_PUBLIC_GOOGLE_MAPS_KEY`.
@@ -48,7 +53,9 @@ This key is visible to web browsers, so it's locked to your website.
 
 The numbered, coloured pins need a Map ID.
 
-1. Go to **Google Maps Platform → Map management → Create Map ID.**
+1. Go to **Google Maps Platform → Map management**
+   ([direct link](https://console.cloud.google.com/google/maps-apis/studio/maps)) and
+   click **Create Map ID**.
 2. Name: **PSS Routes**. Map type: **JavaScript**. Choose **Vector**.
 3. Save. **Copy this:** the **Map ID**. This is `NEXT_PUBLIC_GOOGLE_MAP_ID`.
 
@@ -111,6 +118,8 @@ Do these in this order, after Step 6:
    ```
    Or, from a copy of the code whose `.env.local` already points at production, just
    `node scripts/migrate.mjs`.
+   The first line shows which database it used. Check it is the production host before
+   going on; if not, press Ctrl+C.
 2. Deploy. Pushing to GitHub does **not** deploy this site. Run:
    ```
    npx vercel --prod
@@ -118,9 +127,11 @@ Do these in this order, after Step 6:
    Then open the live site and check it loads.
 3. Place every existing job on the map, once:
    ```
-   node scripts/geocode-backfill.mjs
+   MIGRATE_DATABASE_URL=<production database URL> node scripts/geocode-backfill.mjs
    ```
-   It reads the database address the same way `migrate.mjs` does, and needs
+   The first line shows which database it used. Check it is the production host before
+   going on; if not, press Ctrl+C.
+   Use the same production database URL as in item 1. The script needs
    `GOOGLE_GEOCODING_KEY` in `.env.local` or the environment. Note the ok / not found /
    error counts it prints. Running it again only touches jobs it hasn't done yet.
 4. Open **Settings → Routes**. All three lines should say "is connected." Check the
