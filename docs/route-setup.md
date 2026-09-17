@@ -114,14 +114,27 @@ Do these in this order, after Step 6:
 
 1. Before running anything, check the database address. This prints only its host and
    changes nothing:
+   In PowerShell:
+   ```powershell
+   node -e "console.log(new URL(process.argv[1]).host)" '<production database URL>'
    ```
+   In bash (Git Bash, Mac, Linux):
+   ```bash
    node -e "console.log(new URL(process.argv[1]).host)" "<production database URL>"
    ```
+   Keep the quotes. The URL contains `&`, which the shell would otherwise treat as a
+   command break. The same goes for items 2 and 4.
    Confirm it prints the production host. If it doesn't, stop and find the right URL.
    Use this same URL in items 2 and 4.
 2. Update the production database (adds the map and route columns, migration 017):
+   In PowerShell:
+   ```powershell
+   $env:MIGRATE_DATABASE_URL = '<production database URL>'; node scripts/migrate.mjs
+   Remove-Item Env:MIGRATE_DATABASE_URL
    ```
-   MIGRATE_DATABASE_URL=<production database URL> node scripts/migrate.mjs
+   In bash:
+   ```bash
+   MIGRATE_DATABASE_URL="<production database URL>" node scripts/migrate.mjs
    ```
    Or, from a copy of the code whose `.env.local` already points at production, just
    `node scripts/migrate.mjs`. In that case, check the `DATABASE_URL` from `.env.local` in item 1.
@@ -133,8 +146,14 @@ Do these in this order, after Step 6:
    ```
    Then open the live site and check it loads.
 4. Place every existing job on the map, once:
+   In PowerShell:
+   ```powershell
+   $env:MIGRATE_DATABASE_URL = '<production database URL>'; node scripts/geocode-backfill.mjs
+   Remove-Item Env:MIGRATE_DATABASE_URL
    ```
-   MIGRATE_DATABASE_URL=<production database URL> node scripts/geocode-backfill.mjs
+   In bash:
+   ```bash
+   MIGRATE_DATABASE_URL="<production database URL>" node scripts/geocode-backfill.mjs
    ```
    Its first line shows which database it used. That line appears after the script has
    started, so it can't stop the writes. It's a second check that the right database was used.
@@ -203,12 +222,12 @@ computer, so it never calls Google.
 
 1. Create a branch of the database in Neon and copy its connection string.
 2. Apply migrations to that branch:
-   `MIGRATE_DATABASE_URL=<branch URL> node scripts/migrate.mjs`.
+   `MIGRATE_DATABASE_URL="<branch URL>" node scripts/migrate.mjs` (bash; quote the URL as in Step 7).
 3. Run the test, setting `E2E_DB_HOST_ALLOW` to part of the branch's host (for example
    its endpoint id, `ep-...`). The test refuses to run if the database address doesn't
    contain it, as a guard against pointing it at production:
    ```
-   E2E_POSTGRES_URL=<branch URL> E2E_DB_HOST_ALLOW=<endpoint id> npx playwright test e2e/routes.spec.ts
+   E2E_POSTGRES_URL="<branch URL>" E2E_DB_HOST_ALLOW=<endpoint id> npx playwright test e2e/routes.spec.ts
    ```
    It builds the site and runs it with `next start` on 127.0.0.1.
 4. Delete the branch when you're done.
