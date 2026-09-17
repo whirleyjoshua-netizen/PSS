@@ -16,6 +16,7 @@ export function WeekView({
   days: string[]; items: ScheduleItem[]; notice: string | null; now: Date;
 }) {
   const today = lasVegasDate(now);
+  const routeDay = days.includes(today) ? today : days[0];
   const monthOfWednesday = days[3].slice(0, 7);
 
   return (
@@ -23,7 +24,9 @@ export function WeekView({
       <ScheduleHeader
         label={rangeLabel(days)}
         view="week"
-        switchHrefs={{ week: "/admin/schedule", month: `/admin/schedule?view=month&month=${monthOfWednesday}` }}
+        switchHrefs={{ week: "/admin/schedule", month: `/admin/schedule?view=month&month=${monthOfWednesday}`,
+          route: `/admin/schedule?view=route&day=${routeDay}`,
+        }}
         nav={{
           label: "Weeks",
           previous: { href: `/admin/schedule?week=${addDays(days[0], -7)}`, text: "← Previous week" },

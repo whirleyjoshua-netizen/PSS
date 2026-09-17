@@ -4,13 +4,13 @@ import { ViewSwitch } from "./ViewSwitch";
 
 type NavLink = { href: string; text: string };
 
-/** The Schedule page header shared by the week and month views: title, range label, view switch and paging. */
+/** The Schedule page header shared by the week, month and route views: title, range label, view switch and paging. */
 export function ScheduleHeader({
   label, view, switchHrefs, nav,
 }: {
   label: string;
-  view: "week" | "month";
-  switchHrefs: { week: string; month: string };
+  view: "week" | "month" | "route";
+  switchHrefs: { week: string; month: string; route: string };
   nav: { label: string; previous: NavLink; current: NavLink & { icon?: boolean }; next: NavLink };
 }) {
   return (
@@ -21,7 +21,7 @@ export function ScheduleHeader({
         <p className="text-sm text-ink-soft">{label}</p>
       </div>
       <div className="flex flex-wrap items-center gap-3">
-        <ViewSwitch active={view} weekHref={switchHrefs.week} monthHref={switchHrefs.month} />
+        <ViewSwitch active={view} weekHref={switchHrefs.week} monthHref={switchHrefs.month} routeHref={switchHrefs.route} />
         <nav aria-label={nav.label} className="flex flex-wrap items-center gap-3 text-sm">
           <Link href={nav.previous.href} className="underline underline-offset-4">{nav.previous.text}</Link>
           <Link href={nav.current.href} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-charcoal px-4 font-medium text-ivory">

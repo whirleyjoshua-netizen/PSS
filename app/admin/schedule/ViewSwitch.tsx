@@ -13,14 +13,15 @@ function SwitchLink({ href, current, children }: { href: string; current: boolea
 }
 
 export function ViewSwitch({
-  weekHref, monthHref, active,
+  weekHref, monthHref, routeHref, active,
 }: {
-  weekHref: string; monthHref: string; active: "week" | "month";
+  weekHref: string; monthHref: string; routeHref: string; active: "week" | "month" | "route";
 }) {
   return (
     <nav aria-label="View" className="flex items-center gap-1 rounded-lg border border-rule bg-sand/40 p-1">
       <SwitchLink href={weekHref} current={active === "week"}>Week</SwitchLink>
       <SwitchLink href={monthHref} current={active === "month"}>Month</SwitchLink>
+      <SwitchLink href={routeHref} current={active === "route"}>Route</SwitchLink>
     </nav>
   );
 }

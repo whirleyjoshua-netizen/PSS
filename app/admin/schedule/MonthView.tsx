@@ -46,7 +46,9 @@ export function MonthView({
       <ScheduleHeader
         label={monthLabel(displayedMonth)}
         view="month"
-        switchHrefs={{ week: weekHref, month: `/admin/schedule?view=month&month=${displayedMonth}` }}
+        switchHrefs={{ week: weekHref, month: `/admin/schedule?view=month&month=${displayedMonth}`,
+          route: `/admin/schedule?view=route&day=${selectedDay ?? `${displayedMonth}-01`}`,
+        }}
         nav={{
           label: "Months",
           previous: { href: `/admin/schedule?view=month&month=${shiftMonth(displayedMonth, -1)}`, text: "← Previous month" },

@@ -11,6 +11,15 @@ vi.mock("@/lib/calendar/week", async () => ({
 }));
 const requireAdmin = vi.fn(async () => ({ email: "owner@example.com" }));
 vi.mock("@/lib/admin/session", () => ({ requireAdmin }));
+const day = {
+  loadDay: vi.fn(), listInstallers: vi.fn(), loadSavedPlan: vi.fn(),
+  isRouteDay: (v: string | undefined) => Boolean(v && /^\d{4}-\d{2}-\d{2}$/.test(v)),
+};
+vi.mock("@/lib/routes/day", () => day);
+const optimize = { routePlanningConfigured: vi.fn(() => true) };
+vi.mock("@/lib/routes/optimize", () => optimize);
+const RouteView = vi.fn((_props: Record<string, unknown>) => <p>route view</p>);
+vi.mock("@/app/admin/schedule/RouteView", () => ({ RouteView }));
 const { default: SchedulePage } = await import("@/app/admin/schedule/page");
 const { MonthView } = await import("@/app/admin/schedule/MonthView");
 const days = ["2026-09-13", "2026-09-14", "2026-09-15", "2026-09-16", "2026-09-17", "2026-09-18", "2026-09-19"];
@@ -67,6 +76,13 @@ describe("schedule page - week view", () => {
     expect(nav.getByRole("link", { name: "Month" })).not.toHaveAttribute("aria-current");
   });
 
+  it("links the route view for today when this week is shown", async () => {
+    await open();
+    const nav = within(screen.getByRole("navigation", { name: "View" }));
+    expect(nav.getByRole("link", { name: "Route" })).toHaveAttribute("href", "/admin/schedule?view=route&day=2026-09-16");
+    expect(nav.getByRole("link", { name: "Route" })).not.toHaveAttribute("aria-current");
+  });
+
   it("links job appointments to the job and leaves other appointments as plain text", async () => {
     await open();
     const thursday = within(screen.getByRole("listitem", { name: /thu 17/i }));
@@ -95,6 +111,38 @@ describe("schedule page - week view", () => {
   });
 });
 
+describe("schedule page - route view", () => {
+  const STOPS = [{ appointmentId: "s1" }];
+  const INSTALLERS = [{ id: "i1", name: "Ana" }];
+  const SAVED = { plan: { day: "2026-09-24" }, savedAt: "2026-09-23T10:00:00.000Z", stale: false };
+  beforeEach(() => {
+    RouteView.mockClear();
+    day.loadDay.mockReset().mockResolvedValue({ stops: STOPS, loadedAt: "2026-09-16T19:00:00.000Z" });
+    day.listInstallers.mockReset().mockResolvedValue(INSTALLERS);
+    day.loadSavedPlan.mockReset().mockResolvedValue(SAVED);
+    optimize.routePlanningConfigured.mockReset().mockReturnValue(true);
+  });
+
+  it("loads the requested day and hands it to the route view", async () => {
+    await open({ view: "route", day: "2026-09-24" });
+    expect(requireAdmin).toHaveBeenCalled();
+    expect(day.loadDay).toHaveBeenCalledWith("2026-09-24");
+    expect(day.loadSavedPlan).toHaveBeenCalledWith("2026-09-24", STOPS);
+    expect(RouteView.mock.calls[0][0]).toMatchObject({
+      day: "2026-09-24", today: "2026-09-16", stops: STOPS, installers: INSTALLERS, saved: SAVED, configured: true,
+    });
+    expect(screen.getByText("route view")).toBeInTheDocument();
+    expect(getWeek).not.toHaveBeenCalled();
+  });
+
+  it("falls back to today in Las Vegas for an invalid day and passes whether planning is configured", async () => {
+    optimize.routePlanningConfigured.mockReturnValue(false);
+    await open({ view: "route", day: "tomorrow" });
+    expect(day.loadDay).toHaveBeenCalledWith("2026-09-16");
+    expect(RouteView.mock.calls[0][0]).toMatchObject({ day: "2026-09-16", configured: false });
+  });
+});
+
 describe("schedule page - month view", () => {
   it("renders the month label and the 7 day headers, with the switch pointing back to the week", async () => {
     await open({ view: "month" });
@@ -106,6 +154,7 @@ describe("schedule page - month view", () => {
     const nav = within(screen.getByRole("navigation", { name: "View" }));
     expect(nav.getByRole("link", { name: "Month" })).toHaveAttribute("aria-current", "page");
     expect(nav.getByRole("link", { name: "Week" })).toHaveAttribute("href", "/admin/schedule?week=2026-09-16");
+    expect(nav.getByRole("link", { name: "Route" })).toHaveAttribute("href", "/admin/schedule?view=route&day=2026-09-16");
   });
 
   it("has months navigation that drops the day", async () => {
