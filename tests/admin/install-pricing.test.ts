@@ -1,11 +1,11 @@
 import { describe, it, expect } from "vitest";
 import {
-  INSTALLABLE_TREATMENTS, quantityFor, priceQuote,
+  INSTALLABLE_TREATMENTS, quantityFor, priceQuote, priceFingerprint,
   type InstallRate, type InstallSettings, type LineInput,
 } from "@/lib/admin/install-pricing";
 
 const settings: InstallSettings = {
-  minimumCents: 0, hardSurfaceCents: 0, highLadderCents: 0, motorizedCents: 0,
+  minimumCents: 0, hardSurfaceCents: 0, highLadderCents: 0, motorizedCents: 0, measureCents: 0,
 };
 const rate = (over: Partial<InstallRate> = {}): InstallRate =>
   ({ treatment: "roller_shades", basis: "window", rateCents: 2500, ...over });
@@ -62,7 +62,7 @@ describe("quantityFor", () => {
 
 describe("priceQuote", () => {
   it("prices a simple per-window line", () => {
-    const priced = priceQuote([line({ count: 4 })], [rate()], settings);
+    const priced = priceQuote([line({ count: 4 })], [rate()], settings, false);
     expect(priced.lines[0].amountCents).toBe(10_000);
     expect(priced.subtotalCents).toBe(10_000);
     expect(priced.totalCents).toBe(10_000);
@@ -70,7 +70,7 @@ describe("priceQuote", () => {
   });
 
   it("copies the basis and rate onto the priced line", () => {
-    const priced = priceQuote([line()], [rate({ rateCents: 3300 })], settings);
+    const priced = priceQuote([line()], [rate({ rateCents: 3300 })], settings, false);
     expect(priced.lines[0]).toMatchObject({ basis: "window", rateCents: 3300, quantity: 1 });
   });
 
@@ -79,6 +79,7 @@ describe("priceQuote", () => {
       [line({ count: 2, hardSurface: true, motorized: true })],
       [rate()],
       { ...settings, hardSurfaceCents: 1000, highLadderCents: 5000, motorizedCents: 1500 },
+      false,
     );
     // 2 x 2500 labour, plus 2 x (1000 + 1500) surcharges. High ladder is not flagged.
     expect(priced.lines[0].amountCents).toBe(10_000);
@@ -89,60 +90,61 @@ describe("priceQuote", () => {
       [line({ count: 2 }), line({ treatment: "shutters", count: 1, widthEighths: 240, heightEighths: 320 })],
       [rate(), rate({ treatment: "shutters", basis: "sq_ft", rateCents: 100 })],
       settings,
+      false,
     );
     expect(priced.subtotalCents).toBe(5000 + 900);
   });
 
   it("raises a job under the minimum, and says the minimum applied", () => {
-    const priced = priceQuote([line({ count: 2 })], [rate()], { ...settings, minimumCents: 15_000 });
+    const priced = priceQuote([line({ count: 2 })], [rate()], { ...settings, minimumCents: 15_000 }, false);
     expect(priced.subtotalCents).toBe(5000);
     expect(priced.totalCents).toBe(15_000);
     expect(priced.minimumApplied).toBe(true);
   });
 
   it("leaves a job over the minimum alone", () => {
-    const priced = priceQuote([line({ count: 10 })], [rate()], { ...settings, minimumCents: 15_000 });
+    const priced = priceQuote([line({ count: 10 })], [rate()], { ...settings, minimumCents: 15_000 }, false);
     expect(priced.totalCents).toBe(25_000);
     expect(priced.minimumApplied).toBe(false);
   });
 
   it("does not claim the minimum applied when the job lands exactly on it", () => {
-    const priced = priceQuote([line({ count: 6 })], [rate()], { ...settings, minimumCents: 15_000 });
+    const priced = priceQuote([line({ count: 6 })], [rate()], { ...settings, minimumCents: 15_000 }, false);
     expect(priced.totalCents).toBe(15_000);
     expect(priced.minimumApplied).toBe(false);
   });
 
   it("prices an empty job as nothing, not as the minimum", () => {
-    const priced = priceQuote([], [rate()], { ...settings, minimumCents: 15_000 });
+    const priced = priceQuote([], [rate()], { ...settings, minimumCents: 15_000 }, false);
     expect(priced.subtotalCents).toBe(0);
     expect(priced.totalCents).toBe(0);
     expect(priced.minimumApplied).toBe(false);
   });
 
   it("treats a zero rate as a real price, not as missing", () => {
-    const priced = priceQuote([line({ count: 3 })], [rate({ rateCents: 0 })], settings);
+    const priced = priceQuote([line({ count: 3 })], [rate({ rateCents: 0 })], settings, false);
     expect(priced.totalCents).toBe(0);
   });
 
   it("says which treatment has no rate rather than pricing it at zero", () => {
-    expect(() => priceQuote([line({ treatment: "shutters" })], [rate()], settings))
+    expect(() => priceQuote([line({ treatment: "shutters" })], [rate()], settings, false))
       .toThrow("No installation rate is set for Shutters");
   });
 
   it("does not charge the minimum for a job whose lines all have a count of zero", () => {
-    const priced = priceQuote([line({ count: 0 }), line({ count: 0 })], [rate()], { ...settings, minimumCents: 15_000 });
+    const priced = priceQuote([line({ count: 0 }), line({ count: 0 })], [rate()], { ...settings, minimumCents: 15_000 }, false);
     expect(priced.totalCents).toBe(0);
     expect(priced.minimumApplied).toBe(false);
   });
 
   it("refuses to price a line whose amount would overflow the database column", () => {
-    expect(() => priceQuote([line({ count: 1000 })], [rate({ rateCents: 2_147_484 })], settings))
+    expect(() => priceQuote([line({ count: 1000 })], [rate({ rateCents: 2_147_484 })], settings, false))
       .toThrow("This job is too large to price.");
   });
 
   it("refuses to price a job whose total would overflow, even when each line fits", () => {
     const big = line({ count: 1000 });
-    expect(() => priceQuote([big, big], [rate({ rateCents: 1_500_000 })], settings))
+    expect(() => priceQuote([big, big], [rate({ rateCents: 1_500_000 })], settings, false))
       .toThrow("This job is too large to price.");
   });
 
@@ -151,6 +153,7 @@ describe("priceQuote", () => {
       [line({ count: 2, highLadder: true })],
       [rate()],
       { ...settings, hardSurfaceCents: 1000, highLadderCents: 5000, motorizedCents: 1500 },
+      false,
     );
     // 2 x 2500 labour, plus 2 x 5000 high ladder.
     expect(priced.lines[0].amountCents).toBe(15_000);
@@ -161,14 +164,114 @@ describe("priceQuote", () => {
       [line({ count: 3, hardSurface: true, highLadder: true, motorized: true })],
       [rate()],
       { ...settings, hardSurfaceCents: 1000, highLadderCents: 5000, motorizedCents: 1500 },
+      false,
     );
     // 3 x 2500 labour, plus 3 x (1000 + 5000 + 1500).
     expect(priced.lines[0].amountCents).toBe(7500 + 22_500);
   });
 
   it("ignores a line with a count of zero", () => {
-    const priced = priceQuote([line({ count: 0 })], [rate()], settings);
+    const priced = priceQuote([line({ count: 0 })], [rate()], settings, false);
     expect(priced.lines[0].amountCents).toBe(0);
     expect(priced.subtotalCents).toBe(0);
+  });
+});
+
+describe("priceFingerprint", () => {
+  const roller = rate({ treatment: "roller_shades", rateCents: 2500 });
+  const shutters = rate({ treatment: "shutters", basis: "window", rateCents: 1000 });
+  const both = [line({ treatment: "roller_shades" }), line({ treatment: "shutters" })];
+
+  it("is the same for the same lines, rates and minimum", () => {
+    const a = priceFingerprint(priceQuote(both, [roller, shutters], settings, false), 0);
+    const b = priceFingerprint(priceQuote(both, [roller, shutters], settings, false), 0);
+    expect(a).toBe(b);
+  });
+
+  it("differs when rates move between lines even though the total is unchanged", () => {
+    const before = priceQuote(both, [roller, shutters], settings, false);
+    const swapped = priceQuote(both, [{ ...roller, rateCents: 1000 }, { ...shutters, rateCents: 2500 }], settings, false);
+    // Same $35 total, but each saved line would record a different rate and amount.
+    expect(swapped.totalCents).toBe(before.totalCents);
+    expect(priceFingerprint(swapped, 0)).not.toBe(priceFingerprint(before, 0));
+  });
+
+  it("differs when the lines come to a different subtotal that the minimum hides", () => {
+    const withMinimum = { ...settings, minimumCents: 15_000 };
+    const before = priceQuote([line({ count: 2 })], [roller], withMinimum, false);
+    const raised = priceQuote([line({ count: 2 })], [{ ...roller, rateCents: 3000 }], withMinimum, false);
+    // Both total $150, but "lines came to $50" would become "lines came to $60".
+    expect(raised.totalCents).toBe(before.totalCents);
+    expect(priceFingerprint(raised, 15_000)).not.toBe(priceFingerprint(before, 15_000));
+  });
+
+  it("differs when only the minimum changes, since the saved price records it", () => {
+    const priced = priceQuote([line({ count: 10 })], [roller], settings, false);
+    expect(priceFingerprint(priced, 15_000)).not.toBe(priceFingerprint(priced, 20_000));
+  });
+
+  it("differs when a surcharge flag changes the saved line", () => {
+    const plain = priceQuote([line()], [roller], { ...settings, highLadderCents: 0 }, false);
+    const flagged = priceQuote([line({ highLadder: true })], [roller], { ...settings, highLadderCents: 0 }, false);
+    // A $0 surcharge leaves every amount equal, but the saved line records the flag.
+    expect(flagged.totalCents).toBe(plain.totalCents);
+    expect(priceFingerprint(flagged, 0)).not.toBe(priceFingerprint(plain, 0));
+  });
+});
+
+describe("measurement fee", () => {
+  const roller = rate({ treatment: "roller_shades", rateCents: 2500 });
+  const withFee = { ...settings, minimumCents: 15_000, measureCents: 7500 };
+
+  it("adds nothing when the job is not charged for measuring", () => {
+    const priced = priceQuote([line({ count: 10 })], [roller], withFee, false);
+    expect(priced.measureCents).toBe(0);
+    expect(priced.totalCents).toBe(25_000);
+  });
+
+  it("adds the flat fee when charged, however many windows there are", () => {
+    const few = priceQuote([line({ count: 10 })], [roller], withFee, true);
+    const many = priceQuote([line({ count: 40 })], [roller], withFee, true);
+    expect(few.measureCents).toBe(7500);
+    expect(many.measureCents).toBe(7500);
+    expect(few.totalCents).toBe(25_000 + 7500);
+    expect(many.totalCents).toBe(100_000 + 7500);
+  });
+
+  it("adds the fee on top of the minimum, not toward it", () => {
+    // $50 of work rises to the $150 minimum, then the $75 measure: $225, not $150.
+    const priced = priceQuote([line({ count: 2 })], [roller], withFee, true);
+    expect(priced.subtotalCents).toBe(5000);
+    expect(priced.minimumApplied).toBe(true);
+    expect(priced.totalCents).toBe(15_000 + 7500);
+  });
+
+  it("charges only the fee for a measuring visit with no lines at all", () => {
+    const priced = priceQuote([], [roller], withFee, true);
+    expect(priced.minimumApplied).toBe(false);
+    expect(priced.totalCents).toBe(7500);
+  });
+
+  it("charges only the fee for a measuring visit with no windows to install", () => {
+    const priced = priceQuote([line({ count: 0 })], [roller], withFee, true);
+    expect(priced.minimumApplied).toBe(false);
+    expect(priced.totalCents).toBe(7500);
+  });
+
+  it("refuses a total too large to store once the fee is added", () => {
+    const huge = { ...withFee, minimumCents: 0, measureCents: 2_147_483_000 };
+    expect(() => priceQuote([line({ count: 1 })], [roller], huge, true)).toThrow("This job is too large to price.");
+  });
+
+  it("fingerprints differently when the fee is charged or not", () => {
+    const off = priceQuote([line({ count: 10 })], [roller], withFee, false);
+    const on = priceQuote([line({ count: 10 })], [roller], withFee, true);
+    expect(priceFingerprint(on, 15_000)).not.toBe(priceFingerprint(off, 15_000));
+  });
+
+  it("fingerprints differently when the fee amount changes", () => {
+    const a = priceQuote([line({ count: 10 })], [roller], withFee, true);
+    const b = priceQuote([line({ count: 10 })], [roller], { ...withFee, measureCents: 9000 }, true);
+    expect(priceFingerprint(a, 15_000)).not.toBe(priceFingerprint(b, 15_000));
   });
 });

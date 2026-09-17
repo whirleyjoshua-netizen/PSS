@@ -290,6 +290,7 @@ export const installSettingsSchema = z.object({
   hardSurfaceCents: rateAmount,
   highLadderCents: rateAmount,
   motorizedCents: rateAmount,
+  measureCents: rateAmount,
 });
 
 /** Whole eighths, as the Install tab sends them. The messages are shown to the owner as written. */
@@ -312,8 +313,7 @@ export const installLinesSchema = z
     hardSurface: z.boolean(),
     highLadder: z.boolean(),
     motorized: z.boolean(),
-  }))
-  .min(1, "Add at least one line before saving.");
+  }));
 
 export const installKindSchema = z.enum(["estimate", "final"], { error: "Save as an estimate or a final price" });
 

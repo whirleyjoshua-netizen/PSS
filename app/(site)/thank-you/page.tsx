@@ -25,15 +25,15 @@ export const metadata: Metadata = {
 const STEPS = [
   {
     title: "We call you",
-    body: "Expect a call within one business day to find a time that works for you.",
+    body: "Expect a call within 3 business days to find a time that works for you.",
   },
   {
     title: "Your in-home visit",
-    body: "We bring real samples to your windows, in your own light, measure every opening, and quote before we leave. No charge, no obligation.",
+    body: "We bring real samples to your windows, in your own light, measure each window, and can quote before we leave. No charge, no obligation.",
   },
   {
     title: "Made for your home",
-    body: "Your window treatments are made to order, and we install them ourselves.",
+    body: "If you choose to move forward, your window treatments are made to order, and we install them ourselves.",
   },
 ];
 

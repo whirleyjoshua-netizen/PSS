@@ -37,7 +37,7 @@ describe("sendCustomerConfirmation", () => {
     await sendCustomerConfirmation(input);
 
     const { text } = send.mock.calls[0][0];
-    expect(text).toMatch(/one business day/i);
+    expect(text).toMatch(/3 business days/i);
     expect(text).toContain(business.phone.display);
   });
 

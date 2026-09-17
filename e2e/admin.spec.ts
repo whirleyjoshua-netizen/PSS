@@ -86,7 +86,7 @@ test("opening the sign-in link alone does not use it", async ({ page }) => {
 test("an owner adds a job, advances it, and leaves a note", async ({ page }) => {
   await signIn(page);
 
-  await page.getByRole("link", { name: "New job", exact: true }).click();
+  await page.getByRole("link", { name: "New Job", exact: true }).click();
   await page.getByLabel("Name", { exact: true }).fill(NAME);
   await page.getByLabel("Phone", { exact: true }).fill("(702) 555-0134");
   await page.getByRole("button", { name: "Add job" }).click();
@@ -152,7 +152,7 @@ test("an owner measures a window with a photo", async ({ page, baseURL }) => {
   const name = `${NAME} Measure`;
   await signIn(page);
 
-  await page.getByRole("link", { name: "New job", exact: true }).click();
+  await page.getByRole("link", { name: "New Job", exact: true }).click();
   await page.getByLabel("Name", { exact: true }).fill(name);
   await page.getByLabel("Phone", { exact: true }).fill("(702) 555-0135");
   await page.getByRole("button", { name: "Add job" }).click();
