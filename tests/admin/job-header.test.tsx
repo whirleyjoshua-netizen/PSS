@@ -92,6 +92,24 @@ describe("JobHeader", () => {
     expect(screen.getByText("Lost — Went with another company")).toBeInTheDocument();
   });
 
+  it("links a service job back to the project it came from", () => {
+    const parent: Job = { ...job, id: "9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d", projectNo: 1002 };
+    render(<JobHeader job={{ ...job, parentJobId: parent.id, source: "service" }} now={now} team={team} parent={parent} />);
+    const link = screen.getByRole("link", { name: "Service request for PSS-1002" });
+    expect(link).toHaveAttribute("href", `/admin/jobs/${parent.id}`);
+  });
+
+  it("falls back to the customer's name when the parent has no project number", () => {
+    const parent: Job = { ...job, id: "9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d", name: "Ray Ortiz", projectNo: null };
+    render(<JobHeader job={{ ...job, parentJobId: parent.id, source: "service" }} now={now} team={team} parent={parent} />);
+    expect(screen.getByRole("link", { name: "Service request for Ray Ortiz" })).toBeInTheDocument();
+  });
+
+  it("says nothing about a service request on an ordinary job", () => {
+    render(<JobHeader job={job} now={now} team={team} parent={null} />);
+    expect(screen.queryByText(/Service request for/)).toBeNull();
+  });
+
   it("says a job moved stages today", () => {
     render(<JobHeader job={{ ...job, stageChangedAt: now }} now={now} team={team} />);
     expect(screen.getByText(/In stage since today/)).toBeInTheDocument();

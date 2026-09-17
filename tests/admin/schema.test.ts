@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { appointmentSchema, detailsSchema, newJobSchema, noteSchema, lostSchema, teamMemberSchema, installRateSchema, installSettingsSchema, installLinesSchema, installKindSchema, HAND_SOURCES, JOB_SOURCES } from "@/lib/admin/schema";
+import { appointmentSchema, detailsSchema, newJobSchema, handJobSchema, noteSchema, lostSchema, teamMemberSchema, installRateSchema, installSettingsSchema, installLinesSchema, installKindSchema, HAND_SOURCES, JOB_SOURCES } from "@/lib/admin/schema";
 import { APPOINTMENT_KINDS } from "@/lib/admin/appointment-kinds";
 import { TEAM_ROLES } from "@/lib/admin/team-roles";
 
@@ -93,6 +93,17 @@ describe("newJobSchema", () => {
     expect(HAND_SOURCES).toEqual(["phone", "referral", "walk-in", "other"]);
     expect(HAND_SOURCES).not.toContain("service");
     expect(JOB_SOURCES).toEqual([...HAND_SOURCES, "service"]);
+  });
+
+  it("refuses a hand-entered job whose source is service, while keeping every other rule", () => {
+    const base = { name: "Dana", phone: "7025550134", city: "Henderson" };
+    expect(handJobSchema.safeParse({ ...base, source: "service" }).success).toBe(false);
+    for (const source of HAND_SOURCES) {
+      expect(handJobSchema.safeParse({ ...base, source }).success).toBe(true);
+    }
+    // Derived from newJobSchema, so the rest of the rules cannot drift apart.
+    expect(handJobSchema.parse({ ...base, source: "phone" }).stage).toBe("new");
+    expect(handJobSchema.safeParse({ ...base, source: "phone", stage: "shipped" }).success).toBe(false);
   });
 });
 

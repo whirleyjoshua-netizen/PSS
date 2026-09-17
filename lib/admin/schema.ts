@@ -101,6 +101,10 @@ export const newJobSchema = z.object({
   ),
 });
 
+/** The Add-job form's schema: every rule of `newJobSchema`, narrowed to the sources an owner can pick.
+ *  Derived, not copied, so the two can never drift apart by more than that one value. */
+export const handJobSchema = newJobSchema.extend({ source: z.enum(HAND_SOURCES) });
+
 const inches = z.preprocess(
   blank,
   z.coerce.number().int("Use whole inches").min(0, "Inches can't be negative").optional(),

@@ -116,6 +116,13 @@ describe("with a session", () => {
     expect(jobs.createJob).toHaveBeenCalledWith(expect.objectContaining({ stage: "sold" }), "owner@example.com");
   });
 
+  it("refuses a crafted add-job POST claiming the customer-only service source", async () => {
+    jobs.createJob.mockClear();
+    const state = await actions.addJob({}, form({ name: "Dana Reyes", phone: "7025550134", city: "Henderson", source: "service" }));
+    expect(state.error).toBeTruthy();
+    expect(jobs.createJob).not.toHaveBeenCalled();
+  });
+
   it("reports a missing job when the note target no longer exists", async () => {
     jobs.addNote.mockResolvedValue(false);
     const state = await actions.saveNote(ID, {}, form({ body: "Hi" }));
