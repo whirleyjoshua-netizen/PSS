@@ -25,9 +25,10 @@ const parts = (clock: Clock) => {
   return { time: `${h12}:${String(total % 60).padStart(2, "0")}`, period: h24 < 12 ? "am" : "pm" };
 };
 
+/** "8:00 AM": admin pages use uppercase AM/PM to match formatTime. */
 export const clockLabel = (clock: Clock): string => {
   const p = parts(clock);
-  return `${p.time} ${p.period}`;
+  return `${p.time} ${p.period.toUpperCase()}`;
 };
 
 export const WINDOW_OPTIONS = Array.from({ length: 29 }, (_, i) => {
@@ -43,8 +44,13 @@ const joined = (start: Clock, end: Clock, separator: string): string => {
     : `${a.time} ${a.period}${separator}${b.time} ${b.period}`;
 };
 
+/** "8:00 – 10:00 am", lowercase, for customer-facing copy. */
 export const windowLabel = (start: Clock | null, end: Clock | null): string | null =>
   start && end ? joined(start, end, " – ") : null;
+
+/** "8:00 – 10:00 AM" for admin pages, matching formatTime's uppercase AM/PM. */
+export const adminWindowLabel = (start: Clock | null, end: Clock | null): string | null =>
+  start && end ? joined(start, end, " – ").replace(/ (am|pm)/g, (m) => m.toUpperCase()) : null;
 
 export const emailWindowLine = (start: Clock | null, end: Clock | null): string | null =>
   start && end ? `We'll arrive between ${joined(start, end, " and ")}.` : null;

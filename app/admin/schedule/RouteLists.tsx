@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { formatTime } from "@/lib/admin/time";
 import { mapsDirectionsUrls } from "@/lib/routes/maps-link";
-import { windowLabel } from "@/lib/routes/window";
+import { adminWindowLabel } from "@/lib/routes/window";
 import type { DayStop, Installer, RoutePlan } from "@/lib/routes/types";
 
 export type RouteListsProps = {
@@ -77,7 +77,7 @@ export function RouteLists({ stops, installers, plan, pending, onMove, onShift }
       ) : (
         <ol aria-label="Appointments" className="flex flex-col gap-2">
           {stops.filter(hasCoordinates).sort((a, b) => a.startsAt.localeCompare(b.startsAt)).map((s) => {
-            const window = windowLabel(s.windowStart, s.windowEnd);
+            const window = adminWindowLabel(s.windowStart, s.windowEnd);
             return (
               <li key={s.appointmentId} className="flex flex-col border border-rule p-2 text-sm">
                 <span>{`${s.name} · ${s.city}`}</span>

@@ -71,7 +71,7 @@ describe("RouteView before any build", () => {
       expect.stringContaining("Eli Park · Las Vegas"),
       expect.stringContaining("Fay Moss · Summerlin"),
     ]);
-    expect(items[0]).toHaveTextContent("Arrives 8:00 – 10:00 am");
+    expect(items[0]).toHaveTextContent("Arrives 8:00 – 10:00 AM");
     expect(items[1]).toHaveTextContent("Pending");
     expect(items[0]).not.toHaveTextContent("Pending");
     expect(saveButton()).toBeDisabled();

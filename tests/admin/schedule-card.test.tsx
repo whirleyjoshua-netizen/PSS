@@ -11,14 +11,14 @@ const item: ScheduleItem = {
 
 describe("ScheduleCard route notes", () => {
   it("shows the arrival window and the planned route time", () => {
-    render(<ScheduleCard item={{ ...item, note: { window: "8:00 – 10:00 am", plannedArrival: new Date("2026-09-24T16:10:00Z") } }} />);
-    expect(screen.getByText("Arrives 8:00 – 10:00 am")).toBeTruthy();
+    render(<ScheduleCard item={{ ...item, note: { window: "8:00 – 10:00 AM", plannedArrival: new Date("2026-09-24T16:10:00Z") } }} />);
+    expect(screen.getByText("Arrives 8:00 – 10:00 AM")).toBeTruthy();
     expect(screen.getByText("Route: 9:10 AM")).toBeTruthy();
   });
 
   it("shows only the window before a route is saved", () => {
-    render(<ScheduleCard item={{ ...item, note: { window: "8:00 – 10:00 am", plannedArrival: null } }} />);
-    expect(screen.getByText("Arrives 8:00 – 10:00 am")).toBeTruthy();
+    render(<ScheduleCard item={{ ...item, note: { window: "8:00 – 10:00 AM", plannedArrival: null } }} />);
+    expect(screen.getByText("Arrives 8:00 – 10:00 AM")).toBeTruthy();
     expect(screen.queryByText(/Route:/)).toBeNull();
   });
 

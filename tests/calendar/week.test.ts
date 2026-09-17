@@ -320,7 +320,7 @@ describe("getWeek", () => {
 describe("route notes", () => {
   const ARRIVAL = new Date("2026-09-24T16:10:00Z");
   const JOB = "job1";
-  const note = { window: "8:00 – 10:00 am", plannedArrival: ARRIVAL };
+  const note = { window: "8:00 – 10:00 AM", plannedArrival: ARRIVAL };
   const installRow = { ...appt("install", "2026-09-24T16:00:00Z", false), job_id: JOB };
   beforeEach(() => {
     routeNotes.mockResolvedValue(new Map([[`${JOB}:install`, { windowStart: "08:00", windowEnd: "10:00", plannedArrival: ARRIVAL }]]));
@@ -350,6 +350,18 @@ describe("route notes", () => {
     expect(items.find((i) => i.title === "Install")?.note).toEqual(note);
     expect(items.find((i) => i.title === "Dentist")).not.toHaveProperty("note");
     expect(routeNotes).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the notes on tracker items when Outlook can't be reached", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    enabled.mockReturnValue(true);
+    graphJson.mockRejectedValue(new Error("down"));
+    sql.mockResolvedValueOnce([installRow]);
+    const { items, source } = await week.getWeek("2026-09-24", NOW);
+    expect(source).toBe("tracker");
+    expect(items[0].note).toEqual(note);
+    expect(routeNotes).toHaveBeenCalledTimes(1);
+    error.mockRestore();
   });
 
   it("still loads the week without notes when they can't be read", async () => {

@@ -2,7 +2,7 @@ import { Icon } from "@/components/admin/icons";
 import type { Appointment } from "@/lib/admin/appointments";
 import { APPOINTMENT_STYLE, kindLabel, type AppointmentKind } from "@/lib/admin/appointment-kinds";
 import { formatShortDate, formatWhen, toLocalInput } from "@/lib/admin/time";
-import { hoursLabel, windowLabel } from "@/lib/routes/window";
+import { hoursLabel, adminWindowLabel } from "@/lib/routes/window";
 import { CancelAppointmentButton, ConfirmScheduleButton } from "./AppointmentActions";
 import { StatusCard } from "./OverviewCards";
 import { ScheduleDialog } from "./ScheduleDialog";
@@ -31,7 +31,7 @@ function Row({ jobId, appointment, defaultMinutes }: {
 }) {
   const style = APPOINTMENT_STYLE[appointment.kind];
   const confirmed = appointment.confirmedAt !== null;
-  const arrives = windowLabel(appointment.windowStart, appointment.windowEnd);
+  const arrives = adminWindowLabel(appointment.windowStart, appointment.windowEnd);
   const when = appointment.allDay ? formatShortDate(appointment.startsAt) : formatWhen(appointment.startsAt);
 
   return (

@@ -7,7 +7,7 @@ import { calendarConfig, calendarEnabled } from "./config";
 import { nextDay, type GraphEvent, type Kind } from "./events";
 import { graphJson } from "./graph";
 import { routeNotes, type RouteNote } from "@/lib/routes/day";
-import { windowLabel } from "@/lib/routes/window";
+import { adminWindowLabel } from "@/lib/routes/window";
 
 export type ScheduleItem = {
   key: string; day: string; allDay: boolean; start: Date | null; end: Date | null; title: string;
@@ -113,7 +113,7 @@ async function withNotes(items: ScheduleItem[], from: Date, to: Date): Promise<S
   return items.map((item) => {
     const note = item.job ? notes.get(`${item.job.id}:${item.job.kind}`) : undefined;
     return note
-      ? { ...item, note: { window: windowLabel(note.windowStart, note.windowEnd), plannedArrival: note.plannedArrival } }
+      ? { ...item, note: { window: adminWindowLabel(note.windowStart, note.windowEnd), plannedArrival: note.plannedArrival } }
       : item;
   });
 }
