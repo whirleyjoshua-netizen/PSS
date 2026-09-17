@@ -29,10 +29,26 @@ export function AfterWork({
   project: ProjectSummary;
   /** Every service they have asked for, newest first, each date already formatted as "Sep 16". */
   serviceRequests?: { on: string; projectNo: string | null }[];
-  /** The project number of a request just filed, for the confirmation. Null the rest of the time. */
+  /**
+   * The project number of a request just filed, for the confirmation. Null the rest of the time.
+   * It comes off the query string unvalidated, so it is only believed when it matches one of
+   * `serviceRequests` — see the guard below.
+   */
   justRequested?: string | null;
 }) {
   if (project.status !== "installed") return null;
+
+  // `justRequested` arrives from the query string, so it is the customer's browser talking, not
+  // ours. A crafted /project/<id>?requested=PSS-9999 would otherwise confirm a request that does
+  // not exist and hand them a reference number that reaches nothing when they phone it in. The
+  // requests we just loaded are the only truth about what they have asked for, so the
+  // confirmation renders only when the URL names one of them. Anything else renders nothing:
+  // there is no true thing to say about a request that was never filed, and an error would be
+  // louder than the nudge deserves — a customer who simply mistyped a link is not in trouble.
+  const confirmed =
+    justRequested && serviceRequests.some((request) => request.projectNo === justRequested)
+      ? justRequested
+      : null;
 
   return (
     <section className="flex flex-col gap-3 border border-rule bg-sand/50 p-6" aria-labelledby="after-work-heading">
@@ -56,9 +72,9 @@ export function AfterWork({
           Request a service
         </a>
       </div>
-      {justRequested ? (
+      {confirmed ? (
         <p role="status" className="border border-champagne bg-sand/60 p-4 text-sm">
-          Thanks — we have your request and will be in touch. Quote {justRequested} when you call
+          Thanks — we have your request and will be in touch. Quote {confirmed} when you call
           us about it.
         </p>
       ) : null}

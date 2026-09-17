@@ -120,10 +120,43 @@ describe("AfterWork", () => {
 
     /** Straight after submitting: the reference they quote when they call. */
     it("confirms a request just filed, naming the new project number", () => {
-      render(<AfterWork project={project} justRequested="PSS-1051" />);
+      render(
+        <AfterWork
+          project={project}
+          serviceRequests={[{ on: "Sep 16", projectNo: "PSS-1051" }]}
+          justRequested="PSS-1051"
+        />,
+      );
       const confirmation = screen.getByRole("status");
       expect(confirmation).toHaveTextContent("Thanks — we have your request and will be in touch.");
       expect(confirmation).toHaveTextContent("PSS-1051");
+    });
+
+    /**
+     * `?requested=` is the customer's own URL, so a crafted link must not be able to tell them
+     * we have a request we do not have. The value is believed only when it names one of the
+     * requests actually on the job — and the real list is untouched either way, so a tampered
+     * link cannot erase the requests they did file.
+     */
+    it("confirms nothing for a project number that is not one of theirs", () => {
+      render(
+        <AfterWork
+          project={project}
+          serviceRequests={[{ on: "Sep 16", projectNo: "PSS-1051" }]}
+          justRequested="PSS-9999"
+        />,
+      );
+      expect(screen.queryByRole("status")).toBeNull();
+      expect(screen.queryByText(/PSS-9999/)).toBeNull();
+      expect(
+        screen.getByText("Service requested on Sep 16 (PSS-1051) — we will be in touch."),
+      ).toBeInTheDocument();
+    });
+
+    /** With no requests loaded at all there is nothing a crafted value could match. */
+    it("confirms nothing when the customer has no service requests", () => {
+      render(<AfterWork project={project} serviceRequests={[]} justRequested="PSS-9999" />);
+      expect(screen.queryByRole("status")).toBeNull();
     });
 
     it("shows no confirmation on an ordinary visit", () => {

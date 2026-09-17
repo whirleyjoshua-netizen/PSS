@@ -117,9 +117,12 @@ describe("with a session", () => {
   });
 
   it("refuses a crafted add-job POST claiming the customer-only service source", async () => {
-    jobs.createJob.mockClear();
-    const state = await actions.addJob({}, form({ name: "Dana Reyes", phone: "7025550134", city: "Henderson", source: "service" }));
-    expect(state.error).toBeTruthy();
+    // Asserted on the resolved value, not on the absence of a throw: under the wide schema this
+    // action reaches the mocked redirect, and a rejects-based arrangement would fail on
+    // NEXT_REDIRECT before either assertion ran — passing for the right reason by accident.
+    await expect(
+      actions.addJob({}, form({ name: "Dana Reyes", phone: "7025550134", city: "Henderson", source: "service" })),
+    ).resolves.toMatchObject({ error: expect.any(String) });
     expect(jobs.createJob).not.toHaveBeenCalled();
   });
 
