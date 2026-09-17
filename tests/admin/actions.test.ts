@@ -2,7 +2,10 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const requireAdmin = vi.fn();
 vi.mock("@/lib/admin/session", () => ({ requireAdmin }));
-const jobs = { setStage: vi.fn(), updateDetails: vi.fn(), addNote: vi.fn(), createJob: vi.fn(), getJob: vi.fn(), assignJob: vi.fn() };
+const jobs = {
+  setStage: vi.fn(), updateDetails: vi.fn(), addNote: vi.fn(), createJob: vi.fn(), getJob: vi.fn(),
+  assignJob: vi.fn(), deleteJob: vi.fn(),
+};
 vi.mock("@/lib/admin/jobs", () => jobs);
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 const redirect = vi.fn(() => { throw new Error("NEXT_REDIRECT"); });
@@ -69,6 +72,7 @@ describe("without a session", () => {
     ["createReferralLink", () => actions.createReferralLink(ID, {}, form({}))],
     ["payReferral", () => actions.payReferral(ID, ID, {}, form({}))],
     ["assignJobAction", () => actions.assignJobAction(ID, {}, form({ assignedTo: MEMBER }))],
+    ["deleteJobAction", () => actions.deleteJobAction(ID, form({}))],
   ])("%s touches nothing", async (_name, run) => {
     await expect(run()).rejects.toThrow("NEXT_REDIRECT");
     [...Object.values(jobs), ...Object.values(referrals), sendReviewRequest, ...Object.values(reviewsDb), syncJobCalendar, geocodeLead]
@@ -294,5 +298,30 @@ describe("Outlook calendar sync", () => {
     jobs.setStage.mockResolvedValue(false);
     await actions.moveStage(ID, "quoted");
     expect(syncJobCalendar).not.toHaveBeenCalled();
+  });
+});
+
+describe("deleteJobAction", () => {
+  beforeEach(() => { redirect.mockClear(); });
+
+  it("deletes as the signed-in owner and sends them back to the board", async () => {
+    jobs.deleteJob.mockResolvedValue("deleted");
+    await expect(actions.deleteJobAction(ID, form({}))).rejects.toThrow("NEXT_REDIRECT");
+    expect(jobs.deleteJob).toHaveBeenCalledWith(ID, "owner@example.com");
+    expect(redirect).toHaveBeenCalledWith("/admin");
+  });
+
+  it("sends the owner to the board when the job was already gone", async () => {
+    jobs.deleteJob.mockResolvedValue("missing");
+    await expect(actions.deleteJobAction(ID, form({}))).rejects.toThrow("NEXT_REDIRECT");
+    expect(redirect).toHaveBeenCalledWith("/admin");
+  });
+
+  // Not a returned form state: a plain form post throws one away, and the owner would
+  // see nothing happen. The refusal has to survive as a redirect.
+  it("returns the owner to the job with a fixed marker when a service request blocks it", async () => {
+    jobs.deleteJob.mockResolvedValue("has-children");
+    await expect(actions.deleteJobAction(ID, form({}))).rejects.toThrow("NEXT_REDIRECT");
+    expect(redirect).toHaveBeenCalledWith(`/admin/jobs/${ID}?delete=blocked`);
   });
 });

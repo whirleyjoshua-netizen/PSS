@@ -6,7 +6,7 @@ import { after } from "next/server";
 import { syncJobCalendar } from "@/lib/calendar/sync";
 import { requireAdmin } from "@/lib/admin/session";
 import { geocodeLead } from "@/lib/routes/geocode";
-import { addNote, assignJob, createJob, getJob, setStage, updateDetails } from "@/lib/admin/jobs";
+import { addNote, assignJob, createJob, deleteJob, getJob, setStage, updateDetails } from "@/lib/admin/jobs";
 import { detailsSchema, handJobSchema, lostSchema, noteSchema } from "@/lib/admin/schema";
 import { isInstalled, type Stage } from "@/lib/admin/stages";
 import { autoInvite, sendPortalInvite } from "@/lib/portal/invite";
@@ -44,6 +44,21 @@ export async function markLost(id: string, _prev: FormState, formData: FormData)
   after(() => syncJobCalendar(id));
   refresh(id);
   return { ok: true };
+}
+
+/**
+ * The one irreversible action in the app. It never returns a form state: this form is a
+ * plain post that works with JavaScript off, and a returned state is thrown away there —
+ * the owner would tap Delete, see nothing change, and never learn why. Every outcome is a
+ * redirect instead, and the refusal carries a fixed marker the job page matches on.
+ */
+export async function deleteJobAction(id: string, _formData: FormData): Promise<void> {
+  const { email } = await requireAdmin();
+  const result = await deleteJob(id, email);
+  // "missing" is not an error: the owner wanted it gone and it is gone.
+  if (result === "has-children") redirect(`/admin/jobs/${id}?delete=blocked`);
+  revalidatePath("/admin");
+  redirect("/admin");
 }
 
 export async function saveDetails(id: string, _prev: FormState, formData: FormData): Promise<FormState> {

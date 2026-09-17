@@ -25,6 +25,7 @@ vi.mock("next/navigation", () => ({ notFound, useRouter }));
 vi.mock("@/app/admin/jobs/actions", () => ({
   moveStage: vi.fn(async () => {}),
   markLost: vi.fn(async () => ({})),
+  deleteJobAction: vi.fn(async () => {}),
   saveNote: vi.fn(async () => ({})),
   saveDetails: vi.fn(async () => ({})),
   sendPortalInviteNow: vi.fn(async () => ({})),

@@ -14,12 +14,12 @@ import { JobHeader } from "./JobHeader";
 import { JobTabs } from "./JobTabs";
 import { MeasurementsTab } from "./MeasurementsTab";
 import { OverviewTab } from "./OverviewTab";
-import { firstParam, parseJobTab } from "./tabs";
+import { firstParam, isDeleteBlocked, parseJobTab } from "./tabs";
 import { HEADING } from "./ui";
 
 export default async function JobPage({ params, searchParams }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ tab?: string | string[]; edit?: string | string[] }>;
+  searchParams: Promise<{ tab?: string | string[]; edit?: string | string[]; delete?: string | string[] }>;
 }) {
   await requireAdmin();
   const { id } = await params;
@@ -43,7 +43,8 @@ export default async function JobPage({ params, searchParams }: {
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-6">
-      <JobHeader job={job} now={now} team={team} defaultMinutes={routeSettings.minutes} parent={parent} />
+      <JobHeader job={job} now={now} team={team} defaultMinutes={routeSettings.minutes} parent={parent}
+        deleteBlocked={isDeleteBlocked(query.delete)} />
       <JobTabs jobId={job.id} active={tab} counts={{ measurements: measurements.length, files: files.length }} />
       {tab === "overview" ? (
         <OverviewTab job={job} editing={editing} now={now} measurements={measurements} files={files}

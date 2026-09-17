@@ -25,7 +25,7 @@ vi.mock("@/app/admin/jobs/actions", () => ({
   moveStage: vi.fn(), markLost: vi.fn(async () => ({})), saveDetails: vi.fn(async () => ({})),
   saveNote: vi.fn(async () => ({})), sendPortalInviteNow: vi.fn(), sendReviewNow: vi.fn(),
   saveReviewOptOut: vi.fn(), createReferralLink: vi.fn(), payReferral: vi.fn(),
-  assignJobAction: vi.fn(async () => ({})),
+  assignJobAction: vi.fn(async () => ({})), deleteJobAction: vi.fn(async () => {}),
 }));
 vi.mock("@/lib/admin/team", () => ({ listTeam: vi.fn(async () => []) }));
 vi.mock("@/lib/admin/appointments", () => ({ listAppointments: vi.fn(async () => []) }));

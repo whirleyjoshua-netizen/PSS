@@ -9,6 +9,7 @@ import { formatProjectNo } from "@/lib/portal/project-no";
 import { AssignControl } from "./AssignControl";
 import { CallButton } from "./CallButton";
 import { ContactLog } from "./ContactLog";
+import { DeleteJob } from "./DeleteJob";
 import { FollowUpBox } from "./FollowUpBox";
 import { ScheduleDialog } from "./ScheduleDialog";
 import { StageControls } from "./StageControls";
@@ -20,13 +21,15 @@ function inStage(days: number): string {
   return `${days} ${days === 1 ? "day" : "days"} in stage`;
 }
 
-export function JobHeader({ job, now, team, defaultMinutes, parent = null }: {
+export function JobHeader({ job, now, team, defaultMinutes, parent = null, deleteBlocked = false }: {
   job: Job;
   now: Date;
   team: TeamMember[];
   defaultMinutes: Record<AppointmentKind, number>;
   /** The job this one came from, when a customer's service request created it. */
   parent?: Job | null;
+  /** A delete was refused because this job has a service request against it. */
+  deleteBlocked?: boolean;
 }) {
   const style = STAGE_STYLE[job.status];
 
@@ -86,6 +89,13 @@ export function JobHeader({ job, now, team, defaultMinutes, parent = null }: {
                     <StageControls job={job} parts={["set", "lost"]} />
                   </div>
                 </details>
+                {/* Below the rule, after everything else: the reversible actions stay
+                    together above and the one irreversible action sits apart. */}
+                <hr className="border-rule" />
+                <DeleteJob
+                  job={{ id: job.id, name: job.name, projectNo: formatProjectNo(job.projectNo) }}
+                  blocked={deleteBlocked}
+                />
               </div>
             </div>
           </details>

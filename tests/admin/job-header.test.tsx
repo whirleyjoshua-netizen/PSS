@@ -4,6 +4,7 @@ import type { Job } from "@/lib/admin/jobs";
 
 vi.mock("@/app/admin/jobs/actions", () => ({
   moveStage: vi.fn(), markLost: vi.fn(async () => ({})), assignJobAction: vi.fn(async () => ({})),
+  deleteJobAction: vi.fn(async () => {}),
 }));
 vi.mock("@/app/admin/jobs/contact-actions", () => ({ logContactAction: vi.fn(async () => ({})) }));
 vi.mock("@/app/admin/jobs/appointment-actions", () => ({
@@ -109,6 +110,32 @@ describe("JobHeader", () => {
   it("says nothing about a service request on an ordinary job", () => {
     render(<JobHeader job={job} now={now} team={team} defaultMinutes={MINUTES} parent={null} />);
     expect(screen.queryByText(/Service request for/)).toBeNull();
+  });
+
+  it("puts Delete last in the More menu, apart from the reversible actions", () => {
+    render(<JobHeader job={{ ...job, projectNo: 1002 }} now={now} team={team} defaultMinutes={MINUTES} />);
+    const panel = screen.getByLabelText("More actions").closest("details")!.querySelector("div > div")!;
+    const children = [...panel.children];
+    const reveal = screen.getByText("Delete this job…").closest("details")!;
+    // Last child of the panel, and the thing directly before it is a rule.
+    expect(children.at(-1)).toBe(reveal);
+    expect(children.at(-2)!.tagName).toBe("HR");
+    // Change stage… stays above it.
+    expect(children.indexOf(screen.getByText("Change stage…").closest("details")!)).toBeLessThan(children.length - 1);
+  });
+
+  it("names the customer and project number in the delete warning", () => {
+    render(<JobHeader job={{ ...job, projectNo: 1002 }} now={now} team={team} defaultMinutes={MINUTES} />);
+    const reveal = screen.getByText("Delete this job…").closest("details")!;
+    expect(within(reveal).getByText(/Dana Reyes/)).toBeInTheDocument();
+    expect(within(reveal).getByText(/PSS-1002/)).toBeInTheDocument();
+  });
+
+  it("shows the service-request explanation only when the page says the delete was blocked", () => {
+    render(<JobHeader job={job} now={now} team={team} defaultMinutes={MINUTES} />);
+    expect(screen.queryByText(/service request against it/)).toBeNull();
+    render(<JobHeader job={job} now={now} team={team} defaultMinutes={MINUTES} deleteBlocked />);
+    expect(screen.getByText("This job has a service request against it. Delete that first.")).toBeInTheDocument();
   });
 
   it("says a job moved stages today", () => {
