@@ -44,10 +44,6 @@ const joined = (start: Clock, end: Clock, separator: string): string => {
     : `${a.time} ${a.period}${separator}${b.time} ${b.period}`;
 };
 
-/** "8:00 – 10:00 am", lowercase, for customer-facing copy. */
-export const windowLabel = (start: Clock | null, end: Clock | null): string | null =>
-  start && end ? joined(start, end, " – ") : null;
-
 /** "8:00 – 10:00 AM" for admin pages, matching formatTime's uppercase AM/PM. */
 export const adminWindowLabel = (start: Clock | null, end: Clock | null): string | null =>
   start && end ? joined(start, end, " – ").replace(/ (am|pm)/g, (m) => m.toUpperCase()) : null;

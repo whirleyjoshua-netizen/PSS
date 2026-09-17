@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  addDaysIso, adminWindowLabel, clockLabel, clockMinutes, clockOf, emailWindowLine, hoursLabel, minutesClock, windowLabel, WINDOW_OPTIONS,
+  addDaysIso, adminWindowLabel, clockLabel, clockMinutes, clockOf, emailWindowLine, hoursLabel, minutesClock, WINDOW_OPTIONS,
 } from "@/lib/routes/window";
 
 describe("window helpers", () => {
@@ -10,16 +10,13 @@ describe("window helpers", () => {
     expect(minutesClock(clockMinutes("18:00"))).toBe("18:00");
   });
 
-  it("labels times the way customers read them", () => {
+  it("labels admin times with uppercase AM/PM", () => {
     expect(clockLabel("08:00")).toBe("8:00 AM");
     expect(clockLabel("12:00")).toBe("12:00 PM");
     expect(clockLabel("13:30")).toBe("1:30 PM");
   });
 
   it("shares the am/pm when both ends are on the same side of noon", () => {
-    expect(windowLabel("08:00", "10:00")).toBe("8:00 – 10:00 am");
-    expect(windowLabel("11:30", "13:00")).toBe("11:30 am – 1:00 pm");
-    expect(windowLabel(null, null)).toBeNull();
     expect(adminWindowLabel("08:00", "10:00")).toBe("8:00 – 10:00 AM");
     expect(adminWindowLabel("11:30", "13:00")).toBe("11:30 AM – 1:00 PM");
     expect(adminWindowLabel("08:00", null)).toBeNull();
