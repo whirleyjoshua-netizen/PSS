@@ -1,9 +1,23 @@
 import { test, expect, type Page } from "@playwright/test";
 import { neon } from "@neondatabase/serverless";
 import { createHash, randomBytes } from "node:crypto";
-import { startOptimizerStub } from "./fixtures/optimizer-stub";
+import { SKIP_LATITUDE, startOptimizerStub, STUB_PORT } from "./fixtures/optimizer-stub";
 
+/*
+ * Route creator end to end. It writes to the database, so it runs only when BOTH are set:
+ *   E2E_POSTGRES_URL   a Neon test branch (never production)
+ *   E2E_DB_HOST_ALLOW  part of that branch's host, e.g. its endpoint id; the URL's host must contain it
+ * With E2E_POSTGRES_URL set and the host not allowed, loading this file throws.
+ * Optimizing goes to a local stub on port 3199 (see playwright.config.ts).
+ */
 const url = process.env.E2E_POSTGRES_URL;
+if (url) {
+  const allow = process.env.E2E_DB_HOST_ALLOW;
+  const host = new URL(url).hostname;
+  if (!allow || !host.includes(allow)) {
+    throw new Error(`routes.spec.ts refuses to run: E2E_DB_HOST_ALLOW must be set to part of the test branch host, and ${host} must contain it.`);
+  }
+}
 test.skip(!url, "Set E2E_POSTGRES_URL to a Neon branch to run route tests");
 test.describe.configure({ mode: "serial" });
 
@@ -20,7 +34,9 @@ const JOB = (n: number) => `E2E Route Job ${n} ${STAMP}`;
 
 let stub: Awaited<ReturnType<typeof startOptimizerStub>>;
 let bo: string;
-/** Jobs 1 and 2 have coordinates; job 3 has no address. */
+/** The week card's "Route: 9:00 AM" for the branch's route_settings day start, where the stub starts every route. */
+let routeLabel: RegExp;
+/** Jobs 1 and 2 have coordinates; job 3 has no address; the stub never fits job 4. */
 const jobs: string[] = [];
 
 async function signIn(page: Page) {
@@ -51,10 +67,14 @@ const staleBanner = (page: Page) => page.getByRole("status").getByText("Route is
 
 test.beforeAll(async () => {
   if (!url) return;
-  stub = await startOptimizerStub(3199);
+  stub = await startOptimizerStub(STUB_PORT);
+  const [{ day_start }] = await sql()`select day_start::text as day_start from route_settings`;
+  const [h, m] = String(day_start).split(":").map(Number);
+  routeLabel = new RegExp(`^Route: ${h % 12 || 12}:${String(m).padStart(2, "0")}\\s${h < 12 ? "AM" : "PM"}$`);
   await sql()`insert into team_members (name, role) values (${ANA}, 'installer') returning id`;
   [{ id: bo }] = await sql()`insert into team_members (name, role) values (${BO}, 'installer') returning id`;
-  const seeds = [[1, "1 Sample St", 36.03, -115.04], [2, "2 Sample St", 36.1, -115.2], [3, null, null, null]] as const;
+  const seeds = [[1, "1 Sample St", 36.03, -115.04], [2, "2 Sample St", 36.1, -115.2], [3, null, null, null],
+    [4, "4 Sample St", SKIP_LATITUDE, -115.1]] as const;
   for (const [n, address, lat, lng] of seeds) {
     const [{ id }] = await sql()`insert into leads (name, phone, email, city, address, source, status, lat, lng, geocode_status, geocoded_at)
       values (${JOB(n)}, '7025550188', 'e2e-routes@example.com', 'Henderson', ${address}, 'phone', 'sold',
@@ -89,6 +109,8 @@ test("build, move a stop, save, and see it on the job and the week", async ({ pa
   await expect(route(page, ANA).getByText(JOB(2))).toBeVisible();
   await expect(route(page, ANA).getByRole("link", { name: "Open in Google Maps" })).toHaveAttribute("href", /google\.com\/maps\/dir\//);
   expect(stub.requests.at(-1)?.injectedSolutionConstraint).toBeUndefined();
+  await expect(page.getByRole("region", { name: /^Didn't fit/ })
+    .getByText(`${JOB(4)} — It can't be reached within anyone's working day.`)).toBeVisible();
   const built = stub.requests.length;
 
   await route(page, ANA).getByRole("combobox", { name: `Move ${JOB(2)} to` }).selectOption({ label: BO });
@@ -106,7 +128,8 @@ test("build, move a stop, save, and see it on the job and the week", async ({ pa
 
   const [assigned] = await sql()`select assigned_to from leads where id = ${jobs[1]}`;
   expect(assigned.assigned_to).toBe(bo);
-  const [stops] = await sql()`select count(*)::int as n from route_stops where route_date = ${DAY}::date`;
+  const [stops] = await sql()`select count(*)::int as n from route_stops s join appointments a on a.id = s.appointment_id
+    where s.route_date = ${DAY}::date and a.lead_id = any(${jobs}::uuid[])`;
   expect(stops.n).toBe(2);
 
   await page.goto(`/admin/jobs/${jobs[1]}`);
@@ -115,7 +138,7 @@ test("build, move a stop, save, and see it on the job and the week", async ({ pa
   // The stub puts every route's first stop at the start of the working day: 9:00 AM.
   await page.goto(`/admin/schedule?week=${DAY}`);
   const card = page.getByRole("link", { name: new RegExp(JOB(2)) });
-  await expect(card.getByText(/^Route: 9:00\sAM$/)).toBeVisible();
+  await expect(card.getByText(routeLabel)).toBeVisible();
 });
 
 test("the saved plan loads and saves again unchanged", async ({ page }) => {
@@ -126,9 +149,13 @@ test("the saved plan loads and saves again unchanged", async ({ page }) => {
   await selectOurInstallers(page);
 
   // Out and back: the plan ends as it was loaded, still stamped with the saved time.
+  await expect(page.getByRole("region", { name: /^Didn't fit/ }).getByText(JOB(4))).toBeVisible();
+  const loaded = stub.requests.length;
   await route(page, BO).getByRole("combobox", { name: `Move ${JOB(2)} to` }).selectOption({ label: ANA });
+  await expect.poll(() => stub.requests.length).toBe(loaded + 1);
   await expect(route(page, ANA).getByRole("combobox", { name: `Move ${JOB(2)} to` })).toBeEnabled();
   await route(page, ANA).getByRole("combobox", { name: `Move ${JOB(2)} to` }).selectOption({ label: BO });
+  await expect.poll(() => stub.requests.length).toBe(loaded + 2);
   await expect(route(page, BO).getByRole("combobox", { name: `Move ${JOB(2)} to` })).toBeEnabled();
 
   await page.getByRole("button", { name: "Save routes" }).click();
@@ -136,7 +163,7 @@ test("the saved plan loads and saves again unchanged", async ({ page }) => {
   await expect(page.getByRole("alert")).toBeEmpty();
   const rows = await sql()`select l.name, m.name as installer, s.position from route_stops s
     join appointments a on a.id = s.appointment_id join leads l on l.id = a.lead_id
-    join team_members m on m.id = s.team_member_id where s.route_date = ${DAY}::date order by l.name`;
+    join team_members m on m.id = s.team_member_id where s.route_date = ${DAY}::date and a.lead_id = any(${jobs}::uuid[]) order by l.name`;
   expect(rows).toEqual([
     { name: JOB(1), installer: ANA, position: 1 },
     { name: JOB(2), installer: BO, position: 1 },
@@ -155,7 +182,8 @@ test("saving details without an address change keeps the pin", async ({ page }) 
   await expect(staleBanner(page)).toHaveCount(0);
 });
 
-test("an appointment edit after a save makes the route out of date", async ({ page }) => {
+// Depends on test 1's save: only a saved route can go out of date.
+test("an appointment edit after test 1's save makes the route out of date", async ({ page }) => {
   await signIn(page);
   await page.goto(`/admin/jobs/${jobs[1]}`);
   const appointments = page.getByRole("region", { name: "Appointments" });
