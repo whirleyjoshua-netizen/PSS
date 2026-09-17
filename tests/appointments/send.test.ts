@@ -83,7 +83,20 @@ describe("appointmentEmailText", () => {
   });
 
   it("adds nothing new without a window", () => {
-    expect(text({ windowStart: null, windowEnd: null })).not.toContain("arrive");
+    expect(text({ windowStart: null, windowEnd: null }).split("\n")).toEqual([
+      "Hi Dana,",
+      "",
+      "Your consultation is booked for Tuesday, October 13 at 2:00 PM.",
+      "",
+      "We'll come to 88 Palm Ct, Henderson.",
+      "",
+      "We'll go over your windows and options, and answer any questions you have.",
+      "",
+      `Need to change it? Reply to this email or call ${business.phone.display}.`,
+      "",
+      business.name,
+      business.domain,
+    ]);
   });
 
   it("never leaks internal wording or the job id", () => {
