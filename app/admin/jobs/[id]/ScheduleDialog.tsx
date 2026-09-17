@@ -67,10 +67,14 @@ export function ScheduleDialog({
   // kind changes; an untouched length follows the picked kind's default.
   // A failed submit redraws the window as it was picked, so half a window is not lost. A select only
   // reads defaultValue when it mounts, so the fieldset is keyed to the echoed values to remount it.
-  const seeded = (name: "windowStart" | "windowEnd", fallback: string | null) => {
+  // The date, kind and all-day follow the same echo. An unticked checkbox is absent from the echo,
+  // so once values came back, a missing allDay means unticked.
+  const seeded = (name: "windowStart" | "windowEnd" | "startsAt" | "kind", fallback: string | null) => {
     const echoed = state.values?.[name];
     return typeof echoed === "string" ? echoed : fallback ?? "";
   };
+  const seededAllDay = state.values ? state.values.allDay === "on" : allDay;
+  const seededKind = seeded("kind", kind);
   const [touched, setTouched] = useState(durationMinutes != null);
   const [hours, setHours] = useState(hoursLabel(durationMinutes ?? defaultMinutes[kind]));
 
@@ -78,7 +82,7 @@ export function ScheduleDialog({
     <form action={action} className="flex flex-col gap-4 text-sm">
       <label htmlFor={`startsAt-${uid}`} className="flex flex-col gap-2">
         Date and time
-        <input id={`startsAt-${uid}`} name="startsAt" type="datetime-local" className={CONTROL} defaultValue={startsAt} />
+        <input id={`startsAt-${uid}`} name="startsAt" type="datetime-local" className={CONTROL} defaultValue={seeded("startsAt", startsAt)} />
       </label>
       <fieldset className="flex flex-col gap-2">
         <legend className="mb-2">What is this for?</legend>
@@ -87,7 +91,7 @@ export function ScheduleDialog({
             <label key={option.value} htmlFor={`kind-${uid}-${option.value}`}
               className="flex min-h-11 items-center gap-2 border border-rule px-3">
               <input id={`kind-${uid}-${option.value}`} type="radio" name="kind" value={option.value}
-                defaultChecked={option.value === kind}
+                defaultChecked={option.value === seededKind}
                 onChange={() => { if (!touched) setHours(hoursLabel(defaultMinutes[option.value])); }} />
               <Icon name={option.icon} className="size-4" />
               {option.label}
@@ -96,7 +100,7 @@ export function ScheduleDialog({
         </div>
       </fieldset>
       <label htmlFor={`allDay-${uid}`} className="flex min-h-11 items-center gap-2">
-        <input id={`allDay-${uid}`} type="checkbox" name="allDay" defaultChecked={allDay} />
+        <input id={`allDay-${uid}`} type="checkbox" name="allDay" defaultChecked={seededAllDay} />
         All day
       </label>
       <fieldset key={`${seeded("windowStart", windowStart)}-${seeded("windowEnd", windowEnd)}`} className="flex flex-col gap-2">

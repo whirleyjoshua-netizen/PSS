@@ -132,6 +132,36 @@ describe("ScheduleDialog", () => {
     expect(screen.getByRole("combobox", { name: "To" })).toHaveValue("");
   });
 
+  it("keeps the date, kind and all-day the owner picked when the submit fails", async () => {
+    bookAppointment.mockResolvedValueOnce({
+      error: "Pick both ends of the arrival window, or Any time",
+      values: { kind: "install", startsAt: "2026-09-20T10:00", allDay: "on", windowStart: "08:00", windowEnd: "" },
+    });
+    const user = userEvent.setup();
+    render(<ScheduleDialog jobId={ID} defaultMinutes={MINUTES} />);
+    await user.click(screen.getByRole("button", { name: "Schedule" }));
+    await user.type(screen.getByLabelText("Date and time"), "2026-09-20T10:00");
+    await user.click(screen.getByRole("radio", { name: "Install" }));
+    await user.click(screen.getByLabelText("All day"));
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await screen.findByRole("alert");
+    expect(screen.getByLabelText("Date and time")).toHaveValue("2026-09-20T10:00");
+    expect(screen.getByRole("radio", { name: "Install" })).toBeChecked();
+    expect(screen.getByLabelText("All day")).toBeChecked();
+  });
+
+  it("clears all-day after a failed submit when the owner had unticked it", async () => {
+    bookAppointment.mockResolvedValueOnce({ error: "Pick a date and time", values: { kind: "service", startsAt: "" } });
+    const user = userEvent.setup();
+    render(<ScheduleDialog jobId={ID} defaultMinutes={MINUTES} allDay kind="install" startsAt="2026-10-02T09:00" />);
+    await user.click(screen.getByRole("button", { name: "Schedule" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await screen.findByRole("alert");
+    expect(screen.getByLabelText("All day")).not.toBeChecked();
+    expect(screen.getByRole("radio", { name: "Service" })).toBeChecked();
+    expect(screen.getByLabelText("Date and time")).toHaveValue("");
+  });
+
   it("carries the window and length of the appointment being moved", async () => {
     const user = userEvent.setup();
     render(<ScheduleDialog jobId={ID} defaultMinutes={MINUTES} label="Reschedule" kind="install"
