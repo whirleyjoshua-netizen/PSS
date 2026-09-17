@@ -68,8 +68,10 @@ const staleBanner = (page: Page) => page.getByRole("status").getByText("Route is
 test.beforeAll(async () => {
   if (!url) return;
   stub = await startOptimizerStub(STUB_PORT);
-  const [{ day_start }] = await sql()`select day_start::text as day_start from route_settings`;
-  const [h, m] = String(day_start).split(":").map(Number);
+  const [settings] = await sql()`select day_start::text as day_start from route_settings`;
+  // The app falls back to 09:00 when route_settings has no row, so the expected label does too.
+  if (!settings) console.log("routes.spec: route_settings has no row; expecting the 09:00 default day start");
+  const [h, m] = String(settings?.day_start ?? "09:00").split(":").map(Number);
   routeLabel = new RegExp(`^Route: ${h % 12 || 12}:${String(m).padStart(2, "0")}\\s${h < 12 ? "AM" : "PM"}$`);
   await sql()`insert into team_members (name, role) values (${ANA}, 'installer') returning id`;
   [{ id: bo }] = await sql()`insert into team_members (name, role) values (${BO}, 'installer') returning id`;
