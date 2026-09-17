@@ -25,7 +25,7 @@ export default async function SchedulePage({ searchParams }: { searchParams: Pro
     const saved = await loadSavedPlan(day, stops);
     return (
       <RouteView
-        day={day} today={today} stops={stops} installers={installers} saved={saved}
+        key={day} day={day} stops={stops} installers={installers} saved={saved}
         configured={routePlanningConfigured()}
         mapsKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY || null}
         mapId={process.env.NEXT_PUBLIC_GOOGLE_MAP_ID || null}

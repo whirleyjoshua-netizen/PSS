@@ -1,9 +1,12 @@
+import { Component, type ReactNode } from "react";
 import { render, screen, within, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { DayStop, Installer, RoutePlan } from "@/lib/routes/types";
 
 const actions = { buildRoutes: vi.fn(), recheckRoutes: vi.fn(), saveRoutes: vi.fn() };
 vi.mock("@/app/admin/schedule/route-actions", () => actions);
+// The real rethrow helper, so redirect handling is tested against Next itself.
+vi.mock("next/navigation", async () => ({ ...(await vi.importActual<object>("next/navigation")) }));
 vi.mock("@/app/admin/schedule/RouteMap", () => ({ RouteMap: () => <div data-testid="map" /> }));
 const { RouteView } = await import("@/app/admin/schedule/RouteView");
 const { moveStop } = await import("@/lib/routes/edit");
@@ -40,7 +43,7 @@ const plan: RoutePlan = {
 
 type Props = Parameters<typeof RouteView>[0];
 const view = (over: Partial<Props> = {}) => render(
-  <RouteView day={DAY} today="2026-09-16" stops={stops} installers={installers} saved={null}
+  <RouteView day={DAY} stops={stops} installers={installers} saved={null}
     configured mapsKey={null} mapId={null} {...over} />,
 );
 const buildButton = () => screen.getByRole("button", { name: "Build routes" });
@@ -141,7 +144,7 @@ describe("Build routes", () => {
     actions.buildRoutes.mockResolvedValue({ ok: false, error: "No appointment that day has a mappable address." });
     view();
     fireEvent.click(buildButton());
-    expect(await screen.findByRole("alert")).toHaveTextContent("No appointment that day has a mappable address.");
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("No appointment that day has a mappable address."));
     expect(saveButton()).toBeDisabled();
   });
 });
@@ -185,7 +188,7 @@ describe("Save routes", () => {
     await build();
     fireEvent.click(saveButton());
     expect(actions.saveRoutes).toHaveBeenCalledWith(DAY, plan);
-    expect(await screen.findByRole("alert")).toHaveTextContent("This day changed — rebuild first.");
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("This day changed — rebuild first."));
   });
 
   it("confirms a save and disables Save until the next change", async () => {
@@ -193,8 +196,18 @@ describe("Save routes", () => {
     view();
     await build();
     fireEvent.click(saveButton());
-    expect(await screen.findByRole("status")).toHaveTextContent("Routes saved.");
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Routes saved."));
     expect(saveButton()).toBeDisabled();
+  });
+
+  it("calls the server once when Save is double-clicked", async () => {
+    actions.saveRoutes.mockResolvedValue({ ok: true });
+    view();
+    await build();
+    fireEvent.click(saveButton());
+    fireEvent.click(saveButton());
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Routes saved."));
+    expect(actions.saveRoutes).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -208,6 +221,117 @@ describe("a saved plan", () => {
 
   it("shows no banner when the saved plan is current", () => {
     view({ saved: { plan, savedAt: "2026-09-23T11:00:00.000Z", stale: false } });
-    expect(screen.queryByRole("status")).toBeNull();
+    expect(screen.getByRole("status")).toBeEmptyDOMElement();
+    expect(screen.getByRole("alert")).toBeEmptyDOMElement();
+  });
+
+  it("names a stop whose appointment left the day and gives an empty route no Maps link", () => {
+    const withGhost = { ...plan, routes: [plan.routes[0], { ...plan.routes[1], stops: [
+      { appointmentId: "gone", arrival: `${DAY}T20:00:00.000Z`, driveMinutes: 5, outsideWindow: false },
+    ] }, { teamMemberId: "33333333-3333-4333-8333-333333333333", polyline: null, driveMinutes: 0, stops: [] }] };
+    view({ saved: { plan: withGhost, savedAt: "2026-09-23T11:00:00.000Z", stale: false } });
+    const bo = within(screen.getByRole("region", { name: "Bo · 0 min driving" }));
+    expect(bo.getByText("Removed appointment")).toBeInTheDocument();
+    expect(bo.queryByRole("link", { name: /Open in Google Maps/ })).toBeNull();
+    const empty = within(screen.getByRole("region", { name: "Former installer · 0 min driving" }));
+    expect(empty.getByText("No stops.")).toBeInTheDocument();
+    expect(empty.queryByRole("link")).toBeNull();
+  });
+
+  it("splits a 23-stop route into Maps links of 10 points each", () => {
+    const many = Array.from({ length: 23 }, (_, i) =>
+      stop({ appointmentId: `m${i}`, jobId: `mj${i}`, name: `Stop ${i}`, lat: 36 + i / 100, lng: -115 }));
+    const long: RoutePlan = { ...plan, skipped: [], routes: [{ teamMemberId: ANA, polyline: null, driveMinutes: 90,
+      stops: many.map((m) => ({ appointmentId: m.appointmentId, arrival: `${DAY}T16:00:00.000Z`, driveMinutes: 4, outsideWindow: false })) }] };
+    view({ stops: many, saved: { plan: long, savedAt: "2026-09-23T11:00:00.000Z", stale: false } });
+    const links = screen.getAllByRole("link", { name: /Open in Google Maps/ });
+    expect(links.map((l) => l.textContent)).toEqual([
+      "Open in Google Maps (part 1)", "Open in Google Maps (part 2)", "Open in Google Maps (part 3)",
+    ]);
+    const points = (el: HTMLElement) => el.getAttribute("href")!.split("/maps/dir/")[1].split("/");
+    expect(points(links[0])).toHaveLength(10);
+    expect(points(links[1])[0]).toBe(points(links[0])[9]);
+    expect(points(links[2])).toHaveLength(5);
+  });
+});
+
+describe("a new day", () => {
+  it("drops the old day's edits when the view is keyed by day", async () => {
+    const { rerender } = render(
+      <RouteView key={DAY} day={DAY} stops={stops} installers={installers} saved={null} configured mapsKey={null} mapId={null} />,
+    );
+    await build();
+    expect(saveButton()).toBeEnabled();
+    const next = { ...plan, day: "2026-09-25", routes: [{ ...plan.routes[0], driveMinutes: 7 }, plan.routes[1]] };
+    rerender(
+      <RouteView key="2026-09-25" day="2026-09-25" stops={stops} installers={installers}
+        saved={{ plan: next, savedAt: "2026-09-24T11:00:00.000Z", stale: false }} configured mapsKey={null} mapId={null} />,
+    );
+    expect(screen.getByRole("region", { name: "Ana · 7 min driving" })).toBeInTheDocument();
+    expect(saveButton()).toBeDisabled();
+  });
+});
+
+class Boundary extends Component<{ children: ReactNode }, { error: unknown }> {
+  state = { error: null as unknown };
+  static getDerivedStateFromError(error: unknown) { return { error }; }
+  render() { return this.state.error ? <p>boundary caught</p> : this.props.children; }
+}
+
+describe("a thrown action", () => {
+  const boom = () => Promise.reject(new Error("network down"));
+  beforeEach(() => { vi.spyOn(console, "error").mockImplementation(() => {}); });
+
+  it("shows unavailable when the build throws", async () => {
+    actions.buildRoutes.mockImplementation(boom);
+    view();
+    fireEvent.click(buildButton());
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Route planning is unavailable right now"));
+    await waitFor(() => expect(buildButton()).toBeEnabled());
+    expect(saveButton()).toBeDisabled();
+  });
+
+  it("shows unavailable when the save throws", async () => {
+    view();
+    await build();
+    actions.saveRoutes.mockImplementation(boom);
+    fireEvent.click(saveButton());
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Route planning is unavailable right now"));
+    await waitFor(() => expect(saveButton()).toBeEnabled());
+  });
+
+  it("lets a Next redirect through instead of reporting it", async () => {
+    const redirect = Object.assign(new Error("NEXT_REDIRECT"), { digest: "NEXT_REDIRECT;replace;/admin/login;307;" });
+    actions.buildRoutes.mockRejectedValue(redirect);
+    render(<Boundary><RouteView day={DAY} stops={stops} installers={installers} saved={null} configured mapsKey={null} mapId={null} /></Boundary>);
+    fireEvent.click(buildButton());
+    expect(await screen.findByText("boundary caught")).toBeInTheDocument();
+  });
+});
+
+describe("a failed re-check", () => {
+  const saved = { plan, savedAt: "2026-09-23T11:00:00.000Z", stale: false };
+  const anaFirst = () => within(screen.getByRole("region", { name: "Ana · 25 min driving" })).getAllByRole("listitem")[0];
+
+  it("restores the plan from before the edit and shows the error", async () => {
+    actions.recheckRoutes.mockResolvedValue({ ok: false, error: "That route could not be read. Build again." });
+    view({ saved });
+    fireEvent.click(screen.getByRole("button", { name: "Move Dana Reyes down" }));
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("That route could not be read. Build again."));
+    await waitFor(() => expect(buildButton()).toBeEnabled());
+    expect(anaFirst()).toHaveTextContent("Dana Reyes");
+    expect(saveButton()).toBeDisabled();
+  });
+
+  it("restores the plan when the re-check throws", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    actions.recheckRoutes.mockRejectedValue(new Error("network down"));
+    view({ saved });
+    fireEvent.change(screen.getByRole("combobox", { name: "Move Dana Reyes to" }), { target: { value: BO } });
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Route planning is unavailable right now"));
+    await waitFor(() => expect(buildButton()).toBeEnabled());
+    expect(anaFirst()).toHaveTextContent("Dana Reyes");
+    expect(screen.getByRole("region", { name: "Bo · 0 min driving" })).not.toHaveTextContent("Dana Reyes");
+    expect(saveButton()).toBeDisabled();
   });
 });

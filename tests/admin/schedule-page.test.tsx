@@ -129,10 +129,15 @@ describe("schedule page - route view", () => {
     expect(day.loadDay).toHaveBeenCalledWith("2026-09-24");
     expect(day.loadSavedPlan).toHaveBeenCalledWith("2026-09-24", STOPS);
     expect(RouteView.mock.calls[0][0]).toMatchObject({
-      day: "2026-09-24", today: "2026-09-16", stops: STOPS, installers: INSTALLERS, saved: SAVED, configured: true,
+      day: "2026-09-24", stops: STOPS, installers: INSTALLERS, saved: SAVED, configured: true,
     });
     expect(screen.getByText("route view")).toBeInTheDocument();
     expect(getWeek).not.toHaveBeenCalled();
+  });
+
+  it("keys the route view by day so a new day starts from its own saved plan", async () => {
+    const element = await SchedulePage({ searchParams: Promise.resolve({ view: "route", day: "2026-09-24" }) });
+    expect(element.key).toBe("2026-09-24");
   });
 
   it("falls back to today in Las Vegas for an invalid day and passes whether planning is configured", async () => {

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { formatTime } from "@/lib/admin/time";
-import { mapsDirectionsUrl } from "@/lib/routes/maps-link";
+import { mapsDirectionsUrls } from "@/lib/routes/maps-link";
 import { windowLabel } from "@/lib/routes/window";
 import type { DayStop, Installer, RoutePlan } from "@/lib/routes/types";
 
@@ -28,7 +28,7 @@ export function RouteLists({ stops, installers, plan, pending, onMove, onShift }
         plan.routes.map((route) => {
           const installer = installers.find((i) => i.id === route.teamMemberId);
           const headingId = `route-${route.teamMemberId}`;
-          const directions = mapsDirectionsUrl(
+          const directions = mapsDirectionsUrls(
             route.stops.map((s) => byId.get(s.appointmentId)).filter((s): s is DayStop => Boolean(s)).filter(hasCoordinates),
           );
           return (
@@ -66,9 +66,11 @@ export function RouteLists({ stops, installers, plan, pending, onMove, onShift }
                   })}
                 </ol>
               ) : <p className="text-sm text-ink-soft">No stops.</p>}
-              {directions ? (
-                <a href={directions} target="_blank" rel="noreferrer" className="text-sm underline underline-offset-4">Open in Google Maps</a>
-              ) : null}
+              {directions.map((href, part) => (
+                <a key={href} href={href} target="_blank" rel="noreferrer" className="text-sm underline underline-offset-4">
+                  {directions.length > 1 ? `Open in Google Maps (part ${part + 1})` : "Open in Google Maps"}
+                </a>
+              ))}
             </section>
           );
         })

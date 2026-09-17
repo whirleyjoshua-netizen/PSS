@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
+import { unstable_rethrow } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { moveStop, shiftStop } from "@/lib/routes/edit";
 import { UNAVAILABLE } from "@/lib/routes/plan-schema";
@@ -11,8 +12,21 @@ import { RouteLists } from "./RouteLists";
 import { RouteMap } from "./RouteMap";
 import { ScheduleHeader } from "./ScheduleHeader";
 
+type Failure = { ok: false; error: string };
+
+/** Runs a server action; a thrown error (network, crash) reads as "unavailable", but Next's redirects still go through. */
+async function attempt<T>(action: () => Promise<T>): Promise<T | Failure> {
+  try {
+    return await action();
+  } catch (error) {
+    unstable_rethrow(error);
+    console.error("Route action failed", error);
+    return { ok: false, error: UNAVAILABLE };
+  }
+}
+
 export type RouteViewProps = {
-  day: string; today: string; stops: DayStop[]; installers: Installer[];
+  day: string; stops: DayStop[]; installers: Installer[];
   saved: SavedRoute | null; configured: boolean; mapsKey: string | null; mapId: string | null;
 };
 
@@ -26,6 +40,8 @@ export function RouteView({ day, stops, installers, saved, configured, mapsKey, 
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  // useTransition's pending flag lands after a render; this blocks a second click in the same tick.
+  const busy = useRef(false);
 
   const buildBlocker = selected.length === 0 ? "Pick at least one installer."
     : stops.length === 0 ? "Nothing is scheduled that day." : null;
@@ -33,12 +49,27 @@ export function RouteView({ day, stops, installers, saved, configured, mapsKey, 
   const toggle = (id: string) =>
     setSelected((current) => current.includes(id) ? current.filter((x) => x !== id) : [...current, id]);
 
-  const build = () => {
+  const run = (work: () => Promise<void>) => {
+    if (busy.current) return;
+    busy.current = true;
     setNotice(null);
-    // The page already knows planning is off, so no round trip is spent finding out.
-    if (!configured) return setError(UNAVAILABLE);
     startTransition(async () => {
-      const result = await buildRoutes(day, selected);
+      try {
+        await work();
+      } finally {
+        busy.current = false;
+      }
+    });
+  };
+
+  const build = () => {
+    // The page already knows planning is off, so no round trip is spent finding out.
+    if (!configured) {
+      setNotice(null);
+      return setError(UNAVAILABLE);
+    }
+    run(async () => {
+      const result = await attempt(() => buildRoutes(day, selected));
       if (result.ok) {
         setPlan(result.plan);
         setDirty(true);
@@ -48,22 +79,27 @@ export function RouteView({ day, stops, installers, saved, configured, mapsKey, 
   };
 
   const edit = (next: RoutePlan) => {
+    if (busy.current) return;
+    const previous = plan;
     setPlan(next);
-    setDirty(true);
-    setNotice(null);
-    startTransition(async () => {
-      const result = await recheckRoutes(day, next, selected);
+    run(async () => {
+      const result = await attempt(() => recheckRoutes(day, next, selected));
       if (result.ok) {
         setPlan(result.plan);
+        setDirty(true);
         setError(null);
-      } else setError(result.error);
+      } else {
+        // Unchecked times are never kept, so they can never be saved.
+        setPlan(previous);
+        setError(result.error);
+      }
     });
   };
 
   const save = () => {
     if (!plan) return;
-    startTransition(async () => {
-      const result = await saveRoutes(day, plan);
+    run(async () => {
+      const result = await attempt(() => saveRoutes(day, plan));
       if (result.ok) {
         setDirty(false);
         setError(null);
@@ -103,9 +139,12 @@ export function RouteView({ day, stops, installers, saved, configured, mapsKey, 
         <Button variant="outline" disabled={pending || !dirty || !plan} onClick={save}>Save routes</Button>
         {buildBlocker ? <p className="text-sm text-ink-soft">{buildBlocker}</p> : null}
       </div>
-      {saved?.stale && !dirty ? <p role="status" className="text-sm text-overdue">Route is out of date — rebuild</p> : null}
-      {error ? <p role="alert" className="text-sm text-overdue">{error}</p> : null}
-      {notice ? <p role="status" className="text-sm text-ink-soft">{notice}</p> : null}
+      {/* Both regions stay mounted so screen readers announce the text swapped into them. */}
+      <div role="status" aria-live="polite" className="flex flex-col gap-1 text-sm empty:hidden">
+        {saved?.stale && !dirty ? <p className="text-overdue">Route is out of date — rebuild</p> : null}
+        {notice ? <p className="text-ink-soft">{notice}</p> : null}
+      </div>
+      <div role="alert" className="text-sm text-overdue empty:hidden">{error}</div>
       {/* The map comes first, so on a phone it sits above the lists. */}
       <div className="grid gap-4 md:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <RouteMap stops={stops} plan={plan} installers={installers} apiKey={mapsKey} mapId={mapId} />
