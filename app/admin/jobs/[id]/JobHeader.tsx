@@ -5,6 +5,7 @@ import type { Job } from "@/lib/admin/jobs";
 import type { TeamMember } from "@/lib/admin/team";
 import { STAGE_STYLE, stageLabel } from "@/lib/admin/stages";
 import { daysBetween, formatShortDate, formatShortDay } from "@/lib/admin/time";
+import { formatProjectNo } from "@/lib/portal/project-no";
 import { AssignControl } from "./AssignControl";
 import { CallButton } from "./CallButton";
 import { ContactLog } from "./ContactLog";
@@ -19,8 +20,13 @@ function inStage(days: number): string {
   return `${days} ${days === 1 ? "day" : "days"} in stage`;
 }
 
-export function JobHeader({ job, now, team, defaultMinutes }: {
-  job: Job; now: Date; team: TeamMember[]; defaultMinutes: Record<AppointmentKind, number>;
+export function JobHeader({ job, now, team, defaultMinutes, parent = null }: {
+  job: Job;
+  now: Date;
+  team: TeamMember[];
+  defaultMinutes: Record<AppointmentKind, number>;
+  /** The job this one came from, when a customer's service request created it. */
+  parent?: Job | null;
 }) {
   const style = STAGE_STYLE[job.status];
 
@@ -43,6 +49,13 @@ export function JobHeader({ job, now, team, defaultMinutes }: {
           <p className="text-sm text-ink-soft">
             {[job.city, `Created ${formatShortDate(job.createdAt)}`, inStage(daysBetween(job.stageChangedAt, now))].join(" · ")}
           </p>
+          {parent ? (
+            <p className="text-sm">
+              <Link href={`/admin/jobs/${parent.id}`} className={TEXT_LINK}>
+                Service request for {formatProjectNo(parent.projectNo) ?? parent.name}
+              </Link>
+            </p>
+          ) : null}
           {job.lastContactAt ? (
             <p className="text-sm text-ink-soft">Last contacted {formatShortDay(job.lastContactAt)}</p>
           ) : null}

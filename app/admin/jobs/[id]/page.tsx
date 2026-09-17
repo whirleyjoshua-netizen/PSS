@@ -25,11 +25,12 @@ export default async function JobPage({ params, searchParams }: {
   const { id } = await params;
   const job = await getJob(id);
   if (!job) notFound();
-  const [query, events, referrals, referrer, measurements, files, team, appointments, routeSettings] = await Promise.all([
+  const [query, events, referrals, referrer, parent, measurements, files, team, appointments, routeSettings] = await Promise.all([
     searchParams,
     getEvents(id),
     listReferrals(id),
     job.referredBy ? getJob(job.referredBy) : Promise.resolve(null),
+    job.parentJobId ? getJob(job.parentJobId) : Promise.resolve(null),
     listMeasurements(id),
     listFiles(id),
     listTeam(),
@@ -42,7 +43,7 @@ export default async function JobPage({ params, searchParams }: {
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-6">
-      <JobHeader job={job} now={now} team={team} defaultMinutes={routeSettings.minutes} />
+      <JobHeader job={job} now={now} team={team} defaultMinutes={routeSettings.minutes} parent={parent} />
       <JobTabs jobId={job.id} active={tab} counts={{ measurements: measurements.length, files: files.length }} />
       {tab === "overview" ? (
         <OverviewTab job={job} editing={editing} now={now} measurements={measurements} files={files}

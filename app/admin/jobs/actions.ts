@@ -7,7 +7,7 @@ import { syncJobCalendar } from "@/lib/calendar/sync";
 import { requireAdmin } from "@/lib/admin/session";
 import { geocodeLead } from "@/lib/routes/geocode";
 import { addNote, assignJob, createJob, getJob, setStage, updateDetails } from "@/lib/admin/jobs";
-import { detailsSchema, lostSchema, newJobSchema, noteSchema } from "@/lib/admin/schema";
+import { detailsSchema, handJobSchema, lostSchema, noteSchema } from "@/lib/admin/schema";
 import { isInstalled, type Stage } from "@/lib/admin/stages";
 import { autoInvite, sendPortalInvite } from "@/lib/portal/invite";
 import { isPortalStatus } from "@/lib/portal/progress";
@@ -89,7 +89,8 @@ export async function saveNote(id: string, _prev: FormState, formData: FormData)
 export async function addJob(_prev: FormState, formData: FormData): Promise<FormState> {
   const { email } = await requireAdmin();
   const values = captureValues(formData, ["name", "phone", "email", "city", "address", "source", "notes", "stage"]);
-  const parsed = newJobSchema.safeParse(Object.fromEntries(formData));
+  // handJobSchema, not newJobSchema: "service" belongs to the customer's own request, never to this form.
+  const parsed = handJobSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: parsed.error.issues[0].message, values };
   const id = await createJob(parsed.data, email);
   revalidatePath("/admin");

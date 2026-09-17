@@ -44,6 +44,8 @@ export type Job = {
   portalInvitedAt?: Date | null;
   /** The short, human-friendly project number shown to the customer. Optional so older fixtures still type-check. */
   projectNo?: number | null;
+  /** The job this one came from, when a customer's service request created it. Null for every job entered by hand. */
+  parentJobId?: string | null;
   /** Budget tier from the call screen or Job details. Optional so older fixtures still type-check. */
   budgetTier?: BudgetTier | null;
   /** The job's one next call-back, if any. Optional so older fixtures still type-check. */
@@ -67,7 +69,7 @@ export type JobEvent = {
   id: string;
   createdAt: Date;
   actor: string;
-  kind: "stage" | "note" | "edit" | "email" | "reward" | "measure" | "file" | "contact";
+  kind: "stage" | "note" | "edit" | "email" | "reward" | "measure" | "file" | "contact" | "message" | "service";
   fromStatus: string | null;
   toStatus: string | null;
   body: string | null;
@@ -79,7 +81,7 @@ export const JOB_COLUMNS = `id, created_at, name, phone, email, address, city, t
   deposit_cents, brands, ordered_on::text as ordered_on, install_on::text as install_on, lost_reason,
   referral_code, referred_by, referral_paid_at, review_requested_at, review_opt_out, portal_invited_at, budget_tier,
   follow_up_at, follow_up_note, window_count_exact, treatment_types, motorized, gate_code, finish, project_no,
-  assigned_to,
+  parent_job_id, assigned_to,
   (select t.name from team_members t where t.id = leads.assigned_to) as assigned_name,
   (select t.role from team_members t where t.id = leads.assigned_to) as assigned_role,
   (select max(e.created_at) from job_events e where e.lead_id = leads.id and (e.kind = 'contact' or (e.kind = 'note' and e.body like 'Call:%'))) as last_contact_at`;
@@ -115,6 +117,7 @@ export function toJob(row: Record<string, unknown>): Job {
     reviewOptOut: row.review_opt_out === true,
     portalInvitedAt: row.portal_invited_at ? new Date(row.portal_invited_at as string) : null,
     projectNo: (row.project_no as number | null) ?? null,
+    parentJobId: (row.parent_job_id as string | null) ?? null,
     budgetTier: isBudgetTier(row.budget_tier) ? row.budget_tier : null,
     followUpAt: row.follow_up_at ? new Date(row.follow_up_at as string) : null,
     followUpNote: (row.follow_up_note as string | null) ?? null,
@@ -287,20 +290,36 @@ export async function assignJob(id: string, memberId: string | null, actor: stri
   return result.changed ? "ok" : "unchanged";
 }
 
-export async function createJob(input: NewJobInput, actor: string): Promise<string> {
+/**
+ * Creates a job and logs its opening event, in one statement.
+ *
+ * `options.parentJobId` links a job back to the one it came from — a customer's service request
+ * makes a real job on the owners' board that points at the original. `options.eventBody` replaces
+ * the hand-entered wording, so that opening event can say where the job actually came from.
+ * `options.eventKind` records what kind of opening this was: a customer's service request logs
+ * `service`, which is the value migration 019 widened the kind constraint to allow. It defaults
+ * to `stage`, so every job entered by hand logs exactly what it always has.
+ */
+export async function createJob(
+  input: NewJobInput,
+  actor: string,
+  options: { parentJobId?: string; eventBody?: string; eventKind?: JobEvent["kind"] } = {},
+): Promise<string> {
   // A job entered as already installed (or completed) must not trigger tomorrow's review email; the owner can untick it.
   const installed = isInstalled(input.stage);
-  const body = installed ? "Added by hand (review request off)" : "Added by hand";
+  const body = options.eventBody ?? (installed ? "Added by hand (review request off)" : "Added by hand");
+  const kind = options.eventKind ?? "stage";
   const rows = await db()`
     with created as (
-      insert into leads (name, phone, email, city, address, notes, source, status, review_opt_out)
+      insert into leads (name, phone, email, city, address, notes, source, status, review_opt_out, parent_job_id)
       values (${input.name}, ${input.phone}, ${input.email ?? null}, ${input.city},
-              ${input.address ?? null}, ${input.notes ?? null}, ${input.source}, ${input.stage}, ${installed})
+              ${input.address ?? null}, ${input.notes ?? null}, ${input.source}, ${input.stage}, ${installed},
+              ${options.parentJobId ?? null})
       returning id
     ),
     logged as (
       insert into job_events (lead_id, actor, kind, to_status, body)
-      select id, ${actor}, 'stage', ${input.stage}, ${body} from created
+      select id, ${actor}, ${kind}, ${input.stage}, ${body} from created
     )
     select id from created`;
   const id = rows[0].id as string;

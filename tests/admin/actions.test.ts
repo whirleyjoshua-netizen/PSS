@@ -139,6 +139,16 @@ describe("with a session", () => {
     expect(jobs.createJob).toHaveBeenCalledWith(expect.objectContaining({ stage: "sold" }), "owner@example.com");
   });
 
+  it("refuses a crafted add-job POST claiming the customer-only service source", async () => {
+    // Asserted on the resolved value, not on the absence of a throw: under the wide schema this
+    // action reaches the mocked redirect, and a rejects-based arrangement would fail on
+    // NEXT_REDIRECT before either assertion ran — passing for the right reason by accident.
+    await expect(
+      actions.addJob({}, form({ name: "Dana Reyes", phone: "7025550134", city: "Henderson", source: "service" })),
+    ).resolves.toMatchObject({ error: expect.any(String) });
+    expect(jobs.createJob).not.toHaveBeenCalled();
+  });
+
   it("reports a missing job when the note target no longer exists", async () => {
     jobs.addNote.mockResolvedValue(false);
     const state = await actions.saveNote(ID, {}, form({ body: "Hi" }));

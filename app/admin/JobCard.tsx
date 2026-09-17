@@ -36,6 +36,11 @@ export function JobCard({ job, now }: { job: Job; now: Date }) {
           Referral
         </span>
       ) : null}
+      {job.source === "service" ? (
+        <span className="w-fit rounded border border-rule px-1.5 text-[0.65rem] uppercase tracking-[0.12em] text-ink-soft">
+          Service
+        </span>
+      ) : null}
       <span className="flex items-center gap-1.5 text-ink-soft">
         <Icon name="pin" className="size-4 shrink-0" />
         {job.city}
