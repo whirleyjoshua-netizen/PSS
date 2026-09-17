@@ -30,6 +30,19 @@ export const DETAILS_MAX = 2000;
 export const PHOTO_MAX_MB = 10;
 export const PHOTO_MAX_BYTES = PHOTO_MAX_MB * 1024 * 1024;
 
+/**
+ * A phone photo is still a photo when the browser cannot name its type.
+ *
+ * These customers are photographing a broken blind on a phone, and an iPhone's HEIC often
+ * arrives with an empty or unrecognised MIME type depending on the browser. Rejecting it for
+ * its container would turn a good photo into no photo, so the file name settles it when the
+ * type does not.
+ */
+const IMAGE_EXTENSIONS = /\.(jpe?g|png|gif|webp|heic|heif|avif|bmp|tiff?)$/i;
+
+export const looksLikeImage = (name: string, type: string): boolean =>
+  type.trim().toLowerCase().startsWith("image/") || (type.trim() === "" && IMAGE_EXTENSIONS.test(name));
+
 export const serviceRequestSchema = z
   .object({
     windowId: z.string().optional(), // a measurement id, when picked from the list

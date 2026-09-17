@@ -89,22 +89,59 @@ describe("AfterWork", () => {
       expect(serviceLink()).toBeNull();
     });
 
-    it("says when a service was last requested", () => {
-      render(<AfterWork project={project} serviceRequestedOn="Sep 16" />);
+    it("says when a service was requested, and names its project number", () => {
+      render(
+        <AfterWork project={project} serviceRequests={[{ on: "Sep 16", projectNo: "PSS-1051" }]} />,
+      );
       expect(
-        screen.getByText("Service requested on Sep 16 — we will be in touch."),
+        screen.getByText("Service requested on Sep 16 (PSS-1051) — we will be in touch."),
       ).toBeInTheDocument();
     });
 
+    /** A second broken blind must not erase the first one they reported. */
+    it("lists every request, not only the most recent", () => {
+      render(
+        <AfterWork
+          project={project}
+          serviceRequests={[
+            { on: "Mar 3", projectNo: "PSS-1090" },
+            { on: "Jan 8", projectNo: "PSS-1051" },
+          ]}
+        />,
+      );
+      expect(screen.getByText(/Mar 3 \(PSS-1090\)/)).toBeInTheDocument();
+      expect(screen.getByText(/Jan 8 \(PSS-1051\)/)).toBeInTheDocument();
+    });
+
     it("says nothing when none has been requested", () => {
-      render(<AfterWork project={project} serviceRequestedOn={null} />);
+      render(<AfterWork project={project} serviceRequests={[]} />);
       expect(screen.queryByText(/service requested on/i)).toBeNull();
     });
 
+    /** Straight after submitting: the reference they quote when they call. */
+    it("confirms a request just filed, naming the new project number", () => {
+      render(<AfterWork project={project} justRequested="PSS-1051" />);
+      const confirmation = screen.getByRole("status");
+      expect(confirmation).toHaveTextContent("Thanks — we have your request and will be in touch.");
+      expect(confirmation).toHaveTextContent("PSS-1051");
+    });
+
+    it("shows no confirmation on an ordinary visit", () => {
+      render(<AfterWork project={project} serviceRequests={[{ on: "Sep 16", projectNo: "PSS-1051" }]} />);
+      expect(screen.queryByRole("status")).toBeNull();
+    });
+
     it("is a plain link with JavaScript off", () => {
-      const html = renderToStaticMarkup(<AfterWork project={project} serviceRequestedOn="Sep 16" />);
+      const html = renderToStaticMarkup(
+        <AfterWork
+          project={project}
+          serviceRequests={[{ on: "Sep 16", projectNo: "PSS-1051" }]}
+          justRequested="PSS-1051"
+        />,
+      );
       expect(html).toContain(`/project/${project.id}/service`);
       expect(html).toContain("Service requested on Sep 16");
+      expect(html).toContain("PSS-1051");
     });
   });
 });

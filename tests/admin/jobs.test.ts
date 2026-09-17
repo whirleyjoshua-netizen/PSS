@@ -264,6 +264,36 @@ describe("changing jobs", () => {
     expect(sql.mock.calls[0]).not.toEqual(expect.arrayContaining([true]));
   });
 
+  it("logs the opening event as a stage change unless told otherwise", async () => {
+    sql.mockResolvedValue([{ id: ID }]);
+    await jobs.createJob(
+      { name: "Dana Reyes", phone: "7025550134", city: "Henderson", source: "phone", stage: "new" },
+      "owner@example.com",
+    );
+    expect(sql.mock.calls[0]).toEqual(expect.arrayContaining(["stage"]));
+  });
+
+  /**
+   * Migration 019 widened the job_events kind constraint specifically to allow 'service'.
+   * A customer's service request is the one caller that writes it; everything entered by hand
+   * still logs 'stage', which the test above pins.
+   */
+  it("records a customer's service request under its own event kind", async () => {
+    sql.mockResolvedValue([{ id: ID }]);
+    await jobs.createJob(
+      { name: "Dana Reyes", phone: "7025550134", city: "Henderson", source: "service", stage: "new" },
+      "maria@example.com",
+      { parentJobId: PARENT, eventBody: "Service requested by the customer", eventKind: "service" },
+    );
+    const statement = text(sql.mock.calls[0]);
+    expect(statement).toContain("insert into job_events");
+    // The kind is bound, not hardcoded, or the option could never reach the row.
+    expect(statement).not.toContain("'stage'");
+    expect(sql.mock.calls[0]).toEqual(
+      expect.arrayContaining(["service", PARENT, "Service requested by the customer"]),
+    );
+  });
+
   it("a job created as installed logs that the review request is off", async () => {
     sql.mockResolvedValue([{ id: ID }]);
     await jobs.createJob(

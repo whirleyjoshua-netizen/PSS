@@ -283,15 +283,19 @@ export async function assignJob(id: string, memberId: string | null, actor: stri
  * `options.parentJobId` links a job back to the one it came from — a customer's service request
  * makes a real job on the owners' board that points at the original. `options.eventBody` replaces
  * the hand-entered wording, so that opening event can say where the job actually came from.
+ * `options.eventKind` records what kind of opening this was: a customer's service request logs
+ * `service`, which is the value migration 019 widened the kind constraint to allow. It defaults
+ * to `stage`, so every job entered by hand logs exactly what it always has.
  */
 export async function createJob(
   input: NewJobInput,
   actor: string,
-  options: { parentJobId?: string; eventBody?: string } = {},
+  options: { parentJobId?: string; eventBody?: string; eventKind?: JobEvent["kind"] } = {},
 ): Promise<string> {
   // A job entered as already installed (or completed) must not trigger tomorrow's review email; the owner can untick it.
   const installed = isInstalled(input.stage);
   const body = options.eventBody ?? (installed ? "Added by hand (review request off)" : "Added by hand");
+  const kind = options.eventKind ?? "stage";
   const rows = await db()`
     with created as (
       insert into leads (name, phone, email, city, address, notes, source, status, review_opt_out, parent_job_id)
@@ -302,7 +306,7 @@ export async function createJob(
     ),
     logged as (
       insert into job_events (lead_id, actor, kind, to_status, body)
-      select id, ${actor}, 'stage', ${input.stage}, ${body} from created
+      select id, ${actor}, ${kind}, ${input.stage}, ${body} from created
     )
     select id from created`;
   return rows[0].id as string;

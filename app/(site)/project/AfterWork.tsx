@@ -23,11 +23,14 @@ import type { ProjectSummary } from "@/lib/portal/access";
  */
 export function AfterWork({
   project,
-  serviceRequestedOn,
+  serviceRequests = [],
+  justRequested,
 }: {
   project: ProjectSummary;
-  /** When they last asked for a service visit, already formatted as "Sep 16"; null if never. */
-  serviceRequestedOn?: string | null;
+  /** Every service they have asked for, newest first, each date already formatted as "Sep 16". */
+  serviceRequests?: { on: string; projectNo: string | null }[];
+  /** The project number of a request just filed, for the confirmation. Null the rest of the time. */
+  justRequested?: string | null;
 }) {
   if (project.status !== "installed") return null;
 
@@ -53,11 +56,18 @@ export function AfterWork({
           Request a service
         </a>
       </div>
-      {serviceRequestedOn ? (
-        <p className="text-sm text-ink-soft">
-          Service requested on {serviceRequestedOn} — we will be in touch.
+      {justRequested ? (
+        <p role="status" className="border border-champagne bg-sand/60 p-4 text-sm">
+          Thanks — we have your request and will be in touch. Quote {justRequested} when you call
+          us about it.
         </p>
       ) : null}
+      {serviceRequests.map((request) => (
+        <p key={`${request.on}-${request.projectNo ?? ""}`} className="text-sm text-ink-soft">
+          Service requested on {request.on}
+          {request.projectNo ? ` (${request.projectNo})` : ""} — we will be in touch.
+        </p>
+      ))}
     </section>
   );
 }

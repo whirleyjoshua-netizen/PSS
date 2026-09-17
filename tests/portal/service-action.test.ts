@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 /** The form's wrapper around requestService: validation, and the guard in front of it. */
-const requestService = vi.fn(async () => "created");
+const CREATED = { status: "created", jobId: "5e4f3a2b-1c0d-4e9f-8a7b-6c5d4e3f2a1b", projectNo: "PSS-1051" };
+const requestService = vi.fn(async (..._args: unknown[]) => CREATED as unknown);
 vi.mock("@/lib/portal/service-request", () => ({ requestService }));
 
 const requireCustomer = vi.fn();
@@ -40,7 +41,7 @@ const form = (fields: Record<string, string> = {}) => {
 const submit = (data: FormData) => requestServiceAction({ status: "idle" }, data);
 
 beforeEach(() => {
-  requestService.mockReset().mockResolvedValue("created");
+  requestService.mockReset().mockResolvedValue(CREATED);
   requireCustomer.mockReset().mockResolvedValue({ email: EMAIL, jobs: [job()] });
   revalidatePath.mockReset();
   redirect.mockClear();
@@ -80,7 +81,7 @@ describe("requestServiceAction", () => {
   });
 
   it("passes the validated answers through and lands them back on their project", async () => {
-    await expect(submit(form({ details: "Cord is jammed." }))).rejects.toThrow(`NEXT_REDIRECT /project/${MINE}`);
+    await expect(submit(form({ details: "Cord is jammed." }))).rejects.toThrow("NEXT_REDIRECT");
     expect(requestService).toHaveBeenCalledWith(
       MINE,
       expect.objectContaining({ issue: "wont-move", windowText: "The big window in the den", details: "Cord is jammed." }),
@@ -89,8 +90,28 @@ describe("requestServiceAction", () => {
     expect(revalidatePath).toHaveBeenCalledWith(`/project/${MINE}`);
   });
 
+  /** The reference they quote when they call about the repair travels back on the URL. */
+  it("carries the new project number into the confirmation", async () => {
+    await expect(submit(form())).rejects.toThrow(`NEXT_REDIRECT /project/${MINE}?requested=PSS-1051`);
+  });
+
+  it("still lands them back when the number could not be read", async () => {
+    requestService.mockResolvedValue({ ...CREATED, projectNo: null });
+    await expect(submit(form())).rejects.toThrow(`NEXT_REDIRECT /project/${MINE}`);
+  });
+
+  /** A stale picker: everything else they typed comes back with the question. */
+  it("asks again for a window that is not one of this job's", async () => {
+    requestService.mockResolvedValue({ status: "unknown-window" });
+    const state = await submit(form({ details: "Cord is jammed." }));
+    expect(state.status).toBe("invalid");
+    expect(state.errors?.windowText).toBe("Tell us which window");
+    expect(state.values).toMatchObject({ details: "Cord is jammed." });
+    expect(redirect).not.toHaveBeenCalled();
+  });
+
   it("reports a refusal from requestService rather than redirecting", async () => {
-    requestService.mockResolvedValue("not-found");
+    requestService.mockResolvedValue({ status: "not-found" });
     await expect(submit(form())).resolves.toEqual({ status: "not-found" });
     expect(redirect).not.toHaveBeenCalled();
   });

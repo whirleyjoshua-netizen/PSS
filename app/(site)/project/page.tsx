@@ -22,9 +22,18 @@ import { ProjectView } from "./ProjectView";
  * reads as current: they gate only Measurements and Ready to Install, and Measurements can
  * never be the furthest step for a job a customer can see (Quote Ready always sits above it).
  */
-export default async function ProjectHome() {
+// The default matters: Next calls a page with props, but a direct call (and a test) need not
+// pass any, and destructuring undefined would throw before the page ever rendered.
+export default async function ProjectHome({
+  searchParams,
+}: {
+  searchParams?: Promise<{ requested?: string }>;
+} = {}) {
   const { jobs } = await requireCustomer();
-  if (jobs.length === 1) return <ProjectView job={jobs[0]} />;
+  // A customer with one job lands here after a service request, so the confirmation must
+  // survive the hop: this page is the one that renders their project.
+  const requested = searchParams ? ((await searchParams).requested ?? null) : null;
+  if (jobs.length === 1) return <ProjectView job={jobs[0]} justRequested={requested} />;
 
   const installs = await confirmedInstallAppointments(jobs.map((job) => job.id));
   const projects = jobs.map((job) =>

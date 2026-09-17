@@ -10,8 +10,10 @@ const query = vi.fn(async () => [] as unknown[]);
 vi.mock("@/lib/db", () => ({ db: () => query }));
 
 const createJob = vi.fn(async (..._args: unknown[]) => NEW_JOB);
+const getJob = vi.fn(async (..._args: unknown[]) => ({ id: NEW_JOB, projectNo: 1051 }) as unknown);
 vi.mock("@/lib/admin/jobs", () => ({
   createJob,
+  getJob,
   isUuid: (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id),
 }));
 
@@ -39,6 +41,7 @@ const MINE = "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c";
 const THEIRS = "9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d";
 const MISSING = "8c1e3f2b-4a53-4c52-9a1c-2d3e4f5a6b7c";
 const WINDOW = "1b2c3d4e-5f60-4a71-8b92-0c1d2e3f4a5b";
+const STALE = "2c3d4e5f-6071-4b82-9ca3-1d2e3f4a5b6c";
 const NEW_JOB = "5e4f3a2b-1c0d-4e9f-8a7b-6c5d4e3f2a1b";
 const EMAIL = "maria@example.com";
 
@@ -61,14 +64,19 @@ const form = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
-const photo = (bytes = 1024, type = "image/jpeg") =>
-  new File([new Uint8Array(bytes)], "blind.jpg", { type });
+const photo = (bytes = 1024, type = "image/jpeg", name = "blind.jpg") => {
+  const file = new File([new Uint8Array(Math.min(bytes, 1024))], name, { type });
+  // Defined rather than allocated: an 11 MB buffer in every run costs more than it proves.
+  Object.defineProperty(file, "size", { value: bytes });
+  return file;
+};
 
 const notesOf = () => String((createJob.mock.calls[0][0] as { notes?: string } | undefined)?.notes ?? "");
 
 beforeEach(() => {
   query.mockClear();
   createJob.mockReset().mockResolvedValue(NEW_JOB);
+  getJob.mockReset().mockResolvedValue({ id: NEW_JOB, projectNo: 1051 });
   createFile.mockReset().mockResolvedValue({ id: "file-1" });
   listMeasurements.mockReset().mockResolvedValue([]);
   notifyOwnersOfServiceRequest.mockReset().mockResolvedValue(undefined);
@@ -82,7 +90,7 @@ beforeEach(() => {
  */
 describe("ownership", () => {
   it("refuses a job the customer does not own, and creates nothing", async () => {
-    await expect(requestService(THEIRS, form())).resolves.toBe("not-found");
+    await expect(requestService(THEIRS, form())).resolves.toEqual({ status: "not-found" });
     expect(createJob).not.toHaveBeenCalled();
     expect(createFile).not.toHaveBeenCalled();
     expect(notifyOwnersOfServiceRequest).not.toHaveBeenCalled();
@@ -91,7 +99,7 @@ describe("ownership", () => {
 
   it("answers a job that does not exist the same way, telling the caller nothing apart", async () => {
     const missing = await requestService(MISSING, form());
-    expect(missing).toBe(await requestService(THEIRS, form()));
+    expect(missing).toEqual(await requestService(THEIRS, form()));
     expect(createJob).not.toHaveBeenCalled();
   });
 
@@ -105,19 +113,19 @@ describe("ownership", () => {
 describe("status", () => {
   it.each(["quoted", "sold", "ordered"] as const)("refuses a job that is only %s", async (status) => {
     requireCustomer.mockResolvedValue({ email: EMAIL, jobs: [parent({ status })] });
-    await expect(requestService(MINE, form())).resolves.toBe("not-found");
+    await expect(requestService(MINE, form())).resolves.toEqual({ status: "not-found" });
     expect(createJob).not.toHaveBeenCalled();
   });
 
   it("accepts a completed job, which is finished work too", async () => {
     requireCustomer.mockResolvedValue({ email: EMAIL, jobs: [parent({ status: "completed" })] });
-    await expect(requestService(MINE, form())).resolves.toBe("created");
+    await expect(requestService(MINE, form())).resolves.toMatchObject({ status: "created" });
   });
 });
 
 describe("what it creates", () => {
   it("creates the new job through createJob, never a direct insert", async () => {
-    await expect(requestService(MINE, form())).resolves.toBe("created");
+    await expect(requestService(MINE, form())).resolves.toMatchObject({ status: "created", jobId: NEW_JOB });
     expect(createJob).toHaveBeenCalledWith(
       expect.objectContaining({
         source: "service",
@@ -133,6 +141,12 @@ describe("what it creates", () => {
     );
     // Geocoding and the opening event hang off createJob; a direct statement would skip both.
     expect(query).not.toHaveBeenCalled();
+  });
+
+  /** Migration 019 widened the kind constraint for this row; nothing else writes it. */
+  it("logs the opening event as a service request, not a plain stage change", async () => {
+    await requestService(MINE, form());
+    expect(createJob.mock.calls[0][2]).toMatchObject({ eventKind: "service" });
   });
 
   it("writes the answers into the new job's note", async () => {
@@ -157,6 +171,36 @@ describe("what it creates", () => {
     await requestService(MINE, form({ windowText: "Upstairs landing" }));
     expect(notesOf()).toContain("Upstairs landing");
   });
+
+  /** The number the customer quotes when they call about the repair. */
+  it("returns the new job's project number for the confirmation", async () => {
+    await expect(requestService(MINE, form())).resolves.toMatchObject({ projectNo: "PSS-1051" });
+    expect(getJob).toHaveBeenCalledWith(NEW_JOB);
+  });
+
+  it("still reports the request when the project number cannot be read", async () => {
+    getJob.mockRejectedValue(new Error("db blipped"));
+    await expect(requestService(MINE, form())).resolves.toMatchObject({ status: "created", projectNo: null });
+  });
+});
+
+/**
+ * A stale page or a tampered id. Recording "Not specified" would send the owners out knowing
+ * no more than we do, so the customer is asked again — keeping everything else they typed.
+ */
+describe("a window that is not this job's", () => {
+  it("asks again when nothing was typed instead", async () => {
+    await expect(
+      requestService(MINE, form({ windowId: STALE, windowText: undefined })),
+    ).resolves.toEqual({ status: "unknown-window" });
+    expect(createJob).not.toHaveBeenCalled();
+  });
+
+  it("uses the typed words when there are some, rather than refusing", async () => {
+    await requestService(MINE, form({ windowId: STALE, windowText: "Upstairs landing" }));
+    expect(notesOf()).toContain("Upstairs landing");
+    expect(notesOf()).not.toContain(STALE);
+  });
 });
 
 describe("the photo", () => {
@@ -167,10 +211,32 @@ describe("the photo", () => {
     );
   });
 
+  /**
+   * An iPhone photo often arrives with an empty or unrecognised type. Rejecting a genuine
+   * photo of the broken blind for its container would be the wrong answer every time.
+   */
+  it("accepts a phone photo whose type the browser did not name", async () => {
+    await requestService(MINE, { ...form(), photo: photo(2048, "", "IMG_0042.HEIC") });
+    expect(createFile).toHaveBeenCalled();
+  });
+
+  it("accepts a HEIC that does name itself", async () => {
+    await requestService(MINE, { ...form(), photo: photo(2048, "image/heic", "IMG_0042.heic") });
+    expect(createFile).toHaveBeenCalled();
+  });
+
+  it("does not attach a file that is not an image at all", async () => {
+    await requestService(MINE, { ...form(), photo: photo(2048, "application/pdf", "quote.pdf") });
+    expect(createFile).not.toHaveBeenCalled();
+    expect(notifyOwnersOfServiceRequest.mock.calls[0][0]).toMatchObject({ photoFailed: true });
+  });
+
   /** A repair request that vanished because of an image will simply not be made again. */
   it("still creates the job when the photo fails", async () => {
     createFile.mockRejectedValue(new Error("blob down"));
-    await expect(requestService(MINE, { ...form(), photo: photo() })).resolves.toBe("created");
+    await expect(requestService(MINE, { ...form(), photo: photo() })).resolves.toMatchObject({
+      status: "created",
+    });
     expect(createJob).toHaveBeenCalled();
     expect(notifyOwnersOfServiceRequest).toHaveBeenCalled();
   });
@@ -182,7 +248,9 @@ describe("the photo", () => {
   });
 
   it("skips an oversized image rather than losing the request", async () => {
-    await expect(requestService(MINE, { ...form(), photo: photo(11 * 1024 * 1024) })).resolves.toBe("created");
+    await expect(
+      requestService(MINE, { ...form(), photo: photo(11 * 1024 * 1024) }),
+    ).resolves.toMatchObject({ status: "created" });
     expect(createFile).not.toHaveBeenCalled();
     expect(notifyOwnersOfServiceRequest.mock.calls[0][0]).toMatchObject({ photoFailed: true });
   });
@@ -211,7 +279,7 @@ describe("the owners' email", () => {
 
   it("keeps the request when the email fails", async () => {
     notifyOwnersOfServiceRequest.mockRejectedValue(new Error("Resend is down"));
-    await expect(requestService(MINE, form())).resolves.toBe("created");
+    await expect(requestService(MINE, form())).resolves.toMatchObject({ status: "created" });
     expect(createJob).toHaveBeenCalled();
   });
 });

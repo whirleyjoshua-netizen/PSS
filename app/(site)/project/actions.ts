@@ -99,14 +99,22 @@ export async function requestServiceAction(
     ...parsed.data,
     photo: photo instanceof File ? photo : null,
   });
-  if (result !== "created") return { status: "not-found" };
+  // A window that is not one of this job's, with nothing typed instead: the page was stale or
+  // the id was tampered with. Asking again keeps every other answer they gave.
+  if (result.status === "unknown-window") {
+    return { status: "invalid", errors: { windowText: "Tell us which window" }, values };
+  }
+  if (result.status !== "created") return { status: "not-found" };
 
   // Both paths render the same view: /project renders ProjectView directly for a customer
   // with a single job, so revalidating only the [jobId] path would leave the common case stale.
   revalidatePath("/project");
   revalidatePath(`/project/${jobId}`);
+  // The new project number rides back on the URL so the confirmation can name it — it is the
+  // reference the customer quotes when they call about the repair.
+  const confirmation = result.projectNo ? `?requested=${encodeURIComponent(result.projectNo)}` : "";
   // Outside any try/catch: redirect() works by throwing.
-  redirect(`/project/${jobId}`);
+  redirect(`/project/${jobId}${confirmation}`);
 }
 
 export type MessageFormState = { status: "idle" | MessageResult; text?: string; sent?: number };

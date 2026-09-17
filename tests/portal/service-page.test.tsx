@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { renderToStaticMarkup } from "react-dom/server";
 
 const requireCustomer = vi.fn();
@@ -96,7 +96,7 @@ describe("ServiceForm", () => {
     // The picker, the fallback box and the file input are all in the markup the browser gets,
     // so a post with no script running carries every answer. (encType is not asserted here:
     // React fills it in from the real server action, which this test mocks out.)
-    expect(html).toContain('accept="image/*"');
+    expect(html).toContain('accept="image/*');
     expect(html).toContain('type="file"');
   });
 
@@ -109,5 +109,45 @@ describe("ServiceForm", () => {
   it("states the photo size limit in the copy", () => {
     render(<ServiceForm jobId={MINE} windows={windows} />);
     expect(screen.getByText(/up to\s*10\s*MB/i)).toBeInTheDocument();
+  });
+
+  /**
+   * The framework rejects an over-limit body before any of our code runs, so an enormous photo
+   * would take the customer's words down with it. This catch is the only thing standing between
+   * a 13 MB holiday-camera JPEG and a lost repair request.
+   */
+  it("catches an oversized photo before the post, and keeps the rest of the form", () => {
+    render(<ServiceForm jobId={MINE} windows={windows} />);
+    const input = screen.getByLabelText("A photo (optional)") as HTMLInputElement;
+    const huge = new File(["x"], "broken-blind.jpg", { type: "image/jpeg" });
+    Object.defineProperty(huge, "size", { value: 13 * 1024 * 1024 });
+
+    fireEvent.change(input, { target: { files: [huge] } });
+
+    expect(screen.getByRole("alert")).toHaveTextContent(/13 MB.*over the 10 MB limit/i);
+    // Cleared, so they can send the request without the photo rather than losing it.
+    expect(input.value).toBe("");
+  });
+
+  it("says nothing about a photo that is within the limit", () => {
+    render(<ServiceForm jobId={MINE} windows={windows} />);
+    const input = screen.getByLabelText("A photo (optional)") as HTMLInputElement;
+    const fine = new File(["x"], "blind.heic", { type: "image/heic" });
+    Object.defineProperty(fine, "size", { value: 2 * 1024 * 1024 });
+
+    fireEvent.change(input, { target: { files: [fine] } });
+
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  /**
+   * `capture` forces the camera open on several phones. A customer who already photographed the
+   * broken blind must be able to choose that picture from their library.
+   */
+  it("offers the photo library, not only the camera, and admits HEIC", () => {
+    render(<ServiceForm jobId={MINE} windows={windows} />);
+    const input = screen.getByLabelText("A photo (optional)");
+    expect(input).not.toHaveAttribute("capture");
+    expect(input.getAttribute("accept")).toContain(".heic");
   });
 });

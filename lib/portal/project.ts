@@ -9,13 +9,21 @@ export async function countReferred(jobId: string): Promise<number> {
 }
 
 /**
- * When this job last had a service requested against it, for the line under the after-work
- * section. The time and nothing else: a service job is a job, and none of the rest of its row
- * belongs on the customer's page.
+ * Every service the customer has requested against this job, newest first, for the lines under
+ * the after-work section. A customer who reported a second broken blind in March must still see
+ * the one they reported in January — a single "last requested" line would quietly drop it.
+ *
+ * The date and the project number and nothing else: a service job is a job, and none of the
+ * rest of its row belongs on the customer's page.
  */
-export async function lastServiceRequestAt(jobId: string): Promise<Date | null> {
-  if (!isUuid(jobId)) return null;
-  const rows = await db()`select max(created_at) as at from leads where parent_job_id = ${jobId}`;
-  const at = rows[0]?.at as string | Date | null | undefined;
-  return at ? new Date(at) : null;
+export async function listServiceRequests(jobId: string): Promise<{ at: Date; projectNo: number | null }[]> {
+  if (!isUuid(jobId)) return [];
+  const rows = await db()`
+    select created_at, project_no from leads
+    where parent_job_id = ${jobId}
+    order by created_at desc`;
+  return rows.map((row) => ({
+    at: new Date(row.created_at as string | Date),
+    projectNo: (row.project_no as number | null) ?? null,
+  }));
 }

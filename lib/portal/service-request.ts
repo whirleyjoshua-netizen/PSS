@@ -1,24 +1,32 @@
 import "server-only";
 import { after } from "next/server";
 import { createFile } from "@/lib/admin/files";
-import { createJob } from "@/lib/admin/jobs";
+import { createJob, getJob } from "@/lib/admin/jobs";
 import { describe as describeWindow, listMeasurements } from "@/lib/admin/measurements";
 import { isInstalled } from "@/lib/admin/stages";
+import { formatProjectNo } from "./project-no";
 import { notifyOwnersOfServiceRequest } from "./send-service-email";
-import { issueLabel, PHOTO_MAX_BYTES, type ServiceRequestInput } from "./service-schema";
+import { issueLabel, looksLikeImage, PHOTO_MAX_BYTES, type ServiceRequestInput } from "./service-schema";
 import { requireCustomer } from "./session";
 
 /** Everything the form collects: the validated answers, plus the one optional image. */
 export type ServiceRequest = ServiceRequestInput & { photo?: File | null };
 
-/** "not-found" is also the answer for a job that exists but is not the caller's. */
-export type ServiceRequestResult = "created" | "not-found";
+/**
+ * "not-found" is also the answer for a job that exists but is not the caller's.
+ * "unknown-window" means the picked window is not one of this job's — a stale page or a
+ * tampered id — and nothing was typed instead, so there is no window to record.
+ */
+export type ServiceRequestResult =
+  | { status: "created"; jobId: string; projectNo: string | null }
+  | { status: "not-found" }
+  | { status: "unknown-window" };
 
 const usable = (photo: File | null | undefined): photo is File =>
   photo instanceof File &&
   photo.size > 0 &&
   photo.size <= PHOTO_MAX_BYTES &&
-  photo.type.startsWith("image/");
+  looksLikeImage(photo.name, photo.type);
 
 /**
  * Turns a customer's service request into a real job on the owners' board.
@@ -40,16 +48,19 @@ const usable = (photo: File | null | undefined): photo is File =>
 export async function requestService(jobId: string, input: ServiceRequest): Promise<ServiceRequestResult> {
   const { email, jobs } = await requireCustomer();
   const parent = jobs.find((candidate) => candidate.id === jobId);
-  if (!parent) return "not-found";
-  if (!isInstalled(parent.status)) return "not-found";
+  if (!parent) return { status: "not-found" };
+  if (!isInstalled(parent.status)) return { status: "not-found" };
 
-  // The picker only ever offers this job's own windows, so an id that is not among them is
-  // tampering: it is dropped rather than recorded, and the typed answer stands instead.
+  // The picker only ever offers this job's own windows, so an id that is not among them is a
+  // stale page or tampering: it is dropped rather than recorded, and the typed answer stands
+  // instead. With nothing typed either there is no window at all, and a job whose note said
+  // "Not specified" would send the owners out knowing no more than we do — so we ask again.
   const measured = input.windowId
     ? (await listMeasurements(jobId)).find((window) => window.id === input.windowId)
     : undefined;
-  const windowText = measured ? describeWindow(measured) : (input.windowText ?? "").trim();
-  const window = windowText || "Not specified";
+  const typed = (input.windowText ?? "").trim();
+  if (input.windowId && !measured && !typed) return { status: "unknown-window" };
+  const window = measured ? describeWindow(measured) : typed;
   const details = (input.details ?? "").trim();
 
   const notes = [
@@ -74,7 +85,7 @@ export async function requestService(jobId: string, input: ServiceRequest): Prom
       stage: "new",
     },
     email,
-    { parentJobId: jobId, eventBody: "Service requested by the customer" },
+    { parentJobId: jobId, eventBody: "Service requested by the customer", eventKind: "service" },
   );
 
   // The job exists from here on. Nothing below may throw its way out.
@@ -111,5 +122,14 @@ export async function requestService(jobId: string, input: ServiceRequest): Prom
     }).catch(console.error);
   });
 
-  return "created";
+  // The number the customer quotes when they call. It is assigned by the column's own sequence,
+  // so it has to be read back — and like the photo, failing to get it must not cost the request.
+  let projectNo: string | null = null;
+  try {
+    projectNo = formatProjectNo((await getJob(newJobId))?.projectNo ?? null);
+  } catch (error) {
+    console.error("Could not read the new service job's project number", error);
+  }
+
+  return { status: "created", jobId: newJobId, projectNo };
 }
