@@ -43,7 +43,7 @@ export default async function ProjectHome({
   return (
     <div className="flex flex-col gap-6">
       <h1 className="font-display text-3xl font-light">Your projects</h1>
-      <ul className="flex flex-col divide-y divide-rule border border-rule">
+      <ul aria-label="Your projects" className="flex flex-col divide-y divide-rule border border-rule">
         {projects.map((project) => (
           <li key={project.id}>
             <Link

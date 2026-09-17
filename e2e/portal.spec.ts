@@ -465,7 +465,9 @@ test("two jobs in one city are told apart in the project list", async ({ browser
   const customer = await customerPage(browser, LIST_CUSTOMER);
   await expect(customer.getByRole("heading", { name: "Your projects" })).toBeVisible();
 
-  const rows = customer.getByRole("listitem");
+  // Scoped to the projects list: the site header, mobile menu and footer render 14 list items of
+  // their own on every public page, so an unscoped getByRole("listitem") reads the whole document.
+  const rows = customer.getByRole("list", { name: "Your projects" }).getByRole("listitem");
   await expect(rows).toHaveCount(2);
   // Both rows say Henderson and nothing else about the place — the number and the step are the
   // only things that distinguish them, so they are what the assertions read.
@@ -524,7 +526,7 @@ test("a customer cannot act on another customer's job", async ({ browser }) => {
 
   // The action ran and refused. This message is the proof the post was not silently dropped —
   // without it the assertions below would pass on a request that never reached the server.
-  await expect(attacker.getByRole("alert")).toContainText("We could not find that project.");
+  await expect(attacker.getByRole("alert").filter({ hasText: "We could not find that project." })).toHaveCount(1);
 
   // The effect, which is what the gate is actually about: nothing was created anywhere.
   const children = await sql()`select id from leads where parent_job_id = ${victimId}`;
@@ -546,7 +548,7 @@ test("a customer cannot act on another customer's job", async ({ browser }) => {
     victimId,
   );
   await attacker.getByRole("button", { name: "Send message" }).click();
-  await expect(attacker.getByRole("alert")).toContainText("We could not find that project.");
+  await expect(attacker.getByRole("alert").filter({ hasText: "We could not find that project." })).toHaveCount(1);
 
   const messages = await sql()`
     select id from job_events where lead_id = ${victimId} and kind = 'message'`;
