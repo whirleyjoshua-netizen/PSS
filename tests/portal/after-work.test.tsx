@@ -74,4 +74,37 @@ describe("AfterWork", () => {
     expect(html).toContain(business.socials.googleBusinessProfile);
     expect(html).toContain("Leave a review");
   });
+
+  describe("requesting a service", () => {
+    const serviceLink = () => screen.queryByRole("link", { name: /request a service/i });
+
+    it("offers a service link on the customer's own job, once installed", () => {
+      render(<AfterWork project={project} />);
+      expect(serviceLink()).toHaveAttribute("href", `/project/${project.id}/service`);
+    });
+
+    // The same reason the review link waits: there is no finished work to come back out to.
+    it.each(["quoted", "sold", "ordered"] as const)("stays away while the job is %s", (status) => {
+      render(<AfterWork project={{ ...project, status }} />);
+      expect(serviceLink()).toBeNull();
+    });
+
+    it("says when a service was last requested", () => {
+      render(<AfterWork project={project} serviceRequestedOn="Sep 16" />);
+      expect(
+        screen.getByText("Service requested on Sep 16 — we will be in touch."),
+      ).toBeInTheDocument();
+    });
+
+    it("says nothing when none has been requested", () => {
+      render(<AfterWork project={project} serviceRequestedOn={null} />);
+      expect(screen.queryByText(/service requested on/i)).toBeNull();
+    });
+
+    it("is a plain link with JavaScript off", () => {
+      const html = renderToStaticMarkup(<AfterWork project={project} serviceRequestedOn="Sep 16" />);
+      expect(html).toContain(`/project/${project.id}/service`);
+      expect(html).toContain("Service requested on Sep 16");
+    });
+  });
 });

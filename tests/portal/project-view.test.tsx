@@ -9,7 +9,9 @@ vi.mock("@/lib/admin/files", () => ({ listSharedPhotos, listSharedDocuments }));
 const ensureReferralCode = vi.fn();
 vi.mock("@/lib/referrals/db", () => ({ ensureReferralCode }));
 const countReferred = vi.fn();
-vi.mock("@/lib/portal/project", () => ({ countReferred }));
+// Null unless a test says otherwise: most jobs have never had a service requested.
+const lastServiceRequestAt = vi.fn(async () => null);
+vi.mock("@/lib/portal/project", () => ({ countReferred, lastServiceRequestAt }));
 const stageDates = vi.fn();
 const lastMeasuredAt = vi.fn();
 const installAppointmentAt = vi.fn();

@@ -2,10 +2,11 @@ import { business } from "@/content/business";
 import { docTypeLabel } from "@/lib/admin/doc-types";
 import type { Job } from "@/lib/admin/jobs";
 import { listSharedDocuments, listSharedPhotos } from "@/lib/admin/files";
-import { formatDateOnly, formatShortDate } from "@/lib/admin/time";
+import { isInstalled } from "@/lib/admin/stages";
+import { formatDateOnly, formatMonthDay, formatShortDate, lasVegasDate } from "@/lib/admin/time";
 import { toProject } from "@/lib/portal/access";
 import { currentStep } from "@/lib/portal/progress";
-import { countReferred } from "@/lib/portal/project";
+import { countReferred, lastServiceRequestAt } from "@/lib/portal/project";
 import { listMessages } from "@/lib/portal/messages";
 import { requireCustomer } from "@/lib/portal/session";
 import { installAppointmentAt, lastMeasuredAt, stageDates } from "@/lib/portal/timeline";
@@ -32,7 +33,7 @@ const heading = "font-display text-xs uppercase tracking-[0.2em] text-champagne-
 export async function ProjectView({ job }: { job: Job }) {
   // Request-cached, so this costs no extra round trip: the page's own guard already ran it.
   const { email } = await requireCustomer();
-  const [photos, documents, code, referred, dates, measuredAt, installAt, messages] = await Promise.all([
+  const [photos, documents, code, referred, dates, measuredAt, installAt, messages, serviceAt] = await Promise.all([
     listSharedPhotos(job.id),
     listSharedDocuments(job.id),
     ensureReferralCode(job.id),
@@ -41,6 +42,8 @@ export async function ProjectView({ job }: { job: Job }) {
     lastMeasuredAt(job.id),
     installAppointmentAt(job.id),
     listMessages(job.id, email),
+    // Only a finished job can show the line, so an unfinished one does not pay for the query.
+    isInstalled(job.status) ? lastServiceRequestAt(job.id) : Promise.resolve(null),
   ]);
   const project = toProject(job, {
     stageDates: dates,
@@ -154,7 +157,10 @@ export async function ProjectView({ job }: { job: Job }) {
         />
       </section>
 
-      <AfterWork project={project} />
+      <AfterWork
+        project={project}
+        serviceRequestedOn={serviceAt ? formatMonthDay(lasVegasDate(serviceAt)) : null}
+      />
 
       <section className="flex flex-col gap-4" aria-labelledby="contact-heading">
         <h2 id="contact-heading" className={heading}>Questions?</h2>

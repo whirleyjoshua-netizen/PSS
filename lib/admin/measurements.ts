@@ -15,7 +15,9 @@ export type WindowMeasurement = MeasurementInput & {
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-const describe = (input: { room: string; label: string | null }) =>
+/** One window in the owners' own words: "Dining Room, left window". Also names the window a
+ *  customer picked in their service request, so both sides say the same thing. */
+export const describe = (input: { room: string; label: string | null }) =>
   input.label ? `${input.room}, ${input.label}` : input.room;
 
 function toMeasurement(row: Record<string, unknown>): WindowMeasurement {
