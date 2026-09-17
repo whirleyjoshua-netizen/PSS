@@ -26,6 +26,8 @@ export type InstallSettings = {
   hardSurfaceCents: number;
   highLadderCents: number;
   motorizedCents: number;
+  /** A flat fee for an installer's measuring visit, whatever the number of windows. */
+  measureCents: number;
 };
 
 export type LineInput = {
@@ -49,6 +51,9 @@ export type PricedLine = LineInput & {
 export type PricedQuote = {
   lines: PricedLine[];
   subtotalCents: number;
+  /** The measuring fee charged: the flat fee when charged, otherwise 0. */
+  measureCents: number;
+  /** The work (raised to the minimum when it applies) plus the measuring fee. */
   totalCents: number;
   minimumApplied: boolean;
 };
@@ -84,10 +89,15 @@ const surchargeFor = (line: LineInput, settings: InstallSettings): number =>
   (line.highLadder ? settings.highLadderCents : 0) +
   (line.motorized ? settings.motorizedCents : 0);
 
+/**
+ * `chargeMeasure` is required, never defaulted: whether an installer's measuring visit is billed
+ * is a decision made per job, and a silent default would drop or add a fee without anyone choosing.
+ */
 export function priceQuote(
   lines: LineInput[],
   rates: InstallRate[],
   settings: InstallSettings,
+  chargeMeasure: boolean,
 ): PricedQuote {
   const byTreatment = new Map(rates.map((r) => [r.treatment, r]));
   const priced = lines.map((line): PricedLine => {
@@ -105,17 +115,16 @@ export function priceQuote(
   // so the minimum should not invent a charge out of nothing.
   const hasWork = priced.some((l) => l.quantity > 0);
   const minimumApplied = hasWork && subtotalCents < settings.minimumCents;
-  return {
-    lines: priced,
-    subtotalCents,
-    totalCents: minimumApplied ? settings.minimumCents : subtotalCents,
-    minimumApplied,
-  };
+  // The minimum covers the install trip; measuring is its own trip, so its fee goes on top.
+  const measureCents = chargeMeasure ? settings.measureCents : 0;
+  const totalCents = (minimumApplied ? settings.minimumCents : subtotalCents) + measureCents;
+  if (totalCents > MAX_CENTS) throw new Error(TOO_LARGE);
+  return { lines: priced, subtotalCents, measureCents, totalCents, minimumApplied };
 }
 
 /**
  * Everything a saved price records, as one comparable string: the minimum in force, the
- * subtotal and total, and each line's stored columns in order. A saved price is immutable,
+ * subtotal, the measuring fee and total, and each line's stored columns in order. A saved price is immutable,
  * so the server saves only when its own fingerprint equals the one the owner was looking
  * at. Comparing the total alone is not enough — rates can move between lines, or the
  * minimum can hide a changed subtotal, while the total stays the same.
@@ -124,6 +133,7 @@ export function priceFingerprint(priced: PricedQuote, minimumCents: number): str
   return JSON.stringify({
     minimumCents,
     subtotalCents: priced.subtotalCents,
+    measureCents: priced.measureCents,
     totalCents: priced.totalCents,
     lines: priced.lines.map((l) => [
       l.treatment, l.basis, l.quantity, l.rateCents, l.hardSurface, l.highLadder, l.motorized, l.amountCents,
