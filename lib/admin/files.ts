@@ -45,6 +45,19 @@ export async function listFiles(leadId: string): Promise<JobFile[]> {
   return rows.map(toFile);
 }
 
+/**
+ * The Blob pathname of every file on a job.
+ *
+ * Read this BEFORE the job row is deleted: `job_files` is `on delete cascade`, so once the
+ * row is gone nothing is left to say which objects in storage belonged to it. The column is
+ * named rather than starred — this feeds a destructive operation and nothing else.
+ */
+export async function listBlobPathnames(leadId: string): Promise<string[]> {
+  if (!UUID.test(leadId)) return [];
+  const rows = await db()`select blob_pathname from job_files where lead_id = ${leadId}`;
+  return rows.map((row) => row.blob_pathname as string);
+}
+
 export async function getFile(fileId: string): Promise<JobFile | null> {
   if (!UUID.test(fileId)) return null;
   const rows = await db()`select * from job_files where id = ${fileId}`;

@@ -9,6 +9,8 @@ import { isFinish, type Finish } from "@/lib/leads/finish";
 import { isTreatmentType, type TreatmentType } from "@/lib/leads/treatment-types";
 import { isTeamRole, type TeamRole } from "./team-roles";
 import { isUuid } from "./ids";
+import { del } from "@vercel/blob";
+import { listBlobPathnames } from "./files";
 
 export { isUuid };
 
@@ -330,4 +332,39 @@ export async function createJob(
     console.error("Could not schedule geocoding for job", id, error);
   }
   return id;
+}
+
+/**
+ * Permanently deletes a job: the row, everything the foreign keys cascade with it
+ * (its events, files, measurements, appointments, calendar links and install quotes)
+ * and the job's objects in Blob storage. There is no undo.
+ *
+ * The order is load-bearing and deliberate:
+ *
+ * 1. A job with a service request against it is refused. `leads.parent_job_id` declares no
+ *    `on delete` rule, so Postgres would refuse anyway — but with a raw error. A named
+ *    outcome lets the UI say what to do instead.
+ * 2. The blob pathnames are read BEFORE the delete, because `job_files` cascades away with
+ *    the row and afterwards nothing says which objects belonged to it.
+ * 3. One statement deletes the row; the cascades do the rest.
+ * 4. The blobs go AFTER, each independently. A blob removed before a delete that then failed
+ *    would leave a live job whose files are gone.
+ */
+export async function deleteJob(id: string, actor: string): Promise<"deleted" | "has-children" | "missing"> {
+  if (!isUuid(id)) return "missing";
+  const sql = db();
+  const children = await sql`select id from leads where parent_job_id = ${id} limit 1`;
+  if (children.length > 0) return "has-children";
+
+  // Before the delete: job_files is `on delete cascade`.
+  const pathnames = await listBlobPathnames(id);
+  const rows = await sql`delete from leads where id = ${id} returning id`;
+  if (rows.length === 0) return "missing";
+
+  // The row is gone. A blob that will not delete is an orphan in storage — worth a log, and
+  // not worth telling the owner their deletion failed when it did not. Nothing here rolls back.
+  for (const pathname of pathnames) {
+    await del(pathname).catch((error) => console.error("Could not remove orphaned blob", pathname, actor, error));
+  }
+  return "deleted";
 }
