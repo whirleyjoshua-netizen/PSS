@@ -207,6 +207,21 @@ describe("recheckRoutes", () => {
     expect(result.ok && result.plan.routes.map((r) => r.teamMemberId)).toEqual([ANA]);
   });
 
+  it("moves a stop that left the day, or lost its coordinates, to skipped with a plain reason", async () => {
+    const S3 = "33333333-0000-4000-8000-000000000003";
+    day.loadDay.mockResolvedValue({ stops: [STOP, { ...STOP, appointmentId: S3, lat: null, lng: null }], loadedAt: LOADED_AT });
+    const plan = { ...PLAN, routes: [{ ...PLAN.routes[0], stops: [
+      PLAN_STOP, { ...PLAN_STOP, appointmentId: S2 }, { ...PLAN_STOP, appointmentId: S3 },
+    ] }] };
+    const result = await actions.recheckRoutes(D, plan, [ANA]);
+    expect(result.ok && result.plan.skipped).toEqual([
+      { appointmentId: S2, reason: "No longer scheduled that day" },
+      { appointmentId: S3, reason: "Needs an address" },
+    ]);
+    const body = optimize.optimizeTours.mock.calls[0][0] as Body;
+    expect(body.injectedSolutionConstraint.routes).toEqual([{ vehicleIndex: 0, visits: [{ shipmentIndex: 0, isPickup: false }] }]);
+  });
+
   it("rejects a plan for another day", async () => {
     expect(await actions.recheckRoutes("2026-09-25", PLAN, [ANA])).toEqual(UNREADABLE);
     expect(optimize.optimizeTours).not.toHaveBeenCalled();

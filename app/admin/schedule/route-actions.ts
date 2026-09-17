@@ -29,6 +29,8 @@ async function solve(run: () => Promise<RoutePlan>): Promise<RouteActionResult> 
 
 const GEOCODE_CONCURRENCY = 5;
 const NOT_ON_TEAM = "Installer no longer on the team";
+const LEFT_DAY = "No longer scheduled that day";
+const NEEDS_ADDRESS = "Needs an address";
 
 /** Retries each errored lead, a few at a time. geocodeLead never throws. */
 async function retryGeocodes(leadIds: string[]) {
@@ -79,6 +81,13 @@ export async function recheckRoutes(day: string, plan: RoutePlan, installerIds: 
   // A route whose member left the installers is dropped, and its stops are shown as skipped rather than vanishing.
   const orphaned = parsed.data.routes.filter((r) => !onTeam(r))
     .flatMap((r) => r.stops.map((s) => ({ appointmentId: s.appointmentId, reason: NOT_ON_TEAM })));
+  // A routed stop that is no longer on the day, or has lost its coordinates, cannot be re-checked:
+  // show it as skipped with the reason instead of letting it vanish.
+  const dropped = routes.flatMap((r) => r.appointmentIds).flatMap((id) => {
+    const stop = stops.find((s) => s.appointmentId === id);
+    if (!stop) return [{ appointmentId: id, reason: LEFT_DAY }];
+    return stop.lat === null || stop.lng === null ? [{ appointmentId: id, reason: NEEDS_ADDRESS }] : [];
+  });
   return solve(async () => {
     const request = buildRecheckRequest({ day, stops, installers, settings }, routes);
     const response = await optimizeTours(request.body);
@@ -86,7 +95,7 @@ export async function recheckRoutes(day: string, plan: RoutePlan, installerIds: 
     const next = parseOptimizeResponse(response, {
       day, builtAt: parsed.data.builtAt, stops, settings, shipments: request.shipments, vehicles: request.vehicles,
     });
-    return { ...next, skipped: mergeSkipped(parsed.data.skipped, orphaned, next.skipped) };
+    return { ...next, skipped: mergeSkipped(parsed.data.skipped, orphaned, dropped, next.skipped) };
   });
 }
 
