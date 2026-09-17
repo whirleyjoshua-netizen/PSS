@@ -74,9 +74,9 @@ export default function ContactPage() {
                 What to expect
               </h2>
               <ul className="mt-4 flex flex-col gap-3 text-sm leading-relaxed text-ink-soft">
-                <li>We call to schedule, usually within one business day.</li>
+                <li>We call to schedule, usually within 3 business days.</li>
                 <li>We bring real samples to your windows, in your own light.</li>
-                <li>We measure every opening and quote before we leave.</li>
+                <li>We measure each window and can quote before we leave.</li>
                 <li>No deposit is required to get a quote.</li>
               </ul>
             </div>

@@ -34,7 +34,7 @@ export default function AllSetPage() {
               What happens next
             </h2>
             <p className="mt-3 max-w-xl text-ink-soft">
-              We&apos;ll call within one business day to find a time for your visit.
+              We&apos;ll call within 3 business days to find a time for your visit.
             </p>
           </div>
 
