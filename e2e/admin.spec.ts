@@ -49,6 +49,10 @@ async function signIn(page: import("@playwright/test").Page) {
 test.afterAll(async () => {
   if (url) {
     await sql()`delete from job_files where lead_id in (select id from leads where name like 'E2E Tracker %')`;
+    // The delete specs make a service job that points at its parent with a foreign key, and it
+    // carries the same name prefix — so it sits inside the delete below and would go in the same
+    // statement as the row it references, which the key refuses. Children go first, on their own.
+    await sql()`delete from leads where parent_job_id in (select id from leads where name like 'E2E Tracker %')`;
     await sql()`delete from leads where name like 'E2E Tracker %'`;
     await sql()`delete from admin_login_tokens where email = 'e2e-owner@example.com'`;
     await sql()`delete from admin_sessions where email = 'e2e-owner@example.com'`;
@@ -322,4 +326,149 @@ test("the call screen shows that day's calendar and flags a clash", async ({ pag
 
   await page.getByLabel("Visit date and time").fill(`${day}T13:00`);
   await expect(panel.getByText("clashes with this time")).toHaveCount(0);
+});
+
+/**
+ * The Delete control lives last in the job page's `•••` panel, inside its own <details>.
+ * The outer menu contains that text too, so `.last()` picks the inner reveal, never the menu.
+ */
+function deleteBox(page: import("@playwright/test").Page) {
+  return page.locator("details").filter({ hasText: "Delete this job…" }).last();
+}
+
+/** Open the menu, expand Delete, read the name, tap, tap again — the whole sequence an owner performs. */
+async function deleteFromMenu(page: import("@playwright/test").Page, name: string) {
+  await page.getByLabel("More actions").click();
+  await page.getByText("Delete this job…").click();
+  const box = deleteBox(page);
+  // The customer's name is on screen before the last tap. That is the point of the reveal.
+  await expect(box.getByText(name)).toBeVisible();
+  await box.getByRole("button", { name: "Delete", exact: true }).click();
+  await box.getByRole("button", { name: "Tap again to delete" }).click();
+}
+
+test("an owner deletes a job from the menu and it is gone from the board and the database", async ({ page }) => {
+  const name = `E2E Tracker Delete ${Date.now()}`;
+  await signIn(page);
+
+  await page.getByRole("link", { name: "New Job", exact: true }).click();
+  await page.getByLabel("Name", { exact: true }).fill(name);
+  await page.getByLabel("Phone", { exact: true }).fill("(702) 555-0160");
+  await page.getByRole("button", { name: "Add job" }).click();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(name);
+  const id = new URL(page.url()).pathname.split("/").pop()!;
+
+  await sql()`insert into window_measurements (lead_id, measured_by, position, room, width_eighths, height_eighths, mount)
+    values (${id}, 'e2e-owner@example.com', 1, 'Kitchen', 280, 384, 'inside')`;
+
+  // What the delete has to destroy really exists first, so an empty result below means something happened.
+  expect(await sql()`select id from job_events where lead_id = ${id}`).not.toHaveLength(0);
+  expect(await sql()`select id from window_measurements where lead_id = ${id}`).toHaveLength(1);
+
+  await deleteFromMenu(page, name);
+
+  // Back on the board, with the job gone from it.
+  await expect(page).toHaveURL(/\/admin$/);
+  await expect(page.getByRole("link", { name: new RegExp(name) })).toHaveCount(0);
+
+  // The database, not the page: the row and everything that hangs off it.
+  expect(await sql()`select id from leads where id = ${id}`).toHaveLength(0);
+  expect(await sql()`select id from job_events where lead_id = ${id}`).toHaveLength(0);
+  expect(await sql()`select id from window_measurements where lead_id = ${id}`).toHaveLength(0);
+
+  // The job page itself is a 404 from the route, not a bounce to sign-in wearing a 200.
+  const response = await page.goto(`/admin/jobs/${id}`);
+  expect(response?.status()).toBe(404);
+});
+
+test("a job with a service request against it cannot be deleted", async ({ page }) => {
+  const stamp = Date.now();
+  const parentName = `E2E Tracker Delete Parent ${stamp}`;
+  const [parent] = await sql()`insert into leads (name, phone, email, city, source, status)
+    values (${parentName}, '7025550161', 'e2e-delete-parent@example.com', 'Henderson', 'phone', 'installed')
+    returning id`;
+  await sql()`insert into leads (name, phone, email, city, source, status, parent_job_id)
+    values (${`E2E Tracker Delete Service ${stamp}`}, '7025550162', 'e2e-delete-child@example.com',
+            'Henderson', 'phone', 'quoted', ${parent.id})`;
+
+  await signIn(page);
+  await page.goto(`/admin/jobs/${parent.id}`);
+  await deleteFromMenu(page, parentName);
+
+  // Back on the job page, refused, with the marker the page matches its own copy on.
+  await expect(page).toHaveURL(new RegExp(`/admin/jobs/${parent.id}\\?delete=blocked$`));
+  await page.getByLabel("More actions").click();
+  await expect(
+    deleteBox(page).getByText("This job has a service request against it. Delete that first."),
+  ).toBeVisible();
+
+  // And the job is still there.
+  expect(await sql()`select id from leads where id = ${parent.id}`).toHaveLength(1);
+});
+
+/**
+ * THE RELEASE GATE: deleting one job must not touch another.
+ *
+ * The mutation this exists to catch is a loosened `where id = ${id}` in deleteJob — anything
+ * that lets the delete reach a second row. Two jobs are seeded with the same shape (events, a
+ * file row, a measurement); one is deleted through the UI and the OTHER is asserted intact.
+ *
+ * Why it cannot pass vacuously: the same run asserts the doomed job is gone. A delete that did
+ * nothing at all fails the positive control, and a delete that took both fails the survivor
+ * assertions, so there is no state of deleteJob in which every expectation below is satisfied
+ * without the delete having hit exactly one row.
+ *
+ * The file is a job_files row with a known blob_pathname rather than a real upload, so the gate
+ * runs whether or not a Blob token is configured, and survival is read from the database.
+ */
+test("the release gate: deleting one job leaves every other job untouched", async ({ page }) => {
+  const stamp = Date.now();
+
+  async function seed(label: string, phone: string) {
+    const [row] = await sql()`insert into leads (name, phone, email, city, source, status)
+      values (${`E2E Tracker Delete ${label} ${stamp}`}, ${phone}, ${`e2e-delete-${label.toLowerCase()}@example.com`},
+              'Henderson', 'phone', 'quoted')
+      returning id, name`;
+    const id = row.id as string;
+    await sql()`insert into job_events (lead_id, actor, kind, body) values
+      (${id}, 'e2e-owner@example.com', 'note', 'First note'),
+      (${id}, 'e2e-owner@example.com', 'note', 'Second note')`;
+    const pathname = `jobs/${id}/gate-${stamp}.pdf`;
+    await sql()`insert into job_files (lead_id, uploaded_by, kind, name, content_type, size_bytes, blob_pathname)
+      values (${id}, 'e2e-owner@example.com', 'document', 'gate.pdf', 'application/pdf', 1024, ${pathname})`;
+    await sql()`insert into window_measurements (lead_id, measured_by, position, room, width_eighths, height_eighths, mount)
+      values (${id}, 'e2e-owner@example.com', 1, 'Living room', 240, 360, 'inside')`;
+    return { id, pathname, name: row.name as string };
+  }
+
+  const survivor = await seed("Survivor", "7025550163");
+  const doomed = await seed("Doomed", "7025550164");
+
+  await signIn(page);
+  await page.goto(`/admin/jobs/${doomed.id}`);
+  await deleteFromMenu(page, doomed.name);
+  await expect(page).toHaveURL(/\/admin$/);
+
+  // Positive control: the job we meant to delete really is gone, so nothing below passes
+  // because the delete quietly did nothing.
+  expect(await sql()`select id from leads where id = ${doomed.id}`).toHaveLength(0);
+  expect(await sql()`select id from job_events where lead_id = ${doomed.id}`).toHaveLength(0);
+  expect(await sql()`select id from job_files where lead_id = ${doomed.id}`).toHaveLength(0);
+  expect(await sql()`select id from window_measurements where lead_id = ${doomed.id}`).toHaveLength(0);
+
+  // The gate itself. With `where id` loosened so the delete reaches both jobs, this is the
+  // first assertion to fail: the survivor's row is gone and the result is empty.
+  expect(await sql()`select id from leads where id = ${survivor.id}`).toHaveLength(1);
+  // Its history and measurement cascade with the row, so they are gone too if the row went.
+  expect(await sql()`select id from job_events where lead_id = ${survivor.id}`).toHaveLength(2);
+  expect(await sql()`select id from window_measurements where lead_id = ${survivor.id}`).toHaveLength(1);
+  // And its file: the row survives, still pointing at the same object in storage.
+  const files = await sql()`select blob_pathname from job_files where lead_id = ${survivor.id}`;
+  expect(files).toHaveLength(1);
+  expect(files[0].blob_pathname).toBe(survivor.pathname);
+
+  // The survivor is still a real, openable job — not a husk that happens to satisfy a count.
+  const response = await page.goto(`/admin/jobs/${survivor.id}`);
+  expect(response?.status()).toBe(200);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(survivor.name);
 });
