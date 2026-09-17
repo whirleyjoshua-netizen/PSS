@@ -112,29 +112,36 @@ they point at that computer, and they would never reach Google.
 
 Do these in this order, after Step 6:
 
-1. Update the production database (adds the map and route columns, migration 017):
+1. Before running anything, check the database address. This prints only its host and
+   changes nothing:
+   ```
+   node -e "console.log(new URL(process.argv[1]).host)" "<production database URL>"
+   ```
+   Confirm it prints the production host. If it doesn't, stop and find the right URL.
+   Use this same URL in items 2 and 4.
+2. Update the production database (adds the map and route columns, migration 017):
    ```
    MIGRATE_DATABASE_URL=<production database URL> node scripts/migrate.mjs
    ```
    Or, from a copy of the code whose `.env.local` already points at production, just
-   `node scripts/migrate.mjs`.
-   The first line shows which database it used. Check it is the production host before
-   going on; if not, press Ctrl+C.
-2. Deploy. Pushing to GitHub does **not** deploy this site. Run:
+   `node scripts/migrate.mjs`. In that case, check the `DATABASE_URL` from `.env.local` in item 1.
+   Its first line shows which database it used. That line appears after the script has
+   started, so it can't stop the writes. It's a second check that the right database was used.
+3. Deploy. Pushing to GitHub does **not** deploy this site. Run:
    ```
    npx vercel --prod
    ```
    Then open the live site and check it loads.
-3. Place every existing job on the map, once:
+4. Place every existing job on the map, once:
    ```
    MIGRATE_DATABASE_URL=<production database URL> node scripts/geocode-backfill.mjs
    ```
-   The first line shows which database it used. Check it is the production host before
-   going on; if not, press Ctrl+C.
-   Use the same production database URL as in item 1. The script needs
+   Its first line shows which database it used. That line appears after the script has
+   started, so it can't stop the writes. It's a second check that the right database was used.
+   Use the same production database URL you checked in item 1. The script needs
    `GOOGLE_GEOCODING_KEY` in `.env.local` or the environment. Note the ok / not found /
    error counts it prints. Running it again only touches jobs it hasn't done yet.
-4. Open **Settings → Routes**. All three lines should say "is connected." Check the
+5. Open **Settings → Routes**. All three lines should say "is connected." Check the
    working day and appointment lengths are right.
 
 ## Step 8: Check it works on the live site
