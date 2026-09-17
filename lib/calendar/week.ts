@@ -6,10 +6,14 @@ import { kindLabel } from "@/lib/admin/appointment-kinds";
 import { calendarConfig, calendarEnabled } from "./config";
 import { nextDay, type GraphEvent, type Kind } from "./events";
 import { graphJson } from "./graph";
+import { routeNotes, type RouteNote } from "@/lib/routes/day";
+import { windowLabel } from "@/lib/routes/window";
 
 export type ScheduleItem = {
   key: string; day: string; allDay: boolean; start: Date | null; end: Date | null; title: string;
   job: { id: string; name: string; city: string; status: Stage; kind: Kind } | null;
+  /** The appointment's arrival window and, once a route is saved, its planned arrival. */
+  note?: { window: string | null; plannedArrival: Date | null };
 };
 export type Week = { days: string[]; items: ScheduleItem[]; source: "outlook" | "tracker"; notice: string | null };
 
@@ -97,12 +101,29 @@ async function trackerItems(from: Date, to: Date): Promise<ScheduleItem[]> {
   });
 }
 
+/** Adds each job item's window and planned arrival, read in one query for the whole range. */
+async function withNotes(items: ScheduleItem[], from: Date, to: Date): Promise<ScheduleItem[]> {
+  let notes: Map<string, RouteNote>;
+  try {
+    notes = await routeNotes(from, to);
+  } catch (error) {
+    console.error("Schedule could not read route notes", error);
+    return items;
+  }
+  return items.map((item) => {
+    const note = item.job ? notes.get(`${item.job.id}:${item.job.kind}`) : undefined;
+    return note
+      ? { ...item, note: { window: windowLabel(note.windowStart, note.windowEnd), plannedArrival: note.plannedArrival } }
+      : item;
+  });
+}
+
 async function loadRange(days: string[]): Promise<{ items: ScheduleItem[]; source: "outlook" | "tracker"; notice: string | null }> {
   const from = fromLocalInput(`${days[0]}T00:00`);
   const to = fromLocalInput(`${nextDay(days[days.length - 1])}T00:00`);
   const displayed = new Set(days);
   const tracker = (await trackerItems(from, to)).filter((item) => displayed.has(item.day)).sort(order);
-  if (!calendarEnabled()) return { items: tracker, source: "tracker", notice: "Outlook isn't connected yet." };
+  if (!calendarEnabled()) return { items: await withNotes(tracker, from, to), source: "tracker", notice: "Outlook isn't connected yet." };
   try {
     const mailbox = calendarConfig()!.mailbox;
     const value: GraphEvent[] = [];
@@ -137,10 +158,10 @@ async function loadRange(days: string[]): Promise<{ items: ScheduleItem[]; sourc
       };
       return coveredDays(event, days).map((day) => ({ key: `${event.id}:${day}`, day, ...base }));
     });
-    return { items: items.sort(order), source: "outlook", notice: null };
+    return { items: await withNotes(items.sort(order), from, to), source: "outlook", notice: null };
   } catch (error) {
     console.error("Schedule could not read Outlook", error);
-    return { items: tracker, source: "tracker", notice: "Couldn't reach Outlook, showing tracker dates only." };
+    return { items: await withNotes(tracker, from, to), source: "tracker", notice: "Couldn't reach Outlook, showing tracker dates only." };
   }
 }
 

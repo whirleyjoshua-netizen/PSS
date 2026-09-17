@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { APPOINTMENT_STYLE, kindLabel } from "@/lib/admin/appointment-kinds";
-import { whenLabel } from "@/lib/calendar/labels";
+import { formatTime, whenLabel } from "@/lib/calendar/labels";
 import type { ScheduleItem } from "@/lib/calendar/week";
 
 export function ScheduleCard({ item }: { item: ScheduleItem }) {
@@ -22,6 +22,8 @@ export function ScheduleCard({ item }: { item: ScheduleItem }) {
       <span className="text-ink-soft">{when} · {kindLabel(job.kind)}</span>
       <span className="text-sm font-semibold text-charcoal">{job.name}</span>
       <span className="text-ink-soft">{job.city}</span>
+      {item.note?.window ? <span className="text-ink-soft">Arrives {item.note.window}</span> : null}
+      {item.note?.plannedArrival ? <span className="font-medium text-charcoal">Route: {formatTime(item.note.plannedArrival)}</span> : null}
     </Link>
   );
 }

@@ -8,12 +8,17 @@ vi.mock("@/lib/calendar/config", () => ({
 }));
 const graphJson = vi.fn();
 vi.mock("@/lib/calendar/graph", () => ({ graphJson }));
+const routeNotes = vi.fn();
+vi.mock("@/lib/routes/day", () => ({ routeNotes }));
 const week = await import("@/lib/calendar/week");
 const ID = "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c";
 const NOW = new Date("2026-09-16T19:00:00Z"); // Wed Sep 16, noon in Las Vegas
 const PST = "Pacific Standard Time";
 
-beforeEach(() => { sql.mockReset().mockResolvedValue([]); graphJson.mockReset(); enabled.mockReturnValue(false); });
+beforeEach(() => {
+  sql.mockReset().mockResolvedValue([]); graphJson.mockReset(); enabled.mockReturnValue(false);
+  routeNotes.mockReset().mockResolvedValue(new Map());
+});
 
 describe("weekDays", () => {
   it("runs Sunday to Saturday around today in Las Vegas", () => {
@@ -309,5 +314,52 @@ describe("getWeek", () => {
     const result = await week.getWeek(undefined, NOW);
     expect(result.source).toBe("tracker");
     expect(result.notice).toBe("Couldn't reach Outlook, showing tracker dates only.");
+  });
+});
+
+describe("route notes", () => {
+  const ARRIVAL = new Date("2026-09-24T16:10:00Z");
+  const JOB = "job1";
+  const note = { window: "8:00 – 10:00 am", plannedArrival: ARRIVAL };
+  const installRow = { ...appt("install", "2026-09-24T16:00:00Z", false), job_id: JOB };
+  beforeEach(() => {
+    routeNotes.mockResolvedValue(new Map([[`${JOB}:install`, { windowStart: "08:00", windowEnd: "10:00", plannedArrival: ARRIVAL }]]));
+  });
+
+  it("puts the window and planned arrival on a tracker item, reading notes once for the whole range", async () => {
+    sql.mockResolvedValueOnce([installRow, appt("consultation", "2026-09-23T17:00:00Z", false)]);
+    const { items } = await week.getWeek("2026-09-24", NOW);
+    expect(items.find((i) => i.job?.kind === "install")?.note).toEqual(note);
+    expect(items.find((i) => i.job?.kind === "consultation")?.note).toBeUndefined();
+    expect(routeNotes).toHaveBeenCalledTimes(1);
+    expect(routeNotes).toHaveBeenCalledWith(new Date("2026-09-20T07:00:00Z"), new Date("2026-09-27T07:00:00Z"));
+  });
+
+  it("puts the same note on a linked Outlook item and none on an unlinked event", async () => {
+    enabled.mockReturnValue(true);
+    graphJson.mockResolvedValue({ value: [
+      { id: "e1", subject: "Install", isAllDay: false,
+        start: { dateTime: "2026-09-24T09:00:00.0000000", timeZone: PST }, end: { dateTime: "2026-09-24T12:00:00.0000000", timeZone: PST } },
+      { id: "e2", subject: "Dentist", isAllDay: false,
+        start: { dateTime: "2026-09-24T14:00:00.0000000", timeZone: PST }, end: { dateTime: "2026-09-24T15:00:00.0000000", timeZone: PST } },
+    ] });
+    sql.mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ event_id: "e1", kind: "install", id: JOB, name: "Dana Reyes", city: "Henderson", status: "ordered" }]);
+    const { items, source } = await week.getWeek("2026-09-24", NOW);
+    expect(source).toBe("outlook");
+    expect(items.find((i) => i.title === "Install")?.note).toEqual(note);
+    expect(items.find((i) => i.title === "Dentist")).not.toHaveProperty("note");
+    expect(routeNotes).toHaveBeenCalledTimes(1);
+  });
+
+  it("still loads the week without notes when they can't be read", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    routeNotes.mockRejectedValue(new Error("db down"));
+    sql.mockResolvedValueOnce([installRow]);
+    const { items } = await week.getWeek("2026-09-24", NOW);
+    expect(items).toHaveLength(1);
+    expect(items[0]).not.toHaveProperty("note");
+    expect(error).toHaveBeenCalledWith("Schedule could not read route notes", expect.any(Error));
+    error.mockRestore();
   });
 });
