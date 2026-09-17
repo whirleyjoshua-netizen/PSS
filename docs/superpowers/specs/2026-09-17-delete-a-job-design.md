@@ -37,7 +37,13 @@ Verified against the migrations. Most of it cleans itself up:
 | `leads.referred_by` | `on delete set null` | a referred friend keeps their record |
 | `leads.parent_job_id` | **no rule — refuses** | this is what blocks a job with a service child |
 
-**The two things the database does not handle** are the Blob objects and the customer's portal access, covered below.
+**Three things the database does not handle:**
+
+1. **The Blob objects** — `job_files` rows cascade, the stored bytes do not.
+2. **The Outlook calendar event** — `job_calendar_events` cascades too, and its `event_id` is the only record anywhere of which event on the owners' shared mailbox belongs to this job. Once the row is gone no cron can find the orphan, because every branch of `reconcileTargets` joins `leads`. So a job deleted with a confirmed appointment would leave a phantom install on the calendar forever — the exact harm this spec warns about. The event ids are read before the delete for the same reason as the pathnames.
+3. **The customer's portal access** — covered below.
+
+*(This section originally claimed only two. The whole-branch review found the calendar event and was right; the correction is recorded rather than quietly overwritten.)*
 
 ## 4. Behaviour
 

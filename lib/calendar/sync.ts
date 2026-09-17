@@ -5,6 +5,7 @@ import { portalOrigin } from "@/lib/portal/login";
 import { calendarConfig, calendarEnabled } from "./config";
 import { eventSubject, movedTimes, newEventBody, sameValue, trackerValue, type GraphEvent, type Kind } from "./events";
 import { GraphError, graphFetch } from "./graph";
+import { deleteEvent } from "./remove";
 import * as store from "./store";
 
 const KINDS: Kind[] = APPOINTMENT_KINDS.map((kind) => kind.value);
@@ -70,7 +71,7 @@ export async function reconcileJob(leadId: string, pushKinds: readonly Kind[] = 
         await store.saveLink({ leadId, kind, eventId: created.id, changeKey: created.changeKey });
       } catch (error) {
         // Nothing would point at the new event, so the next sync would create a duplicate: remove it first.
-        await graphFetch(`${events}/${encodeURIComponent(created.id)}`, { method: "DELETE" }).catch(() => {});
+        await deleteEvent(created.id).catch(() => {});
         await store.deleteLink(leadId, kind, pendingId).catch((e) => console.error("Calendar claim release failed", e));
         throw error;
       }
@@ -102,8 +103,7 @@ export async function reconcileJob(leadId: string, pushKinds: readonly Kind[] = 
     const event = (await (await expectOk(got, "read")).json()) as GraphEvent;
 
     if (wanted === null) {
-      const removed = await graphFetch(eventPath, { method: "DELETE" });
-      if (removed.status !== 404) await expectOk(removed, "delete");
+      await deleteEvent(link.eventId);
       await store.deleteLink(leadId, kind, link.eventId);
       continue;
     }

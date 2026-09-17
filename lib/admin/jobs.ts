@@ -11,6 +11,7 @@ import { isTeamRole, type TeamRole } from "./team-roles";
 import { isUuid } from "./ids";
 import { del } from "@vercel/blob";
 import { listBlobPathnames } from "./files";
+import { deleteEvent } from "@/lib/calendar/remove";
 
 export { isUuid };
 
@@ -345,10 +346,15 @@ export async function createJob(
  *    `on delete` rule, so Postgres would refuse anyway — but with a raw error. A named
  *    outcome lets the UI say what to do instead.
  * 2. The blob pathnames are read BEFORE the delete, because `job_files` cascades away with
- *    the row and afterwards nothing says which objects belonged to it.
+ *    the row and afterwards nothing says which objects belonged to it. The Outlook event ids
+ *    are read before it for exactly the same reason: `job_calendar_events` cascades too, and
+ *    `event_id` is the only record anywhere of which event on the owners' shared calendar
+ *    belongs to this job. Once the row is gone, no cron can find the orphan — every branch of
+ *    reconcileTargets joins `leads`.
  * 3. One statement deletes the row; the cascades do the rest.
- * 4. The blobs go AFTER, each independently. A blob removed before a delete that then failed
- *    would leave a live job whose files are gone.
+ * 4. The blobs and the calendar events go AFTER, each independently. A blob or an event removed
+ *    before a delete that then failed would leave a live job whose files, or whose appointment
+ *    on the calendar, had already vanished.
  */
 export async function deleteJob(id: string, actor: string): Promise<"deleted" | "has-children" | "missing"> {
   if (!isUuid(id)) return "missing";
@@ -356,8 +362,11 @@ export async function deleteJob(id: string, actor: string): Promise<"deleted" | 
   const children = await sql`select id from leads where parent_job_id = ${id} limit 1`;
   if (children.length > 0) return "has-children";
 
-  // Before the delete: job_files is `on delete cascade`.
+  // Before the delete: job_files and job_calendar_events are both `on delete cascade`.
   const pathnames = await listBlobPathnames(id);
+  const links = await sql`select event_id from job_calendar_events where lead_id = ${id}`;
+  const eventIds = links.map((row) => row.event_id as string);
+
   const rows = await sql`delete from leads where id = ${id} returning id`;
   if (rows.length === 0) return "missing";
 
@@ -365,6 +374,12 @@ export async function deleteJob(id: string, actor: string): Promise<"deleted" | 
   // not worth telling the owner their deletion failed when it did not. Nothing here rolls back.
   for (const pathname of pathnames) {
     await del(pathname).catch((error) => console.error("Could not remove orphaned blob", pathname, actor, error));
+  }
+  // Same rule for the calendar: a phantom event left on the shared mailbox is bad, but the job
+  // really is deleted, so an Outlook outage must not report that as a failure. deleteEvent does
+  // nothing when Outlook is not configured.
+  for (const eventId of eventIds) {
+    await deleteEvent(eventId).catch((error) => console.error("Could not remove orphaned calendar event", eventId, actor, error));
   }
   return "deleted";
 }
