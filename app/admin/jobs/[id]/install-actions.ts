@@ -43,6 +43,11 @@ export async function saveInstallQuoteAction(
   if (!parsedCharge.success) return { error: parsedCharge.error.issues[0].message };
   const parsedPreview = previewSchema.safeParse(previewFingerprint);
   if (!parsedPreview.success) return { error: parsedPreview.error.issues[0].message };
+  // A measuring-only visit has no windows to install, so it may be saved with no lines —
+  // but a price with neither lines nor a measuring fee is nothing, and is refused.
+  if (parsedLines.data.length === 0 && !parsedCharge.data) {
+    return { error: "Add at least one line before saving." };
+  }
   const [rates, settings] = await Promise.all([listInstallRates(), getInstallSettings()]);
 
   let priced: PricedQuote;

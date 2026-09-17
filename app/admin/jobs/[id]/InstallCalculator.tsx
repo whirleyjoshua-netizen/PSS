@@ -62,10 +62,8 @@ const RATES_CHANGED = "Rates changed since this page loaded.";
  */
 function preview(lines: LineInput[], rates: InstallRate[], settings: InstallSettings, chargeMeasure: boolean):
   { priced: PricedQuote; error: null } | { priced: null; error: string } {
-  if (lines.length > 0) {
-    const checked = installLinesSchema.safeParse(lines);
-    if (!checked.success) return { priced: null, error: checked.error.issues[0].message };
-  }
+  const checked = installLinesSchema.safeParse(lines);
+  if (!checked.success) return { priced: null, error: checked.error.issues[0].message };
   try {
     return { priced: priceQuote(lines, rates, settings, chargeMeasure), error: null };
   } catch (error) {
@@ -150,7 +148,8 @@ export function InstallCalculator({ jobId, rates, settings, saved, measurements 
     });
   };
 
-  const blocked = pending || lines.length === 0 || error !== null;
+  // Nothing to save until there is a line to install or a measuring visit to charge.
+  const blocked = pending || (lines.length === 0 && !chargeMeasure) || error !== null;
 
   return (
     <div className="flex flex-col gap-6">
@@ -225,11 +224,12 @@ export function InstallCalculator({ jobId, rates, settings, saved, measurements 
         Add line
       </button>
 
+      <label className="flex min-h-11 items-center gap-2 self-start text-sm">
+        <input type="checkbox" checked={chargeMeasure} onChange={(e) => setChargeMeasure(e.target.checked)} />
+        Charge for measuring
+      </label>
+
       <div className="flex flex-col gap-1">
-        <label className="flex min-h-11 items-center gap-2 text-sm">
-          <input type="checkbox" checked={chargeMeasure} onChange={(e) => setChargeMeasure(e.target.checked)} />
-          Charge for measuring
-        </label>
         {error ? <p role="alert" className="text-sm text-overdue">{error}</p> : null}
         {priced && priced.minimumApplied ? (
           <p className="text-sm text-ink-soft">

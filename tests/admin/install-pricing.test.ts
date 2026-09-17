@@ -246,6 +246,12 @@ describe("measurement fee", () => {
     expect(priced.totalCents).toBe(15_000 + 7500);
   });
 
+  it("charges only the fee for a measuring visit with no lines at all", () => {
+    const priced = priceQuote([], [roller], withFee, true);
+    expect(priced.minimumApplied).toBe(false);
+    expect(priced.totalCents).toBe(7500);
+  });
+
   it("charges only the fee for a measuring visit with no windows to install", () => {
     const priced = priceQuote([line({ count: 0 })], [roller], withFee, true);
     expect(priced.minimumApplied).toBe(false);

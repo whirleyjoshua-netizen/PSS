@@ -100,6 +100,23 @@ describe("InstallCalculator", () => {
     expect(item).toHaveTextContent("Includes $75 measurement");
   });
 
+  it("lets a measuring-only visit be saved with no lines, but only when the fee is charged", async () => {
+    const user = userEvent.setup();
+    render(<InstallCalculator jobId={JOB} rates={rates} settings={settings} saved={[]} measurements={[]} />);
+    const save = screen.getByRole("button", { name: /save as estimate/i });
+    expect(save).toBeDisabled();
+
+    await user.click(screen.getByRole("checkbox", { name: "Charge for measuring" }));
+    expect(screen.getByTestId("install-total")).toHaveTextContent("$75");
+    expect(save).toBeEnabled();
+    await user.click(save);
+
+    const [, , sentLines, sentCharge, sentFingerprint] = saveInstallQuoteAction.mock.calls[0];
+    expect(sentLines).toEqual([]);
+    expect(sentCharge).toBe(true);
+    expect(JSON.parse(sentFingerprint)).toMatchObject({ measureCents: 7500, totalCents: 7500 });
+  });
+
   it("does not charge for measuring until the owner ticks the box", async () => {
     const user = userEvent.setup();
     render(<InstallCalculator jobId={JOB} rates={rates} settings={settings} saved={[]} measurements={[]} />);

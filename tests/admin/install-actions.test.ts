@@ -122,6 +122,12 @@ describe("saveInstallQuoteAction", () => {
     expect(saveInstallQuote).not.toHaveBeenCalled();
   });
 
+  it("saves a measuring-only visit with no lines when the fee is charged", async () => {
+    const measureOnly = shown([], 10_000, settings, true);
+    expect(await saveInstallQuoteAction(JOB, "estimate", [], true, measureOnly)).toEqual({ ok: true });
+    expect(saveInstallQuote.mock.calls[0][2]).toMatchObject({ lines: [], measureCents: 7500, totalCents: 7500 });
+  });
+
   it("saves the measuring fee when the owner charged for it", async () => {
     const charged = shown([line], 10_000, settings, true);
     expect(await saveInstallQuoteAction(JOB, "final", [line], true, charged)).toEqual({ ok: true });

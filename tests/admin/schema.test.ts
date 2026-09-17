@@ -221,8 +221,9 @@ describe("installLinesSchema", () => {
       .toBe("Enter a height of 600 inches or less");
   });
 
-  it("asks for a line when there are none", () => {
-    expect(installLinesSchema.safeParse([]).error?.issues[0].message).toBe("Add at least one line before saving.");
+  it("accepts an empty list, since a measuring-only visit has no lines to install", () => {
+    // Whether an empty job may be saved depends on the measuring fee, which the action decides.
+    expect(installLinesSchema.safeParse([]).success).toBe(true);
   });
 
   it("accepts only estimate or final as a kind", () => {
