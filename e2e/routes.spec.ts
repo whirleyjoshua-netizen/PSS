@@ -34,7 +34,7 @@ async function signIn(page: Page) {
 
 const openRouteView = async (page: Page) => {
   await page.goto(`/admin/schedule?view=route&day=${DAY}`);
-  await expect(page.getByRole("link", { name: "Route" })).toHaveAttribute("aria-current", "page");
+  await expect(page.getByRole("link", { name: "Route", exact: true })).toHaveAttribute("aria-current", "page");
 };
 
 /** Installers from other specs may exist: route only ours. */
@@ -89,12 +89,15 @@ test("build, move a stop, save, and see it on the job and the week", async ({ pa
   await expect(route(page, ANA).getByText(JOB(2))).toBeVisible();
   await expect(route(page, ANA).getByRole("link", { name: "Open in Google Maps" })).toHaveAttribute("href", /google\.com\/maps\/dir\//);
   expect(stub.requests.at(-1)?.injectedSolutionConstraint).toBeUndefined();
+  const built = stub.requests.length;
 
   await route(page, ANA).getByRole("combobox", { name: `Move ${JOB(2)} to` }).selectOption({ label: BO });
   await expect(route(page, BO).getByText(JOB(2))).toBeVisible();
   await expect(route(page, ANA).getByText(JOB(2))).toHaveCount(0);
-  // The move was re-checked with the owner's order fixed.
+  // The list moves at once; the re-check with the owner's order fixed follows.
+  await expect.poll(() => stub.requests.length).toBe(built + 1);
   expect(stub.requests.at(-1)?.injectedSolutionConstraint).toBeDefined();
+  await expect(page.getByRole("button", { name: "Save routes" })).toBeEnabled();
 
   await page.getByRole("button", { name: "Save routes" }).click();
   await expect(page.getByRole("status").getByText("Routes saved.")).toBeVisible();
@@ -124,9 +127,9 @@ test("the saved plan loads and saves again unchanged", async ({ page }) => {
 
   // Out and back: the plan ends as it was loaded, still stamped with the saved time.
   await route(page, BO).getByRole("combobox", { name: `Move ${JOB(2)} to` }).selectOption({ label: ANA });
-  await expect(route(page, ANA).getByText(JOB(2))).toBeVisible();
+  await expect(route(page, ANA).getByRole("combobox", { name: `Move ${JOB(2)} to` })).toBeEnabled();
   await route(page, ANA).getByRole("combobox", { name: `Move ${JOB(2)} to` }).selectOption({ label: BO });
-  await expect(route(page, BO).getByText(JOB(2))).toBeVisible();
+  await expect(route(page, BO).getByRole("combobox", { name: `Move ${JOB(2)} to` })).toBeEnabled();
 
   await page.getByRole("button", { name: "Save routes" }).click();
   await expect(page.getByRole("status").getByText("Routes saved.")).toBeVisible();
