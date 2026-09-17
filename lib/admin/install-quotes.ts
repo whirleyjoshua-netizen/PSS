@@ -23,6 +23,8 @@ export type SavedInstallQuote = {
   kind: InstallQuoteKind;
   minimumCents: number;
   subtotalCents: number;
+  /** The measuring fee this price charged; 0 when the job was not charged for measuring. */
+  measureCents: number;
   totalCents: number;
   createdBy: string;
   createdAt: Date;
@@ -46,8 +48,8 @@ export async function saveInstallQuote(
   // One data-modifying statement, so the quote, its lines and its history event are saved all-or-nothing.
   const [row] = await db()`
     with quote as (
-      insert into install_quotes (lead_id, kind, minimum_cents, subtotal_cents, total_cents, created_by)
-      values (${leadId}, ${kind}, ${minimumCents}, ${priced.subtotalCents}, ${priced.totalCents}, ${actor})
+      insert into install_quotes (lead_id, kind, minimum_cents, subtotal_cents, measure_cents, total_cents, created_by)
+      values (${leadId}, ${kind}, ${minimumCents}, ${priced.subtotalCents}, ${priced.measureCents}, ${priced.totalCents}, ${actor})
       returning id, lead_id
     ),
     lines as (
@@ -78,7 +80,7 @@ export async function saveInstallQuote(
 
 export async function listInstallQuotes(leadId: string): Promise<SavedInstallQuote[]> {
   if (!isUuid(leadId)) return [];
-  const quoteRows = await db()`select id, kind, minimum_cents, subtotal_cents, total_cents, created_by, created_at
+  const quoteRows = await db()`select id, kind, minimum_cents, subtotal_cents, measure_cents, total_cents, created_by, created_at
     from install_quotes where lead_id = ${leadId} order by created_at desc`;
   if (quoteRows.length === 0) return [];
   const ids = quoteRows.map((row) => row.id as string);
@@ -90,6 +92,7 @@ export async function listInstallQuotes(leadId: string): Promise<SavedInstallQuo
     kind: row.kind as InstallQuoteKind,
     minimumCents: Number(row.minimum_cents),
     subtotalCents: Number(row.subtotal_cents),
+    measureCents: Number(row.measure_cents),
     totalCents: Number(row.total_cents),
     createdBy: row.created_by as string,
     createdAt: new Date(row.created_at as string),

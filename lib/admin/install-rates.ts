@@ -4,7 +4,7 @@ import type { TreatmentType } from "@/lib/leads/treatment-types";
 import type { Basis, InstallRate, InstallSettings } from "./install-pricing";
 
 const ZERO: InstallSettings = {
-  minimumCents: 0, hardSurfaceCents: 0, highLadderCents: 0, motorizedCents: 0,
+  minimumCents: 0, hardSurfaceCents: 0, highLadderCents: 0, motorizedCents: 0, measureCents: 0,
 };
 
 /** Only treatments the owner has actually priced. A missing row is "not set yet". */
@@ -18,7 +18,7 @@ export async function listInstallRates(): Promise<InstallRate[]> {
 }
 
 export async function getInstallSettings(): Promise<InstallSettings> {
-  const rows = await db()`select minimum_cents, hard_surface_cents, high_ladder_cents, motorized_cents
+  const rows = await db()`select minimum_cents, hard_surface_cents, high_ladder_cents, motorized_cents, measure_cents
     from install_settings where id = true`;
   const row = rows[0];
   if (!row) return ZERO;
@@ -27,6 +27,7 @@ export async function getInstallSettings(): Promise<InstallSettings> {
     hardSurfaceCents: Number(row.hard_surface_cents),
     highLadderCents: Number(row.high_ladder_cents),
     motorizedCents: Number(row.motorized_cents),
+    measureCents: Number(row.measure_cents),
   };
 }
 
@@ -59,6 +60,7 @@ export async function saveInstallRates(
       hard_surface_cents = ${settings.hardSurfaceCents},
       high_ladder_cents = ${settings.highLadderCents},
       motorized_cents = ${settings.motorizedCents},
+      measure_cents = ${settings.measureCents},
       updated_by = ${actor},
       updated_at = now()
     where id = true`;

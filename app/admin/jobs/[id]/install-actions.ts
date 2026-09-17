@@ -11,6 +11,8 @@ import { installKindSchema, installLinesSchema } from "@/lib/admin/schema";
 const UNCHECKABLE = "Could not check this price. Reload the page and try again.";
 /** A fingerprint is a short JSON string; the cap keeps a hand-crafted request from sending megabytes. */
 const previewSchema = z.string({ error: UNCHECKABLE }).min(1, UNCHECKABLE).max(20_000, UNCHECKABLE);
+/** Whether this job is charged for an installer's measuring visit — a real boolean, never inferred. */
+const chargeMeasureSchema = z.boolean({ error: UNCHECKABLE });
 
 /**
  * Prices again on the server from the stored rates, and saves only if that price's
@@ -19,7 +21,9 @@ const previewSchema = z.string({ error: UNCHECKABLE }).min(1, UNCHECKABLE).max(2
  * saw: if a rate or the minimum changed after the page loaded, nothing is saved and the owner
  * is asked to review the new total. The whole fingerprint is compared, not just the total,
  * because rates can move between lines or the minimum can hide a changed subtotal while the
- * total stays the same. The lines come straight from the browser, so they are validated
+ * total stays the same. `chargeMeasure` is the owner's per-job choice to bill a measuring
+ * visit; it is part of that fingerprint too, so a stale or mismatched choice is refused rather
+ * than charged. The lines come straight from the browser, so they are validated
  * before pricing. Pricing problems are returned as written; database failures are logged
  * and reported generically, so raw database text never reaches the page.
  */
@@ -27,6 +31,7 @@ export async function saveInstallQuoteAction(
   jobId: string,
   kind: InstallQuoteKind,
   lines: LineInput[],
+  chargeMeasure: boolean,
   previewFingerprint: string,
 ): Promise<{ error?: string; ok?: boolean }> {
   const admin = await requireAdmin();
@@ -34,13 +39,20 @@ export async function saveInstallQuoteAction(
   if (!parsedKind.success) return { error: parsedKind.error.issues[0].message };
   const parsedLines = installLinesSchema.safeParse(lines);
   if (!parsedLines.success) return { error: parsedLines.error.issues[0].message };
+  const parsedCharge = chargeMeasureSchema.safeParse(chargeMeasure);
+  if (!parsedCharge.success) return { error: parsedCharge.error.issues[0].message };
   const parsedPreview = previewSchema.safeParse(previewFingerprint);
   if (!parsedPreview.success) return { error: parsedPreview.error.issues[0].message };
+  // A measuring-only visit has no windows to install, so it may be saved with no lines —
+  // but a price with neither lines nor a measuring fee is nothing, and is refused.
+  if (parsedLines.data.length === 0 && !parsedCharge.data) {
+    return { error: "Add at least one line before saving." };
+  }
   const [rates, settings] = await Promise.all([listInstallRates(), getInstallSettings()]);
 
   let priced: PricedQuote;
   try {
-    priced = priceQuote(parsedLines.data, rates, settings);
+    priced = priceQuote(parsedLines.data, rates, settings, parsedCharge.data);
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Could not price this job." };
   }

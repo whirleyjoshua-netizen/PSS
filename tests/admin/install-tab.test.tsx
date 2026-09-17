@@ -11,7 +11,7 @@ const { InstallCalculator } = await import("@/app/admin/jobs/[id]/InstallCalcula
 const { priceQuote, priceFingerprint } = await import("@/lib/admin/install-pricing");
 
 const JOB = "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c";
-const settings = { minimumCents: 15_000, hardSurfaceCents: 1000, highLadderCents: 5000, motorizedCents: 1500 };
+const settings = { minimumCents: 15_000, hardSurfaceCents: 1000, highLadderCents: 5000, motorizedCents: 1500, measureCents: 7500 };
 const rates = [{ treatment: "roller_shades" as const, basis: "window" as const, rateCents: 2500 }];
 /** Priced by the foot first, so an added line shows a width box. */
 const footRates = [
@@ -19,8 +19,8 @@ const footRates = [
   { treatment: "shutters" as const, basis: "sq_ft" as const, rateCents: 300 },
   { treatment: "roller_shades" as const, basis: "window" as const, rateCents: 2500 },
 ];
-const snapshot = (over: { id: string; subtotalCents: number; totalCents: number }) => ({
-  kind: "estimate" as const, minimumCents: 15_000, createdBy: "owner@example.com",
+const snapshot = (over: { id: string; subtotalCents: number; totalCents: number; measureCents?: number }) => ({
+  kind: "estimate" as const, minimumCents: 15_000, measureCents: 0, createdBy: "owner@example.com",
   createdAt: new Date("2026-09-16T10:00:00Z"), lines: [], ...over,
 });
 
@@ -50,10 +50,10 @@ describe("InstallCalculator", () => {
   it("lists past snapshots newest first, with kind, total and author", () => {
     render(
       <InstallCalculator jobId={JOB} rates={rates} settings={settings} measurements={[]} saved={[{
-        id: "a", kind: "final", minimumCents: 15_000, subtotalCents: 40_000, totalCents: 40_000,
+        id: "a", kind: "final", minimumCents: 15_000, measureCents: 0, subtotalCents: 40_000, totalCents: 40_000,
         createdBy: "owner@example.com", createdAt: new Date("2026-09-16T10:00:00Z"), lines: [],
       }, {
-        id: "b", kind: "estimate", minimumCents: 15_000, subtotalCents: 30_000, totalCents: 30_000,
+        id: "b", kind: "estimate", minimumCents: 15_000, measureCents: 0, subtotalCents: 30_000, totalCents: 30_000,
         createdBy: "owner@example.com", createdAt: new Date("2026-09-10T10:00:00Z"), lines: [],
       }]} />,
     );
@@ -80,6 +80,71 @@ describe("InstallCalculator", () => {
     const items = screen.getAllByRole("listitem");
     expect(items[0]).toHaveTextContent("Minimum applied (lines came to $50)");
     expect(items[1]).not.toHaveTextContent(/minimum applied/i);
+  });
+
+  it("notes a measuring fee on a saved price without claiming the minimum applied", () => {
+    // $200 of lines, no minimum involved, plus a $75 measure: total $275, subtotal $200.
+    render(<InstallCalculator jobId={JOB} rates={rates} settings={settings} measurements={[]}
+      saved={[snapshot({ id: "a", subtotalCents: 20_000, measureCents: 7500, totalCents: 27_500 })]} />);
+    const [item] = screen.getAllByRole("listitem");
+    expect(item).toHaveTextContent("Includes $75 measurement");
+    expect(item).not.toHaveTextContent(/minimum applied/i);
+  });
+
+  it("notes both when a saved price hit the minimum and charged for measuring", () => {
+    // $50 of lines raised to the $150 minimum, plus $75: total $225.
+    render(<InstallCalculator jobId={JOB} rates={rates} settings={settings} measurements={[]}
+      saved={[snapshot({ id: "a", subtotalCents: 5000, measureCents: 7500, totalCents: 22_500 })]} />);
+    const [item] = screen.getAllByRole("listitem");
+    expect(item).toHaveTextContent("Minimum applied (lines came to $50)");
+    expect(item).toHaveTextContent("Includes $75 measurement");
+  });
+
+  it("lets a measuring-only visit be saved with no lines, but only when the fee is charged", async () => {
+    const user = userEvent.setup();
+    render(<InstallCalculator jobId={JOB} rates={rates} settings={settings} saved={[]} measurements={[]} />);
+    const save = screen.getByRole("button", { name: /save as estimate/i });
+    expect(save).toBeDisabled();
+
+    await user.click(screen.getByRole("checkbox", { name: "Charge for measuring" }));
+    expect(screen.getByTestId("install-total")).toHaveTextContent("$75");
+    expect(save).toBeEnabled();
+    await user.click(save);
+
+    const [, , sentLines, sentCharge, sentFingerprint] = saveInstallQuoteAction.mock.calls[0];
+    expect(sentLines).toEqual([]);
+    expect(sentCharge).toBe(true);
+    expect(JSON.parse(sentFingerprint)).toMatchObject({ measureCents: 7500, totalCents: 7500 });
+  });
+
+  it("does not charge for measuring until the owner ticks the box", async () => {
+    const user = userEvent.setup();
+    render(<InstallCalculator jobId={JOB} rates={rates} settings={settings} saved={[]} measurements={[]} />);
+    const charge = screen.getByRole("checkbox", { name: "Charge for measuring" });
+    expect(charge).not.toBeChecked();
+    await user.click(screen.getByRole("button", { name: /add line/i }));
+    await user.clear(screen.getByLabelText("Windows"));
+    await user.type(screen.getByLabelText("Windows"), "10");
+    expect(screen.getByTestId("install-total")).toHaveTextContent("$250");
+    expect(screen.queryByTestId("install-measure")).toBeNull();
+  });
+
+  it("adds the flat fee on top when ticked, and saves exactly what it shows", async () => {
+    const user = userEvent.setup();
+    render(<InstallCalculator jobId={JOB} rates={rates} settings={settings} saved={[]} measurements={[]} />);
+    await user.click(screen.getByRole("button", { name: /add line/i }));
+    await user.clear(screen.getByLabelText("Windows"));
+    await user.type(screen.getByLabelText("Windows"), "2");
+    await user.click(screen.getByRole("checkbox", { name: "Charge for measuring" }));
+    // $50 of work rises to the $150 minimum, then the $75 measure goes on top.
+    expect(screen.getByTestId("install-measure")).toHaveTextContent("$75");
+    expect(screen.getByTestId("install-total")).toHaveTextContent("$225");
+    await user.click(screen.getByRole("button", { name: /save as final/i }));
+
+    const [, , sentLines, sentCharge, sentFingerprint] = saveInstallQuoteAction.mock.calls[0];
+    expect(sentCharge).toBe(true);
+    expect(sentFingerprint).toBe(priceFingerprint(priceQuote(sentLines, rates, settings, true), settings.minimumCents));
+    expect(JSON.parse(sentFingerprint)).toMatchObject({ measureCents: 7500, totalCents: 22_500 });
   });
 
   it("fills one line per measured window, carrying its width and requirements", async () => {
@@ -147,10 +212,11 @@ describe("InstallCalculator", () => {
     expect(screen.getByTestId("install-total")).toHaveTextContent("$250");
     await user.click(screen.getByRole("button", { name: /save as final/i }));
 
-    const [, , sentLines, sentFingerprint] = saveInstallQuoteAction.mock.calls[0];
+    const [, , sentLines, sentCharge, sentFingerprint] = saveInstallQuoteAction.mock.calls[0];
+    expect(sentCharge).toBe(false);
     expect(sentLines).toEqual([expect.objectContaining({ count: 10 })]);
     // Exactly what the page priced and displayed: these rates, this minimum, these lines.
-    expect(sentFingerprint).toBe(priceFingerprint(priceQuote(sentLines, rates, settings), settings.minimumCents));
+    expect(sentFingerprint).toBe(priceFingerprint(priceQuote(sentLines, rates, settings, false), settings.minimumCents));
     expect(JSON.parse(sentFingerprint)).toMatchObject({ totalCents: 25_000, minimumCents: 15_000 });
   });
 

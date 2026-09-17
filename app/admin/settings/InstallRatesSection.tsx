@@ -87,6 +87,15 @@ export function InstallRatesSection({
         </label>
         <p className="text-xs text-ink-soft">The minimum covers the trip. There is no separate trip charge.</p>
 
+        <label className="flex items-center justify-between gap-3 text-sm">
+          Measurement fee
+          <input name="measureCents" inputMode="decimal" defaultValue={shown("measureCents", amount(settings.measureCents))} className={field} />
+        </label>
+        <p className="text-xs text-ink-soft">
+          A flat fee for an installer&apos;s measuring visit, whatever the number of windows. You choose per job
+          whether to charge it, and it is added on top of the minimum.
+        </p>
+
         {state.error ? <p role="alert" className="text-sm text-overdue">{state.error}</p> : null}
         {state.ok ? <p role="status" className="text-sm">Saved.</p> : null}
         <button type="submit" disabled={pending}

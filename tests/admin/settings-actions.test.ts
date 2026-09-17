@@ -64,7 +64,7 @@ describe("team actions", () => {
 });
 
 describe("saveInstallRatesAction", () => {
-  const jobLevel = { minimumCents: "$1,500", hardSurfaceCents: "10", highLadderCents: "50", motorizedCents: "15.50" };
+  const jobLevel = { minimumCents: "$1,500", hardSurfaceCents: "10", highLadderCents: "50", motorizedCents: "15.50", measureCents: "$75" };
 
   it("checks the session before reading any input", async () => {
     requireAdmin.mockImplementationOnce(async () => {
@@ -93,7 +93,7 @@ describe("saveInstallRatesAction", () => {
         { treatment: "roller_shades", basis: "window", rateCents: 2500 },
         { treatment: "shutters", basis: "sq_ft", rateCents: 300 },
       ]),
-      { minimumCents: 150_000, hardSurfaceCents: 1000, highLadderCents: 5000, motorizedCents: 1550 },
+      { minimumCents: 150_000, hardSurfaceCents: 1000, highLadderCents: 5000, motorizedCents: 1550, measureCents: 7500 },
       "owner@example.com",
     );
     expect(saveInstallRates.mock.calls[0][0]).toHaveLength(2);
@@ -112,6 +112,15 @@ describe("saveInstallRatesAction", () => {
     const submitted = { ...jobLevel, minimumCents: "", "rate-roller_shades": "25", "basis-roller_shades": "window" };
     expect(await saveInstallRatesAction({}, form(submitted))).toEqual({
       error: "Minimum job cost: Enter an amount, or 0",
+      values: submitted,
+    });
+    expect(saveInstallRates).not.toHaveBeenCalled();
+  });
+
+  it("refuses a blank measurement fee, naming it, rather than saving the fee as zero", async () => {
+    const submitted = { ...jobLevel, measureCents: "", "rate-roller_shades": "25", "basis-roller_shades": "window" };
+    expect(await saveInstallRatesAction({}, form(submitted))).toEqual({
+      error: "Measurement fee: Enter an amount, or 0",
       values: submitted,
     });
     expect(saveInstallRates).not.toHaveBeenCalled();
