@@ -42,11 +42,14 @@ describe("DetailsForm", () => {
     expect(container.querySelector('input[name="installOnLoaded"]')).toBeNull();
   });
 
-  it("keeps the order date and the money fields", () => {
-    render(<DetailsForm job={job} />);
+  it("keeps the order date but has no money fields: pricing lives on the Install tab", () => {
+    const { container } = render(<DetailsForm job={job} />);
     expect(screen.getByLabelText("Order date")).toBeInTheDocument();
-    expect(screen.getByLabelText("Quote")).toBeInTheDocument();
-    expect(screen.getByLabelText("Sold amount")).toBeInTheDocument();
-    expect(screen.getByLabelText("Deposit received")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Quote")).toBeNull();
+    expect(screen.queryByLabelText("Sold amount")).toBeNull();
+    expect(screen.queryByLabelText("Deposit received")).toBeNull();
+    for (const name of ["quote", "sold", "deposit"]) {
+      expect(container.querySelector(`input[name="${name}"]`)).toBeNull();
+    }
   });
 });

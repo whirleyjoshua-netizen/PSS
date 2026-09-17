@@ -11,7 +11,6 @@ import { TREATMENT_TYPES } from "@/lib/leads/treatment-types";
 import { WINDOW_EXACT_OPTIONS } from "@/lib/leads/window-count";
 import { saveDetails, type FormState } from "../actions";
 
-const dollars = (cents: number | null) => (cents === null ? "" : (cents / 100).toFixed(2));
 const CONTROL = "min-h-11 w-full border border-rule bg-ivory px-4 py-3";
 
 export function DetailsForm({ job }: { job: Job }) {
@@ -46,12 +45,10 @@ export function DetailsForm({ job }: { job: Job }) {
       action={action}
       className="grid gap-4 sm:grid-cols-2"
     >
-      {/* Appointment dates are not edited here: the Schedule button owns them. */}
+      {/* Appointment dates are not edited here: the Schedule button owns them.
+          Money is not either: pricing lives on the Install tab. */}
       <TextField id="address" name="address" label="Address" defaultValue={field("address", job.address ?? "")} />
       <SelectField id="city" name="city" label="City" options={cityOptions} defaultValue={field("city", job.city)} />
-      <Money id="quote" label="Quote" value={field("quote", dollars(job.quoteCents))} />
-      <Money id="sold" label="Sold amount" value={field("sold", dollars(job.soldCents))} />
-      <Money id="deposit" label="Deposit received" value={field("deposit", dollars(job.depositCents))} />
       <label htmlFor="orderedOn" className="flex flex-col gap-2 text-sm">
         Order date
         <input id="orderedOn" name="orderedOn" type="date" className={CONTROL} defaultValue={field("orderedOn", job.orderedOn ?? "")} />
@@ -106,8 +103,4 @@ export function DetailsForm({ job }: { job: Job }) {
       </div>
     </form>
   );
-}
-
-function Money({ id, label, value }: { id: string; label: string; value: string }) {
-  return <TextField id={id} name={id} label={label} inputMode="decimal" placeholder="$" defaultValue={value} />;
 }

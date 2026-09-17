@@ -25,11 +25,9 @@ const place = { address: "", city: "Henderson" };
 describe("detailsSchema", () => {
   it("turns form strings into typed values, with blanks as null", () => {
     const parsed = detailsSchema.parse({ ...place, 
-      quote: "$4,500", sold: "", deposit: "2250",
       brands: ["Alta Window Fashions"], orderedOn: "2027-01-10",
     });
     expect(parsed).toEqual({
-      quoteCents: 450000, soldCents: null, depositCents: 225000,
       brands: ["Alta Window Fashions"], orderedOn: "2027-01-10",
       address: null, city: "Henderson",
       budgetTier: null,
@@ -37,13 +35,17 @@ describe("detailsSchema", () => {
     });
   });
 
-  it("rejects an unknown brand and a nonsense amount", () => {
+  it("rejects an unknown brand", () => {
     expect(detailsSchema.safeParse({ ...place,  brands: ["Acme"] }).success).toBe(false);
-    expect(detailsSchema.safeParse({ ...place,  quote: "lots" }).success).toBe(false);
+  });
+
+  it("has no money fields: pricing lives on the Install tab", () => {
+    const parsed = detailsSchema.parse({ ...place, quote: "$4,500", sold: "1", deposit: "2" });
+    for (const key of ["quoteCents", "soldCents", "depositCents"]) expect(parsed).not.toHaveProperty(key);
   });
 
   it("has no appointment dates: the Schedule button owns those", () => {
-    const parsed = detailsSchema.parse({ ...place,  quote: "", visitAt: "2026-12-15T14:30", installOn: "2027-01-10" });
+    const parsed = detailsSchema.parse({ ...place, visitAt: "2026-12-15T14:30", installOn: "2027-01-10" });
     expect(parsed).not.toHaveProperty("visitAt");
     expect(parsed).not.toHaveProperty("installOn");
   });

@@ -51,28 +51,28 @@ describe("job page", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Write a note first");
   });
 
-  it("prefills saved details as dollars and checked brands", () => {
+  it("prefills saved details and checked brands", () => {
     render(<DetailsForm job={job} />);
-    expect(screen.getByLabelText(/quote/i)).toHaveValue("4500.00");
+    expect(screen.getByLabelText("Gate code")).toHaveValue(job.gateCode ?? "");
     expect(screen.getByRole("checkbox", { name: "Hunter Douglas" })).toBeChecked();
     expect(screen.getByRole("checkbox", { name: "Alta Window Fashions" })).not.toBeChecked();
   });
 
   it("keeps typed values on the details form after a failed save", async () => {
     saveDetails.mockResolvedValueOnce({
-      error: "Enter an amount under $21,474,836",
-      values: { quote: "999999999", orderedOn: "2027-03-01" },
+      error: "Gate codes are 40 characters or fewer",
+      values: { gateCode: "#12345", orderedOn: "2027-03-01" },
     });
     const user = userEvent.setup();
     render(<DetailsForm job={job} />);
 
-    const quote = screen.getByLabelText(/quote/i);
-    await user.clear(quote);
-    await user.type(quote, "999999999");
+    const gate = screen.getByLabelText("Gate code");
+    await user.clear(gate);
+    await user.type(gate, "#12345");
     await user.click(screen.getByRole("button", { name: /save details/i }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(/under \$21,474,836/);
-    expect(screen.getByLabelText(/quote/i)).toHaveValue("999999999");
+    expect(await screen.findByRole("alert")).toHaveTextContent(/40 characters/);
+    expect(screen.getByLabelText("Gate code")).toHaveValue("#12345");
     expect(screen.getByLabelText("Order date")).toHaveValue("2027-03-01");
   });
 

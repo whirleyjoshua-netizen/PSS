@@ -99,7 +99,7 @@ describe("changing jobs", () => {
 
   it("setStage, updateDetails and addNote return false for a non-uuid id without querying", async () => {
     expect(await jobs.setStage("../etc", "sold", "owner@example.com")).toBe(false);
-    expect(await jobs.updateDetails("../etc", { address: null, city: "Henderson", quoteCents: null, soldCents: null, depositCents: null, brands: [], orderedOn: null, budgetTier: null, windowCountExact: null, treatmentTypes: [], motorized: false, gateCode: null }, "owner@example.com")).toEqual({ saved: false, addressChanged: false });
+    expect(await jobs.updateDetails("../etc", { address: null, city: "Henderson", brands: [], orderedOn: null, budgetTier: null, windowCountExact: null, treatmentTypes: [], motorized: false, gateCode: null }, "owner@example.com")).toEqual({ saved: false, addressChanged: false });
     expect(await jobs.addNote("../etc", "hi", "owner@example.com")).toBe(false);
     expect(sql).not.toHaveBeenCalled();
   });
@@ -136,7 +136,7 @@ describe("changing jobs", () => {
   it("updateDetails saves the questionnaire fields", async () => {
     sql.mockResolvedValue([{ id: ID }]);
     await jobs.updateDetails(ID, {
-      address: null, city: "Henderson", quoteCents: null, soldCents: null, depositCents: null, brands: [], orderedOn: null, budgetTier: null,
+      address: null, city: "Henderson", brands: [], orderedOn: null, budgetTier: null,
       windowCountExact: 12, treatmentTypes: ["shutters"], motorized: true, gateCode: "#4321",
     }, "owner@example.com");
     const call = sql.mock.calls[0];
@@ -149,18 +149,21 @@ describe("changing jobs", () => {
     sql.mockResolvedValue([{ id: ID }]);
     const result = await jobs.updateDetails(
       ID,
-      { address: null, city: "Henderson", quoteCents: 450000, soldCents: null, depositCents: 225000, brands: ["Alta Window Fashions"], orderedOn: "2027-01-10", budgetTier: null, windowCountExact: null, treatmentTypes: [], motorized: false, gateCode: null },
+      { address: null, city: "Henderson", brands: ["Alta Window Fashions"], orderedOn: "2027-01-10", budgetTier: null, windowCountExact: null, treatmentTypes: [], motorized: false, gateCode: null },
       "owner@example.com",
     );
     expect(result).toEqual({ saved: true, addressChanged: false });
     expect(sql).toHaveBeenCalledOnce();
-    expect(sql.mock.calls[0]).toEqual(expect.arrayContaining([450000, 225000, ["Alta Window Fashions"]]));
+    expect(sql.mock.calls[0]).toEqual(expect.arrayContaining([["Alta Window Fashions"], "2027-01-10"]));
+    // Money is priced on the Install tab now: saving details never overwrites the stored amounts.
+    const statement = text(sql.mock.calls[0]).replace(/\s+/g, " ");
+    for (const column of ["quote_cents", "sold_cents", "deposit_cents"]) expect(statement).not.toContain(column);
   });
 
   it("updateDetails leaves the appointment dates and the stage alone", async () => {
     sql.mockResolvedValue([{ id: ID }]);
     await jobs.updateDetails(ID, {
-      address: null, city: "Henderson", quoteCents: null, soldCents: null, depositCents: null, brands: [], orderedOn: null, budgetTier: null,
+      address: null, city: "Henderson", brands: [], orderedOn: null, budgetTier: null,
       windowCountExact: null, treatmentTypes: [], motorized: false, gateCode: null,
     }, "owner@example.com");
     const statement = text(sql.mock.calls[0]).replace(/\s+/g, " ");
@@ -174,7 +177,7 @@ describe("changing jobs", () => {
     sql.mockResolvedValue([]);
     const result = await jobs.updateDetails(
       ID,
-      { address: null, city: "Henderson", quoteCents: null, soldCents: null, depositCents: null, brands: [], orderedOn: null, budgetTier: null, windowCountExact: null, treatmentTypes: [], motorized: false, gateCode: null },
+      { address: null, city: "Henderson", brands: [], orderedOn: null, budgetTier: null, windowCountExact: null, treatmentTypes: [], motorized: false, gateCode: null },
       "owner@example.com",
     );
     expect(result).toEqual({ saved: false, addressChanged: false });
@@ -183,7 +186,7 @@ describe("changing jobs", () => {
   it("updateDetails saves the address and city, and reports whether they changed from before the update", async () => {
     sql.mockResolvedValue([{ id: ID, address_changed: true }]);
     const input = {
-      address: "12 Sample St", city: "Henderson", quoteCents: null, soldCents: null, depositCents: null, brands: [], orderedOn: null,
+      address: "12 Sample St", city: "Henderson", brands: [], orderedOn: null,
       budgetTier: null, windowCountExact: null, treatmentTypes: [], motorized: false, gateCode: null,
     };
     expect(await jobs.updateDetails(ID, input, "owner@example.com")).toEqual({ saved: true, addressChanged: true });
@@ -237,7 +240,7 @@ describe("changing jobs", () => {
   it("updateDetails saves the budget tier", async () => {
     sql.mockResolvedValue([{ id: ID }]);
     await jobs.updateDetails(ID, {
-      address: null, city: "Henderson", quoteCents: null, soldCents: null, depositCents: null,
+      address: null, city: "Henderson", 
       brands: [], orderedOn: null, budgetTier: "mid",
       windowCountExact: null, treatmentTypes: [], motorized: false, gateCode: null,
     }, "owner@example.com");

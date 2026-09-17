@@ -223,8 +223,6 @@ export async function updateDetails(
         lng = case when address is distinct from ${input.address}::text or city is distinct from ${input.city}::text then null else lng end,
         geocode_status = case when address is distinct from ${input.address}::text or city is distinct from ${input.city}::text then null else geocode_status end,
         geocoded_at = case when address is distinct from ${input.address}::text or city is distinct from ${input.city}::text then null else geocoded_at end,
-        quote_cents = ${input.quoteCents},
-        sold_cents = ${input.soldCents}, deposit_cents = ${input.depositCents},
         brands = ${input.brands}, ordered_on = ${input.orderedOn}::date,
         budget_tier = ${input.budgetTier},
         window_count_exact = ${input.windowCountExact}, treatment_types = ${input.treatmentTypes}::text[], motorized = ${input.motorized}, gate_code = ${input.gateCode},

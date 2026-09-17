@@ -92,8 +92,11 @@ describe("with a session", () => {
     const state = await actions.saveDetails(ID, {}, form({ city: "Henderson", quote: "4,500", brands: ["Hunter Douglas"] }));
     expect(state).toEqual({ ok: true });
     expect(jobs.updateDetails).toHaveBeenCalledWith(
-      ID, expect.objectContaining({ quoteCents: 450000, brands: ["Hunter Douglas"] }), "owner@example.com",
+      ID, expect.objectContaining({ brands: ["Hunter Douglas"] }), "owner@example.com",
     );
+    // A stray money field in the form is ignored, never saved.
+    const input = jobs.updateDetails.mock.calls[0][1];
+    for (const key of ["quoteCents", "soldCents", "depositCents"]) expect(input).not.toHaveProperty(key);
   });
 
   it("saves the questionnaire fields from Job details", async () => {
@@ -265,9 +268,9 @@ describe("assignJobAction", () => {
 
 describe("Outlook calendar sync", () => {
   it("never touches the calendar from Job details, which no longer holds a date", async () => {
-    await actions.saveDetails(ID, {}, form({ city: "Henderson", quote: "4500", orderedOn: "2026-10-02" }));
+    await actions.saveDetails(ID, {}, form({ city: "Henderson", orderedOn: "2026-10-02" }));
     expect(jobs.updateDetails).toHaveBeenCalledWith(
-      ID, expect.objectContaining({ quoteCents: 450000, orderedOn: "2026-10-02" }), "owner@example.com",
+      ID, expect.objectContaining({ orderedOn: "2026-10-02" }), "owner@example.com",
     );
     expect(syncJobCalendar).not.toHaveBeenCalled();
   });

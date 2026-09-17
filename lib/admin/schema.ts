@@ -23,18 +23,6 @@ export const JOB_SOURCES = [...HAND_SOURCES, "service"] as const;
 
 const blank = (value: unknown) => (typeof value === "string" && value.trim() === "" ? undefined : value);
 
-const cents = z
-  .string()
-  .optional()
-  .transform((value, ctx) => {
-    try {
-      return dollarsToCents(value ?? "");
-    } catch (error) {
-      ctx.addIssue({ code: "custom", message: (error as Error).message });
-      return z.NEVER;
-    }
-  });
-
 const day = z.preprocess(blank, z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a date").optional())
   .transform((value) => value ?? null);
 
@@ -47,9 +35,6 @@ export const detailsSchema = z
   .object({
     address: z.preprocess(blank, site.address),
     city: site.city,
-    quote: cents,
-    sold: cents,
-    deposit: cents,
     brands: z.array(z.enum(BRANDS)).default([]),
     orderedOn: day,
     budget: z.preprocess(blank, z.enum(BUDGET_TIERS, { error: "Pick a budget tier" }).optional()),
@@ -58,10 +43,7 @@ export const detailsSchema = z
     motorized: z.boolean().default(false),
     gateCode: gateCodeField,
   })
-  .transform(({ quote, sold, deposit, budget, ...rest }) => ({
-    quoteCents: quote,
-    soldCents: sold,
-    depositCents: deposit,
+  .transform(({ budget, ...rest }) => ({
     budgetTier: budget ?? null,
     ...rest,
     address: rest.address ?? null,
