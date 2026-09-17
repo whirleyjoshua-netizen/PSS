@@ -4,8 +4,10 @@
  *
  * Run once after deploying migration 017: `node scripts/geocode-backfill.mjs`. Re-running only touches jobs never geocoded.
  *
- * Env loading matches scripts/migrate.mjs: MIGRATE_DATABASE_URL wins, then .env.local.
- * GOOGLE_GEOCODING_KEY is read from .env.local, then the real environment.
+ * Env loading: the database URL is MIGRATE_DATABASE_URL if set, then DATABASE_URL from .env.local
+ * (when that file exists), then DATABASE_URL from the environment. GOOGLE_GEOCODING_KEY is read
+ * from .env.local (when present), then the environment. Without a key the script exits with a
+ * message before touching the database, so no job is marked as an error.
  */
 import { existsSync, readFileSync } from "node:fs";
 import { neon } from "@neondatabase/serverless";
@@ -37,7 +39,10 @@ if (!url) {
 }
 if (!url) throw new Error("DATABASE_URL not found in .env.local or the environment");
 const key = env.GOOGLE_GEOCODING_KEY || process.env.GOOGLE_GEOCODING_KEY;
-if (!key) throw new Error("GOOGLE_GEOCODING_KEY not found in .env.local or the environment");
+if (!key) {
+  console.error("GOOGLE_GEOCODING_KEY is not set in .env.local or the environment; nothing was geocoded.");
+  process.exit(1);
+}
 
 console.log(`Using ${source} -> ${new URL(url).host}`);
 
