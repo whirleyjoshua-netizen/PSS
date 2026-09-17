@@ -18,6 +18,13 @@ const OWNER = "e2e-portal-owner@example.com";
 const CUSTOMER = `e2e-customer-${STAMP}@example.com`;
 const MID_CUSTOMER = `e2e-customer-mid-${STAMP}@example.com`;
 const OTHER_CUSTOMER = `e2e-customer-other-${STAMP}@example.com`;
+const MSG_CUSTOMER = `e2e-customer-msg-${STAMP}@example.com`;
+const SERVICE_CUSTOMER = `e2e-customer-service-${STAMP}@example.com`;
+// Two jobs on one email, deliberately: this customer is the "Your projects" list.
+const LIST_CUSTOMER = `e2e-customer-list-${STAMP}@example.com`;
+// The release gate's two sides: one customer who files the request, one whose job is named.
+const GATE_CUSTOMER = `e2e-customer-gate-${STAMP}@example.com`;
+const VICTIM_CUSTOMER = `e2e-customer-victim-${STAMP}@example.com`;
 
 const hash = (token: string) => createHash("sha256").update(token).digest("hex");
 const PDF = path.join(__dirname, "fixtures", "quote.pdf");
@@ -109,6 +116,10 @@ test.afterAll(async () => {
   if (!url) return;
   await sql()`delete from job_files where lead_id in (select id from leads where name like 'E2E Portal %')`;
   await sql()`delete from job_events where lead_id in (select id from leads where name like 'E2E Portal %')`;
+  // A service request creates a child job that points back at its parent with a foreign key, and
+  // a child carries its parent's name — so it is inside the delete below and would be deleted in
+  // the same statement that deletes the row it references. Children go first, on their own.
+  await sql()`delete from leads where parent_job_id in (select id from leads where name like 'E2E Portal %')`;
   await sql()`delete from leads where name like 'E2E Portal %'`;
   await sql()`delete from customer_login_tokens where email like 'e2e-customer-%'`;
   await sql()`delete from customer_sessions where email like 'e2e-customer-%'`;
@@ -375,6 +386,190 @@ test("one customer cannot open another customer's file, shared or not", async ({
   expectNotFound(await download(customerB, `/project/files/${fileB}`));
 });
 
+});
+
+test("a customer sends a message and the owners find it on the job", async ({ page, browser }) => {
+  const id = await lead(`${NAME} Message`, MSG_CUSTOMER, "quoted");
+  const body = `The left blind in the den arrived scuffed ${STAMP}`;
+
+  const customer = await customerPage(browser, MSG_CUSTOMER);
+  await customer.getByLabel("Or send us a message about your project").fill(body);
+  await customer.getByRole("button", { name: "Send message" }).click();
+
+  // The same answer a throttled send gets: a double-click is never an error.
+  await expect(customer.getByRole("status"))
+    .toContainText("Thanks — we have your message and will come back to you.");
+  // It is theirs, so it comes back to them on their own page.
+  await expect(customer.getByRole("heading", { name: "Messages you have sent" })).toBeVisible();
+  await expect(customer.getByText(body)).toBeVisible();
+
+  // The point of the feature: the owners see the customer's words on the job, attributed.
+  await signInOwner(page);
+  await page.goto(`/admin/jobs/${id}?tab=activity`);
+  await expect(page.getByText(body)).toBeVisible();
+  await expect(page.getByText(MSG_CUSTOMER)).toBeVisible();
+});
+
+test("a customer requests a service and a linked job reaches the board", async ({ page, browser }) => {
+  const name = `${NAME} Service`;
+  const id = await lead(name, SERVICE_CUSTOMER, "installed");
+
+  const customer = await customerPage(browser, SERVICE_CUSTOMER);
+  // The after-work section exists only once the work is installed.
+  const afterWork = customer.getByRole("region", { name: "After the work is done" });
+  await expect(afterWork.getByRole("link", { name: "Leave a review" })).toBeVisible();
+  await afterWork.getByRole("link", { name: "Request a service" }).click();
+  await expect(customer).toHaveURL(new RegExp(`/project/${id}/service$`));
+
+  // Nothing was measured on this job, so the picker is just the text box.
+  await customer.getByLabel("Tell us which window or room.").fill("The big window in the den");
+  await customer.getByLabel("What is happening?").selectOption("wont-move");
+  await customer.getByLabel("Anything else we should know? (optional)").fill("It jams halfway.");
+  await customer.getByRole("button", { name: "Request a service" }).click();
+
+  // Back on the project page, naming the number the customer quotes when they call.
+  await expect(customer).toHaveURL(new RegExp(`/project/${id}\\?requested=PSS-\\d{4,}$`));
+  await expect(customer.getByRole("status")).toContainText("Thanks — we have your request");
+  await expect(afterWork).toContainText(/Service requested on \w{3} \d{1,2}.*we will be in touch\./);
+
+  // A REAL job on the owners' board, linked to the original — not a note on the old one.
+  const [child] = await sql()`select id, source, status, project_no from leads where parent_job_id = ${id}`;
+  expect(child).toBeTruthy();
+  expect(child.source).toBe("service");
+  expect(child.status).toBe("new");
+
+  // The service job is status `new`, which is below PORTAL_STAGES, so it must NOT become a
+  // second project for the customer: their page stays the single project it was.
+  await customer.goto("/project");
+  await expect(customer.getByRole("heading", { level: 1 })).toContainText("your project is underway");
+
+  await signInOwner(page);
+  await page.goto("/admin");
+  const newColumn = page.getByRole("region", { name: /^New lead ·/ });
+  const card = newColumn.locator("div").filter({ hasText: name }).last();
+  await expect(card).toContainText("Service");
+
+  // And from the new job, the owner can get back to the job it came out of.
+  await page.goto(`/admin/jobs/${child.id}`);
+  await expect(page.getByRole("link", { name: /^Service request for PSS-\d{4,}$/ })).toBeVisible();
+});
+
+// The defect the owner personally hit: his own two Las Vegas jobs read identically in the list.
+// lead() gives every job the same city and no street address, which is exactly that case.
+test("two jobs in one city are told apart in the project list", async ({ browser }) => {
+  const first = await lead(`${NAME} List A`, LIST_CUSTOMER, "quoted");
+  const second = await lead(`${NAME} List B`, LIST_CUSTOMER, "ordered");
+  const [a] = await sql()`select project_no from leads where id = ${first}`;
+  const [b] = await sql()`select project_no from leads where id = ${second}`;
+
+  const customer = await customerPage(browser, LIST_CUSTOMER);
+  await expect(customer.getByRole("heading", { name: "Your projects" })).toBeVisible();
+
+  const rows = customer.getByRole("listitem");
+  await expect(rows).toHaveCount(2);
+  // Both rows say Henderson and nothing else about the place — the number and the step are the
+  // only things that distinguish them, so they are what the assertions read.
+  await expect(rows.filter({ hasText: `PSS-${String(a.project_no).padStart(4, "0")}` }))
+    .toContainText("Quote Ready");
+  await expect(rows.filter({ hasText: `PSS-${String(b.project_no).padStart(4, "0")}` }))
+    .toContainText("In Production");
+  expect(a.project_no).not.toBe(b.project_no);
+});
+
+/**
+ * THE RELEASE GATE: a customer files a service request naming another customer's job id.
+ *
+ * WHY THIS GATE IS REAL, unlike the file-sharing one above. The difference is how the id
+ * reaches the action, and it is the only thing that matters:
+ *
+ *  - `ShareSwitch` binds its arguments — `setFileShared.bind(null, jobId, fileId, !shared)` —
+ *    so jobId travels as part of one encrypted, per-build blob. Editing it from a browser
+ *    edits ciphertext, the action never dispatches, and a test written against it passes
+ *    whether or not the guard exists. That is why there is no cross-job sharing test here.
+ *  - `ServiceForm` and `MessageForm` do the opposite. Each renders a plain
+ *    `<input type="hidden" name="jobId" value={jobId} />` and the action reads it back with
+ *    `formData.get("jobId")` (app/(site)/project/actions.ts). It is an ordinary form field in
+ *    ordinary FormData. A customer can put any id they like in it and the framework will
+ *    dispatch the action with it, which is precisely the attack below.
+ *
+ * So this gate is reachable, and it can fail. What stops it is the ownership check in
+ * `requestServiceAction`/`sendCustomerMessage`, which re-derives the caller's own jobs from
+ * the session and refuses an id that is not among them. Delete that check and this test goes
+ * red: a real service job would be created against the victim's job and the row assertions
+ * below would find it.
+ *
+ * It asserts on the EFFECT, never on a status code: no job created, no event row written,
+ * and nothing on either customer's page. The positive control at the end is what keeps the
+ * refusals honest — the same form, unedited, must still create a job, so "nothing happened"
+ * cannot quietly mean "the form is broken for everyone".
+ */
+test("a customer cannot act on another customer's job", async ({ browser }) => {
+  const victimId = await lead(`${NAME} Victim`, VICTIM_CUSTOMER, "installed");
+  const attackerId = await lead(`${NAME} Attacker`, GATE_CUSTOMER, "installed");
+
+  const attacker = await customerPage(browser, GATE_CUSTOMER);
+
+  // --- The service request, aimed at the victim's job ---
+  await attacker.goto(`/project/${attackerId}/service`);
+  await attacker.getByLabel("Tell us which window or room.").fill("Not my window");
+  await attacker.getByLabel("What is happening?").selectOption("damaged");
+  // The one edit: the hidden field now carries the victim's job id. Everything else about the
+  // post is genuine, so this is the framework's own dispatch reaching the real action.
+  await attacker.$eval(
+    'input[name="jobId"]',
+    (element, id) => { (element as HTMLInputElement).value = id; },
+    victimId,
+  );
+  await attacker.getByRole("button", { name: "Request a service" }).click();
+
+  // The action ran and refused. This message is the proof the post was not silently dropped —
+  // without it the assertions below would pass on a request that never reached the server.
+  await expect(attacker.getByRole("alert")).toContainText("We could not find that project.");
+
+  // The effect, which is what the gate is actually about: nothing was created anywhere.
+  const children = await sql()`select id from leads where parent_job_id = ${victimId}`;
+  expect(children).toHaveLength(0);
+  const serviceEvents = await sql()`
+    select id from job_events where lead_id = ${victimId} and kind = 'service'`;
+  expect(serviceEvents).toHaveLength(0);
+  // Nor was it quietly filed against the attacker's own job instead.
+  const ownChildren = await sql()`select id from leads where parent_job_id = ${attackerId}`;
+  expect(ownChildren).toHaveLength(0);
+
+  // --- The message, aimed at the same job ---
+  const forged = `forged message ${STAMP}`;
+  await attacker.goto(`/project/${attackerId}`);
+  await attacker.getByLabel("Or send us a message about your project").fill(forged);
+  await attacker.$eval(
+    'input[name="jobId"]',
+    (element, id) => { (element as HTMLInputElement).value = id; },
+    victimId,
+  );
+  await attacker.getByRole("button", { name: "Send message" }).click();
+  await expect(attacker.getByRole("alert")).toContainText("We could not find that project.");
+
+  const messages = await sql()`
+    select id from job_events where lead_id = ${victimId} and kind = 'message'`;
+  expect(messages).toHaveLength(0);
+
+  // Neither customer's page shows a trace of any of it.
+  const victim = await customerPage(browser, VICTIM_CUSTOMER);
+  await expect(victim.getByRole("region", { name: "After the work is done" }))
+    .not.toContainText("Service requested on");
+  await expect(victim.getByText(forged)).toHaveCount(0);
+  await attacker.goto(`/project/${attackerId}`);
+  await expect(attacker.getByRole("region", { name: "After the work is done" }))
+    .not.toContainText("Service requested on");
+
+  // THE POSITIVE CONTROL. The same form, the same session, the id left alone: it must work.
+  // If this fails, every refusal above proved nothing about the guard.
+  await attacker.goto(`/project/${attackerId}/service`);
+  await attacker.getByLabel("Tell us which window or room.").fill("My own window");
+  await attacker.getByLabel("What is happening?").selectOption("damaged");
+  await attacker.getByRole("button", { name: "Request a service" }).click();
+  await expect(attacker).toHaveURL(new RegExp(`/project/${attackerId}\\?requested=PSS-\\d{4,}$`));
+  const created = await sql()`select id from leads where parent_job_id = ${attackerId}`;
+  expect(created).toHaveLength(1);
 });
 
 test("a lost job locks the customer out", async ({ browser }) => {
