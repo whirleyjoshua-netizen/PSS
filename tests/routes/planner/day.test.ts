@@ -23,7 +23,7 @@ const row = (over: Record<string, unknown> = {}) => ({
   id: A, lead_id: "L1", kind: "install", starts_at: new Date("2026-09-24T16:00:00Z"), all_day: true,
   confirmed_at: null, updated_at: new Date("2026-09-20T00:00:00Z"), window_start: "08:30:00", window_end: "10:00:00",
   duration_minutes: null, name: "Ann", address: "1 Main", city: "Las Vegas", lat: 36.1, lng: -115.1,
-  geocode_status: "ok", assigned_to: null, ...over,
+  geocode_status: "ok", assigned_to: null, loaded_at: new Date("2026-09-23T21:00:00Z"), ...over,
 });
 const dayStop = (id: string, over: Partial<DayStop> = {}): DayStop => ({
   appointmentId: id, jobId: "j", name: "n", address: "a", city: "c", kind: "install", startsAt: "", allDay: true,
@@ -49,14 +49,15 @@ describe("isRouteDay", () => {
 
 describe("loadDay", () => {
   it("reads the Las Vegas day and maps each appointment", async () => {
-    sql.mockResolvedValue([row()]);
-    const [stop] = await loadDay(D);
+    sql.mockResolvedValue([row({ loaded_at: new Date("2026-09-23T21:00:02.350Z") })]);
+    const { stops: [stop], loadedAt } = await loadDay(D);
+    expect(loadedAt).toBe("2026-09-23T21:00:02.350Z");
     const q = text(sql.mock.calls[0]);
     expect(q).toContain("from appointments a join leads l");
     expect(q).toContain("date_trunc('milliseconds', a.updated_at) as updated_at");
     expect(q).toContain("l.status <> 'lost'");
     expect(q).toContain("a.starts_at >= ? and a.starts_at < ?");
-    for (const col of ["l.lat", "l.lng", "l.geocode_status", "l.assigned_to", "a.window_start::text",
+    for (const col of ["date_trunc('milliseconds', now()) as loaded_at", "l.lat", "l.lng", "l.geocode_status", "l.assigned_to", "a.window_start::text",
       "a.window_end::text", "a.duration_minutes", "a.updated_at"]) expect(q).toContain(col);
     expect((sql.mock.calls[0][1] as Date).toISOString()).toBe("2026-09-24T07:00:00.000Z");
     expect((sql.mock.calls[0][2] as Date).toISOString()).toBe("2026-09-25T07:00:00.000Z");
@@ -65,6 +66,10 @@ describe("loadDay", () => {
       startsAt: "2026-09-24T16:00:00.000Z", allDay: true, confirmed: false, windowStart: "08:30", windowEnd: "10:00",
       durationMinutes: 240, lat: 36.1, lng: -115.1, assignedTo: null, updatedAt: "2026-09-20T00:00:00.000Z",
     });
+  });
+
+  it("has no loadedAt for an empty day", async () => {
+    expect(await loadDay(D)).toEqual({ stops: [], loadedAt: null });
   });
 
   it("never geocodes, even for errored leads", async () => {

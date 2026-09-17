@@ -27,6 +27,7 @@ const S2 = "22222222-0000-4000-8000-000000000002";
 const X = "99999999-0000-4000-8000-000000000009";
 const UNREADABLE = { ok: false, error: "That route could not be read. Build again." };
 const UNAVAILABLE = { ok: false, error: "Route planning is unavailable right now" };
+const LOADED_AT = "2026-09-23T21:00:02.350Z";
 const STOP = { appointmentId: S1, jobId: "j", name: "Dana", address: "12 Sample St", city: "Henderson", kind: "install",
   startsAt: "2026-09-24T16:00:00.000Z", allDay: true, confirmed: true, windowStart: null, windowEnd: null,
   durationMinutes: 240, lat: 36, lng: -115, assignedTo: null, updatedAt: "2026-09-20T00:00:00.000Z" };
@@ -37,7 +38,7 @@ const PLAN = { day: D, builtAt: "2026-09-23T20:00:00.000Z", skipped: [],
 beforeEach(() => {
   vi.clearAllMocks();
   requireAdmin.mockResolvedValue({ email: "owner@example.com" });
-  day.loadDay.mockResolvedValue([STOP]);
+  day.loadDay.mockResolvedValue({ stops: [STOP], loadedAt: LOADED_AT });
   day.listInstallers.mockResolvedValue([{ id: ANA, name: "Ana" }]);
   day.listGeocodeErrors.mockResolvedValue([]);
   day.saveRoutePlan.mockResolvedValue("ok");
@@ -66,6 +67,17 @@ describe("buildRoutes", () => {
     const result = await actions.buildRoutes(D, [ANA]);
     expect(result).toMatchObject({ ok: true, plan: { day: D, routes: [{ teamMemberId: ANA, stops: [{ appointmentId: S1 }] }] } });
     expect(day.saveRoutePlan).not.toHaveBeenCalled();
+  });
+
+  it("stamps builtAt with the database clock from loadDay, not this server's clock", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-23T21:00:00.000Z"));
+    try {
+      const result = await actions.buildRoutes(D, [ANA]);
+      expect(result.ok && result.plan.builtAt).toBe(LOADED_AT);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("only routes selected installers that really are installers", async () => {
@@ -128,9 +140,9 @@ describe("buildRoutes", () => {
   it("says why it can't build", async () => {
     expect(await actions.buildRoutes("nope", [ANA])).toEqual({ ok: false, error: "Pick a day." });
     expect(await actions.buildRoutes(D, [])).toEqual({ ok: false, error: "Pick at least one installer." });
-    day.loadDay.mockResolvedValueOnce([]);
+    day.loadDay.mockResolvedValueOnce({ stops: [], loadedAt: null });
     expect(await actions.buildRoutes(D, [ANA])).toEqual({ ok: false, error: "Nothing is scheduled that day." });
-    day.loadDay.mockResolvedValueOnce([{ ...STOP, lat: null, lng: null }]);
+    day.loadDay.mockResolvedValueOnce({ stops: [{ ...STOP, lat: null, lng: null }], loadedAt: LOADED_AT });
     expect(await actions.buildRoutes(D, [ANA])).toEqual({ ok: false, error: "No appointment that day has a mappable address." });
   });
 
@@ -156,7 +168,7 @@ describe("recheckRoutes", () => {
   });
 
   it("keeps an unchecked installer's route, but drops a route for someone who is not an installer", async () => {
-    day.loadDay.mockResolvedValue([STOP, { ...STOP, appointmentId: S2 }]);
+    day.loadDay.mockResolvedValue({ stops: [STOP, { ...STOP, appointmentId: S2 }], loadedAt: LOADED_AT });
     day.listInstallers.mockResolvedValue([{ id: ANA, name: "Ana" }, { id: BO, name: "Bo" }]);
     const ghost = "cccccccc-0000-4000-8000-000000000003";
     const plan = { ...PLAN, routes: [

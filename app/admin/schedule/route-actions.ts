@@ -46,13 +46,14 @@ export async function buildRoutes(day: string, installerIds: string[]): Promise<
   if (!installers.length) return { ok: false, error: "Pick at least one installer." };
   // The build owns the geocode retry: errored leads are looked up again before the day is read.
   await retryGeocodes(await listGeocodeErrors(day));
-  const [stops, settings] = await Promise.all([loadDay(day), getRouteSettings()]);
-  if (!stops.length) return { ok: false, error: "Nothing is scheduled that day." };
+  const [{ stops, loadedAt }, settings] = await Promise.all([loadDay(day), getRouteSettings()]);
+  if (!stops.length || !loadedAt) return { ok: false, error: "Nothing is scheduled that day." };
   if (!stops.some((s) => s.lat !== null && s.lng !== null)) {
     return { ok: false, error: "No appointment that day has a mappable address." };
   }
   return solve(async () => {
-    const builtAt = new Date().toISOString();
+    // The database's clock, not this server's: the save guard compares builtAt with the database's updated_at.
+    const builtAt = loadedAt;
     const request = buildOptimizeRequest({ day, stops, installers, settings });
     const response = await optimizeTours(request.body);
     return parseOptimizeResponse(response, { day, builtAt, stops, settings, shipments: request.shipments, vehicles: request.vehicles });
@@ -69,7 +70,7 @@ export async function recheckRoutes(day: string, plan: RoutePlan, installerIds: 
   const parsed = routePlanSchema.safeParse(plan);
   const ids = installerIdsSchema.safeParse(installerIds);
   if (!isRouteDay(day) || !parsed.success || !ids.success || parsed.data.day !== day) return UNREADABLE;
-  const [stops, team, settings] = await Promise.all([loadDay(day), listInstallers(), getRouteSettings()]);
+  const [{ stops }, team, settings] = await Promise.all([loadDay(day), listInstallers(), getRouteSettings()]);
   const installers = team.filter((i) => ids.data.includes(i.id));
   const onTeam = (r: RoutePlan["routes"][number]) => team.some((i) => i.id === r.teamMemberId);
   // Every submitted route of a real installer stays, checked or not, so unchecking someone never drops their stops.

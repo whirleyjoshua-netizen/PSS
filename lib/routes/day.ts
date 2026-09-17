@@ -32,17 +32,23 @@ async function readDay(date: string) {
     select a.id, a.lead_id, a.kind, a.starts_at, a.all_day, a.confirmed_at,
            date_trunc('milliseconds', a.updated_at) as updated_at,
            a.window_start::text as window_start, a.window_end::text as window_end, a.duration_minutes,
-           l.name, l.address, l.city, l.lat, l.lng, l.geocode_status, l.assigned_to
+           l.name, l.address, l.city, l.lat, l.lng, l.geocode_status, l.assigned_to,
+           date_trunc('milliseconds', now()) as loaded_at
       from appointments a join leads l on l.id = a.lead_id
      where l.status <> 'lost' and a.starts_at >= ${from} and a.starts_at < ${to}
      order by a.starts_at`;
 }
 
-export async function loadDay(date: string): Promise<DayStop[]> {
+/**
+ * The day's stops, and `loadedAt`: the database clock when they were read (null when the day is empty).
+ * A build stamps builtAt with it, because the save guard compares builtAt with the database's updated_at.
+ */
+export async function loadDay(date: string): Promise<{ stops: DayStop[]; loadedAt: string | null }> {
   // Never calls Google: an errored lead is retried by the next build.
   const rows = await readDay(date);
   const settings = await getRouteSettings();
-  return rows.map((r) => ({
+  const loadedAt = rows.length ? iso(rows[0].loaded_at) : null;
+  const stops = rows.map((r) => ({
     appointmentId: r.id as string, jobId: r.lead_id as string, name: r.name as string,
     address: (r.address as string | null) ?? null, city: r.city as string, kind: r.kind as AppointmentKind,
     startsAt: iso(r.starts_at), allDay: r.all_day === true, confirmed: r.confirmed_at !== null,
@@ -51,6 +57,7 @@ export async function loadDay(date: string): Promise<DayStop[]> {
     lat: (r.lat as number | null) ?? null, lng: (r.lng as number | null) ?? null,
     assignedTo: (r.assigned_to as string | null) ?? null, updatedAt: iso(r.updated_at),
   }));
+  return { stops, loadedAt };
 }
 
 /** The day's leads whose last geocode errored, for a build to retry. */
