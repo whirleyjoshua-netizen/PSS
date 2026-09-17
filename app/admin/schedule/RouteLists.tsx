@@ -21,6 +21,9 @@ export function RouteLists({ stops, installers, plan, pending, onMove, onShift }
   const byId = new Map(stops.map((s) => [s.appointmentId, s]));
   const nameOf = (id: string) => byId.get(id)?.name ?? "Removed appointment";
   const needsAddress = stops.filter((s) => !hasCoordinates(s));
+  // An appointment with no address is already listed under Needs address; don't list it as didn't fit too.
+  const noAddress = new Set(needsAddress.map((s) => s.appointmentId));
+  const didntFit = plan?.skipped.filter((s) => !noAddress.has(s.appointmentId)) ?? [];
 
   return (
     <div className="flex flex-col gap-6">
@@ -89,11 +92,11 @@ export function RouteLists({ stops, installers, plan, pending, onMove, onShift }
         </ol>
       )}
 
-      {plan?.skipped.length ? (
+      {didntFit.length ? (
         <section aria-labelledby="route-skipped" className="flex flex-col gap-2">
-          <h2 id="route-skipped" className="text-lg font-semibold text-charcoal">{`Didn't fit (${plan.skipped.length})`}</h2>
+          <h2 id="route-skipped" className="text-lg font-semibold text-charcoal">{`Didn't fit (${didntFit.length})`}</h2>
           <ul className="flex flex-col gap-1 text-sm">
-            {plan.skipped.map((s) => <li key={s.appointmentId}>{`${nameOf(s.appointmentId)} — ${s.reason}`}</li>)}
+            {didntFit.map((s) => <li key={s.appointmentId}>{`${nameOf(s.appointmentId)} — ${s.reason}`}</li>)}
           </ul>
         </section>
       ) : null}

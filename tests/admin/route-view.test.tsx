@@ -85,6 +85,16 @@ describe("RouteView before any build", () => {
     expect(section.getByRole("link", { name: "Gus Hill" })).toHaveAttribute("href", "/admin/jobs/j4");
   });
 
+  it("lists an appointment that is both skipped and missing an address only under Needs address", async () => {
+    actions.buildRoutes.mockResolvedValue({ ok: true, plan: { ...plan,
+      skipped: [...plan.skipped, { appointmentId: "s4", reason: "Needs an address" }] } });
+    view();
+    await build();
+    const misfits = within(screen.getByRole("region", { name: "Didn't fit (1)" }));
+    expect(misfits.queryByText(/Gus Hill/)).toBeNull();
+    expect(within(screen.getByRole("region", { name: "Needs address (1)" })).getByRole("link", { name: "Gus Hill" })).toBeInTheDocument();
+  });
+
   it("links the previous and next day", () => {
     view();
     expect(screen.getByRole("link", { name: /previous day/i })).toHaveAttribute("href", "/admin/schedule?view=route&day=2026-09-23");
