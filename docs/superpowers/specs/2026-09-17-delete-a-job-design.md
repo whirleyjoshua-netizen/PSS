@@ -32,7 +32,7 @@ Verified against the migrations. Most of it cleans itself up:
 | `job_files` | `on delete cascade` | rows only — **the blobs do not cascade** |
 | `window_measurements` | `on delete cascade` | |
 | `appointments` | `on delete cascade` | and `route_stops` cascade from those |
-| `calendar_links` (007) | `on delete cascade` | |
+| `job_calendar_events` (007) | `on delete cascade` | rows only — **the Outlook event does not cascade**, see below |
 | `install_quotes` (018) | `on delete cascade` | |
 | `leads.referred_by` | `on delete set null` | a referred friend keeps their record |
 | `leads.parent_job_id` | **no rule — refuses** | this is what blocks a job with a service child |
@@ -51,7 +51,7 @@ Verified against the migrations. Most of it cleans itself up:
 
 1. `requireAdmin()` first, as every admin action does.
 2. Refuse if the job has any child: `select id from leads where parent_job_id = $1`. Returns a named outcome so the UI can say *"This job has a service request against it. Delete that first."* — never a raw database error.
-3. Read the job's files (`blob_pathname`) **before** deleting the row, because the rows cascade away with it.
+3. Read the job's file pathnames (`blob_pathname`) **and its Outlook event ids** (`job_calendar_events.event_id`) **before** deleting the row, because both tables cascade away with it and afterwards nothing records which objects or which calendar events belonged to the job.
 4. `delete from leads where id = $1` — one statement; the cascades do the rest.
 5. Remove each blob, after the row is gone, each in its own try/catch. **A blob that fails to delete must not fail the operation or roll anything back**: the job is already gone, and an unreachable orphaned file is a smaller problem than a half-deleted job. Log what could not be removed.
 6. `revalidatePath` the board and redirect there — the job page no longer exists.
