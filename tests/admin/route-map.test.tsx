@@ -1,10 +1,12 @@
+import type { ReactNode } from "react";
 import { render, screen } from "@testing-library/react";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, type Mock } from "vitest";
 import type { DayStop, Installer, RoutePlan } from "@/lib/routes/types";
-import { ROUTE_COLORS, routeColor } from "@/lib/routes/colors";
+import { ROUTE_COLORS, routeColor, UNKNOWN_ROUTE_COLOR } from "@/lib/routes/colors";
 
-type P = { children?: React.ReactNode; title?: string; glyphText?: string; background?: string; encodedPath?: string; path?: unknown[]; strokeColor?: string };
+type P = { children?: ReactNode; title?: string; glyphText?: string; background?: string; encodedPath?: string; path?: google.maps.LatLngLiteral[]; strokeColor?: string };
 const status = { value: "LOADED" };
+const mapRef: { value: { setCenter: Mock; setZoom: Mock; fitBounds: Mock } | null } = { value: null };
 vi.mock("@vis.gl/react-google-maps", () => ({
   APIProvider: ({ children }: P) => <div data-testid="provider">{children}</div>,
   Map: ({ children }: P) => <div data-testid="google-map">{children}</div>,
@@ -13,10 +15,9 @@ vi.mock("@vis.gl/react-google-maps", () => ({
   Polyline: ({ encodedPath, path, strokeColor }: P) => (
     <i data-testid="line" data-color={strokeColor} data-encoded={encodedPath ?? ""} data-points={path ? path.length : 0} />
   ),
-  useMap: () => null,
-  useMapsLibrary: () => null,
+  useMap: () => mapRef.value,
   useApiLoadingStatus: () => status.value,
-  APILoadingStatus: { FAILED: "FAILED", AUTH_FAILURE: "AUTH_FAILURE", LOADED: "LOADED" },
+  APILoadingStatus: { FAILED: "FAILED", AUTH_FAILURE: "AUTH_FAILURE", LOADED: "LOADED", LOADING: "LOADING" },
 }));
 const { RouteMap } = await import("@/app/admin/schedule/RouteMap");
 
@@ -31,7 +32,7 @@ const stops = [stop("s1", "Dana"), stop("s2", "Eli", 36.2, -115.2), stop("s3", "
 const base = { stops, plan: null, installers, apiKey: "key", mapId: "map" };
 const pinOf = (title: string) => screen.getByTitle(title).querySelector("[data-testid=pin]")!;
 
-beforeEach(() => { status.value = "LOADED"; });
+beforeEach(() => { status.value = "LOADED"; mapRef.value = null; });
 
 describe("colors", () => {
   it("uses the literal palette and wraps", () => {
@@ -47,11 +48,17 @@ describe("RouteMap", () => {
     expect(render(<RouteMap {...base} mapId={null} />).container).toBeEmptyDOMElement();
   });
 
-  it.each(["FAILED", "AUTH_FAILURE"])("renders nothing when the script status is %s", (s) => {
+  it.each(["FAILED", "AUTH_FAILURE"])("renders no frame when the script status is %s", (s) => {
     status.value = s;
+    const { getByTestId } = render(<RouteMap {...base} />);
+    expect(getByTestId("provider")).toBeEmptyDOMElement();
+  });
+
+  it("renders the frame while the script is loading", () => {
+    status.value = "LOADING";
     render(<RouteMap {...base} />);
-    expect(screen.queryByTestId("google-map")).toBeNull();
-    expect(screen.queryByTestId("marker")).toBeNull();
+    expect(screen.getByTestId("provider")).not.toBeEmptyDOMElement();
+    expect(screen.getByTestId("google-map")).toBeInTheDocument();
   });
 
   it("shows the map visibly on every screen size", () => {
@@ -103,5 +110,60 @@ describe("RouteMap", () => {
     expect(line).toHaveAttribute("data-encoded", "");
     expect(line).toHaveAttribute("data-points", "2");
     expect(pinOf("Fay")).toHaveAttribute("data-bg", routeColor(0));
+  });
+
+  it("gives an installer missing from the list a colour outside the palette", () => {
+    const plan: RoutePlan = { day: "d", builtAt: "x", skipped: [], routes: [{ teamMemberId: "gone", polyline: null, driveMinutes: 0,
+      stops: [{ appointmentId: "s1", arrival: "", driveMinutes: 0, outsideWindow: false }] }] };
+    render(<RouteMap {...base} plan={plan} />);
+    expect(pinOf("Dana")).toHaveAttribute("data-bg", UNKNOWN_ROUTE_COLOR);
+    expect(ROUTE_COLORS).not.toContain(UNKNOWN_ROUTE_COLOR);
+  });
+});
+
+describe("RouteMap framing", () => {
+  const extended: google.maps.LatLngLiteral[] = [];
+  beforeEach(() => {
+    extended.length = 0;
+    mapRef.value = { setCenter: vi.fn(), setZoom: vi.fn(), fitBounds: vi.fn() };
+    vi.stubGlobal("google", { maps: { LatLngBounds: class { extend(p: google.maps.LatLngLiteral) { extended.push(p); } } } });
+    return () => vi.unstubAllGlobals();
+  });
+  const map = () => mapRef.value!;
+
+  it("does nothing with no located stops", () => {
+    render(<RouteMap {...base} stops={[stop("s4", "Gus", null, null)]} />);
+    expect(map().setCenter).not.toHaveBeenCalled();
+    expect(map().fitBounds).not.toHaveBeenCalled();
+  });
+
+  it("centres at zoom 13 on a single stop", () => {
+    render(<RouteMap {...base} stops={[stop("s1", "Dana", 36.1, -115.1)]} />);
+    expect(map().setCenter).toHaveBeenCalledWith({ lat: 36.1, lng: -115.1 });
+    expect(map().setZoom).toHaveBeenCalledWith(13);
+    expect(map().fitBounds).not.toHaveBeenCalled();
+  });
+
+  it("centres at zoom 13 when every stop is at one spot", () => {
+    render(<RouteMap {...base} stops={[stop("s1", "Dana", 36.1, -115.1), stop("s2", "Eli", 36.1, -115.1)]} />);
+    expect(map().setCenter).toHaveBeenCalledWith({ lat: 36.1, lng: -115.1 });
+    expect(map().setZoom).toHaveBeenCalledWith(13);
+    expect(map().fitBounds).not.toHaveBeenCalled();
+  });
+
+  it("fits bounds around two or more spots", () => {
+    render(<RouteMap {...base} />);
+    expect(map().fitBounds).toHaveBeenCalledTimes(1);
+    expect(map().fitBounds.mock.calls[0][1]).toBe(48);
+    expect(extended).toEqual([{ lat: 36.1, lng: -115.1 }, { lat: 36.2, lng: -115.2 }, { lat: 36.3, lng: -115.3 }]);
+    expect(map().setCenter).not.toHaveBeenCalled();
+  });
+
+  it("does not refit when a refresh brings the same stops in a new array", () => {
+    const { rerender } = render(<RouteMap {...base} />);
+    rerender(<RouteMap {...base} stops={stops.map((s) => ({ ...s }))} />);
+    expect(map().fitBounds).toHaveBeenCalledTimes(1);
+    rerender(<RouteMap {...base} stops={[...stops, stop("s5", "Hal", 36.5, -115.5)]} />);
+    expect(map().fitBounds).toHaveBeenCalledTimes(2);
   });
 });

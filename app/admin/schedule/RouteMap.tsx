@@ -4,7 +4,7 @@ import { useEffect, useMemo } from "react";
 import {
   AdvancedMarker, APILoadingStatus, APIProvider, Map as GoogleMap, Pin, Polyline, useApiLoadingStatus, useMap,
 } from "@vis.gl/react-google-maps";
-import { routeColor } from "@/lib/routes/colors";
+import { routeColor, UNKNOWN_ROUTE_COLOR } from "@/lib/routes/colors";
 import type { DayStop, Installer, PlanRoute, RoutePlan } from "@/lib/routes/types";
 
 const GREY = "#9ca3af";
@@ -21,7 +21,7 @@ export type RouteMapProps = {
 export function RouteMap(props: RouteMapProps) {
   if (!props.apiKey || !props.mapId) return null;
   return (
-    <APIProvider apiKey={props.apiKey} libraries={["geometry", "marker"]}>
+    <APIProvider apiKey={props.apiKey} libraries={["marker"]}>
       <LoadedMap {...props} mapId={props.mapId} />
     </APIProvider>
   );
@@ -31,7 +31,8 @@ function LoadedMap({ stops, plan, installers, mapId }: RouteMapProps & { mapId: 
   const status = useApiLoadingStatus();
   const located = useMemo(() => stops.filter((s): s is Located => s.lat !== null && s.lng !== null), [stops]);
   const byId = useMemo(() => new Map(located.map((s) => [s.appointmentId, s])), [located]);
-  const points = useMemo(() => located.map(({ lat, lng }) => ({ lat, lng })), [located]);
+  // Keyed on ids and coords, so a refresh with the same stops keeps the owner's pan and zoom.
+  const fitKey = located.map((s) => `${s.appointmentId}:${s.lat}:${s.lng}`).join("|");
   // A map-script failure shows the lists without the map.
   if (status === APILoadingStatus.FAILED || status === APILoadingStatus.AUTH_FAILURE) return null;
   const routed = new Set(plan?.routes.flatMap((r) => r.stops.map((s) => s.appointmentId)) ?? []);
@@ -46,9 +47,9 @@ function LoadedMap({ stops, plan, installers, mapId }: RouteMapProps & { mapId: 
         ))}
         {plan?.routes.map((route) => (
           <RouteLayer key={route.teamMemberId} route={route} byId={byId}
-            color={routeColor(installers.findIndex((i) => i.id === route.teamMemberId))} />
+            color={colorFor(installers, route.teamMemberId)} />
         ))}
-        <FitBounds points={points} />
+        <FitBounds fitKey={fitKey} />
       </GoogleMap>
     </div>
   );
@@ -75,13 +76,28 @@ function RouteLayer({ route, byId, color }: { route: PlanRoute; byId: Map<string
   );
 }
 
-function FitBounds({ points }: { points: Point[] }) {
+function colorFor(installers: Installer[], id: string) {
+  const index = installers.findIndex((i) => i.id === id);
+  return index < 0 ? UNKNOWN_ROUTE_COLOR : routeColor(index);
+}
+
+/** Frames the stops once per distinct set; a single spot (or all stops at one spot) centres at street zoom. */
+function FitBounds({ fitKey }: { fitKey: string }) {
   const map = useMap();
   useEffect(() => {
-    if (!map || !points.length) return;
+    if (!map || !fitKey) return;
+    const points: Point[] = fitKey.split("|").map((entry) => {
+      const [, lat, lng] = entry.split(":");
+      return { lat: Number(lat), lng: Number(lng) };
+    });
+    if (points.every((p) => p.lat === points[0].lat && p.lng === points[0].lng)) {
+      map.setCenter(points[0]);
+      map.setZoom(13);
+      return;
+    }
     const bounds = new google.maps.LatLngBounds();
     points.forEach((p) => bounds.extend(p));
     map.fitBounds(bounds, 48);
-  }, [map, points]);
+  }, [map, fitKey]);
   return null;
 }
