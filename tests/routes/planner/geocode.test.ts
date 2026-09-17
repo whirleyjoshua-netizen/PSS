@@ -95,6 +95,17 @@ describe("geocodeLead", () => {
     expect(sql.mock.calls[1].slice(4)).toEqual([ID, "12 Sample St", "Henderson"]);
   });
 
+  it("without a geocoding key, never touches the database and only warns once", async () => {
+    vi.stubEnv("GOOGLE_GEOCODING_KEY", "");
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const error = vi.spyOn(console, "error").mockClear();
+    await geocodeLead(ID);
+    expect(sql).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(error).not.toHaveBeenCalled();
+    expect(warn.mock.calls.length).toBeLessThanOrEqual(1);
+  });
+
   it("does nothing for a bad id or a missing job, and never throws", async () => {
     await geocodeLead("nope");
     expect(sql).not.toHaveBeenCalled();

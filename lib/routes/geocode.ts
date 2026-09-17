@@ -12,7 +12,7 @@ export async function geocodeAddress(address: string | null, city: string): Prom
   if (!address?.trim()) return { status: "not_found" };
   const key = process.env.GOOGLE_GEOCODING_KEY;
   if (!key) {
-    console.error("Geocoding skipped: GOOGLE_GEOCODING_KEY is not set");
+    console.warn("Geocoding skipped: GOOGLE_GEOCODING_KEY is not set");
     return { status: "error" };
   }
   const url = new URL(ENDPOINT);
@@ -35,9 +35,17 @@ export async function geocodeAddress(address: string | null, city: string): Prom
   }
 }
 
-/** Looks the job's address up and stores only coordinates. Runs inside after(), so it never throws. */
+/**
+ * Looks the job's address up and stores only coordinates. Runs inside after(), so it never throws.
+ * With Google unconfigured it stops before reading or writing anything, so jobs are not stamped
+ * as errors that the build's retry and the backfill would then chase.
+ */
 export async function geocodeLead(id: string): Promise<void> {
   if (!isUuid(id)) return;
+  if (!process.env.GOOGLE_GEOCODING_KEY) {
+    console.warn("Geocoding skipped: GOOGLE_GEOCODING_KEY is not set");
+    return;
+  }
   try {
     const [lead] = await db()`select address, city from leads where id = ${id}`;
     if (!lead) return;
