@@ -61,7 +61,7 @@ beforeEach(() => {
 });
 
 describe("RouteView before any build", () => {
-  it("checks every installer, lists the day's appointments by time and keeps Save disabled", () => {
+  it("checks every installer, lists the day's appointments by time and keeps Save disabled", async () => {
     view();
     expect(screen.getByRole("checkbox", { name: "Ana" })).toBeChecked();
     expect(screen.getByRole("checkbox", { name: "Bo" })).toBeChecked();
@@ -75,7 +75,8 @@ describe("RouteView before any build", () => {
     expect(items[1]).toHaveTextContent("Pending");
     expect(items[0]).not.toHaveTextContent("Pending");
     expect(saveButton()).toBeDisabled();
-    expect(screen.getByTestId("map")).toBeInTheDocument();
+    // The map is loaded on demand (next/dynamic), so it appears after its chunk resolves.
+    expect(await screen.findByTestId("map")).toBeInTheDocument();
   });
 
   it("lists appointments with no address, each linked to its job", () => {

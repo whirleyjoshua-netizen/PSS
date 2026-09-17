@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
+import dynamic from "next/dynamic";
 import { unstable_rethrow } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { moveStop, shiftStop } from "@/lib/routes/edit";
@@ -9,8 +10,10 @@ import { addDaysIso } from "@/lib/routes/window";
 import type { DayStop, Installer, RoutePlan, SavedRoute } from "@/lib/routes/types";
 import { buildRoutes, recheckRoutes, saveRoutes } from "./route-actions";
 import { RouteLists } from "./RouteLists";
-import { RouteMap } from "./RouteMap";
 import { ScheduleHeader } from "./ScheduleHeader";
+
+// The maps library ships only when the Route view renders, not with the week and month views on the same page.
+const RouteMap = dynamic(() => import("./RouteMap").then((mod) => mod.RouteMap), { ssr: false });
 
 type Failure = { ok: false; error: string };
 
