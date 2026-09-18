@@ -25,6 +25,14 @@ const LIST_CUSTOMER = `e2e-customer-list-${STAMP}@example.com`;
 // The release gate's two sides: one customer who files the request, one whose job is named.
 const GATE_CUSTOMER = `e2e-customer-gate-${STAMP}@example.com`;
 const VICTIM_CUSTOMER = `e2e-customer-victim-${STAMP}@example.com`;
+// Phase 2's journeys: approving a quote, confirming an installation, reporting a fault.
+const APPROVE_CUSTOMER = `e2e-customer-approve-${STAMP}@example.com`;
+const ACK_CUSTOMER = `e2e-customer-ack-${STAMP}@example.com`;
+const FAULT_CUSTOMER = `e2e-customer-fault-${STAMP}@example.com`;
+// The approval release gate's two sides: the customer who approves, and the one whose quoted
+// job must not move because of it.
+const APPROVER_CUSTOMER = `e2e-customer-approver-${STAMP}@example.com`;
+const BYSTANDER_CUSTOMER = `e2e-customer-bystander-${STAMP}@example.com`;
 
 const hash = (token: string) => createHash("sha256").update(token).digest("hex");
 const PDF = path.join(__dirname, "fixtures", "quote.pdf");
@@ -102,6 +110,29 @@ async function uploadDocument(page: Page, jobId: string, fileName: string): Prom
   });
   await expect(page.getByRole("link", { name: fileName })).toBeVisible();
   const [row] = await sql()`select id from job_files where lead_id = ${jobId} and name = ${fileName}`;
+  return row.id as string;
+}
+
+/**
+ * Shares a Quote document with the customer, by row rather than by upload.
+ *
+ * Approving is gated server-side on a document whose `doc_type` is `quote` and whose
+ * `shared_at` is set (listSharedDocuments), and on nothing else — the action reads the name it
+ * writes into the timeline from this row. None of the tests below ever fetches the file, so the
+ * blob behind it is never touched.
+ *
+ * That is deliberate, and it is not a shortcut: uploadDocument() goes through the admin UI and
+ * therefore needs E2E_BLOB_READ_WRITE_TOKEN, which the photo and document tests above are
+ * allowed to skip on. The approval release gate must never be skippable — a gate that quietly
+ * does not run reads green while proving nothing — so its fixture must not depend on a blob
+ * store. Everything the guard actually reads is in this row.
+ */
+async function shareQuote(jobId: string, name: string): Promise<string> {
+  const [row] = await sql()`insert into job_files
+    (lead_id, uploaded_by, kind, name, content_type, size_bytes, blob_pathname, shared_at, doc_type)
+    values (${jobId}, ${OWNER}, 'document', ${name}, 'application/pdf', 1024,
+            ${`e2e/${jobId}/${name}`}, now(), 'quote')
+    returning id`;
   return row.id as string;
 }
 
@@ -572,6 +603,275 @@ test("a customer cannot act on another customer's job", async ({ browser }) => {
   await expect(attacker).toHaveURL(new RegExp(`/project/${attackerId}\\?requested=PSS-\\d{4,}$`));
   const created = await sql()`select id from leads where parent_job_id = ${attackerId}`;
   expect(created).toHaveLength(1);
+});
+
+/**
+ * Spec §8, first journey: a customer approves a quote; the job reads Sold on the admin board,
+ * and its timeline names the CUSTOMER.
+ *
+ * The timeline assertion is the one that matters months later. setStage takes `actor` as a
+ * plain string, so a customer-driven move is recorded honestly as the customer's own email
+ * rather than disguised as an owner's click — and the body names the document they were
+ * looking at, read server-side from job_files by the action. The post carries only the job id.
+ */
+test("a customer approves a quote and the job reads Sold, in their own name", async ({ page, browser }) => {
+  const name = `${NAME} Approve`;
+  const id = await lead(name, APPROVE_CUSTOMER, "quoted");
+  const quoteName = `quote-approve-${STAMP}.pdf`;
+  await shareQuote(id, quoteName);
+
+  const customer = await customerPage(browser, APPROVE_CUSTOMER);
+  await customer.goto(`/project/${id}`);
+  const banner = customer.getByRole("region", { name: "Where your project stands" });
+  await expect(banner.getByRole("heading", { name: "Quote Ready" })).toBeVisible();
+
+  // Two steps on purpose: the reveal carries the sentence about what approving means, and the
+  // button is not reachable until it has been opened. One stray tap must not order materials.
+  await banner.getByText("Approve this quote").click();
+  await expect(
+    banner.getByText("Approving tells us to go ahead and order. We will email you to arrange the details."),
+  ).toBeVisible();
+  await banner.getByRole("button", { name: "Yes, approve this quote" }).click();
+
+  // The outcome rides back on the URL — a plain form post and a redirect, no client state — but
+  // the sentence is re-derived from the job's real status, never printed from the flag.
+  await expect(customer).toHaveURL(new RegExp(`/project/${id}\\?approved=1$`));
+  await expect(customer.getByRole("status"))
+    .toContainText("Thank you — we have your approval and will be in touch to arrange the details.");
+  // The banner beside it is the confirmation's own evidence, and the control is gone: there is
+  // nothing left to approve.
+  await expect(banner.getByRole("heading", { name: "Order Confirmed" })).toBeVisible();
+  await expect(customer.getByText("Approve this quote")).toHaveCount(0);
+
+  // The row itself. One stage event, and exactly one — the actor is the customer, and the body
+  // names the document, which is what an owner reads back in six months.
+  const [row] = await sql()`select status from leads where id = ${id}`;
+  expect(row.status).toBe("sold");
+  const events = await sql()`select actor, from_status, to_status, body from job_events
+    where lead_id = ${id} and kind = 'stage'`;
+  expect(events).toEqual([
+    {
+      actor: APPROVE_CUSTOMER,
+      from_status: "quoted",
+      to_status: "sold",
+      body: `Approved "${quoteName}" from their project page`,
+    },
+  ]);
+
+  // The owners' side: the job has moved column, and the timeline names the customer.
+  await signInOwner(page);
+  await page.goto("/admin");
+  await expect(page.getByRole("region", { name: /^Sold ·/ }).getByRole("link", { name: new RegExp(name) }))
+    .toBeVisible();
+  await page.goto(`/admin/jobs/${id}?tab=activity`);
+  await expect(page.getByText(`Approved "${quoteName}" from their project page`)).toBeVisible();
+  await expect(page.getByText(APPROVE_CUSTOMER)).toBeVisible();
+});
+
+/**
+ * Spec §8, second journey: a customer confirms an installation and the job reads Completed.
+ *
+ * This is the ONLY place the completed write is proved against a real Postgres. The unit tests
+ * mock setStage, so they pin the call and nothing about the statement — its `status <> $to`
+ * guard, its stage_changed_at, or the job_events row it writes in the same statement. If this
+ * test is not run against a database, that write is unverified rather than assumed good.
+ *
+ * Completed is not a board column (BOARD_STAGES stops at installed), so the owners' side is
+ * read from the job's own stage stepper, exactly as e2e/stages.spec.ts reads it.
+ */
+test("a customer confirms an installation and the job reads Completed", async ({ page, browser }) => {
+  const name = `${NAME} Acknowledge`;
+  const id = await lead(name, ACK_CUSTOMER, "installed");
+  const [before] = await sql()`select stage_changed_at from leads where id = ${id}`;
+
+  const customer = await customerPage(browser, ACK_CUSTOMER);
+  await customer.goto(`/project/${id}`);
+  const banner = customer.getByRole("region", { name: "Where your project stands" });
+  await expect(banner.getByText("Is everything how you wanted it?")).toBeVisible();
+  // Two clearly different answers, never one button with a tick: the unhappy one is the whole
+  // reason for asking, so it must be here too.
+  await expect(banner.getByRole("link", { name: "Something is not right" })).toBeVisible();
+  await banner.getByRole("button", { name: "Yes, everything looks great" }).click();
+
+  await expect(customer).toHaveURL(new RegExp(`/project/${id}\\?acknowledged=1$`));
+  await expect(customer.getByRole("status")).toContainText(
+    "Thank you for letting us know — we are glad it is right.",
+  );
+  // The question is not asked twice. It keys on the job's RAW status, which is now `completed`;
+  // toPortalStage folds that back into `installed`, so a page reading the folded value would
+  // still be asking a customer who has already answered.
+  await expect(customer.getByText("Is everything how you wanted it?")).toHaveCount(0);
+
+  // setStage's real statement, which nothing else in this branch proves: the status, the
+  // stamp it moves, and the timeline row written alongside it.
+  const [row] = await sql()`select status, stage_changed_at from leads where id = ${id}`;
+  expect(row.status).toBe("completed");
+  expect(new Date(row.stage_changed_at as string).getTime())
+    .toBeGreaterThan(new Date(before.stage_changed_at as string).getTime());
+  const events = await sql()`select actor, from_status, to_status, body from job_events
+    where lead_id = ${id} and kind = 'stage'`;
+  expect(events).toEqual([
+    {
+      actor: ACK_CUSTOMER,
+      from_status: "installed",
+      to_status: "completed",
+      body: "Confirmed the installation from their project page",
+    },
+  ]);
+
+  await signInOwner(page);
+  await page.goto(`/admin/jobs/${id}`);
+  await expect(page.getByRole("list", { name: "Stage" }).locator('[aria-current="step"]'))
+    .toContainText("Completed");
+});
+
+/**
+ * Spec §8, third journey: a customer reports a fault. A service job appears, the ORIGINAL job
+ * stays `installed`, and the review opt-out is set ON THE PARENT.
+ *
+ * The parent is the point. The review cron asks about the install, which is the parent's; muting
+ * the new service job instead would leave the customer who has just said something is wrong
+ * being asked for a public review within 14 days, which is the one thing spec §5 forbids. So the
+ * child's flag is asserted too — otherwise "muted" could mean the wrong row was muted.
+ */
+test("a customer reports a fault: a service job appears, the original stays Installed, and the review is muted", async ({ browser }) => {
+  const name = `${NAME} Fault`;
+  const id = await lead(name, FAULT_CUSTOMER, "installed");
+
+  const customer = await customerPage(browser, FAULT_CUSTOMER);
+  await customer.goto(`/project/${id}`);
+  await customer.getByRole("region", { name: "Where your project stands" })
+    .getByRole("link", { name: "Something is not right" }).click();
+
+  // The marker says which route they came through. It selects the action and nothing else, and
+  // the page re-derives it against the job's raw status before it changes a single word.
+  await expect(customer).toHaveURL(new RegExp(`/project/${id}/service\\?from=acknowledgement$`));
+  await expect(customer.getByText("We are sorry it is not right.")).toBeVisible();
+
+  await customer.getByLabel("Tell us which window or room.").fill("The bedroom shade");
+  await customer.getByLabel("What is happening?").selectOption("wont-move");
+  await customer.getByRole("button", { name: "Request a service" }).click();
+  await expect(customer).toHaveURL(new RegExp(`/project/${id}\\?requested=PSS-\\d{4,}$`));
+
+  // A real job on the owners' board, linked back to the one it came out of.
+  const [child] = await sql()`select id, source, status, review_opt_out
+    from leads where parent_job_id = ${id}`;
+  expect(child).toBeTruthy();
+  expect(child.source).toBe("service");
+  expect(child.status).toBe("new");
+
+  // The original does NOT move. It stays installed until the owners have put it right — the
+  // acknowledgement was "no", and nothing about the install is finished.
+  const [parent] = await sql()`select status, review_opt_out from leads where id = ${id}`;
+  expect(parent.status).toBe("installed");
+  expect(parent.review_opt_out).toBe(true);
+  // And it is the parent that was muted, not the new job.
+  expect(child.review_opt_out).toBe(false);
+  // The mute is logged against the parent in the customer's own name, like every other act
+  // they take from this page.
+  const [muted] = await sql()`select actor, body from job_events
+    where lead_id = ${id} and kind = 'edit' and body = 'Turned off the review request'`;
+  expect(muted).toEqual({ actor: FAULT_CUSTOMER, body: "Turned off the review request" });
+});
+
+/**
+ * THE RELEASE GATE: a customer approving must not move ANY OTHER job.
+ *
+ * WHY IT CAN FAIL, which is the only thing that makes a gate worth having. `ApproveQuote`
+ * renders a plain `<input type="hidden" name="jobId" value={jobId} />` and
+ * `approveQuoteFormAction` reads it back with `formData.get("jobId")` — an ordinary field in
+ * ordinary FormData, not a bound-and-encrypted argument like `ShareSwitch`'s. A customer can put
+ * any id they like in it and the framework will dispatch the action with it, which is exactly
+ * the post below. (See the service-request gate above for the same distinction at length.)
+ *
+ * What stops it is one line in `approveQuoteAction`:
+ *
+ *     const job = jobs.find((candidate) => candidate.id === jobId);
+ *     if (!job) return "not-found";
+ *
+ * The jobs are re-derived from the session, so an id that is not among them is refused before
+ * anything is read or written.
+ *
+ * HOW TO FALSIFY IT — one edit, no new import. In app/(site)/project/actions.ts, weaken that
+ * match so it falls back to the posted id instead of refusing:
+ *
+ *     const job = jobs.find((candidate) => candidate.id === jobId)
+ *       ?? { ...jobs[0], id: jobId, status: "quoted" as const };
+ *
+ * With that in place the approval is carried out against the bystander's job: the shared quote
+ * is found on it, setStage moves it to `sold`, and THIS TEST GOES RED on the status assertion.
+ * Restore the line and it goes green again. The controller runs that mutation on a Neon branch
+ * before trusting this gate.
+ *
+ * WHY THE BYSTANDER IS GIVEN A SHARED QUOTE. Without one, the weakened code would be stopped a
+ * few lines later by the `no-quote` guard and this test would read green while the ownership
+ * check was gone — green for a reason that has nothing to do with the thing it guards. Every
+ * other condition on the path is therefore satisfied for the bystander's job, so the ownership
+ * check is the only thing left standing between the post and the write.
+ *
+ * It asserts on the EFFECT in the database, never on a status code: the status, the
+ * `stage_changed_at` stamp, and the absence of any new event row. The positive control at the
+ * end is what keeps all of that honest — the same form, the same session, the id left alone,
+ * must still approve. Otherwise "nothing happened" could quietly mean "approving is broken".
+ */
+test("a customer approving cannot move another customer's job", async ({ browser }) => {
+  const bystanderId = await lead(`${NAME} Bystander`, BYSTANDER_CUSTOMER, "quoted");
+  const approverId = await lead(`${NAME} Approver`, APPROVER_CUSTOMER, "quoted");
+  await shareQuote(bystanderId, `quote-bystander-${STAMP}.pdf`);
+  await shareQuote(approverId, `quote-approver-${STAMP}.pdf`);
+
+  // Read before, compared after: a status that never changed is not enough on its own, because
+  // setStage stamps stage_changed_at on every move it makes.
+  const [before] = await sql()`select status, stage_changed_at from leads where id = ${bystanderId}`;
+  const eventsBefore = await sql()`select id from job_events where lead_id = ${bystanderId}`;
+
+  const approver = await customerPage(browser, APPROVER_CUSTOMER);
+  await approver.goto(`/project/${approverId}`);
+  const banner = approver.getByRole("region", { name: "Where your project stands" });
+  await banner.getByText("Approve this quote").click();
+  // The one edit: the hidden field now carries the bystander's job id. Everything else about the
+  // post is genuine, so this is the framework's own dispatch reaching the real action.
+  await approver.$eval(
+    'input[name="jobId"]',
+    (element, id) => { (element as HTMLInputElement).value = id; },
+    bystanderId,
+  );
+  await banner.getByRole("button", { name: "Yes, approve this quote" }).click();
+  // The action ran: the form's redirect carries the posted id back, and that project is not the
+  // approver's, so they land on nothing. Without this the assertions below could pass on a post
+  // that never reached the server at all.
+  await expect(approver).toHaveURL(new RegExp(`/project/${bystanderId}\\?approved=no$`));
+  await expect(approver.getByRole("status")).toHaveCount(0);
+
+  // THE GATE. The bystander's job is untouched in every way the write could have touched it.
+  const [after] = await sql()`select status, stage_changed_at from leads where id = ${bystanderId}`;
+  expect(after.status).toBe("quoted");
+  expect(after.stage_changed_at).toEqual(before.stage_changed_at);
+  const eventsAfter = await sql()`select id from job_events where lead_id = ${bystanderId}`;
+  expect(eventsAfter).toHaveLength(eventsBefore.length);
+
+  // Nor was it quietly recorded against the approver's own job instead: a refusal that moved
+  // the wrong job would be no better than one that moved the bystander's.
+  const [own] = await sql()`select status from leads where id = ${approverId}`;
+  expect(own.status).toBe("quoted");
+
+  // And the bystander is told nothing on their own page.
+  const bystander = await customerPage(browser, BYSTANDER_CUSTOMER);
+  await bystander.goto(`/project/${bystanderId}`);
+  await expect(bystander.getByRole("region", { name: "Where your project stands" })
+    .getByRole("heading", { name: "Quote Ready" })).toBeVisible();
+
+  // THE POSITIVE CONTROL. The same form, the same session, the id left alone: it must approve.
+  // If this fails, every refusal above proved nothing about the ownership check.
+  await approver.goto(`/project/${approverId}`);
+  await banner.getByText("Approve this quote").click();
+  await banner.getByRole("button", { name: "Yes, approve this quote" }).click();
+  await expect(approver).toHaveURL(new RegExp(`/project/${approverId}\\?approved=1$`));
+  const [approved] = await sql()`select status from leads where id = ${approverId}`;
+  expect(approved.status).toBe("sold");
+  // Still nothing on the bystander's job, after a real approval has demonstrably worked.
+  const [untouched] = await sql()`select status from leads where id = ${bystanderId}`;
+  expect(untouched.status).toBe("quoted");
 });
 
 test("a lost job locks the customer out", async ({ browser }) => {
