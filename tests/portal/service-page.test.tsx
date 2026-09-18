@@ -136,7 +136,15 @@ describe("/project/[jobId]/service", () => {
         expect(acknowledgeProblemAction).not.toHaveBeenCalled();
       });
 
-      /** The positive control: the same marker on a job that really is installed still works. */
+      /**
+       * The positive control: the same marker on a job that really is installed still works.
+       *
+       * DELIBERATELY relies on the OUTER `installed` default and does NOT call `completed()` —
+       * despite sitting in a describe named for a confirmed job. That mismatch is the point: it
+       * is what makes this the control. "Tidying" the setup to match the describe name would
+       * make both branches `completed`, and this test would then pass for the wrong reason and
+       * guard nothing.
+       */
       it("still hands a genuinely installed job the muting action", async () => {
         render(await open(MINE, "acknowledgement"));
         fireEvent.submit(document.querySelector("form") as HTMLFormElement);

@@ -139,7 +139,31 @@ describe("AcknowledgeNotice", () => {
     expect(notice).toHaveTextContent(business.phone.display);
   });
 
-  it("says its piece with JavaScript off", () => {
+  /**
+   * I2. The same defect as I1, in this component: only the SUCCESS sentence was re-derived.
+   *
+   * Anything that is not "1" printed the failure line, including on a job the customer has
+   * already confirmed — telling them their confirmation failed on the very job they confirmed.
+   * When the job's own status says it happened, there is no true refusal to report.
+   *
+   * The status here is the RAW stage, per the fold trap: `completed` is the only value that
+   * says the confirmation landed, and it is exactly the one toPortalStage would hide.
+   */
+  it("says nothing about a failure when the job is already completed, whatever the URL says", () => {
+    for (const acknowledged of ["no", "0", "", "anything"]) {
+      const { unmount } = render(<AcknowledgeNotice acknowledged={acknowledged} status="completed" />);
+      expect(screen.queryByText(/could not record that just now/i)).toBeNull();
+      unmount();
+    }
+  });
+
+  // The refusal still speaks on a job that is not completed — pinned by "tells a customer whose
+  // acknowledgement was refused how to reach us" above, which would fail if this over-suppressed.
+
+  // Renamed: this static-renders a component with no interactivity, so it cannot go red for a
+  // no-JS regression. What it really pins is that the sentence needs no client boundary — the
+  // actual no-JS guarantee is the plain <form> and <a>, covered by the e2e.
+  it("renders its sentence server-side, with no client boundary", () => {
     expect(renderToStaticMarkup(<AcknowledgeNotice acknowledged="1" status="completed" />)).toContain(
       THANKS,
     );

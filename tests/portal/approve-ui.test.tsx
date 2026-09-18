@@ -88,8 +88,32 @@ describe("ApprovalNotice", () => {
     expect(notice).toHaveTextContent(business.phone.display);
   });
 
-  // A refusal is the one case the customer most needs to read, and it must not need script.
-  it("says its piece with JavaScript off", () => {
+  /**
+   * I1. The refusal must be re-derived too, not just the confirmation.
+   *
+   * `?approved=` is the customer's own URL, and anything that is not "1" currently prints the
+   * failure line — including on a job that is already sold. A customer who taps back after a
+   * refused attempt, or opens a stale or forwarded link, is then told their approval failed on
+   * a job the owners have already ordered against. They phone; the owners cannot see what they
+   * are describing. When the job's own status says the approval happened, there is no true
+   * refusal to report, so the notice says nothing.
+   */
+  it("says nothing about a failure when the job is already sold, whatever the URL says", () => {
+    for (const approved of ["no", "0", "", "anything"]) {
+      const { unmount } = render(<ApprovalNotice approved={approved} status="sold" />);
+      expect(screen.queryByText(/could not record that approval/i)).toBeNull();
+      unmount();
+    }
+  });
+
+  // The refusal still speaks when the job agrees nothing was recorded — pinned by
+  // "tells a customer whose approval was refused how to reach us" above, which renders the
+  // same `approved="no"` against a `quoted` job and would fail if this fix over-suppressed.
+
+  // Renamed: this static-renders a component with no interactivity, so it cannot go red for a
+  // no-JS regression. What it really pins is that the sentence needs no client boundary — the
+  // actual no-JS guarantee is the plain <form>/<details>, covered by the e2e.
+  it("renders its sentence server-side, with no client boundary", () => {
     expect(renderToStaticMarkup(<ApprovalNotice approved="1" status="sold" />)).toContain(THANKS);
     expect(renderToStaticMarkup(<ApprovalNotice approved="no" status="quoted" />)).toContain(
       business.phone.display,

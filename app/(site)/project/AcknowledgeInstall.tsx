@@ -74,6 +74,12 @@ export function AcknowledgeNotice({
   // A flag claiming a confirmation the job does not show says nothing at all. There is no true
   // thing to say about it, and an error would be louder than a mistyped link deserves.
   if (acknowledged === "1" && !confirmed) return null;
+  // And the refusal is re-derived just as the confirmation is. The job is already completed, so
+  // the confirmation plainly did land, whatever this flag says — otherwise a back button after
+  // a refused attempt tells a customer their confirmation failed on the very job they have
+  // already confirmed. `completed` is the raw stage on purpose: it is exactly the value
+  // toPortalStage would fold away, and the only one that says this happened.
+  if (!confirmed && status === "completed") return null;
 
   return (
     <p role="status" className="border border-champagne bg-sand/60 p-4 text-sm">

@@ -66,6 +66,12 @@ export function ApprovalNotice({
   // thing to say about an approval that did not happen, and an error would be louder than a
   // mistyped link deserves.
   if (approved === "1" && !confirmed) return null;
+  // And the refusal is re-derived just as the confirmation is. The job is already sold, so the
+  // approval plainly did happen, whatever this flag says — a back button after a refused
+  // attempt, a stale bookmark or a forwarded link would otherwise tell a customer their
+  // approval failed on a job the owners have already ordered against. They would phone about
+  // something the owners cannot see. Say nothing rather than something false.
+  if (!confirmed && status === "sold") return null;
 
   return (
     <p role="status" className="border border-champagne bg-sand/60 p-4 text-sm">

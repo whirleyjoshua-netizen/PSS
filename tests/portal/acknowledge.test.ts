@@ -199,8 +199,17 @@ describe("acknowledgeInstallAction", () => {
     expect(revalidatePath).not.toHaveBeenCalled();
   });
 
+  /**
+   * Spec §6: a foreign id is refused IDENTICALLY to one that does not exist.
+   *
+   * Comparing the two answers to EACH OTHER cannot prove that — it passes whenever they regress
+   * together, which is the worst kind of test, because its name is the security boundary and so
+   * nobody looks again. Mutation M9 proved it powerless by turning both refusals into
+   * "wrong-status" while this stayed green. The literal is the assertion, on both sides.
+   */
   it("answers a job that does not exist the same way, telling the caller nothing apart", async () => {
-    expect(await acknowledgeInstallAction(MISSING)).toBe(await acknowledgeInstallAction(THEIRS));
+    await expect(acknowledgeInstallAction(MISSING)).resolves.toBe("not-found");
+    await expect(acknowledgeInstallAction(THEIRS)).resolves.toBe("not-found");
     expect(setStage).not.toHaveBeenCalled();
   });
 
