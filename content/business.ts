@@ -14,8 +14,8 @@ export const business = {
   domain: "https://premiershadesolutions.com",
 
   phone: {
-    display: "(725) 400-5254",
-    href: "tel:+17254005254",
+    display: "(702) 859-8294",
+    href: "tel:+17028598294",
     isPlaceholder: false,
   },
 

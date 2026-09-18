@@ -296,6 +296,6 @@ describe("ProjectView referral and contact", () => {
 
   it("lets the customer contact us", async () => {
     render(await ProjectView({ job }));
-    expect(screen.getByRole("link", { name: "(725) 400-5254" })).toHaveAttribute("href", "tel:+17254005254");
+    expect(screen.getByRole("link", { name: "(702) 859-8294" })).toHaveAttribute("href", "tel:+17028598294");
   });
 });
