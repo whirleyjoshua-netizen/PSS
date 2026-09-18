@@ -573,11 +573,16 @@ test("a customer cannot act on another customer's job", async ({ browser }) => {
   const forged = `forged message ${STAMP}`;
   await attacker.goto(`/project/${attackerId}`);
   await attacker.getByLabel("Or send us a message about your project").fill(forged);
-  await attacker.$eval(
-    'input[name="jobId"]',
-    (element, id) => { (element as HTMLInputElement).value = id; },
-    victimId,
-  );
+  // Scoped to the message form's OWN hidden field. A bare 'input[name="jobId"]' takes the first
+  // one on the page, and this page now carries several — Approve and Acknowledge each render one
+  // too. At `installed` the acknowledge form comes first, so the unscoped selector forged the
+  // wrong form's id, the message posted with the attacker's own job, and it succeeded: no alert,
+  // nothing written to the victim, and every later assertion here passed while this test had
+  // stopped exercising the message path at all.
+  await attacker
+    .locator("form", { has: attacker.getByLabel("Or send us a message about your project") })
+    .locator('input[name="jobId"]')
+    .evaluate((element, id) => { (element as HTMLInputElement).value = id; }, victimId);
   await attacker.getByRole("button", { name: "Send message" }).click();
   await expect(attacker.getByRole("alert").filter({ hasText: "We could not find that project." })).toHaveCount(1);
 
@@ -627,7 +632,10 @@ test("a customer approves a quote and the job reads Sold, in their own name", as
 
   // Two steps on purpose: the reveal carries the sentence about what approving means, and the
   // button is not reachable until it has been opened. One stray tap must not order materials.
-  await banner.getByText("Approve this quote").click();
+  // exact: true — "Approve this quote" is a prefix of the confirm button's "Yes, approve this
+  // quote", so a loose match resolves to two elements and the click fails before the gate is
+  // ever exercised. A spec that dies here fails identically against correct code.
+  await banner.getByText("Approve this quote", { exact: true }).click();
   await expect(
     banner.getByText("Approving tells us to go ahead and order. We will email you to arrange the details."),
   ).toBeVisible();
@@ -828,7 +836,10 @@ test("a customer approving cannot move another customer's job", async ({ browser
   const approver = await customerPage(browser, APPROVER_CUSTOMER);
   await approver.goto(`/project/${approverId}`);
   const banner = approver.getByRole("region", { name: "Where your project stands" });
-  await banner.getByText("Approve this quote").click();
+  // exact: true — "Approve this quote" is a prefix of the confirm button's "Yes, approve this
+  // quote", so a loose match resolves to two elements and the click fails before the gate is
+  // ever exercised. A spec that dies here fails identically against correct code.
+  await banner.getByText("Approve this quote", { exact: true }).click();
   // The one edit: the hidden field now carries the bystander's job id. Everything else about the
   // post is genuine, so this is the framework's own dispatch reaching the real action.
   await approver.$eval(
@@ -864,7 +875,10 @@ test("a customer approving cannot move another customer's job", async ({ browser
   // THE POSITIVE CONTROL. The same form, the same session, the id left alone: it must approve.
   // If this fails, every refusal above proved nothing about the ownership check.
   await approver.goto(`/project/${approverId}`);
-  await banner.getByText("Approve this quote").click();
+  // exact: true — "Approve this quote" is a prefix of the confirm button's "Yes, approve this
+  // quote", so a loose match resolves to two elements and the click fails before the gate is
+  // ever exercised. A spec that dies here fails identically against correct code.
+  await banner.getByText("Approve this quote", { exact: true }).click();
   await banner.getByRole("button", { name: "Yes, approve this quote" }).click();
   await expect(approver).toHaveURL(new RegExp(`/project/${approverId}\\?approved=1$`));
   const [approved] = await sql()`select status from leads where id = ${approverId}`;
