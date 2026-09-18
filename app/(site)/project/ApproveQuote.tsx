@@ -1,5 +1,5 @@
 import { business } from "@/content/business";
-import type { PortalStage } from "@/lib/portal/progress";
+import { stageRank, type PortalStage } from "@/lib/portal/progress";
 import { approveQuoteFormAction } from "./actions";
 
 /**
@@ -66,12 +66,17 @@ export function ApprovalNotice({
   // thing to say about an approval that did not happen, and an error would be louder than a
   // mistyped link deserves.
   if (approved === "1" && !confirmed) return null;
-  // And the refusal is re-derived just as the confirmation is. The job is already sold, so the
-  // approval plainly did happen, whatever this flag says — a back button after a refused
+  // And the refusal is re-derived just as the confirmation is. The job is at or past `sold`, so
+  // the approval plainly did happen, whatever this flag says — a back button after a refused
   // attempt, a stale bookmark or a forwarded link would otherwise tell a customer their
   // approval failed on a job the owners have already ordered against. They would phone about
   // something the owners cannot see. Say nothing rather than something false.
-  if (!confirmed && status === "sold") return null;
+  //
+  // Ranked, not `=== "sold"`: an approved job does not stay at `sold`, it is ordered, installed
+  // and completed, and the lie only gets worse as it moves on. stageRank is the one ordering
+  // buildSteps already uses, so a new stage cannot reopen this by being left off a list here.
+  // (`completed` arrives folded to `installed` by toPortalStage; both outrank `sold`.)
+  if (!confirmed && stageRank(status) >= stageRank("sold")) return null;
 
   return (
     <p role="status" className="border border-champagne bg-sand/60 p-4 text-sm">

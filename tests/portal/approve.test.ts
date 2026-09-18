@@ -90,9 +90,18 @@ describe("ownership", () => {
     expect(calls).toEqual([]);
   });
 
+  /**
+   * F2. Spec §6: a foreign id is refused IDENTICALLY to one that does not exist.
+   *
+   * This compared the two answers to EACH OTHER, which cannot prove that — it passes whenever
+   * they regress together, and mutation M9 demonstrated exactly that, turning both refusals into
+   * "wrong-status" while this stayed green. Its sibling on the acknowledge side had the same
+   * defect and was fixed; this one was missed because the fix brief believed this file already
+   * had the right shape. The literal is the assertion, on both sides.
+   */
   it("answers a job that does not exist the same way, telling the caller nothing apart", async () => {
-    const missing = await approveQuoteAction("8c1e3f2b-4a53-4c52-9a1c-2d3e4f5a6b7c");
-    expect(missing).toBe(await approveQuoteAction(THEIRS));
+    await expect(approveQuoteAction("8c1e3f2b-4a53-4c52-9a1c-2d3e4f5a6b7c")).resolves.toBe("not-found");
+    await expect(approveQuoteAction(THEIRS)).resolves.toBe("not-found");
     expect(query).not.toHaveBeenCalled();
   });
 

@@ -19,6 +19,8 @@ const { StatusBanner } = await import("@/app/(site)/project/StatusBanner");
 const { isFromAcknowledgement, ACKNOWLEDGEMENT_MARKER } = await import(
   "@/lib/portal/acknowledgement"
 );
+const { PORTAL_STATUSES, stageRank } = await import("@/lib/portal/progress");
+const { STAGES } = await import("@/lib/admin/stages");
 
 const JOB = "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c";
 const QUESTION = "Is everything how you wanted it?";
@@ -159,6 +161,22 @@ describe("AcknowledgeNotice", () => {
 
   // The refusal still speaks on a job that is not completed — pinned by "tells a customer whose
   // acknowledgement was refused how to reach us" above, which would fail if this over-suppressed.
+
+  /**
+   * The approve side needed widening to every status at or beyond `sold` (F1), because an
+   * approved job moves on. This side was checked rather than assumed: `completed` is the LAST
+   * stage, so there is no status beyond it for a stale flag to leak a refusal on, and the single
+   * `=== "completed"` comparison is therefore complete on its own.
+   *
+   * Pinned here so that adding a stage after `completed` fails loudly instead of quietly
+   * reopening the hole F1 closed on the other component.
+   */
+  it("has no status beyond completed, so the single comparison is the whole rule", () => {
+    const ranks = PORTAL_STATUSES.map((status) => stageRank(status));
+    expect(stageRank("completed")).toBe(Math.max(...ranks));
+    // And nothing in the whole stage list outranks it either.
+    expect(STAGES.every((stage) => stageRank(stage.value) <= stageRank("completed"))).toBe(true);
+  });
 
   // Renamed: this static-renders a component with no interactivity, so it cannot go red for a
   // no-JS regression. What it really pins is that the sentence needs no client boundary — the

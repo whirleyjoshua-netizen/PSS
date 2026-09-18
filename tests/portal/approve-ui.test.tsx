@@ -98,13 +98,25 @@ describe("ApprovalNotice", () => {
    * are describing. When the job's own status says the approval happened, there is no true
    * refusal to report, so the notice says nothing.
    */
-  it("says nothing about a failure when the job is already sold, whatever the URL says", () => {
-    for (const approved of ["no", "0", "", "anything"]) {
-      const { unmount } = render(<ApprovalNotice approved={approved} status="sold" />);
-      expect(screen.queryByText(/could not record that approval/i)).toBeNull();
-      unmount();
-    }
-  });
+  /**
+   * F1: every status AT OR BEYOND `sold`, not `sold` alone.
+   *
+   * An approval that landed does not stay at `sold` — the owners order, install and complete the
+   * job. A stale or forwarded `?approved=no` revisited after the job moved on would otherwise
+   * tell the customer their approval failed on a job that is demonstrably past it, which is the
+   * same lie I1 named, just later. `completed` reaches this component folded to `installed`, so
+   * covering `installed` covers it.
+   */
+  it.each(["sold", "ordered", "installed"] as const)(
+    "says nothing about a failure once the job is %s, whatever the URL says",
+    (status) => {
+      for (const approved of ["no", "0", "", "anything"]) {
+        const { unmount } = render(<ApprovalNotice approved={approved} status={status} />);
+        expect(screen.queryByText(/could not record that approval/i)).toBeNull();
+        unmount();
+      }
+    },
+  );
 
   // The refusal still speaks when the job agrees nothing was recorded — pinned by
   // "tells a customer whose approval was refused how to reach us" above, which renders the
