@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { business } from "@/content/business";
+import { attributionSchema } from "./attribution";
 
 const cities: readonly string[] = business.serviceArea;
 
@@ -38,6 +39,9 @@ export const consultationSchema = z.object({
   referralCode: z.string().trim().max(20).optional().catch(undefined),
 
   source: z.enum(["hero", "contact"]),
+
+  /** The ad click that brought the visitor, if any. Malformed never fails the lead. */
+  attribution: attributionSchema.optional().catch(undefined),
 
   /**
    * Honeypot. The field is rendered offscreen and hidden from assistive

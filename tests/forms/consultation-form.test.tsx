@@ -76,6 +76,23 @@ describe("HeroForm", () => {
     expect(JSON.parse(init.body as string)).toMatchObject({ source: "hero" });
   });
 
+  it("sends the remembered ad click with the lead", async () => {
+    window.localStorage.setItem(
+      "pss-ad-click",
+      JSON.stringify({ gclid: "Cj0abc", utmCampaign: "Custom Blinds", clickedAt: new Date().toISOString() }),
+    );
+    const user = userEvent.setup();
+    render(<HeroForm />);
+
+    await fillHero(user);
+    await user.click(screen.getByRole("button", { name: /consultation/i }));
+
+    await waitFor(() => expect(fetch).toHaveBeenCalledOnce());
+    const [, init] = (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(JSON.parse(init.body as string).attribution).toMatchObject({ gclid: "Cj0abc", utmCampaign: "Custom Blinds" });
+    window.localStorage.clear();
+  });
+
   it("surfaces the phone number when the server rejects the request", async () => {
     vi.stubGlobal(
       "fetch",

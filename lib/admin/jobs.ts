@@ -12,6 +12,9 @@ import { isUuid } from "./ids";
 import { del } from "@vercel/blob";
 import { listBlobPathnames } from "./files";
 import { deleteEvent } from "@/lib/calendar/remove";
+import { adClickLabel } from "@/lib/leads/attribution";
+
+const str = (value: unknown) => (typeof value === "string" && value ? value : undefined);
 
 export { isUuid };
 
@@ -66,6 +69,8 @@ export type Job = {
   assignedTo?: string | null;
   assignedName?: string | null;
   assignedRole?: TeamRole | null;
+  /** How the ad that brought this lead reads, e.g. "Google Ads · Custom Blinds"; null when no ad did. */
+  adClick?: string | null;
 };
 
 export type JobEvent = {
@@ -84,7 +89,7 @@ export const JOB_COLUMNS = `id, created_at, name, phone, email, address, city, t
   deposit_cents, brands, ordered_on::text as ordered_on, install_on::text as install_on, lost_reason,
   referral_code, referred_by, referral_paid_at, review_requested_at, review_opt_out, portal_invited_at, budget_tier,
   follow_up_at, follow_up_note, window_count_exact, treatment_types, motorized, gate_code, finish, project_no,
-  parent_job_id, assigned_to,
+  parent_job_id, assigned_to, gclid, gbraid, wbraid, utm_source, utm_campaign, utm_term,
   (select t.name from team_members t where t.id = leads.assigned_to) as assigned_name,
   (select t.role from team_members t where t.id = leads.assigned_to) as assigned_role,
   (select max(e.created_at) from job_events e where e.lead_id = leads.id and (e.kind = 'contact' or (e.kind = 'note' and e.body like 'Call:%'))) as last_contact_at`;
@@ -133,6 +138,10 @@ export function toJob(row: Record<string, unknown>): Job {
     assignedTo: (row.assigned_to as string | null) ?? null,
     assignedName: (row.assigned_name as string | null) ?? null,
     assignedRole: isTeamRole(row.assigned_role) ? row.assigned_role : null,
+    adClick: adClickLabel({
+      gclid: str(row.gclid), gbraid: str(row.gbraid), wbraid: str(row.wbraid),
+      utmSource: str(row.utm_source), utmCampaign: str(row.utm_campaign), utmTerm: str(row.utm_term),
+    }),
   };
 }
 

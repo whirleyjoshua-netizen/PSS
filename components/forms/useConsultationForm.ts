@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { consultationSchema } from "@/lib/leads/schema";
+import { recallAttribution } from "@/lib/leads/attribution";
 
 export type FormState = "idle" | "submitting" | "success" | "error";
 
@@ -37,6 +38,7 @@ export function useConsultationForm(source: "hero" | "contact") {
       notes: str(data.get("notes")),
       referralCode: str(data.get("referralCode")),
       source,
+      attribution: storedAttribution(),
       company: String(data.get("company") ?? ""),
     };
 
@@ -78,6 +80,14 @@ export function useConsultationForm(source: "hero" | "contact") {
   }
 
   return { state, error, submit };
+}
+
+function storedAttribution() {
+  try {
+    return recallAttribution(window.localStorage);
+  } catch {
+    return undefined;
+  }
 }
 
 const str = (value: FormDataEntryValue | null): string | undefined => {

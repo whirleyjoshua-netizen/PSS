@@ -19,17 +19,22 @@ export async function insertLead(
 ): Promise<{ id: string }> {
   const sql = db();
   const hash = input.questionnaireTokenHash ?? null;
+  const ad = input.attribution ?? {};
 
   const rows = await sql`
     insert into leads
       (id, name, phone, email, address, city, treatments, window_count, heard_via, notes, source, referred_by,
-       questionnaire_token_hash, questionnaire_expires_at, assigned_to)
+       questionnaire_token_hash, questionnaire_expires_at, assigned_to,
+       gclid, gbraid, wbraid, utm_source, utm_medium, utm_campaign, utm_term, landing_page, ad_clicked_at)
     values
       (${input.id}, ${input.name}, ${input.phone}, ${input.email}, ${input.address ?? null},
        ${input.city}, ${input.treatments ?? []}, ${input.windowCount ?? null},
        ${input.heardVia ?? null}, ${input.notes ?? null}, ${input.source}, ${input.referredBy ?? null},
        ${hash}, case when ${hash}::text is null then null else now() + interval '24 hours' end,
-       (select default_assignee from lead_settings where id))
+       (select default_assignee from lead_settings where id),
+       ${ad.gclid ?? null}, ${ad.gbraid ?? null}, ${ad.wbraid ?? null}, ${ad.utmSource ?? null},
+       ${ad.utmMedium ?? null}, ${ad.utmCampaign ?? null}, ${ad.utmTerm ?? null}, ${ad.landingPage ?? null},
+       ${ad.clickedAt ?? null})
     returning id
   `;
 

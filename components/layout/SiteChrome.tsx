@@ -2,6 +2,7 @@ import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { localBusinessSchema } from "@/lib/seo/schema";
+import { AttributionCapture } from "@/components/analytics/AttributionCapture";
 
 /** Chrome for every public page, including the 404 page. The admin area supplies its own. */
 export function SiteChrome({ children }: { children: React.ReactNode }) {
@@ -19,6 +20,7 @@ export function SiteChrome({ children }: { children: React.ReactNode }) {
       </main>
       <Footer />
       <JsonLd schema={localBusinessSchema()} />
+      <AttributionCapture />
     </>
   );
 }

@@ -1,4 +1,5 @@
 import { Resend } from "resend";
+import { adClickLabel } from "./attribution";
 import { business } from "@/content/business";
 import { adminOrigin } from "@/lib/admin/origin";
 import { formatPhone, type ConsultationInput } from "./schema";
@@ -38,6 +39,7 @@ export async function sendLeadNotification(
     input.treatments?.length ? `Interested: ${input.treatments.join(", ")}` : null,
     input.windowCount ? `Windows:    ${input.windowCount}` : null,
     input.heardVia ? `Heard via:  ${input.heardVia}` : null,
+    adClickLabel(input.attribution) ? `Ad click:   ${adClickLabel(input.attribution)}` : null,
     input.notes ? `\nNotes:\n${input.notes}` : null,
     `\nSubmitted from the ${input.source} form on ${business.domain}.`,
   ].filter((line): line is string => line !== null);

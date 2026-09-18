@@ -92,7 +92,12 @@ export default function PrivacyPage() {
             </h2>
             <p>
               This site does not use advertising cookies or third-party tracking
-              pixels. Our hosting provider records standard server request
+              pixels. If you arrive by clicking one of our Google ads, your
+              browser keeps the click&apos;s reference number and ad campaign
+              name for up to 90 days, and sends them with a consultation request
+              if you make one. We use them only to learn which of our ads bring
+              in customers, which can include telling Google that a click led
+              to a request or a sale, identified by that reference number alone. Our hosting provider records standard server request
               information, such as IP addresses and pages requested, to keep the
               site running and to protect it from abuse.
             </p>

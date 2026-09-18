@@ -75,6 +75,19 @@ export default async function SettingsPage() {
           </p>
         )}
       </section>
+      <section aria-labelledby="ads-heading" className="flex flex-col gap-2">
+        <h2 id="ads-heading" className="text-lg font-semibold">
+          Google Ads
+        </h2>
+        <p className="text-ink-soft">
+          Leads that came from an ad click, with when each was booked and sold. Upload the file in Google Ads under
+          Goals → Conversions → Uploads, so the campaign learns which searches become customers.
+        </p>
+        {/* A file download, not a page: a Link would try to route to it. */}
+        <a href="/admin/ad-conversions" className="self-start underline underline-offset-4" download>
+          Download conversions file
+        </a>
+      </section>
     </div>
   );
 }
