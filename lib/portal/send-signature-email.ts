@@ -9,6 +9,10 @@ import { formatProjectNo } from "./project-no";
 /** Only the fields the email needs, so a full Job satisfies it structurally. */
 type SignedJob = { id: string; name: string; projectNo?: number | null };
 
+/** Exported so the test asserts the exact sentence. */
+export const STAMP_REASONS =
+  "Either the PDF could not be opened (for example, it is protected or damaged), or the signed name or email contains characters the PDF font cannot draw. The signature is recorded and valid either way.";
+
 const bareDomain = business.domain.replace(/^https?:\/\//, "");
 
 /**
@@ -47,8 +51,9 @@ export async function notifyOwnersOfSignature(
     `When:        ${formatShortDate(now)} at ${formatTime(now)}`,
     projectNo ? `Project:     ${projectNo}` : null,
     "",
-    // No cause is named: the stamp fails for more than one reason and this code cannot tell which.
+    // Both possible causes are named: this code is not told which one happened.
     stamped ? null : "The stamped copy could not be produced; the signature itself is recorded.",
+    stamped ? null : STAMP_REASONS,
     stamped ? null : "",
     `Open in tracker: ${adminOrigin()}/admin/jobs/${job.id}`,
   ].filter((line): line is string => line !== null).join("\n");

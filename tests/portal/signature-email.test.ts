@@ -4,7 +4,7 @@ const send = vi.fn();
 vi.mock("resend", () => ({ Resend: class { emails = { send }; } }));
 vi.mock("@/lib/leads/email", () => ({ ownerRecipients: () => ["owner@example.com"] }));
 
-import { notifyOwnersOfSignature, sendCustomerSignedCopy } from "@/lib/portal/send-signature-email";
+import { STAMP_REASONS, notifyOwnersOfSignature, sendCustomerSignedCopy } from "@/lib/portal/send-signature-email";
 
 const job = { id: "11111111-1111-4111-8111-111111111111", name: "Jane Doe", projectNo: 1012 };
 
@@ -19,12 +19,22 @@ describe("notifyOwnersOfSignature", () => {
     const text = send.mock.calls[0][0].text as string;
     expect(text).toContain("jane@example.com");
     expect(text).toContain("Contract.pdf");
+    expect(text).not.toContain("could not be produced");
+    expect(text).not.toContain(STAMP_REASONS);
   });
 
   // The owners must not believe a stamped copy exists when it does not.
   it("says plainly when the stamped copy could not be produced", async () => {
     await notifyOwnersOfSignature(job, "Contract.pdf", "jane@example.com", false);
     expect(send.mock.calls[0][0].text as string).toContain("could not be produced");
+  });
+
+  it("names both reasons the stamped copy can fail", async () => {
+    await notifyOwnersOfSignature(job, "Contract.pdf", "jane@example.com", false);
+    const text = send.mock.calls[0][0].text as string;
+    expect(text).toContain("protected or damaged");
+    expect(text).toContain("characters the PDF font cannot draw");
+    expect(text).toContain("recorded and valid");
   });
 });
 
