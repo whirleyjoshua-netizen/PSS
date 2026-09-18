@@ -32,7 +32,9 @@
 - Test: `tests/admin/jobs.test.ts`
 
 **Interfaces (Produces):**
-- `setStage(id, to, actor, options?: { reason?: string; body?: string })` — **or** a fourth parameter shaped however you judge cleanest; the requirement is the behaviour below, not a particular signature.
+- `setStage(id, to, actor, options?: { reason?: string; body?: string })` — **an options object, ruled 2026-09-17. Not two adjacent optional strings.**
+
+  This was originally left open ("shaped however you judge cleanest"), and that openness produced the defect: a positional `(…, reason?, body?)` was chosen, and an earlier draft of the spec then wrote `setStage(jobId, "sold", customerEmail, body)` — four arguments — which binds the sentence to `reason` and, because the target is not `lost`, discards it silently. No type error, no failing test. Two adjacent optional strings of different meaning are a call-site trap, and it was sprung in our own documents before the first caller existed. Named arguments, so the mistake is not expressible.
 
 **Why this task exists.** Today the signature is `setStage(id, to, actor, reason?)`, and `reason` is written to the event body **only when the target is `lost`**:
 

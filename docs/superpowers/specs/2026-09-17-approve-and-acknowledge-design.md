@@ -29,7 +29,7 @@ This is the deferred half of `2026-09-16-customer-project-page-design.md`, which
 
 Verified in the codebase rather than assumed:
 
-- `setStage(id, to, actor, reason?)` writes the status change **and** its `job_events` row in one statement, taking `actor` as a plain string. So a customer-driven move is recorded honestly as the customer's own email — not disguised as an owner's click.
+- `setStage(id, to, actor, options?)` writes the status change **and** its `job_events` row in one statement, taking `actor` as a plain string. So a customer-driven move is recorded honestly as the customer's own email — not disguised as an owner's click. The options carry `reason` (Lost only, and it writes the `lost_reason` column) and `body` (the sentence for any other move) — **named, not positional**, because an earlier draft of this spec mis-ordered them and would have discarded an approval's sentence silently.
 - `requireCustomer()` and the ownership pattern from the message and service-request paths: re-derive the caller's jobs from the session, refuse an id that is not theirs, answer identically to a job that does not exist.
 - The service request form at `/project/<jobId>/service`, its email to the owners, and the job it creates.
 - `setReviewOptOut(id, optOut, actor)` and its toggle in the job's Review section — the owners' existing control for muting the review request.
@@ -51,7 +51,7 @@ A `<details>` reveal, then a confirm — the same shape as the delete confirmati
 
 1. `requireCustomer()`, then refuse a job id not among the caller's own.
 2. Refuse unless the status is `quoted` and a shared Quote document exists.
-3. `setStage(jobId, "sold", customerEmail, body)` where the body names the approved document: `Approved "Quote - Living room.pdf" from their project page`. One statement, so the move and its record cannot come apart.
+3. `setStage(jobId, "sold", customerEmail, { body })` where the body names the approved document: `Approved "Quote - Living room.pdf" from their project page`. One statement, so the move and its record cannot come apart.
 4. Email both owners: who approved, which job, which document, and a link to it.
 5. Revalidate `/project` and `/project/<jobId>`.
 
@@ -70,7 +70,7 @@ A `<details>` reveal, then a confirm — the same shape as the delete confirmati
 
 **"Yes, everything looks great"**:
 1. Ownership check as above; refuse unless the status is `installed`.
-2. `setStage(jobId, "completed", customerEmail, "Confirmed the installation from their project page")`.
+2. `setStage(jobId, "completed", customerEmail, { body: "Confirmed the installation from their project page" })`.
 3. Email the owners.
 4. The banner afterwards reads as complete, with no further action.
 
