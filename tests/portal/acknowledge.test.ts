@@ -1,10 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 /**
- * The db is mocked as a tripwire: .env.local holds production credentials, so no test here
- * may reach a database. Nothing in these paths may issue a statement of its own — the stage
- * move goes through setStage() and the service job through createJob(), both mocked below —
- * so any call to `query` at all is a failure, whatever it says.
+ * The db is mocked as a SAFETY NET, not as proof: .env.local holds production credentials, so
+ * no test here may reach a database.
+ *
+ * It is deliberately not asserted on. Every writer on these paths — setStage, createJob,
+ * setReviewOptOut — is itself mocked below, so no code here can reach db() whatever a guard
+ * does, and `expect(query).not.toHaveBeenCalled()` would pass just as happily with every guard
+ * deleted. Spec §8 wants "the absence of any database statement" proven, so the assertions
+ * below are made against those mocked writers instead: they are what actually stands between
+ * the action and the database, and they can fail.
  */
 const query = vi.fn(async () => [] as unknown[]);
 vi.mock("@/lib/db", () => ({ db: () => query }));
@@ -156,8 +161,10 @@ describe("acknowledgeInstallAction", () => {
     for (const status of ["quoted", "sold", "ordered"]) {
       requireCustomer.mockResolvedValue({ email: EMAIL, jobs: [job({ status })] });
       await expect(acknowledgeInstallAction(MINE)).resolves.toBe("wrong-status");
+      // Nothing was written and nobody was told: the writers are the real tripwire.
       expect(setStage).not.toHaveBeenCalled();
-      expect(query).not.toHaveBeenCalled();
+      expect(notifyOwnersOfAcknowledgement).not.toHaveBeenCalled();
+      expect(revalidatePath).not.toHaveBeenCalled();
     }
   });
 
@@ -182,8 +189,12 @@ describe("acknowledgeInstallAction", () => {
     // check deleted: the unguarded path would reach setStage, move nothing for a job that is
     // not there and answer the same way. Only proving nothing ran at all separates "refused
     // before touching anything" from "tried and happened to fail".
+    // Every writer that stands between this action and the database, and every side effect
+    // beyond it. Each of these can fail — the db handle itself cannot, since it is unreachable
+    // once these are mocked, which is why it is not asserted on here.
     expect(setStage).not.toHaveBeenCalled();
-    expect(query).not.toHaveBeenCalled();
+    expect(setReviewOptOut).not.toHaveBeenCalled();
+    expect(createJob).not.toHaveBeenCalled();
     expect(notifyOwnersOfAcknowledgement).not.toHaveBeenCalled();
     expect(revalidatePath).not.toHaveBeenCalled();
   });
@@ -193,9 +204,25 @@ describe("acknowledgeInstallAction", () => {
     expect(setStage).not.toHaveBeenCalled();
   });
 
-  it("re-derives the jobs from the session rather than trusting the id", async () => {
-    await acknowledgeInstallAction(MINE);
-    expect(requireCustomer).toHaveBeenCalledTimes(1);
+  /**
+   * A call count alone would pass against an implementation that trusted the submitted id and
+   * called requireCustomer() only to learn the caller's address. What must be true is stronger:
+   * the session is re-read on EVERY call, and what it says about the job decides the answer.
+   *
+   * So the same id is asked for twice while only the session changes underneath it. An
+   * implementation that trusted the id, or cached the first answer, would complete it twice.
+   */
+  it("re-derives the job from the session on every call, never trusting the id", async () => {
+    await expect(acknowledgeInstallAction(MINE)).resolves.toBe("acknowledged");
+    expect(setStage).toHaveBeenCalledTimes(1);
+
+    setStage.mockClear();
+    requireCustomer.mockResolvedValue({ email: EMAIL, jobs: [job({ status: "ordered" })] });
+
+    // Nothing about the id changed — only what the session says about it.
+    await expect(acknowledgeInstallAction(MINE)).resolves.toBe("wrong-status");
+    expect(setStage).not.toHaveBeenCalled();
+    expect(requireCustomer).toHaveBeenCalledTimes(2);
   });
 
   it("moves the job before sending any email", async () => {
@@ -234,7 +261,9 @@ describe("acknowledgeInstallAction", () => {
   /** "not-found" must mean not found: a job that declined the move plainly exists. */
   it("never answers not-found for a job that exists", async () => {
     setStage.mockResolvedValue(false);
-    await expect(acknowledgeInstallAction(MINE)).resolves.not.toBe("not-found");
+    // The actual answer, not merely "something other than not-found": a declined move can only
+    // mean the job was not in the status this transition starts from.
+    await expect(acknowledgeInstallAction(MINE)).resolves.toBe("wrong-status");
   });
 });
 
@@ -346,8 +375,12 @@ describe("provenance is the server's, never the form's", () => {
     expect(setReviewOptOut).not.toHaveBeenCalled();
   });
 
-  /** The one route that does mute: the action the acknowledgement link's page hands the form. */
-  it("is muted by the acknowledgement action, which no form field can select", async () => {
+  /**
+   * The one action that does mute. It is directly postable, like every server action, and the
+   * marker that leads to it is not a secret — any customer can type it. What makes that sound
+   * is the gate, not obscurity: ownership and the installed status are re-checked here first.
+   */
+  it("is muted by the acknowledgement action, which the form is given by route", async () => {
     await expect(acknowledgeProblemAction({ status: "idle" }, form())).rejects.toThrow("NEXT_REDIRECT");
     expect(setReviewOptOut).toHaveBeenCalledWith(MINE, true, EMAIL);
   });

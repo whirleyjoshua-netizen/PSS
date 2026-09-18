@@ -145,12 +145,15 @@ export async function requestServiceAction(
  * for a public review within 14 days (spec §5). The job does NOT move: it stays installed
  * until the owners have put it right.
  *
- * This is a separate action, rather than a flag on the other one, because that is what makes
- * provenance the server's. The form gets this action only from the page the acknowledgement
- * link opens; no field in a post can select it. And it is no weaker an entry point than its
- * sibling: fileServiceRequest settles ownership and the installed status before anything is
- * parsed, so the only review a caller can mute here is one on their own installed job — which
- * is exactly what the button in front of them does anyway.
+ * This is a separate action, rather than a flag on the other one, because that is what keeps
+ * provenance out of the post: there is no field a crafted submission could set to reach it.
+ *
+ * That is not the same as being unreachable. Like every server action this one is directly
+ * postable, and the `?from=acknowledgement` marker that leads a form to it is not a secret —
+ * any customer can type it. The weight is carried by the gate, not by obscurity:
+ * fileServiceRequest settles ownership and the installed status before anything is parsed, so
+ * the only review anyone can mute here is one on their own installed job, which is exactly
+ * what the visible button does anyway.
  */
 export async function acknowledgeProblemAction(
   previous: ServiceFormState,

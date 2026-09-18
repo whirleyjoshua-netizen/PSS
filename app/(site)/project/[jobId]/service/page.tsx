@@ -26,8 +26,18 @@ export default async function ServiceRequestPage({
   // Matched against the one known value and passed on as a boolean — never rendered, and it
   // chooses no status. All it selects is which action the form posts to, which is how the
   // server, and not the post, decides where this request came from.
+  //
+  // But the marker alone is not enough to believe, because it is the customer's own URL. It is
+  // therefore re-derived against the job's RAW status, the rule every sentence on these pages
+  // follows: isInstalled() admits `completed`, so a customer who has already answered
+  // "everything looks great" can still open this page, and on the marker alone would be told we
+  // are sorry it is not right about a job they themselves confirmed — and handed the muting
+  // action, opting their own finished job out of the owners' review request. `installed` is the
+  // only status where there is an acknowledgement still to give, so it is the only one where
+  // either the wording or the mute is offered; anything else falls back to the ordinary form
+  // and says nothing about an acknowledgement. Not project.status, which folds the two together.
   const query = searchParams ? await searchParams : {};
-  const fromAcknowledgement = isFromAcknowledgement(query.from);
+  const fromAcknowledgement = isFromAcknowledgement(query.from) && job.status === "installed";
 
   // The customer picks the window the owners actually measured, rather than typing a room
   // name that may match nothing. With no measurements the picker is just the text box.

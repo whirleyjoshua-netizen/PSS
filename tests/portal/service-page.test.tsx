@@ -96,6 +96,54 @@ describe("/project/[jobId]/service", () => {
     it("still refuses a job the customer does not own", async () => {
       await expect(open(THEIRS, "acknowledgement")).rejects.toThrow("NEXT_NOT_FOUND");
     });
+
+    /**
+     * I-1. The marker is the customer's own URL, so neither the sentence nor the action behind
+     * it may be chosen by it alone.
+     *
+     * isInstalled() admits `completed`, so a customer who has ALREADY answered "everything
+     * looks great" can still open this page. Hand-typing the marker would otherwise tell them
+     * we are sorry it is not right — about a job they themselves confirmed — and hand them the
+     * MUTING action, opting their own finished job out of the owners' review request. Both are
+     * re-derived from the job's raw status instead, which is the rule Task 2 established.
+     */
+    describe("on a job the customer has already confirmed", () => {
+      const completed = () =>
+        requireCustomer.mockResolvedValue({
+          email: "maria@example.com",
+          jobs: [job({ status: "completed" })],
+        });
+
+      beforeEach(() => {
+        requestServiceAction.mockClear();
+        acknowledgeProblemAction.mockClear();
+      });
+
+      it("says nothing about an acknowledgement, whatever the URL says", async () => {
+        completed();
+        render(await open(MINE, "acknowledgement"));
+        expect(screen.queryByText(SORRY)).toBeNull();
+        // The ordinary wording stands in its place — the page still works, it just does not
+        // pretend to know something the job does not say.
+        expect(screen.getByText(/we will get back to you to arrange a visit/i)).toBeInTheDocument();
+      });
+
+      it("hands it the NON-muting action, so a finished job cannot be opted out by a typed URL", async () => {
+        completed();
+        render(await open(MINE, "acknowledgement"));
+        fireEvent.submit(document.querySelector("form") as HTMLFormElement);
+        await waitFor(() => expect(requestServiceAction).toHaveBeenCalled());
+        expect(acknowledgeProblemAction).not.toHaveBeenCalled();
+      });
+
+      /** The positive control: the same marker on a job that really is installed still works. */
+      it("still hands a genuinely installed job the muting action", async () => {
+        render(await open(MINE, "acknowledgement"));
+        fireEvent.submit(document.querySelector("form") as HTMLFormElement);
+        await waitFor(() => expect(acknowledgeProblemAction).toHaveBeenCalled());
+        expect(requestServiceAction).not.toHaveBeenCalled();
+      });
+    });
   });
 
   it("lists the windows the owners measured, in their own words", async () => {
