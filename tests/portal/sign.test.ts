@@ -1,0 +1,135 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const query = vi.fn();
+vi.mock("@/lib/db", () => ({ db: () => query }));
+vi.mock("@/lib/admin/files", () => ({
+  listSharedDocuments: vi.fn(),
+  readFile: vi.fn(),
+}));
+// Hoisted here so later additions to lib/portal/sign.ts that store blobs never reach real storage.
+vi.mock("@vercel/blob", () => ({ put: vi.fn(), get: vi.fn(), del: vi.fn() }));
+
+import { listSharedDocuments, readFile } from "@/lib/admin/files";
+import { recordSignature, signableContracts } from "@/lib/portal/sign";
+
+const JOB = "11111111-1111-4111-8111-111111111111";
+const FILE = "22222222-2222-4222-8222-222222222222";
+const STAMPED = "33333333-3333-4333-8333-333333333333";
+// The known SHA-256 of the ASCII bytes "pdf bytes".
+const PDF_BYTES_SHA256 = "d1cb546b102fab8362de413fdacc187b05be10df72b72db3b3e50b4953f6a555";
+
+const doc = (id: string, name: string, docType: string) => ({
+  id, leadId: JOB, createdAt: new Date(), uploadedBy: "owner@example.com",
+  kind: "document" as const, name, contentType: "application/pdf",
+  sizeBytes: 10, blobPathname: `jobs/${JOB}/${id}`, sharedAt: new Date(),
+  docType: docType as never,
+});
+
+beforeEach(() => {
+  query.mockReset();
+  vi.mocked(listSharedDocuments).mockReset();
+  vi.mocked(readFile).mockReset();
+});
+
+describe("signableContracts", () => {
+  it("offers a shared contract that has not been signed", async () => {
+    vi.mocked(listSharedDocuments).mockResolvedValue([doc(FILE, "Contract.pdf", "contract")]);
+    query.mockResolvedValue([]);
+    expect((await signableContracts(JOB)).map((file) => file.id)).toEqual([FILE]);
+    expect(listSharedDocuments).toHaveBeenCalledWith(JOB);
+    expect(query.mock.calls[0]).toContain(JOB);
+  });
+
+  it("never offers a quote", async () => {
+    vi.mocked(listSharedDocuments).mockResolvedValue([doc(FILE, "Quote.pdf", "quote")]);
+    query.mockResolvedValue([]);
+    expect(await signableContracts(JOB)).toEqual([]);
+  });
+
+  it("never offers a contract that is already signed", async () => {
+    vi.mocked(listSharedDocuments).mockResolvedValue([doc(FILE, "Contract.pdf", "contract")]);
+    query.mockResolvedValue([{ file_id: FILE, signed_file_id: null }]);
+    expect(await signableContracts(JOB)).toEqual([]);
+  });
+
+  // The signature output is itself a shared file with doc_type 'contract'. Without this it
+  // would be offered for signing, and so would its own stamped copy, forever.
+  it("never offers a signature output", async () => {
+    vi.mocked(listSharedDocuments).mockResolvedValue([
+      doc(FILE, "Contract.pdf", "contract"),
+      doc(STAMPED, "Contract (signed).pdf", "contract"),
+    ]);
+    query.mockResolvedValue([{ file_id: FILE, signed_file_id: STAMPED }]);
+    expect(await signableContracts(JOB)).toEqual([]);
+  });
+});
+
+describe("recordSignature", () => {
+  const bytes = new TextEncoder().encode("pdf bytes");
+  const file = doc(FILE, "Contract.pdf", "contract");
+
+  it("writes the row with the SHA-256 of the bytes actually served", async () => {
+    vi.mocked(readFile).mockResolvedValue({
+      stream: new Response(bytes).body!, contentType: "application/pdf",
+    });
+    query.mockResolvedValue([{ id: "row" }]);
+
+    const result = await recordSignature({
+      jobId: JOB, file, name: "  Jane Doe  ", email: "jane@example.com",
+      ip: "203.0.113.4", userAgent: "test-agent",
+    });
+
+    expect(result).toBe("signed");
+    expect(readFile).toHaveBeenCalledWith(file);
+    expect(query).toHaveBeenCalledTimes(1);
+    // Behaviour: the values that reached the one statement, in the order the columns name them.
+    const values = query.mock.calls[0].slice(1);
+    expect(values.slice(1, 8)).toEqual([
+      JOB, FILE, "Jane Doe", "jane@example.com", "203.0.113.4", "test-agent", PDF_BYTES_SHA256,
+    ]);
+    expect(values[0]).toMatch(/^[0-9a-f-]{36}$/);
+    // Tripwires on the statement's shape, alongside the behavioural assertion above.
+    const sql = query.mock.calls[0][0].join("?");
+    expect(sql).toContain("insert into contract_signatures");
+    expect(sql).toContain("on conflict (file_id) do nothing");
+    expect(sql).toContain("'signature'");
+    // The timeline body names the DOCUMENT, never the typed name: nothing a customer typed
+    // reaches the owners' permanent record.
+    // The typed name is bound once, as signed_name data; the timeline body (the last value)
+    // is built from the document's name alone.
+    expect(values.at(-1)).toBe('Signed "Contract.pdf" from their project page');
+    expect(query.mock.calls[0]).toContainEqual(expect.stringContaining("Contract.pdf"));
+    expect(values.filter((value) => String(value).includes("Jane Doe"))).toEqual(["Jane Doe"]);
+    expect(query.mock.calls[0][0].join("")).not.toContain("Jane Doe");
+  });
+
+  it("refuses an empty name without touching the database", async () => {
+    const result = await recordSignature({
+      jobId: JOB, file, name: "   ", email: "jane@example.com", ip: null, userAgent: null,
+    });
+    expect(result).toBe("invalid");
+    expect(query).not.toHaveBeenCalled();
+    expect(readFile).not.toHaveBeenCalled();
+  });
+
+  it("answers a repeat submission with the same success and writes nothing twice", async () => {
+    vi.mocked(readFile).mockResolvedValue({
+      stream: new Response(bytes).body!, contentType: "application/pdf",
+    });
+    query.mockResolvedValue([]); // on conflict do nothing returned no row
+    const result = await recordSignature({
+      jobId: JOB, file, name: "Jane Doe", email: "jane@example.com", ip: null, userAgent: null,
+    });
+    expect(result).toBe("signed");
+    expect(query).toHaveBeenCalledTimes(1);
+  });
+
+  it("answers not-found when the bytes cannot be read", async () => {
+    vi.mocked(readFile).mockResolvedValue(null);
+    const result = await recordSignature({
+      jobId: JOB, file, name: "Jane Doe", email: "jane@example.com", ip: null, userAgent: null,
+    });
+    expect(result).toBe("not-found");
+    expect(query).not.toHaveBeenCalled();
+  });
+});
