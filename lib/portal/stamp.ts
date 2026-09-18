@@ -26,12 +26,15 @@ export async function stampSignature(original: Buffer, facts: StampFacts): Promi
     const font = await pdf.embedFont(StandardFonts.Helvetica);
     const page = pdf.addPage();
     const { height } = page.getSize();
+    // Some Node/ICU builds put U+202F (or U+00A0) before AM/PM. The standard font cannot
+    // encode either, so without this every stamp in that runtime would come back null.
+    const when = `${formatShortDate(facts.signedAt)} at ${formatTime(facts.signedAt)}`.replace(/[\u202F\u00A0]/g, " ");
     const lines = [
       "ELECTRONIC SIGNATURE",
       "",
       `Signed by:  ${facts.signedName}`,
       `Account:    ${facts.signedEmail}`,
-      `When:       ${formatShortDate(facts.signedAt)} at ${formatTime(facts.signedAt)}`,
+      `When:       ${when}`,
       facts.projectNo ? `Project:    ${facts.projectNo}` : null,
       "",
       "Document fingerprint (SHA-256):",
