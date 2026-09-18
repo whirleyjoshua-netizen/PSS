@@ -9,8 +9,11 @@ vi.mock("@/lib/admin/files", () => ({
 // Hoisted here so later additions to lib/portal/sign.ts that store blobs never reach real storage.
 vi.mock("@vercel/blob", () => ({ put: vi.fn(), get: vi.fn(), del: vi.fn() }));
 
+import { del, put } from "@vercel/blob";
 import { listSharedDocuments, readFile } from "@/lib/admin/files";
-import { recordSignature, signableContracts } from "@/lib/portal/sign";
+import {
+  recordSignature, signableContracts, signatureFor, storeSignedCopy,
+} from "@/lib/portal/sign";
 
 const JOB = "11111111-1111-4111-8111-111111111111";
 const FILE = "22222222-2222-4222-8222-222222222222";
@@ -29,6 +32,8 @@ beforeEach(() => {
   query.mockReset();
   vi.mocked(listSharedDocuments).mockReset();
   vi.mocked(readFile).mockReset();
+  vi.mocked(put).mockReset();
+  vi.mocked(del).mockReset().mockResolvedValue(undefined);
 });
 
 describe("signableContracts", () => {
@@ -131,5 +136,99 @@ describe("recordSignature", () => {
     });
     expect(result).toBe("not-found");
     expect(query).not.toHaveBeenCalled();
+  });
+});
+
+describe("storeSignedCopy", () => {
+  const original = doc(FILE, "Contract.pdf", "contract");
+  const bytes = Buffer.from("stamped");
+  const input = { jobId: JOB, original, bytes, actor: "jane@example.com" };
+
+  it("stores the stamped bytes privately under the job and returns the new row", async () => {
+    vi.mocked(put).mockResolvedValue(undefined as never);
+    query.mockResolvedValue([{ id: STAMPED }]);
+
+    const id = await storeSignedCopy(input);
+
+    expect(id).toBe(STAMPED);
+    expect(put).toHaveBeenCalledTimes(1);
+    const [pathname, body, options] = vi.mocked(put).mock.calls[0];
+    expect(pathname).toMatch(new RegExp(`^jobs/${JOB}/[0-9a-f-]{36}-signed\.pdf$`));
+    expect(body).toBe(bytes);
+    expect(options).toEqual({
+      access: "private", contentType: "application/pdf", addRandomSuffix: false,
+    });
+    expect(del).not.toHaveBeenCalled();
+
+    // One statement: the row and the link cannot come apart.
+    expect(query).toHaveBeenCalledTimes(1);
+    const values = query.mock.calls[0].slice(1);
+    // The row's id is the blob's id, and it is written with the stored path and size.
+    const rowId = (pathname as string).split("/")[2].replace("-signed.pdf", "");
+    expect(values).toContain(rowId);
+    expect(values).toContain(pathname);
+    expect(values).toContain(bytes.length);
+    expect(values).toContain("Contract (signed).pdf");
+    expect(values).toContain(JOB);
+    expect(values).toContain(FILE);
+    expect(values).toContain("jane@example.com");
+    // Tripwires beside the real assertions: shared as a contract, and linked to the signature.
+    const sql = query.mock.calls[0][0].join("?");
+    expect(sql).toContain("shared_at");
+    expect(sql).toContain("'contract'");
+    expect(sql).toContain("update contract_signatures set signed_file_id");
+  });
+
+  it("names the copy after the original whatever the extension's case", async () => {
+    vi.mocked(put).mockResolvedValue(undefined as never);
+    query.mockResolvedValue([{ id: STAMPED }]);
+    await storeSignedCopy({ ...input, original: doc(FILE, "Deal.PDF", "contract") });
+    expect(query.mock.calls[0].slice(1)).toContain("Deal (signed).pdf");
+  });
+
+  it("answers null and writes nothing when the bytes cannot be stored", async () => {
+    vi.mocked(put).mockRejectedValue(new Error("blob down"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(await storeSignedCopy(input)).toBeNull();
+    expect(query).not.toHaveBeenCalled();
+  });
+
+  it("removes the stored bytes when the row cannot be written", async () => {
+    vi.mocked(put).mockResolvedValue(undefined as never);
+    query.mockRejectedValue(new Error("db down"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(await storeSignedCopy(input)).toBeNull();
+    expect(del).toHaveBeenCalledWith(vi.mocked(put).mock.calls[0][0]);
+  });
+
+  // No pending signature on this job (never signed, another job's file, or already stamped):
+  // no row is created, so no orphaned bytes may be left behind either.
+  it("removes the stored bytes when there is no unstamped signature to link", async () => {
+    vi.mocked(put).mockResolvedValue(undefined as never);
+    query.mockResolvedValue([]);
+    expect(await storeSignedCopy(input)).toBeNull();
+    expect(del).toHaveBeenCalledWith(vi.mocked(put).mock.calls[0][0]);
+  });
+});
+
+describe("signatureFor", () => {
+  it("maps the stored row", async () => {
+    const signedAt = new Date();
+    query.mockResolvedValue([{
+      id: "sig", lead_id: JOB, file_id: FILE, signed_name: "Jane Doe",
+      signed_email: "jane@example.com", signed_at: signedAt, doc_sha256: PDF_BYTES_SHA256,
+      signed_file_id: STAMPED,
+    }]);
+    expect(await signatureFor(FILE)).toEqual({
+      id: "sig", leadId: JOB, fileId: FILE, signedName: "Jane Doe",
+      signedEmail: "jane@example.com", signedAt, docSha256: PDF_BYTES_SHA256,
+      signedFileId: STAMPED,
+    });
+    expect(query.mock.calls[0].slice(1)).toEqual([FILE]);
+  });
+
+  it("answers null when the contract is unsigned", async () => {
+    query.mockResolvedValue([]);
+    expect(await signatureFor(FILE)).toBeNull();
   });
 });

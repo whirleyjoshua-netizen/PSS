@@ -1,5 +1,6 @@
 import "server-only";
 import { createHash, randomUUID } from "node:crypto";
+import { del, put } from "@vercel/blob";
 import { listSharedDocuments, readFile, type JobFile } from "@/lib/admin/files";
 import { db } from "@/lib/db";
 
@@ -102,4 +103,75 @@ export async function recordSignature(input: {
     )
     select * from signed`;
   return "signed";
+}
+
+/**
+ * Stores the stamped PDF as a second job_files row, shared and typed as a contract, so it
+ * reaches the customer through the file route that already exists.
+ *
+ * Deliberately not createFile(): that logs an "Uploaded ..." event attributed to whoever passed
+ * actor, and the customer did not upload anything. One statement here, no event: the signature
+ * event written in recordSignature is the record of what happened.
+ *
+ * The row is created only while this job's signature on the original has no stamped copy yet,
+ * so a repeat call cannot leave a second, unlinked "(signed)" file on the page. Anything that
+ * stops the row being written removes the stored bytes and answers null: the signature itself
+ * stands regardless (spec section 6).
+ */
+export async function storeSignedCopy(input: {
+  jobId: string;
+  original: JobFile;
+  bytes: Buffer;
+  actor: string;
+}): Promise<string | null> {
+  const id = randomUUID();
+  const name = input.original.name.replace(/\.pdf$/i, "") + " (signed).pdf";
+  const pathname = `jobs/${input.jobId}/${id}-signed.pdf`;
+  try {
+    await put(pathname, input.bytes, {
+      access: "private",
+      contentType: "application/pdf",
+      addRandomSuffix: false,
+    });
+  } catch (error) {
+    console.error("Could not store the signed copy", error);
+    return null;
+  }
+
+  const discard = () =>
+    del(pathname).catch((cleanup) => console.error("Could not remove orphaned blob", cleanup));
+  try {
+    const rows = await db()`
+      with pending as (
+        select id from contract_signatures
+        where file_id = ${input.original.id} and lead_id = ${input.jobId}
+          and signed_file_id is null
+      ),
+      created as (
+        insert into job_files
+          (id, lead_id, uploaded_by, kind, name, content_type, size_bytes, blob_pathname,
+           shared_at, doc_type)
+        select ${id}, ${input.jobId}, ${input.actor}, 'document', ${name}, 'application/pdf',
+               ${input.bytes.length}, ${pathname}, now(), 'contract'
+        from pending
+        returning id
+      ),
+      linked as (
+        update contract_signatures set signed_file_id = (select id from created)
+        where id in (select id from pending)
+      )
+      select id from created`;
+    const stored = (rows[0]?.id as string | undefined) ?? null;
+    if (!stored) await discard();
+    return stored;
+  } catch (error) {
+    console.error("Could not record the signed copy", error);
+    await discard();
+    return null;
+  }
+}
+
+export async function signatureFor(fileId: string): Promise<Signature | null> {
+  const rows = await db()`select * from contract_signatures where file_id = ${fileId}`;
+  return rows[0] ? toSignature(rows[0] as Record<string, unknown>) : null;
 }
