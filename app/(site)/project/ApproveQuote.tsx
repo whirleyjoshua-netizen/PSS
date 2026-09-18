@@ -1,3 +1,5 @@
+import { business } from "@/content/business";
+import type { PortalStage } from "@/lib/portal/progress";
 import { approveQuoteFormAction } from "./actions";
 
 /**
@@ -31,5 +33,45 @@ export function ApproveQuote({ jobId }: { jobId: string }) {
         </button>
       </form>
     </details>
+  );
+}
+
+/**
+ * What the customer is told when they land back here after tapping Approve.
+ *
+ * `approved` arrives on the query string, so it is the customer's browser talking, not ours —
+ * exactly like `?requested=` in AfterWork, and believed no more readily. A crafted
+ * /project/<id>?approved=1 would otherwise tell someone their quote was accepted and their
+ * order placed when nothing had happened, which on the one page that commits the owners to
+ * spending money is the worst thing this page could say. So the job's own status is the only
+ * thing that can produce the confirmation: the flag merely decides whether to look.
+ *
+ * A refusal says what to do next rather than what went wrong. The reasons a real customer can
+ * reach one — an owner un-shared the quote, or moved the job, between page load and tap — are
+ * all things a phone call sorts out in a sentence, and none of them is the customer's fault.
+ */
+export function ApprovalNotice({
+  approved,
+  status,
+}: {
+  /** The `?approved=` flag, straight off the URL and unvalidated. Null on an ordinary visit. */
+  approved?: string | null;
+  /** The job's real status, re-derived server-side. The only thing believed here. */
+  status: PortalStage;
+}) {
+  if (!approved) return null;
+
+  const confirmed = approved === "1" && status === "sold";
+  // A flag claiming an approval the job does not show says nothing at all. There is no true
+  // thing to say about an approval that did not happen, and an error would be louder than a
+  // mistyped link deserves.
+  if (approved === "1" && !confirmed) return null;
+
+  return (
+    <p role="status" className="border border-champagne bg-sand/60 p-4 text-sm">
+      {confirmed
+        ? "Thank you — we have your approval and will be in touch to arrange the details."
+        : `We could not record that approval just now. Please call us on ${business.phone.display} and we will sort it out.`}
+    </p>
   );
 }

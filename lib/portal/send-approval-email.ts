@@ -1,7 +1,8 @@
+import "server-only";
 import { Resend } from "resend";
 import { business } from "@/content/business";
 import { adminOrigin } from "@/lib/admin/origin";
-import { formatShortDate } from "@/lib/admin/time";
+import { formatShortDate, formatTime } from "@/lib/admin/time";
 import { ownerRecipients } from "@/lib/leads/email";
 import { formatProjectNo } from "./project-no";
 
@@ -33,13 +34,17 @@ export async function notifyOwnersOfApproval(
     throw new Error("Approval notification email is not configured");
   }
 
+  const now = new Date();
   const projectNo = formatProjectNo(job.projectNo);
   const text = [
     `${job.name} approved their quote from their project page.`,
     "",
     `Approved by: ${approvedBy}`,
     `Document:    ${quoteName}`,
-    `When:        ${formatShortDate(new Date())}`,
+    // The time, not only the day: an owner reading this at 6pm needs to know whether the
+    // approval landed before or after the other things they did today. Both formatters are
+    // Las Vegas time, so the two halves cannot disagree about which day it is.
+    `When:        ${formatShortDate(now)} at ${formatTime(now)}`,
     projectNo ? `Project:     ${projectNo}` : null,
     "",
     "The job has moved to Sold.",

@@ -27,13 +27,21 @@ import { ProjectView } from "./ProjectView";
 export default async function ProjectHome({
   searchParams,
 }: {
-  searchParams?: Promise<{ requested?: string }>;
+  searchParams?: Promise<{ requested?: string; approved?: string }>;
 } = {}) {
   const { jobs } = await requireCustomer();
-  // A customer with one job lands here after a service request, so the confirmation must
-  // survive the hop: this page is the one that renders their project.
-  const requested = searchParams ? ((await searchParams).requested ?? null) : null;
-  if (jobs.length === 1) return <ProjectView job={jobs[0]} justRequested={requested} />;
+  // A customer with one job lands here after a service request or an approval, so both
+  // confirmations must survive the hop: this page is the one that renders their project.
+  const params = searchParams ? await searchParams : {};
+  if (jobs.length === 1) {
+    return (
+      <ProjectView
+        job={jobs[0]}
+        justRequested={params.requested ?? null}
+        justApproved={params.approved ?? null}
+      />
+    );
+  }
 
   const installs = await confirmedInstallAppointments(jobs.map((job) => job.id));
   const projects = jobs.map((job) =>

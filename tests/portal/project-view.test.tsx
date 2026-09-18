@@ -148,6 +148,31 @@ describe("ProjectView status banner", () => {
   });
 });
 
+/**
+ * The wiring, not the sentence: the flag the redirect puts on the URL must actually reach the
+ * notice, with the job's real status beside it. ApprovalNotice's own tests cover what it says.
+ */
+describe("ProjectView after approving", () => {
+  it("confirms the approval on the page they land back on", async () => {
+    render(await ProjectView({ job: { ...job, status: "sold" as const }, justApproved: "1" }));
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Thank you — we have your approval and will be in touch to arrange the details.",
+    );
+  });
+
+  // The page must hand the notice the job's status, not just the flag: if it passed the flag
+  // alone, a crafted URL would confirm an approval on a job still waiting to be approved.
+  it("confirms nothing when the URL claims an approval the job does not show", async () => {
+    render(await ProjectView({ job: { ...job, status: "quoted" as const }, justApproved: "1" }));
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+
+  it("says nothing on an ordinary visit", async () => {
+    render(await ProjectView({ job: { ...job, status: "sold" as const } }));
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+});
+
 describe("ProjectView details and updates", () => {
   it("shows what was ordered, and no install date until one is booked", async () => {
     render(await ProjectView({ job }));

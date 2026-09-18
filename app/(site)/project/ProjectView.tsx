@@ -15,7 +15,7 @@ import { ensureReferralCode } from "@/lib/referrals/db";
 import { referralUrl } from "@/lib/referrals/codes";
 import { signOutCustomer } from "./actions";
 import { AfterWork } from "./AfterWork";
-import { ApproveQuote } from "./ApproveQuote";
+import { ApprovalNotice, ApproveQuote } from "./ApproveQuote";
 import { CopyLinkButton } from "./CopyLinkButton";
 import { DetailsCard } from "./DetailsCard";
 import { FilesTabs } from "./FilesTabs";
@@ -35,10 +35,16 @@ const heading = "font-display text-xs uppercase tracking-[0.2em] text-champagne-
 export async function ProjectView({
   job,
   justRequested,
+  justApproved,
 }: {
   job: Job;
   /** Set only on the hop back from a service request, to name its new project number. */
   justRequested?: string | null;
+  /**
+   * The `?approved=` flag from the hop back after approving a quote. Unvalidated — see
+   * ApprovalNotice, which checks it against the job's real status before saying anything.
+   */
+  justApproved?: string | null;
 }) {
   // Request-cached, so this costs no extra round trip: the page's own guard already ran it.
   const { email } = await requireCustomer();
@@ -90,6 +96,9 @@ export async function ProjectView({
         quoteHref={quote ? `/project/files/${quote.id}` : null}
         approve={quote && project.status === "quoted" ? <ApproveQuote jobId={job.id} /> : null}
       />
+      {/* Sits under the banner it answers: the customer's eye is already there, and the banner
+          beside it now reads Order Confirmed, which is the confirmation's own evidence. */}
+      <ApprovalNotice approved={justApproved ?? null} status={project.status} />
 
       <section className="flex flex-col gap-4" aria-labelledby="progress-heading">
         <h2 id="progress-heading" className={heading}>Your project</h2>

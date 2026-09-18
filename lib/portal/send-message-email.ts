@@ -1,3 +1,4 @@
+import "server-only";
 import { Resend } from "resend";
 import { business } from "@/content/business";
 import { adminOrigin } from "@/lib/admin/origin";

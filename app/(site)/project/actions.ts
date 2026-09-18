@@ -141,6 +141,11 @@ export async function approveQuoteAction(jobId: string): Promise<ApproveResult> 
   const { email, jobs } = await requireCustomer();
   const job = jobs.find((candidate) => candidate.id === jobId);
   if (!job) return "not-found";
+  // A job already at the destination is an approval that already happened, so it answers with
+  // the same success the first submission did (spec §4). It is also the honest answer: the job
+  // is sold, which is what they asked for. Nothing runs past here — no second email, no
+  // revalidation — because nothing changes.
+  if (job.status === "sold") return "approved";
   if (job.status !== "quoted") return "wrong-status";
 
   const documents = await listSharedDocuments(job.id);
@@ -164,11 +169,22 @@ export async function approveQuoteAction(jobId: string): Promise<ApproveResult> 
 }
 
 /**
- * The form's wrapper. The post carries only the job id — every other fact is re-derived —
- * and the page simply re-renders, now showing the job as Sold. Works with JavaScript off.
+ * The form's wrapper. The post carries only the job id — every other fact is re-derived.
+ *
+ * Approving is the most consequential thing a customer can do here, so it must not answer in
+ * silence: a page that merely re-rendered would leave them unable to tell a recorded approval
+ * from one that was refused. The outcome therefore rides back on the URL, the same mechanism
+ * `?requested=` already uses on this page, which keeps the whole path working with JavaScript
+ * off — a plain form post and a redirect, no client state.
+ *
+ * The flag is a hint for the page, never the truth: it is the customer's own browser that will
+ * send it back, so the page re-derives what to say from the job's real status.
  */
 export async function approveQuoteFormAction(formData: FormData): Promise<void> {
-  await approveQuoteAction(text(formData.get("jobId")));
+  const jobId = text(formData.get("jobId"));
+  const result = await approveQuoteAction(jobId);
+  // Outside any try/catch: redirect() works by throwing.
+  redirect(`/project/${encodeURIComponent(jobId)}?approved=${result === "approved" ? "1" : "no"}`);
 }
 
 export type MessageFormState = { status: "idle" | MessageResult; text?: string; sent?: number };

@@ -35,6 +35,11 @@ export async function approveQuote(
   const moved = await setStage(jobId, "sold", actor, {
     body: `Approved "${name}" from their project page`,
   });
-  // reason is Lost's alone and writes lost_reason; an approval never touches it.
-  return moved ? "approved" : "not-found";
+  // reason is Lost's alone and writes lost_reason; an approval never sets it.
+  //
+  // A declined move is never "not-found" here: the caller has already established that the job
+  // is one of the customer's own, so the only thing setStage's `status <> $to` guard can be
+  // saying is that the job was not in the status this transition starts from. Answering
+  // "not-found" for a job that plainly exists would put a lie on the customer's page.
+  return moved ? "approved" : "wrong-status";
 }

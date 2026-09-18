@@ -1,5 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { business } from "@/content/business";
 
 /**
  * The action module is a server action file that reaches server-only code, so it is mocked
@@ -7,8 +9,10 @@ import { render, screen } from "@testing-library/react";
  */
 vi.mock("@/app/(site)/project/actions", () => ({ approveQuoteFormAction: vi.fn() }));
 
-const { ApproveQuote } = await import("@/app/(site)/project/ApproveQuote");
+const { ApproveQuote, ApprovalNotice } = await import("@/app/(site)/project/ApproveQuote");
 const { StatusBanner } = await import("@/app/(site)/project/StatusBanner");
+
+const THANKS = "Thank you — we have your approval and will be in touch to arrange the details.";
 
 const JOB = "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c";
 const REVEAL = "Approving tells us to go ahead and order. We will email you to arrange the details.";
@@ -42,6 +46,54 @@ describe("ApproveQuote", () => {
     expect(document.querySelector("form")).toBeInTheDocument();
     expect(document.querySelector('input[name="jobId"]')).toHaveValue(JOB);
     expect(screen.getByRole("button")).toHaveAttribute("type", "submit");
+  });
+});
+
+/**
+ * What the customer is told after they tap. The flag rides back on the URL, so it is the
+ * customer's own browser talking: every sentence here is checked against the job's real status
+ * before it is said.
+ */
+describe("ApprovalNotice", () => {
+  it("confirms an approval the job agrees with", () => {
+    render(<ApprovalNotice approved="1" status="sold" />);
+    expect(screen.getByRole("status")).toHaveTextContent(THANKS);
+  });
+
+  it("says nothing on an ordinary visit", () => {
+    render(<ApprovalNotice approved={null} status="sold" />);
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+
+  /**
+   * The load-bearing one. `?approved=1` is a string anyone can type into their own address
+   * bar. Approving a quote commits the owners to ordering materials, so a page that confirmed
+   * an approval on the strength of the URL alone would tell a customer their order was placed
+   * when nothing had happened. The job's own status is the only thing believed.
+   */
+  it("confirms nothing when the job is not sold, whatever the URL says", () => {
+    for (const status of ["quoted", "ordered", "installed"] as const) {
+      const { unmount } = render(<ApprovalNotice approved="1" status={status} />);
+      expect(screen.queryByRole("status")).toBeNull();
+      expect(screen.queryByText(THANKS)).toBeNull();
+      unmount();
+    }
+  });
+
+  it("tells a customer whose approval was refused how to reach us", () => {
+    render(<ApprovalNotice approved="no" status="quoted" />);
+    const notice = screen.getByRole("status");
+    expect(notice).toHaveTextContent("We could not record that approval just now.");
+    // The number comes from the one place it lives, so it can never go stale on this page.
+    expect(notice).toHaveTextContent(business.phone.display);
+  });
+
+  // A refusal is the one case the customer most needs to read, and it must not need script.
+  it("says its piece with JavaScript off", () => {
+    expect(renderToStaticMarkup(<ApprovalNotice approved="1" status="sold" />)).toContain(THANKS);
+    expect(renderToStaticMarkup(<ApprovalNotice approved="no" status="quoted" />)).toContain(
+      business.phone.display,
+    );
   });
 });
 

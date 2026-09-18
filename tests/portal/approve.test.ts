@@ -32,9 +32,14 @@ const revalidatePath = vi.fn();
 vi.mock("next/cache", () => ({ revalidatePath }));
 // after() runs its callback inline here so the ordering assertion can see the email.
 vi.mock("next/server", () => ({ after: (fn: () => unknown) => void fn() }));
+// redirect() works by throwing, so the thrown path is what a test can read the URL off.
+const redirect = vi.fn((path: string) => {
+  throw new Error(`NEXT_REDIRECT ${path}`);
+});
+vi.mock("next/navigation", () => ({ redirect }));
 
 const { approveQuote } = await import("@/lib/portal/approve");
-const { approveQuoteAction } = await import("@/app/(site)/project/actions");
+const { approveQuoteAction, approveQuoteFormAction } = await import("@/app/(site)/project/actions");
 
 const MINE = "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c";
 const THEIRS = "9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d";
@@ -67,6 +72,7 @@ beforeEach(() => {
   });
   requireCustomer.mockReset().mockResolvedValue({ email: EMAIL, jobs: [job] });
   revalidatePath.mockReset();
+  redirect.mockClear();
 });
 
 /** The load-bearing rule: a job the caller does not own answers exactly like one that does not exist. */
@@ -99,7 +105,9 @@ describe("ownership", () => {
 
 describe("the status precondition", () => {
   it("refuses when the job is not quoted, and never takes the target status from the caller", async () => {
-    for (const status of ["sold", "ordered", "installed", "completed"]) {
+    // `sold` is deliberately not in this list: a job already at the destination is an approval
+    // that already happened, and it is covered by its own test below.
+    for (const status of ["ordered", "installed", "completed"]) {
       requireCustomer.mockResolvedValue({ email: EMAIL, jobs: [{ ...job, status }] });
       await expect(approveQuoteAction(MINE)).resolves.toBe("wrong-status");
       expect(query).not.toHaveBeenCalled();
@@ -111,19 +119,38 @@ describe("the status precondition", () => {
     await expect(approveQuoteAction(MINE)).resolves.toBe("approved");
     expect(calls.filter((entry) => entry === "stage")).toHaveLength(1);
 
-    // The second submission arrives after the job has moved, so the status precondition
-    // refuses it before any statement runs at all.
+    // The second submission arrives after the job has moved. Spec §4: it answers with the same
+    // success the first did — the job is sold, which is what they asked for — and moves nothing.
     query.mockClear();
     requireCustomer.mockResolvedValue({ email: EMAIL, jobs: [{ ...job, status: "sold" }] });
-    await expect(approveQuoteAction(MINE)).resolves.toBe("wrong-status");
+    await expect(approveQuoteAction(MINE)).resolves.toBe("approved");
     expect(query).not.toHaveBeenCalled();
+  });
+
+  /**
+   * Spec §4: "A second approval returns the same success the first did." The customer is told
+   * their quote is approved, which is true — the job is sold. Saying "wrong status" here would
+   * be both unhelpful and, once the page speaks, a lie about a job that really is sold.
+   */
+  it("answers a re-approval of an already-sold job with the same success, writing nothing", async () => {
+    requireCustomer.mockResolvedValue({ email: EMAIL, jobs: [{ ...job, status: "sold" }] });
+    await expect(approveQuoteAction(MINE)).resolves.toBe("approved");
+
+    // Success is the answer, but nothing happens twice: no statement, no second email to the
+    // owners, and no revalidation of a page nothing changed on.
+    expect(query).not.toHaveBeenCalled();
+    expect(notifyOwnersOfApproval).not.toHaveBeenCalled();
+    expect(revalidatePath).not.toHaveBeenCalled();
+    expect(calls).toEqual([]);
   });
 
   it("writes nothing on a second approval even if the precondition is somehow passed", async () => {
     // setStage's own `status <> $to` guard is the backstop: the update matches no row, so
     // no event row is returned and nothing moved a second time.
     results = UNMOVED();
-    await expect(approveQuote(MINE, EMAIL, QUOTE_NAME)).resolves.toBe("not-found");
+    // Not "not-found": the caller has already established the job exists, so the only thing the
+    // declined move can mean is that the job was not in the status this transition starts from.
+    await expect(approveQuote(MINE, EMAIL, QUOTE_NAME)).resolves.toBe("wrong-status");
     expect(statementOf(query.mock.calls[0])).toMatch(/status\s*<>/i);
   });
 });
@@ -222,5 +249,46 @@ describe("approveQuoteAction", () => {
     await expect(approveQuoteAction(MINE)).resolves.not.toBe("approved");
     expect(notifyOwnersOfApproval).not.toHaveBeenCalled();
     expect(revalidatePath).not.toHaveBeenCalled();
+  });
+
+  /** "not-found" must mean not found: an already-sold job plainly exists. */
+  it("never answers not-found for a job that exists", async () => {
+    results = UNMOVED();
+    await expect(approveQuoteAction(MINE)).resolves.not.toBe("not-found");
+  });
+});
+
+/**
+ * The form's wrapper. The customer must be told what happened, and the only way a plain form
+ * post can say anything is to carry it back on the URL — the same mechanism `?requested=`
+ * already uses on this page. Nothing here needs JavaScript.
+ */
+describe("approveQuoteFormAction", () => {
+  const post = (jobId: string) => {
+    const data = new FormData();
+    data.set("jobId", jobId);
+    return approveQuoteFormAction(data);
+  };
+
+  it("lands the customer back on their project saying it was approved", async () => {
+    results = MOVED();
+    await expect(post(MINE)).rejects.toThrow(`NEXT_REDIRECT /project/${MINE}?approved=1`);
+  });
+
+  it("says so on the URL when the approval was refused", async () => {
+    SHARED = [];
+    await expect(post(MINE)).rejects.toThrow(`NEXT_REDIRECT /project/${MINE}?approved=no`);
+  });
+
+  /** A refusal must still land them somewhere that says something, not silently re-render. */
+  it("redirects on every outcome, never returning silently", async () => {
+    requireCustomer.mockResolvedValue({ email: EMAIL, jobs: [{ ...job, status: "ordered" }] });
+    await expect(post(MINE)).rejects.toThrow("NEXT_REDIRECT");
+    expect(redirect).toHaveBeenCalledTimes(1);
+  });
+
+  it("tells a re-approval the same success, since the job really is sold", async () => {
+    requireCustomer.mockResolvedValue({ email: EMAIL, jobs: [{ ...job, status: "sold" }] });
+    await expect(post(MINE)).rejects.toThrow(`NEXT_REDIRECT /project/${MINE}?approved=1`);
   });
 });

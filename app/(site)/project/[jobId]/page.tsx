@@ -8,13 +8,20 @@ export default async function ProjectJobPage({
   searchParams,
 }: {
   params: Promise<{ jobId: string }>;
-  searchParams?: Promise<{ requested?: string }>;
+  searchParams?: Promise<{ requested?: string; approved?: string }>;
 }) {
   const { jobs } = await requireCustomer();
   const { jobId } = await params;
   const job = jobs.find((j) => j.id === jobId);
   if (!job) notFound();
-  // Set by the service form's redirect; it names the new job's number, nothing more.
-  const requested = searchParams ? ((await searchParams).requested ?? null) : null;
-  return <ProjectView job={job} justRequested={requested} />;
+  // Set by the redirects the two forms end in: `requested` names a new service job's number,
+  // `approved` says an approval was just submitted. Both are checked before anything is said.
+  const query = searchParams ? await searchParams : {};
+  return (
+    <ProjectView
+      job={job}
+      justRequested={query.requested ?? null}
+      justApproved={query.approved ?? null}
+    />
+  );
 }
