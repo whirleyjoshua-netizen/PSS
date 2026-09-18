@@ -2,13 +2,16 @@
  * The type labels an owner can put on a document. Safe to import from client
  * components: this module imports nothing that reaches the database, so it must
  * stay free of imports that run only on the server. The values match the
- * job_files.doc_type check constraint in db/migrations/016_project_page.sql;
- * changing one without the other fails at write time.
+ * job_files.doc_type check constraint last defined in
+ * db/migrations/021_contract_signing.sql; changing one without the other fails
+ * at write time. The migration lists the values in the order they were added to
+ * the database; the order here is the order an owner sees in the menu.
  */
 export const DOC_TYPES = [
   { value: "quote", label: "Quote" },
   { value: "po", label: "PO" },
   { value: "invoice", label: "Invoice" },
+  { value: "contract", label: "Contract" },
   { value: "other", label: "Other" },
 ] as const satisfies readonly { value: string; label: string }[];
 
@@ -22,6 +25,7 @@ const DOC_TYPE_LABELS: { [K in DocType]: Extract<(typeof DOC_TYPES)[number], { v
   quote: "Quote",
   po: "PO",
   invoice: "Invoice",
+  contract: "Contract",
   other: "Other",
 };
 

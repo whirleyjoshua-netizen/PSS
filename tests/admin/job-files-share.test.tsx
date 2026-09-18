@@ -65,9 +65,9 @@ describe("JobFiles photos and sharing", () => {
     const select = screen.getByRole("combobox", { name: "Document type for Quote.pdf" });
     expect(select).toHaveValue("quote");
     expect([...(select as HTMLSelectElement).options].map((o) => o.value))
-      .toEqual(["", "quote", "po", "invoice", "other"]);
+      .toEqual(["", "quote", "po", "invoice", "contract", "other"]);
     expect([...(select as HTMLSelectElement).options].map((o) => o.text))
-      .toEqual(["No type", "Quote", "PO", "Invoice", "Other"]);
+      .toEqual(["No type", "Quote", "PO", "Invoice", "Contract", "Other"]);
     expect(screen.getByRole("combobox", { name: "Document type for PO.pdf" })).toHaveValue("");
   });
 
