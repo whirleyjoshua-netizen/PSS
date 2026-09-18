@@ -68,13 +68,13 @@ describe("changing jobs", () => {
 
   it("records the lost reason with the stage change", async () => {
     sql.mockResolvedValue([{ id: ID }]);
-    await jobs.setStage(ID, "lost", "owner@example.com", "Went with a cheaper quote");
+    await jobs.setStage(ID, "lost", "owner@example.com", { reason: "Went with a cheaper quote" });
     expect(sql.mock.calls[0]).toContain("Went with a cheaper quote");
   });
 
   it("writes the body it is given for a non-lost move", async () => {
     sql.mockResolvedValue([{ id: ID }]);
-    await jobs.setStage(ID, "sold", "john@example.com", undefined, 'Approved "Quote - Living room.pdf" from their project page');
+    await jobs.setStage(ID, "sold", "john@example.com", { body: 'Approved "Quote - Living room.pdf" from their project page' });
     expect(sql).toHaveBeenCalledOnce();
     expect(sql.mock.calls[0]).toEqual(expect.arrayContaining([
       'Approved "Quote - Living room.pdf" from their project page', "john@example.com", "sold",
@@ -86,7 +86,7 @@ describe("changing jobs", () => {
 
   it("does not leak a non-lost body into lost_reason", async () => {
     sql.mockResolvedValue([{ id: ID }]);
-    await jobs.setStage(ID, "sold", "john@example.com", undefined, "Approved from their project page");
+    await jobs.setStage(ID, "sold", "john@example.com", { body: "Approved from their project page" });
     const [strings, ...values] = sql.mock.calls[0] as [TemplateStringsArray, ...unknown[]];
     // lost_reason is the only value bound immediately after "lost_reason = ".
     const slot = strings.findIndex((chunk) => /lost_reason\s*=\s*$/.test(chunk));
@@ -96,9 +96,32 @@ describe("changing jobs", () => {
     expect(values.filter((v) => v === "Approved from their project page")).toHaveLength(1);
   });
 
+  // The case that a positional signature would have silently swallowed: a reason handed to a move
+  // that is not Lost. It must reach neither lost_reason nor the event body.
+  it("ignores a reason given for a non-lost move: not lost_reason, not the body", async () => {
+    sql.mockResolvedValue([{ id: ID }]);
+    await jobs.setStage(ID, "sold", "john@example.com", { reason: "Went with a cheaper quote" });
+    const [strings, ...values] = sql.mock.calls[0] as [TemplateStringsArray, ...unknown[]];
+    const slot = strings.findIndex((chunk) => /lost_reason\s*=\s*$/.test(chunk));
+    expect(values[slot]).toBeNull();
+    expect(values[values.length - 1]).toBeNull();
+    expect(values).not.toContain("Went with a cheaper quote");
+  });
+
+  // Both at once: only the body is written, and the reason is still discarded.
+  it("writes the body and drops the reason when both are given for a non-lost move", async () => {
+    sql.mockResolvedValue([{ id: ID }]);
+    await jobs.setStage(ID, "sold", "john@example.com", { reason: "Went with a cheaper quote", body: "Approved from their project page" });
+    const [strings, ...values] = sql.mock.calls[0] as [TemplateStringsArray, ...unknown[]];
+    const slot = strings.findIndex((chunk) => /lost_reason\s*=\s*$/.test(chunk));
+    expect(values[slot]).toBeNull();
+    expect(values[values.length - 1]).toBe("Approved from their project page");
+    expect(values).not.toContain("Went with a cheaper quote");
+  });
+
   it("still writes lost_reason, and the same text as the body, for a move to lost", async () => {
     sql.mockResolvedValue([{ id: ID }]);
-    await jobs.setStage(ID, "lost", "owner@example.com", "Went with a cheaper quote");
+    await jobs.setStage(ID, "lost", "owner@example.com", { reason: "Went with a cheaper quote" });
     const [strings, ...values] = sql.mock.calls[0] as [TemplateStringsArray, ...unknown[]];
     const slot = strings.findIndex((chunk) => /lost_reason\s*=\s*$/.test(chunk));
     expect(values[slot]).toBe("Went with a cheaper quote");
@@ -116,14 +139,14 @@ describe("changing jobs", () => {
 
   it("clears the follow-up when moving to lost", async () => {
     sql.mockResolvedValue([{ id: ID }]);
-    await jobs.setStage(ID, "lost", "owner@example.com", "Went with a cheaper quote");
+    await jobs.setStage(ID, "lost", "owner@example.com", { reason: "Went with a cheaper quote" });
     const statement = text(sql.mock.calls[0]);
     expect(statement).toContain("follow_up_at = case when");
   });
 
   it("passes a typed boolean, not the stage value, into the follow-up clearing CASE", async () => {
     sql.mockResolvedValue([{ id: ID }]);
-    await jobs.setStage(ID, "lost", "owner@example.com", "Went with a cheaper quote");
+    await jobs.setStage(ID, "lost", "owner@example.com", { reason: "Went with a cheaper quote" });
     const statement = text(sql.mock.calls[0]);
     expect(statement).toContain("::boolean then null else follow_up_at end");
     expect(statement).toContain("::boolean then null else follow_up_note end");

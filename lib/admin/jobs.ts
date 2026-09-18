@@ -186,17 +186,22 @@ export async function getEvents(id: string): Promise<JobEvent[]> {
 /**
  * One statement, so the stage and its log entry are saved together or not at all.
  *
- * `reason` is Lost's own thing: it writes the lost_reason column on leads, and is echoed as the
- * event body, only for a move to lost. `body` is the sentence for any other move — "Approved
- * 'Quote - Living room.pdf' from their project page" — and never touches lost_reason.
+ * The two strings are named, never positional, because they are not interchangeable and a caller
+ * that confused them would fail silently:
+ *
+ * - `reason` is Lost's own thing. It writes the lost_reason column on leads, and is echoed as the
+ *   event body, only for a move to lost. On any other move it is ignored entirely.
+ * - `body` is the sentence for any other move — `setStage(id, "sold", customerEmail, { body:
+ *   "Approved \"Quote - Living room.pdf\" from their project page" })` — and never touches
+ *   lost_reason.
  */
 export async function setStage(
-  id: string, to: Stage, actor: string, reason?: string, body?: string,
+  id: string, to: Stage, actor: string, options?: { reason?: string; body?: string },
 ): Promise<boolean> {
   if (!isStage(to)) throw new Error(`Unknown stage: ${String(to)}`);
   if (!isUuid(id)) return false;
-  const lostReason = to === "lost" ? (reason ?? null) : null;
-  const eventBody = to === "lost" ? lostReason : (body ?? null);
+  const lostReason = to === "lost" ? (options?.reason ?? null) : null;
+  const eventBody = to === "lost" ? lostReason : (options?.body ?? null);
   const clearFollowUp = to === "lost";
   const rows = await db()`
     with prev as (select status from leads where id = ${id}),

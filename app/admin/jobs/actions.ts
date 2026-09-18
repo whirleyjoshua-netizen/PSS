@@ -39,7 +39,7 @@ export async function markLost(id: string, _prev: FormState, formData: FormData)
   const values = captureValues(formData, ["reason"]);
   const parsed = lostSchema.safeParse({ reason: formData.get("reason") });
   if (!parsed.success) return { error: parsed.error.issues[0].message, values };
-  const changed = await setStage(id, "lost", email, parsed.data.reason);
+  const changed = await setStage(id, "lost", email, { reason: parsed.data.reason });
   if (!changed) return MISSING;
   after(() => syncJobCalendar(id));
   refresh(id);
