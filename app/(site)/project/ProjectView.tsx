@@ -15,6 +15,7 @@ import { ensureReferralCode } from "@/lib/referrals/db";
 import { referralUrl } from "@/lib/referrals/codes";
 import { signOutCustomer } from "./actions";
 import { AfterWork } from "./AfterWork";
+import { ApproveQuote } from "./ApproveQuote";
 import { CopyLinkButton } from "./CopyLinkButton";
 import { DetailsCard } from "./DetailsCard";
 import { FilesTabs } from "./FilesTabs";
@@ -81,7 +82,14 @@ export async function ProjectView({
         </form>
       </header>
 
-      <StatusBanner step={current} quoteHref={quote ? `/project/files/${quote.id}` : null} />
+      {/* The quote is already loaded above, so the approve control costs no extra query. It
+          appears only when there is a quote to read and the job is still waiting on it; the
+          action re-checks both regardless. */}
+      <StatusBanner
+        step={current}
+        quoteHref={quote ? `/project/files/${quote.id}` : null}
+        approve={quote && project.status === "quoted" ? <ApproveQuote jobId={job.id} /> : null}
+      />
 
       <section className="flex flex-col gap-4" aria-labelledby="progress-heading">
         <h2 id="progress-heading" className={heading}>Your project</h2>

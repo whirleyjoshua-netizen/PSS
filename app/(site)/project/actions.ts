@@ -3,8 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { after } from "next/server";
+import { listSharedDocuments } from "@/lib/admin/files";
 import { isInstalled } from "@/lib/admin/stages";
+import { approveQuote, type ApproveResult } from "@/lib/portal/approve";
 import { sendMessage, type MessageResult } from "@/lib/portal/messages";
+import { notifyOwnersOfApproval } from "@/lib/portal/send-approval-email";
 import { notifyOwnersOfMessage } from "@/lib/portal/send-message-email";
 import { requestService } from "@/lib/portal/service-request";
 import { serviceRequestSchema } from "@/lib/portal/service-schema";
@@ -115,6 +118,57 @@ export async function requestServiceAction(
   const confirmation = result.projectNo ? `?requested=${encodeURIComponent(result.projectNo)}` : "";
   // Outside any try/catch: redirect() works by throwing.
   redirect(`/project/${jobId}${confirmation}`);
+}
+
+/**
+ * Records that a customer approved their quote, moving their job to Sold.
+ *
+ * This is the most consequential thing a customer can do in this app: the owners order
+ * materials against it. Three things are therefore settled server-side, in this order, and
+ * none of them is taken from the request.
+ *
+ * 1. Ownership. The jobs are re-derived from the session on every call and a jobId that is
+ *    not among them is refused with exactly the answer a job that does not exist gets — the
+ *    caller learns nothing about what exists, and nothing is read or written before it passes.
+ * 2. The status. A customer may cause exactly one transition, quoted → sold. The target
+ *    status is a literal here; it never arrives from the browser.
+ * 3. A shared quote. Approving something the customer cannot read is not consent, so the
+ *    document is looked up here rather than trusted from the post. The page hides the control
+ *    when there is no quote, but that is a UI nicety — this is the guard, and the name written
+ *    into the timeline is the shared document's own, not a string the browser supplied.
+ */
+export async function approveQuoteAction(jobId: string): Promise<ApproveResult> {
+  const { email, jobs } = await requireCustomer();
+  const job = jobs.find((candidate) => candidate.id === jobId);
+  if (!job) return "not-found";
+  if (job.status !== "quoted") return "wrong-status";
+
+  const documents = await listSharedDocuments(job.id);
+  const quote = documents.find((file) => file.docType === "quote");
+  if (!quote) return "no-quote";
+
+  const result = await approveQuote(job.id, email, quote.name);
+  if (result !== "approved") return result;
+
+  // The job has already moved by this point, so a failed email costs only the notification.
+  // after() keeps it off the response, and the catch keeps it off the customer.
+  after(() => {
+    void notifyOwnersOfApproval(job, quote.name, email).catch(console.error);
+  });
+
+  // Both paths render the same view: /project renders ProjectView directly for a customer
+  // with a single job, so revalidating only the [jobId] path would leave the common case stale.
+  revalidatePath("/project");
+  revalidatePath(`/project/${job.id}`);
+  return result;
+}
+
+/**
+ * The form's wrapper. The post carries only the job id — every other fact is re-derived —
+ * and the page simply re-renders, now showing the job as Sold. Works with JavaScript off.
+ */
+export async function approveQuoteFormAction(formData: FormData): Promise<void> {
+  await approveQuoteAction(text(formData.get("jobId")));
 }
 
 export type MessageFormState = { status: "idle" | MessageResult; text?: string; sent?: number };

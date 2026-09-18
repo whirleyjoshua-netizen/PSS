@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type { ProjectStep, StepKey } from "@/lib/portal/progress";
 
 /**
@@ -24,8 +25,21 @@ export const STEP_NEXT: Record<StepKey, string> = {
   installed: "Nothing to do — call us any time if anything needs adjusting.",
 };
 
-/** Where the project stands, with the one action Phase 1 offers: reviewing a shared quote. */
-export function StatusBanner({ step, quoteHref }: { step: ProjectStep; quoteHref: string | null }) {
+/**
+ * Where the project stands, with the actions the page offers on it: reviewing a shared
+ * quote, and — when the caller decides the job is at that point — approving it. The banner
+ * renders whatever is handed to `approve` and decides nothing about it itself.
+ */
+export function StatusBanner({
+  step,
+  quoteHref,
+  approve,
+}: {
+  step: ProjectStep;
+  quoteHref: string | null;
+  /** The approve control, or null when there is nothing to approve. */
+  approve?: ReactNode;
+}) {
   return (
     <section aria-label="Where your project stands" className="border border-rule bg-sand/50 p-6 sm:p-8">
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -33,13 +47,18 @@ export function StatusBanner({ step, quoteHref }: { step: ProjectStep; quoteHref
           <h2 className="font-display text-2xl font-light text-charcoal">{step.label}</h2>
           <p className="text-ink-soft">{STEP_BLURB[step.key]}</p>
         </div>
-        {quoteHref ? (
-          <a
-            href={quoteHref}
-            className="min-h-11 border border-charcoal px-5 py-3 font-display text-xs uppercase tracking-[0.2em] text-charcoal hover:bg-charcoal hover:text-ivory"
-          >
-            Review quote
-          </a>
+        {quoteHref || approve ? (
+          <div className="flex flex-wrap items-start gap-3">
+            {quoteHref ? (
+              <a
+                href={quoteHref}
+                className="inline-flex min-h-11 items-center border border-charcoal px-5 py-3 font-display text-xs uppercase tracking-[0.2em] text-charcoal hover:bg-charcoal hover:text-ivory"
+              >
+                Review quote
+              </a>
+            ) : null}
+            {approve}
+          </div>
         ) : null}
       </div>
     </section>
