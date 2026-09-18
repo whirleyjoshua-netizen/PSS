@@ -82,9 +82,12 @@ describe("requestServiceAction", () => {
 
   it("passes the validated answers through and lands them back on their project", async () => {
     await expect(submit(form({ details: "Cord is jammed." }))).rejects.toThrow("NEXT_REDIRECT");
+    // The third argument is the request's provenance, decided by which action the route gave
+    // the form. This is the ordinary route, so it is false and the review email is left alone.
     expect(requestService).toHaveBeenCalledWith(
       MINE,
       expect.objectContaining({ issue: "wont-move", windowText: "The big window in the den", details: "Cord is jammed." }),
+      { fromAcknowledgement: false },
     );
     expect(revalidatePath).toHaveBeenCalledWith("/project");
     expect(revalidatePath).toHaveBeenCalledWith(`/project/${MINE}`);

@@ -27,11 +27,12 @@ import { ProjectView } from "./ProjectView";
 export default async function ProjectHome({
   searchParams,
 }: {
-  searchParams?: Promise<{ requested?: string; approved?: string }>;
+  searchParams?: Promise<{ requested?: string; approved?: string; acknowledged?: string }>;
 } = {}) {
   const { jobs } = await requireCustomer();
-  // A customer with one job lands here after a service request or an approval, so both
-  // confirmations must survive the hop: this page is the one that renders their project.
+  // A customer with one job lands here after a service request, an approval or an installation
+  // acknowledgement, so every confirmation must survive the hop: this page is the one that
+  // renders their project.
   const params = searchParams ? await searchParams : {};
   if (jobs.length === 1) {
     return (
@@ -39,6 +40,7 @@ export default async function ProjectHome({
         job={jobs[0]}
         justRequested={params.requested ?? null}
         justApproved={params.approved ?? null}
+        justAcknowledged={params.acknowledged ?? null}
       />
     );
   }

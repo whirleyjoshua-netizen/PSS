@@ -16,7 +16,12 @@ const stageDates = vi.fn();
 const lastMeasuredAt = vi.fn();
 const installAppointmentAt = vi.fn();
 vi.mock("@/lib/portal/timeline", () => ({ stageDates, lastMeasuredAt, installAppointmentAt }));
-vi.mock("@/app/(site)/project/actions", () => ({ signOutCustomer: vi.fn(), sendMessageAction: vi.fn() }));
+// acknowledgeInstallFormAction is reached by the banner's acknowledgement on an installed job.
+vi.mock("@/app/(site)/project/actions", () => ({
+  signOutCustomer: vi.fn(),
+  sendMessageAction: vi.fn(),
+  acknowledgeInstallFormAction: vi.fn(),
+}));
 const listMessages = vi.fn();
 vi.mock("@/lib/portal/messages", () => ({ listMessages }));
 const requireCustomer = vi.fn();
@@ -138,6 +143,45 @@ describe("ProjectView status banner", () => {
     expect(within(install).queryByText(/booked for/)).not.toBeInTheDocument();
     expect(within(install).queryByText(/We will be in touch to confirm/)).not.toBeInTheDocument();
     expect(within(install).queryByText(/not booked yet/)).not.toBeInTheDocument();
+  });
+
+  /**
+   * Spec §5: the acknowledgement appears at `installed` and NEVER at `completed` — once they
+   * have answered, the question is answered.
+   *
+   * This pair is the guard on a trap. toPortalStage folds `completed` into `installed`, so the
+   * project's own status reads "installed" for BOTH, and gating on it — the obvious thing to
+   * write, and what every other section on this page does — would keep asking a customer
+   * whether their installation is right after they have already confirmed it, with a button
+   * that can no longer do anything. Only the job's raw status can tell the two apart, and the
+   * completed case below is what fails if anyone "simplifies" it back.
+   */
+  const QUESTION = "Is everything how you wanted it?";
+
+  it("asks whether everything is right once the job is installed", async () => {
+    render(await ProjectView({ job: { ...job, status: "installed" as const, installOn: "2025-10-13" } }));
+    const banner = screen.getByRole("region", { name: "Where your project stands" });
+    expect(within(banner).getByText(QUESTION)).toBeInTheDocument();
+    expect(within(banner).getByRole("button", { name: "Yes, everything looks great" })).toBeInTheDocument();
+    expect(within(banner).getByRole("link", { name: "Something is not right" })).toHaveAttribute(
+      "href",
+      `/project/${JOB}/service?from=acknowledgement`,
+    );
+  });
+
+  it("stops asking once the customer has confirmed it, though the page still reads Installed", async () => {
+    render(await ProjectView({ job: { ...job, status: "completed" as const, installOn: "2025-10-13" } }));
+    const banner = screen.getByRole("region", { name: "Where your project stands" });
+    // The customer never reads the word Completed — the fold is intact...
+    expect(within(banner).getByRole("heading", { level: 2 })).toHaveTextContent("Installed");
+    // ...and yet the question is gone, which only the raw status can decide.
+    expect(screen.queryByText(QUESTION)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Yes, everything looks great" })).toBeNull();
+  });
+
+  it.each(["quoted", "sold", "ordered"] as const)("does not ask while the job is only %s", async (status) => {
+    render(await ProjectView({ job: { ...job, status } }));
+    expect(screen.queryByText(QUESTION)).toBeNull();
   });
 
   it("says a finished job is complete even with no install date recorded", async () => {

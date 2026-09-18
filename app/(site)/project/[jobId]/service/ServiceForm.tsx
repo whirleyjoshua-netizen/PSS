@@ -9,7 +9,7 @@ import {
   PHOTO_MAX_MB,
   WINDOW_TEXT_MAX,
 } from "@/lib/portal/service-schema";
-import { requestServiceAction, type ServiceFormState } from "../../actions";
+import { acknowledgeProblemAction, requestServiceAction, type ServiceFormState } from "../../actions";
 
 const field = "w-full max-w-full border border-rule bg-white p-3 text-base";
 const label = "text-sm font-semibold";
@@ -25,12 +25,21 @@ const label = "text-sm font-semibold";
 export function ServiceForm({
   jobId,
   windows,
+  fromAcknowledgement = false,
 }: {
   jobId: string;
   windows: { id: string; label: string }[];
+  /**
+   * Set by the page when the customer arrived from their installation acknowledgement, having
+   * matched the one marker on the URL. It selects which action the form posts to — and that is
+   * the whole mechanism by which provenance is established. It is deliberately NOT sent as a
+   * form field: a field is something a crafted post can assert, and asserting this one would
+   * silence the owners' review request.
+   */
+  fromAcknowledgement?: boolean;
 }) {
   const [state, action, pending] = useActionState<ServiceFormState, FormData>(
-    requestServiceAction,
+    fromAcknowledgement ? acknowledgeProblemAction : requestServiceAction,
     { status: "idle" },
   );
   const values = state.values ?? {};

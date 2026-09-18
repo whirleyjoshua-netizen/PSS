@@ -15,6 +15,11 @@ export type ServiceNotification = {
   replyTo: string;
   /** True when a photo was sent but could not be attached. */
   photoFailed: boolean;
+  /**
+   * True when the customer reached the form from their installation acknowledgement — they
+   * are telling us the install itself is not right, not reporting a later fault.
+   */
+  fromAcknowledgement?: boolean;
 };
 
 /**
@@ -37,6 +42,12 @@ export async function notifyOwnersOfServiceRequest(input: ServiceNotification): 
   const projectNo = formatProjectNo(input.parent.projectNo);
   const text = [
     `${input.parent.name} asked for a service visit.`,
+    // First, because it changes what this email means: they were asked whether the install was
+    // right and answered that it is not. Their review request has been muted until it is fixed.
+    input.fromAcknowledgement
+      ? "They said this when confirming their installation — they are telling us the install is not right.\n" +
+        "Their review request has been turned off until this is put right. Turn it back on from the job's Review section."
+      : null,
     `What is happening: ${issueLabel(input.issue)}`,
     `Window: ${input.window}`,
     projectNo ? `Original project: ${projectNo}` : null,
@@ -55,7 +66,9 @@ export async function notifyOwnersOfServiceRequest(input: ServiceNotification): 
     from: `${business.name} <${from}>`,
     to,
     replyTo: input.replyTo,
-    subject: `Service request from ${input.parent.name}${projectNo ? ` — ${projectNo}` : ""}`,
+    subject: input.fromAcknowledgement
+      ? `Installation not right — ${input.parent.name}${projectNo ? ` — ${projectNo}` : ""}`
+      : `Service request from ${input.parent.name}${projectNo ? ` — ${projectNo}` : ""}`,
     text,
   });
 

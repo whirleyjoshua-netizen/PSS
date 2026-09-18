@@ -14,6 +14,7 @@ import { installAppointmentAt, lastMeasuredAt, stageDates } from "@/lib/portal/t
 import { ensureReferralCode } from "@/lib/referrals/db";
 import { referralUrl } from "@/lib/referrals/codes";
 import { signOutCustomer } from "./actions";
+import { AcknowledgeInstall, AcknowledgeNotice } from "./AcknowledgeInstall";
 import { AfterWork } from "./AfterWork";
 import { ApprovalNotice, ApproveQuote } from "./ApproveQuote";
 import { CopyLinkButton } from "./CopyLinkButton";
@@ -36,6 +37,7 @@ export async function ProjectView({
   job,
   justRequested,
   justApproved,
+  justAcknowledged,
 }: {
   job: Job;
   /** Set only on the hop back from a service request, to name its new project number. */
@@ -45,6 +47,11 @@ export async function ProjectView({
    * ApprovalNotice, which checks it against the job's real status before saying anything.
    */
   justApproved?: string | null;
+  /**
+   * The `?acknowledged=` flag from the hop back after confirming an installation. Unvalidated
+   * — see AcknowledgeNotice, which checks it against the job's real status first.
+   */
+  justAcknowledged?: string | null;
 }) {
   // Request-cached, so this costs no extra round trip: the page's own guard already ran it.
   const { email } = await requireCustomer();
@@ -91,14 +98,21 @@ export async function ProjectView({
       {/* The quote is already loaded above, so the approve control costs no extra query. It
           appears only when there is a quote to read and the job is still waiting on it; the
           action re-checks both regardless. */}
+      {/* The acknowledgement keys on the job's RAW status, not the project's. toPortalStage
+          folds `completed` into `installed` so the customer never reads the word Completed,
+          which means project.status cannot tell a confirmed installation from an unconfirmed
+          one — and asking a customer again whether the work is right, after they have already
+          told us, is the one thing spec §5 says must not happen. */}
       <StatusBanner
         step={current}
         quoteHref={quote ? `/project/files/${quote.id}` : null}
         approve={quote && project.status === "quoted" ? <ApproveQuote jobId={job.id} /> : null}
+        acknowledge={job.status === "installed" ? <AcknowledgeInstall jobId={job.id} /> : null}
       />
       {/* Sits under the banner it answers: the customer's eye is already there, and the banner
           beside it now reads Order Confirmed, which is the confirmation's own evidence. */}
       <ApprovalNotice approved={justApproved ?? null} status={project.status} />
+      <AcknowledgeNotice acknowledged={justAcknowledged ?? null} status={job.status} />
 
       <section className="flex flex-col gap-4" aria-labelledby="progress-heading">
         <h2 id="progress-heading" className={heading}>Your project</h2>

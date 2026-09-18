@@ -27,18 +27,26 @@ export const STEP_NEXT: Record<StepKey, string> = {
 
 /**
  * Where the project stands, with the actions the page offers on it: reviewing a shared
- * quote, and — when the caller decides the job is at that point — approving it. The banner
- * renders whatever is handed to `approve` and decides nothing about it itself.
+ * quote, and — when the caller decides the job is at that point — approving it, or saying
+ * whether the finished installation is right. The banner renders whatever is handed to
+ * `approve` and `acknowledge` and decides nothing about either itself.
+ *
+ * The two slots are never occupied at once in practice: one belongs to a quoted job and the
+ * other to an installed one. The banner does not rely on that — it simply lays out whatever
+ * it is given, and the action row wraps.
  */
 export function StatusBanner({
   step,
   quoteHref,
   approve,
+  acknowledge,
 }: {
   step: ProjectStep;
   quoteHref: string | null;
   /** The approve control, or null when there is nothing to approve. */
   approve?: ReactNode;
+  /** The acknowledgement controls, or null when there is nothing to acknowledge. */
+  acknowledge?: ReactNode;
 }) {
   return (
     <section aria-label="Where your project stands" className="border border-rule bg-sand/50 p-6 sm:p-8">
@@ -47,7 +55,7 @@ export function StatusBanner({
           <h2 className="font-display text-2xl font-light text-charcoal">{step.label}</h2>
           <p className="text-ink-soft">{STEP_BLURB[step.key]}</p>
         </div>
-        {quoteHref || approve ? (
+        {quoteHref || approve || acknowledge ? (
           <div className="flex flex-wrap items-start gap-3">
             {quoteHref ? (
               <a
@@ -58,6 +66,7 @@ export function StatusBanner({
               </a>
             ) : null}
             {approve}
+            {acknowledge}
           </div>
         ) : null}
       </div>

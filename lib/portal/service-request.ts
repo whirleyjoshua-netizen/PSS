@@ -6,6 +6,7 @@ import { describe as describeWindow, listMeasurements } from "@/lib/admin/measur
 import { isInstalled } from "@/lib/admin/stages";
 import { formatProjectNo } from "./project-no";
 import { notifyOwnersOfServiceRequest } from "./send-service-email";
+import { setReviewOptOut } from "@/lib/reviews/db";
 import { issueLabel, looksLikeImage, PHOTO_MAX_BYTES, type ServiceRequestInput } from "./service-schema";
 import { requireCustomer } from "./session";
 
@@ -21,6 +22,20 @@ export type ServiceRequestResult =
   | { status: "created"; jobId: string; projectNo: string | null }
   | { status: "not-found" }
   | { status: "unknown-window" };
+
+/**
+ * How the request got here, decided by the server from the route the customer used.
+ *
+ * This is a THIRD ARGUMENT and deliberately not a field on serviceRequestSchema. The schema
+ * validates the customer's typed answers and is parsed from FormData, so anything in it is
+ * something a crafted post can assert — and the effect of this flag is to mute the owners'
+ * review email. Provenance must not be assertable by the thing whose provenance is in
+ * question. Do not "tidy" it into the schema.
+ */
+export type ServiceRequestOptions = {
+  /** True only when the customer reached the form from their installation acknowledgement. */
+  fromAcknowledgement?: boolean;
+};
 
 const usable = (photo: File | null | undefined): photo is File =>
   photo instanceof File &&
@@ -44,8 +59,19 @@ const usable = (photo: File | null | undefined): photo is File =>
  * The photo is attached afterwards, inside its own try/catch, so the request survives a failed
  * upload: a customer whose repair request vanished because their image was too large will
  * simply not try again. The owners are told the photo did not arrive instead.
+ *
+ * A request that came from an installation acknowledgement additionally mutes the parent job's
+ * review request, and says so in the owners' email. The review cron emails installed customers
+ * within 14 days; without the mute, a customer who has just told us something is wrong would be
+ * asked days later to leave a public review (spec §5). The job itself does NOT move — it stays
+ * installed until the owners have put it right.
  */
-export async function requestService(jobId: string, input: ServiceRequest): Promise<ServiceRequestResult> {
+export async function requestService(
+  jobId: string,
+  input: ServiceRequest,
+  options?: ServiceRequestOptions,
+): Promise<ServiceRequestResult> {
+  const fromAcknowledgement = options?.fromAcknowledgement === true;
   const { email, jobs } = await requireCustomer();
   const parent = jobs.find((candidate) => candidate.id === jobId);
   if (!parent) return { status: "not-found" };
@@ -89,6 +115,19 @@ export async function requestService(jobId: string, input: ServiceRequest): Prom
   );
 
   // The job exists from here on. Nothing below may throw its way out.
+
+  // The PARENT job is what gets muted: it is the one whose install the review cron would ask
+  // about. Its own try/catch, for the same reason as the photo's — the repair request is
+  // already on the owners' board, and losing it over a failed flag would be the worse outcome
+  // by far. The owners can untick the flag themselves; they cannot recover a lost request.
+  if (fromAcknowledgement) {
+    try {
+      await setReviewOptOut(jobId, true, email);
+    } catch (error) {
+      console.error("Could not mute the review request for an acknowledged fault", error);
+    }
+  }
+
   let photoFailed = false;
   if (input.photo instanceof File && input.photo.size > 0) {
     if (!usable(input.photo)) {
@@ -119,6 +158,7 @@ export async function requestService(jobId: string, input: ServiceRequest): Prom
       details,
       replyTo: email,
       photoFailed,
+      fromAcknowledgement,
     }).catch(console.error);
   });
 

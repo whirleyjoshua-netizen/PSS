@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { renderToStaticMarkup } from "react-dom/server";
 
 const requireCustomer = vi.fn();
@@ -15,8 +15,14 @@ vi.mock("@/lib/admin/measurements", () => ({
   describe: (w: { room: string; label: string | null }) => (w.label ? `${w.room}, ${w.label}` : w.room),
 }));
 
-// The action is the form's only server dependency; the page test does not exercise it.
-vi.mock("@/app/(site)/project/actions", () => ({ requestServiceAction: vi.fn() }));
+/**
+ * The two actions are the form's only server dependency. They are held as named mocks so the
+ * form can be asked WHICH of them it posts to — the one thing that decides whether a request
+ * mutes the owners' review email, and the only part of that wiring not settled server-side.
+ */
+const requestServiceAction = vi.fn(async () => ({ status: "idle" }) as unknown);
+const acknowledgeProblemAction = vi.fn(async () => ({ status: "idle" }) as unknown);
+vi.mock("@/app/(site)/project/actions", () => ({ requestServiceAction, acknowledgeProblemAction }));
 
 const ServicePage = (await import("@/app/(site)/project/[jobId]/service/page")).default;
 const { ServiceForm } = await import("@/app/(site)/project/[jobId]/service/ServiceForm");
@@ -25,7 +31,11 @@ const MINE = "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c";
 const THEIRS = "9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d";
 const WINDOW = "1b2c3d4e-5f60-4a71-8b92-0c1d2e3f4a5b";
 const job = (over: Record<string, unknown> = {}) => ({ id: MINE, status: "installed", ...over });
-const open = (jobId = MINE) => ServicePage({ params: Promise.resolve({ jobId }) });
+const open = (jobId = MINE, from?: string | string[]) =>
+  ServicePage({
+    params: Promise.resolve({ jobId }),
+    searchParams: Promise.resolve(from === undefined ? {} : { from }),
+  });
 
 beforeEach(() => {
   requireCustomer.mockReset().mockResolvedValue({ email: "maria@example.com", jobs: [job()] });
@@ -48,6 +58,44 @@ describe("/project/[jobId]/service", () => {
   it.each(["quoted", "sold", "ordered"] as const)("is missing while the job is only %s", async (status) => {
     requireCustomer.mockResolvedValue({ email: "maria@example.com", jobs: [job({ status })] });
     await expect(open()).rejects.toThrow("NEXT_NOT_FOUND");
+  });
+
+  /**
+   * The acknowledgement marker. Without these, the page could stop reading `?from=` entirely
+   * and every other test would still pass — the customer would land on the ordinary form, the
+   * review email would never be muted, and nothing would say so.
+   */
+  describe("arriving from an installation acknowledgement", () => {
+    const SORRY = /we are sorry it is not right/i;
+
+    it("answers a customer who said something is not right in those terms", async () => {
+      render(await open(MINE, "acknowledgement"));
+      expect(screen.getByText(SORRY)).toBeInTheDocument();
+    });
+
+    it("is the ordinary form on an ordinary visit", async () => {
+      render(await open());
+      expect(screen.queryByText(SORRY)).toBeNull();
+    });
+
+    /** The marker is matched against one known value, never interpreted. */
+    it("ignores any other value a browser might send", async () => {
+      for (const from of ["1", "true", "completed", "Acknowledgement", ""]) {
+        const { unmount } = render(await open(MINE, from));
+        expect(screen.queryByText(SORRY)).toBeNull();
+        unmount();
+      }
+    });
+
+    /** The marker never chooses a status: it cannot open the page for a job that is not installed. */
+    it("still refuses a job that is not installed, marker or no marker", async () => {
+      requireCustomer.mockResolvedValue({ email: "maria@example.com", jobs: [job({ status: "quoted" })] });
+      await expect(open(MINE, "acknowledgement")).rejects.toThrow("NEXT_NOT_FOUND");
+    });
+
+    it("still refuses a job the customer does not own", async () => {
+      await expect(open(THEIRS, "acknowledgement")).rejects.toThrow("NEXT_NOT_FOUND");
+    });
   });
 
   it("lists the windows the owners measured, in their own words", async () => {
@@ -104,6 +152,39 @@ describe("ServiceForm", () => {
     render(<ServiceForm jobId={MINE} windows={[]} />);
     expect(screen.getAllByRole("combobox")).toHaveLength(1);
     expect(screen.getByText("Tell us which window or room.")).toBeInTheDocument();
+  });
+
+  /**
+   * Which action the form posts to IS the provenance mechanism: there is no field in the post
+   * that says where the request came from, by design. Without these two, the form could send an
+   * acknowledged fault to the ordinary action and the customer who just told us the install is
+   * wrong would still be asked for a public review — with every other test still green.
+   */
+  describe("which action it posts to", () => {
+    const submit = () => {
+      render(<ServiceForm jobId={MINE} windows={windows} fromAcknowledgement={FROM_ACK} />);
+      fireEvent.submit(document.querySelector("form") as HTMLFormElement);
+    };
+    let FROM_ACK = false;
+
+    beforeEach(() => {
+      requestServiceAction.mockClear();
+      acknowledgeProblemAction.mockClear();
+    });
+
+    it("sends an ordinary request to the plain action, which mutes nothing", async () => {
+      FROM_ACK = false;
+      submit();
+      await waitFor(() => expect(requestServiceAction).toHaveBeenCalled());
+      expect(acknowledgeProblemAction).not.toHaveBeenCalled();
+    });
+
+    it("sends an acknowledged fault to the muting action", async () => {
+      FROM_ACK = true;
+      submit();
+      await waitFor(() => expect(acknowledgeProblemAction).toHaveBeenCalled());
+      expect(requestServiceAction).not.toHaveBeenCalled();
+    });
   });
 
   it("states the photo size limit in the copy", () => {
