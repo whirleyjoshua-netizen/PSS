@@ -183,11 +183,20 @@ export async function getEvents(id: string): Promise<JobEvent[]> {
   }));
 }
 
-/** One statement, so the stage and its log entry are saved together or not at all. */
-export async function setStage(id: string, to: Stage, actor: string, reason?: string): Promise<boolean> {
+/**
+ * One statement, so the stage and its log entry are saved together or not at all.
+ *
+ * `reason` is Lost's own thing: it writes the lost_reason column on leads, and is echoed as the
+ * event body, only for a move to lost. `body` is the sentence for any other move — "Approved
+ * 'Quote - Living room.pdf' from their project page" — and never touches lost_reason.
+ */
+export async function setStage(
+  id: string, to: Stage, actor: string, reason?: string, body?: string,
+): Promise<boolean> {
   if (!isStage(to)) throw new Error(`Unknown stage: ${String(to)}`);
   if (!isUuid(id)) return false;
   const lostReason = to === "lost" ? (reason ?? null) : null;
+  const eventBody = to === "lost" ? lostReason : (body ?? null);
   const clearFollowUp = to === "lost";
   const rows = await db()`
     with prev as (select status from leads where id = ${id}),
@@ -200,7 +209,7 @@ export async function setStage(id: string, to: Stage, actor: string, reason?: st
       returning id
     )
     insert into job_events (lead_id, actor, kind, from_status, to_status, body)
-    select ${id}, ${actor}, 'stage', prev.status, ${to}, ${lostReason} from prev, moved
+    select ${id}, ${actor}, 'stage', prev.status, ${to}, ${eventBody} from prev, moved
     returning id`;
   return rows.length > 0;
 }

@@ -72,6 +72,48 @@ describe("changing jobs", () => {
     expect(sql.mock.calls[0]).toContain("Went with a cheaper quote");
   });
 
+  it("writes the body it is given for a non-lost move", async () => {
+    sql.mockResolvedValue([{ id: ID }]);
+    await jobs.setStage(ID, "sold", "john@example.com", undefined, 'Approved "Quote - Living room.pdf" from their project page');
+    expect(sql).toHaveBeenCalledOnce();
+    expect(sql.mock.calls[0]).toEqual(expect.arrayContaining([
+      'Approved "Quote - Living room.pdf" from their project page', "john@example.com", "sold",
+    ]));
+    const statement = text(sql.mock.calls[0]);
+    expect(statement).toContain("insert into job_events");
+    expect(statement).toContain("update leads");
+  });
+
+  it("does not leak a non-lost body into lost_reason", async () => {
+    sql.mockResolvedValue([{ id: ID }]);
+    await jobs.setStage(ID, "sold", "john@example.com", undefined, "Approved from their project page");
+    const [strings, ...values] = sql.mock.calls[0] as [TemplateStringsArray, ...unknown[]];
+    // lost_reason is the only value bound immediately after "lost_reason = ".
+    const slot = strings.findIndex((chunk) => /lost_reason\s*=\s*$/.test(chunk));
+    expect(slot).toBeGreaterThanOrEqual(0);
+    expect(values[slot]).toBeNull();
+    // The sentence is bound exactly once — as the event body, nowhere else.
+    expect(values.filter((v) => v === "Approved from their project page")).toHaveLength(1);
+  });
+
+  it("still writes lost_reason, and the same text as the body, for a move to lost", async () => {
+    sql.mockResolvedValue([{ id: ID }]);
+    await jobs.setStage(ID, "lost", "owner@example.com", "Went with a cheaper quote");
+    const [strings, ...values] = sql.mock.calls[0] as [TemplateStringsArray, ...unknown[]];
+    const slot = strings.findIndex((chunk) => /lost_reason\s*=\s*$/.test(chunk));
+    expect(values[slot]).toBe("Went with a cheaper quote");
+    expect(values[values.length - 1]).toBe("Went with a cheaper quote");
+  });
+
+  it("leaves an existing caller with no body unchanged: no body, no lost_reason", async () => {
+    sql.mockResolvedValue([{ id: ID }]);
+    await jobs.setStage(ID, "sold", "owner@example.com");
+    const [strings, ...values] = sql.mock.calls[0] as [TemplateStringsArray, ...unknown[]];
+    const slot = strings.findIndex((chunk) => /lost_reason\s*=\s*$/.test(chunk));
+    expect(values[slot]).toBeNull();
+    expect(values[values.length - 1]).toBeNull();
+  });
+
   it("clears the follow-up when moving to lost", async () => {
     sql.mockResolvedValue([{ id: ID }]);
     await jobs.setStage(ID, "lost", "owner@example.com", "Went with a cheaper quote");
