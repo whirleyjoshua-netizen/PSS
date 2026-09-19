@@ -7,7 +7,8 @@ const requireAdmin = vi.fn();
 vi.mock("@/lib/admin/session", () => ({ requireAdmin }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
-const { listSharedDocuments, listSharedPhotos, setDocType, setShared, toFile } = await import("@/lib/admin/files");
+const { deleteFile, listSharedDocuments, listSharedPhotos, setDocType, setShared, toFile } = await import("@/lib/admin/files");
+const { del } = await import("@vercel/blob");
 const actions = await import("@/app/admin/jobs/measure-actions");
 
 const JOB = "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c";
@@ -196,5 +197,113 @@ describe("setFileDocType action", () => {
     sql.mockResolvedValue([{ lead_id: JOB }]);
     await actions.setFileDocType(JOB, FILE, null);
     expect(sql.mock.calls[0]).toContain(null);
+  });
+});
+
+/**
+ * A small model of the two statements that must respect a signature. It does not match the
+ * guard as a string and answer yes or no: it reads the `not exists` clause's predicates out
+ * of the statement and evaluates them against the rows below, so what comes back is the row
+ * set that WHERE would produce. Delete the clause and it lets every file through; widen it
+ * (drop its inner where) and it refuses the unsigned file too, because another file on the
+ * job is signed. A predicate it does not recognise throws rather than guessing.
+ */
+describe("a signed contract is frozen", () => {
+  const ORIGINAL = "11111111-1111-4111-8111-111111111111";
+  const STAMPED = "22222222-2222-4222-8222-222222222222";
+  const PLAIN = "33333333-3333-4333-8333-333333333333";
+  const OTHER_SIGNED = "44444444-4444-4444-8444-444444444444";
+
+  type Row = { id: string; lead_id: string; kind: string; name: string; blob_pathname: string; shared: boolean };
+  let files: Row[];
+  const signatures = [
+    { file_id: ORIGINAL, signed_file_id: STAMPED },
+    // A second contract on the job, signed with no stamped copy: a widened guard that no
+    // longer compares ids would refuse PLAIN because this row exists.
+    { file_id: OTHER_SIGNED, signed_file_id: null },
+  ];
+
+  /** The bound value that directly follows the template text ending in `suffix`. */
+  function after(strings: TemplateStringsArray, values: unknown[], suffix: RegExp) {
+    const index = strings.findIndex((part) => suffix.test(part));
+    if (index < 0 || index >= values.length) throw new Error(`no value after ${suffix}`);
+    return values[index];
+  }
+
+  /** Evaluates the statement's `not exists (select 1 from contract_signatures s …)`, if any. */
+  function passesSignatureGuard(text: string, fileId: string) {
+    const clause = /not exists\s*\(\s*select 1 from contract_signatures s\s*(?:where\s+([^()]*?))?\s*\)/.exec(text);
+    if (!clause) return true;
+    if (clause[1] === undefined) return signatures.length === 0;
+    const predicates = clause[1].split(/\s+or\s+/).map((part) => {
+      const match = /^s\.(file_id|signed_file_id) = job_files\.id$/.exec(part.trim());
+      if (!match) throw new Error(`unmodelled predicate: ${part}`);
+      return match[1] as "file_id" | "signed_file_id";
+    });
+    return !signatures.some((sig) => predicates.some((column) => sig[column] === fileId));
+  }
+
+  beforeEach(() => {
+    files = [ORIGINAL, STAMPED, PLAIN, OTHER_SIGNED].map((id) => ({
+      id, lead_id: JOB, kind: "document", name: `${id}.pdf`, blob_pathname: `jobs/${JOB}/${id}.pdf`, shared: true,
+    }));
+    vi.mocked(del).mockReset().mockResolvedValue(undefined as never);
+    sql.mockImplementation(async (strings: TemplateStringsArray, ...values: unknown[]) => {
+      const text = strings.join("?");
+      if (text.includes("update job_files")) {
+        const id = after(strings, values, /where id = $/) as string;
+        const lead = after(strings, values, /and lead_id = $/);
+        const shared = values[0] as boolean;
+        // `(${shared} or not exists …)` lets sharing through; anything else must pass the guard.
+        const bypass = /\(\? or not exists/.test(text) && after(strings, values, /\($/) === true;
+        const row = files.find((f) => f.id === id && f.lead_id === lead && ["photo", "document"].includes(f.kind));
+        if (!row || (!bypass && !passesSignatureGuard(text, id))) return [];
+        row.shared = shared;
+        return [{ lead_id: row.lead_id }];
+      }
+      if (text.includes("delete from job_files")) {
+        const id = after(strings, values, /where id = $/) as string;
+        const row = files.find((f) => f.id === id);
+        if (!row || !passesSignatureGuard(text, id)) return [];
+        files = files.filter((f) => f !== row);
+        return [{ blob_pathname: row.blob_pathname }];
+      }
+      throw new Error(`unmodelled statement: ${text}`);
+    });
+  });
+
+  it("refuses to unshare a signed contract or its stamped copy, and leaves both shared", async () => {
+    expect(await setShared(JOB, ORIGINAL, false, "owner@example.com")).toBe(false);
+    expect(await setShared(JOB, STAMPED, false, "owner@example.com")).toBe(false);
+    expect(files.filter((f) => f.id === ORIGINAL || f.id === STAMPED).map((f) => f.shared)).toEqual([true, true]);
+  });
+
+  it("still unshares a file nobody has signed", async () => {
+    expect(await setShared(JOB, PLAIN, false, "owner@example.com")).toBe(true);
+    expect(files.find((f) => f.id === PLAIN)?.shared).toBe(false);
+  });
+
+  it("still lets a signed contract be shared, which changes nothing", async () => {
+    expect(await setShared(JOB, ORIGINAL, true, "owner@example.com")).toBe(true);
+    expect(await setShared(JOB, STAMPED, true, "owner@example.com")).toBe(true);
+  });
+
+  it("refuses to delete a signed contract or its stamped copy, and keeps their bytes", async () => {
+    expect(await deleteFile(ORIGINAL, "owner@example.com")).toBe(false);
+    expect(await deleteFile(STAMPED, "owner@example.com")).toBe(false);
+    expect(files.map((f) => f.id)).toEqual(expect.arrayContaining([ORIGINAL, STAMPED]));
+    expect(del).not.toHaveBeenCalled();
+  });
+
+  it("still deletes a file nobody has signed, bytes and all", async () => {
+    expect(await deleteFile(PLAIN, "owner@example.com")).toBe(true);
+    expect(files.map((f) => f.id)).not.toContain(PLAIN);
+    expect(del).toHaveBeenCalledWith(`jobs/${JOB}/${PLAIN}.pdf`);
+  });
+
+  it("carries the clause in both statements (a tripwire beside the tests above, not a proof)", async () => {
+    await setShared(JOB, PLAIN, false, "owner@example.com");
+    await deleteFile(PLAIN, "owner@example.com");
+    for (const call of sql.mock.calls) expect(text(call)).toContain("from contract_signatures s");
   });
 });

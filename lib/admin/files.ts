@@ -106,12 +106,24 @@ export async function createFile(input: {
   }
 }
 
-/** Removes the row and its event together, then the stored bytes. */
+/**
+ * Removes the row and its event together, then the stored bytes.
+ *
+ * A signed contract, and the stamped copy made from it, are frozen: the `not exists` clause
+ * makes the database refuse them, and the blob is only deleted after a row was removed, so a
+ * refusal leaves the bytes where they are. Returns false for a refusal, as for a missing file.
+ */
 export async function deleteFile(fileId: string, actor: string): Promise<boolean> {
   if (!UUID.test(fileId)) return false;
   const rows = await db()`
     with removed as (
-      delete from job_files where id = ${fileId} returning lead_id, name, blob_pathname
+      delete from job_files
+      where id = ${fileId}
+        and not exists (
+          select 1 from contract_signatures s
+          where s.file_id = job_files.id or s.signed_file_id = job_files.id
+        )
+      returning lead_id, name, blob_pathname
     ),
     logged as (
       insert into job_events (lead_id, actor, kind, body)
@@ -144,6 +156,10 @@ export async function readFile(file: JobFile) {
  * that calls this function against a real Neon branch with a mismatched pair and
  * a positive control. Nothing runs that script for you. If you change this
  * guard, run it, and if you cannot, call the guard unverified.
+ *
+ * A signed contract and its stamped copy cannot be unshared: when `shared` is false the
+ * `not exists` clause matches nothing for a file named by any contract_signatures row, and
+ * this returns false. Sharing one again is allowed; it is a no-op on a file already shared.
  */
 export async function setShared(jobId: string, fileId: string, shared: boolean, actor: string): Promise<boolean> {
   if (!UUID.test(jobId) || !UUID.test(fileId)) return false;
@@ -152,6 +168,10 @@ export async function setShared(jobId: string, fileId: string, shared: boolean, 
       update job_files
       set shared_at = case when ${shared} then coalesce(shared_at, now()) else null end
       where id = ${fileId} and lead_id = ${jobId} and kind in ('photo','document')
+        and (${shared} or not exists (
+          select 1 from contract_signatures s
+          where s.file_id = job_files.id or s.signed_file_id = job_files.id
+        ))
       returning lead_id, name
     )
     insert into job_events (lead_id, actor, kind, body)
