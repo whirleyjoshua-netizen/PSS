@@ -1,6 +1,6 @@
 import path from "node:path";
 import { readFileSync } from "node:fs";
-import { test, expect, type Browser, type Page } from "@playwright/test";
+import { test, expect, type Browser, type Locator, type Page } from "@playwright/test";
 import { neon } from "@neondatabase/serverless";
 import { createHash, randomBytes } from "node:crypto";
 
@@ -33,6 +33,12 @@ const FAULT_CUSTOMER = `e2e-customer-fault-${STAMP}@example.com`;
 // job must not move because of it.
 const APPROVER_CUSTOMER = `e2e-customer-approver-${STAMP}@example.com`;
 const BYSTANDER_CUSTOMER = `e2e-customer-bystander-${STAMP}@example.com`;
+// Signing a contract: one email per job, for the same reason as above.
+const SIGNER_CUSTOMER = `e2e-customer-signer-${STAMP}@example.com`;
+const OUTPUT_CUSTOMER = `e2e-customer-output-${STAMP}@example.com`;
+const FROZEN_CUSTOMER = `e2e-customer-frozen-${STAMP}@example.com`;
+const SIGN_ATTACKER = `e2e-customer-sign-attacker-${STAMP}@example.com`;
+const SIGN_BYSTANDER = `e2e-customer-sign-bystander-${STAMP}@example.com`;
 
 const hash = (token: string) => createHash("sha256").update(token).digest("hex");
 const PDF = path.join(__dirname, "fixtures", "quote.pdf");
@@ -145,6 +151,8 @@ test.beforeAll(async () => {
 
 test.afterAll(async () => {
   if (!url) return;
+  // A signature references its files, so it goes before them.
+  await sql()`delete from contract_signatures where lead_id in (select id from leads where name like 'E2E Portal %')`;
   await sql()`delete from job_files where lead_id in (select id from leads where name like 'E2E Portal %')`;
   await sql()`delete from job_events where lead_id in (select id from leads where name like 'E2E Portal %')`;
   // A service request creates a child job that points back at its parent with a foreign key, and
@@ -886,6 +894,260 @@ test("a customer approving cannot move another customer's job", async ({ browser
   // Still nothing on the bystander's job, after a real approval has demonstrably worked.
   const [untouched] = await sql()`select status from leads where id = ${bystanderId}`;
   expect(untouched.status).toBe("quoted");
+});
+
+/**
+ * Uploads a PDF, labels it Contract and shares it, through the owner's own controls. Signing
+ * fingerprints the bytes actually stored, so every contract below needs a real blob: a row-only
+ * fixture would make recordSignature answer not-found for its own reasons, and a refusal could
+ * then go green without the guard under test ever deciding anything.
+ */
+async function shareContract(page: Page, jobId: string, fileName: string): Promise<string> {
+  const fileId = await uploadDocument(page, jobId, fileName);
+  await page.getByLabel(`Document type for ${fileName}`).selectOption("contract");
+  await expect.poll(async () => {
+    const [row] = await sql()`select doc_type from job_files where id = ${fileId}`;
+    return row.doc_type;
+  }).toBe("contract");
+  const share = page.getByRole("switch", { name: `Share ${fileName} with customer` });
+  await share.click();
+  await expect(share).toHaveAttribute("aria-checked", "true");
+  return fileId;
+}
+
+/**
+ * The one form that signs `fileName`. Scoped by the contract's own link, so a page carrying
+ * several contracts (and several hidden jobId/fileId fields) never aims at the wrong one.
+ */
+function signForm(page: Page, fileName: string) {
+  const details = page.locator("details", { has: page.getByRole("link", { name: fileName }) });
+  return { details, form: details.locator("form", { has: page.getByLabel("Your full name") }) };
+}
+
+/** Opens the contract's form, types a name and ticks the box: what a customer does. */
+async function fillAndSign(page: Page, fileName: string, typedName: string) {
+  const { details, form } = signForm(page, fileName);
+  await details.locator("summary").click();
+  await form.getByLabel("Your full name").fill(typedName);
+  await form.getByLabel("I agree to sign this contract electronically").check();
+  return form;
+}
+
+/** Points one hidden field of ONE form elsewhere — the only edit a forged post makes. */
+async function forge(form: Locator, field: "jobId" | "fileId", value: string) {
+  await form.locator(`input[name="${field}"]`).evaluate(
+    (element, next) => { (element as HTMLInputElement).value = next; },
+    value,
+  );
+}
+
+/** Signing stamps its copy in after(), once the response has gone; wait for it to land. */
+async function stampedCopyOf(fileId: string): Promise<string> {
+  let signedFileId: string | null = null;
+  await expect.poll(async () => {
+    const [row] = await sql()`select signed_file_id from contract_signatures where file_id = ${fileId}`;
+    signedFileId = (row?.signed_file_id as string | null) ?? null;
+    return signedFileId;
+  }, { timeout: 20_000 }).not.toBeNull();
+  return signedFileId!;
+}
+
+test("a customer signs a shared contract and keeps a stamped copy", async ({ page, browser }) => {
+  test.skip(!process.env.E2E_BLOB_READ_WRITE_TOKEN, "Set E2E_BLOB_READ_WRITE_TOKEN to run document tests");
+
+  const id = await lead(`${NAME} Signer`, SIGNER_CUSTOMER, "sold");
+  const fileName = `contract-signer-${STAMP}.pdf`;
+  await signInOwner(page);
+  const fileId = await shareContract(page, id, fileName);
+
+  const customer = await customerPage(browser, SIGNER_CUSTOMER);
+  await customer.goto(`/project/${id}`);
+  await expect(customer.getByRole("heading", { name: "Your contract" })).toBeVisible();
+  const form = await fillAndSign(customer, fileName, "Pat Signer");
+  await form.getByRole("button", { name: "Sign this contract" }).click();
+
+  await expect(customer).toHaveURL(new RegExp(`/project/${id}\\?signed=1&file=${fileId}$`));
+  await expect(customer.getByRole("status")).toContainText("Thank you — your contract was signed on");
+  // Nothing left to sign: the form is gone, and so is its section.
+  await expect(customer.getByLabel("Your full name")).toHaveCount(0);
+  await expect(customer.getByRole("heading", { name: "Your contract" })).toHaveCount(0);
+
+  // The record: one row, the session's email (never anything the form sent), a fingerprint of
+  // the served bytes, and the stamped copy linked to it.
+  const rows = await sql()`select lead_id, signed_name, signed_email, doc_sha256
+    from contract_signatures where file_id = ${fileId}`;
+  expect(rows).toHaveLength(1);
+  expect(rows[0].lead_id).toBe(id);
+  expect(rows[0].signed_name).toBe("Pat Signer");
+  expect(rows[0].signed_email).toBe(SIGNER_CUSTOMER);
+  expect(rows[0].doc_sha256).toMatch(/^[0-9a-f]{64}$/);
+  const signedFileId = await stampedCopyOf(fileId);
+
+  // The stamped copy is the customer's to download — the PDF, not a sign-in page wearing a 200.
+  expectFile(await download(customer, `/project/files/${signedFileId}`), "application/pdf");
+
+  // The owners' timeline names the document, never the typed name.
+  await page.goto(`/admin/jobs/${id}?tab=activity`);
+  await expect(page.getByText(`Signed "${fileName}" from their project page`)).toBeVisible();
+  const events = await sql()`select actor, body from job_events where lead_id = ${id} and kind = 'signature'`;
+  expect(events).toEqual([{ actor: SIGNER_CUSTOMER, body: `Signed "${fileName}" from their project page` }]);
+});
+
+test("a signature output is never offered for signing, and a post naming it is refused", async ({ page, browser }) => {
+  test.skip(!process.env.E2E_BLOB_READ_WRITE_TOKEN, "Set E2E_BLOB_READ_WRITE_TOKEN to run document tests");
+
+  const id = await lead(`${NAME} Signer Output`, OUTPUT_CUSTOMER, "sold");
+  const first = `contract-output-a-${STAMP}.pdf`;
+  const second = `contract-output-b-${STAMP}.pdf`;
+  await signInOwner(page);
+  const firstId = await shareContract(page, id, first);
+  const secondId = await shareContract(page, id, second);
+
+  const customer = await customerPage(browser, OUTPUT_CUSTOMER);
+  await customer.goto(`/project/${id}`);
+  const sign = await fillAndSign(customer, first, "Pat Output");
+  await sign.getByRole("button", { name: "Sign this contract" }).click();
+  await expect(customer).toHaveURL(new RegExp(`\\?signed=1&file=${firstId}$`));
+  const stampedId = await stampedCopyOf(firstId);
+
+  // The stamped copy is itself a shared contract, and so is the unsigned second one — yet exactly
+  // one form renders, and it is the second contract's.
+  const [stamped] = await sql()`select shared_at, doc_type from job_files where id = ${stampedId}`;
+  expect(stamped.shared_at).not.toBeNull();
+  expect(stamped.doc_type).toBe("contract");
+  await customer.goto(`/project/${id}`);
+  await expect(customer.getByLabel("Your full name")).toHaveCount(1);
+  await expect(signForm(customer, second).form).toHaveCount(1);
+
+  // The forgery: the second contract's own genuine form, its fileId pointed at the stamped copy.
+  const form = await fillAndSign(customer, second, "Pat Output");
+  await forge(form, "fileId", stampedId);
+  await form.getByRole("button", { name: "Sign this contract" }).click();
+  // The action ran and refused: the redirect carries the posted id back, answered no.
+  await expect(customer).toHaveURL(new RegExp(`/project/${id}\\?signed=no&file=${stampedId}$`));
+  await expect(customer.getByRole("status")).toContainText("We could not record that signature just now.");
+
+  // Nothing was written: no signature on the copy, and the second contract is still unsigned.
+  expect(await sql()`select id from contract_signatures where file_id = ${stampedId}`).toHaveLength(0);
+  expect(await sql()`select id from contract_signatures where file_id = ${secondId}`).toHaveLength(0);
+  expect(await sql()`select id from contract_signatures where lead_id = ${id}`).toHaveLength(1);
+  await expect(signForm(customer, second).form).toHaveCount(1);
+});
+
+/**
+ * The owners' controls disappear from a signed contract, so the refusal underneath can only be
+ * reached from a page loaded BEFORE the signature: its forms still carry the framework's own,
+ * genuine unshare and delete actions for that file. Each stale tab posts one of them after the
+ * customer signs, and the database must refuse both.
+ */
+test("a signed contract is frozen: unsharing and deleting it both fail", async ({ page, browser }) => {
+  test.skip(!process.env.E2E_BLOB_READ_WRITE_TOKEN, "Set E2E_BLOB_READ_WRITE_TOKEN to run document tests");
+
+  const id = await lead(`${NAME} Frozen`, FROZEN_CUSTOMER, "sold");
+  const fileName = `contract-frozen-${STAMP}.pdf`;
+  await signInOwner(page);
+  const fileId = await shareContract(page, id, fileName);
+
+  // Two owner tabs, opened while the contract is still unsigned and its controls still render.
+  const staleUnshare = await page.context().newPage();
+  await staleUnshare.goto(`/admin/jobs/${id}?tab=files`);
+  const unshare = staleUnshare.getByRole("switch", { name: `Share ${fileName} with customer` });
+  await expect(unshare).toHaveAttribute("aria-checked", "true");
+  const staleDelete = await page.context().newPage();
+  await staleDelete.goto(`/admin/jobs/${id}?tab=files`);
+  const row = staleDelete.getByRole("listitem").filter({ has: staleDelete.getByRole("link", { name: fileName }) });
+  await expect(row.getByRole("button", { name: "Delete" })).toBeVisible();
+
+  const customer = await customerPage(browser, FROZEN_CUSTOMER);
+  await customer.goto(`/project/${id}`);
+  const form = await fillAndSign(customer, fileName, "Pat Frozen");
+  await form.getByRole("button", { name: "Sign this contract" }).click();
+  await expect(customer).toHaveURL(new RegExp(`\\?signed=1&file=${fileId}$`));
+  const signedFileId = await stampedCopyOf(fileId);
+
+  // Unshare, through the stale tab's genuine action. The action revalidates the page, which then
+  // re-renders without the switch — proof the post reached the server.
+  await unshare.click();
+  await expect(staleUnshare.getByRole("switch", { name: `Share ${fileName} with customer` })).toHaveCount(0);
+
+  // Delete, through the other stale tab: two taps, as an owner does it.
+  await row.getByRole("button", { name: "Delete" }).click();
+  await row.getByRole("button", { name: "Tap again to delete" }).click();
+  await expect(row.getByText("Signed — kept as the record")).toBeVisible();
+
+  // Both refused: the contract and its stamped copy still exist and are still shared.
+  const files = await sql()`select id, shared_at from job_files where id = any(${[fileId, signedFileId]})`;
+  expect(files).toHaveLength(2);
+  for (const file of files) expect(file.shared_at).not.toBeNull();
+
+  // What the owners see now: the record, with no controls on either file.
+  await page.goto(`/admin/jobs/${id}?tab=files`);
+  await expect(page.getByText("Signed — kept as the record")).toHaveCount(2);
+  await expect(page.getByRole("switch", { name: `Share ${fileName} with customer` })).toHaveCount(0);
+
+  // And the customer can still open both.
+  expectFile(await download(customer, `/project/files/${fileId}`), "application/pdf");
+  expectFile(await download(customer, `/project/files/${signedFileId}`), "application/pdf");
+});
+
+/**
+ * THE RELEASE GATE for signing: one customer's session must not be able to sign another
+ * customer's contract.
+ *
+ * The bystander's contract is real — uploaded, labelled, shared, with a blob behind it — so if
+ * the ownership check were weakened nothing else would stop the signature: signableContracts
+ * would list it and recordSignature would fingerprint it. The gate cannot go green because some
+ * other guard happened to refuse. It asserts on database effect, and ends with a positive control
+ * proving the same form in the same session does sign.
+ *
+ * Needs E2E_BLOB_READ_WRITE_TOKEN for that reason. Skipped without it, and a skipped gate proves
+ * nothing: run it before release.
+ */
+test("a customer signing cannot reach another customer's contract", async ({ page, browser }) => {
+  test.skip(!process.env.E2E_BLOB_READ_WRITE_TOKEN, "Set E2E_BLOB_READ_WRITE_TOKEN to run document tests");
+
+  const bystanderId = await lead(`${NAME} Sign Bystander`, SIGN_BYSTANDER, "sold");
+  const attackerId = await lead(`${NAME} Sign Attacker`, SIGN_ATTACKER, "sold");
+  const bystanderName = `contract-bystander-${STAMP}.pdf`;
+  const attackerName = `contract-attacker-${STAMP}.pdf`;
+  await signInOwner(page);
+  const bystanderFileId = await shareContract(page, bystanderId, bystanderName);
+  const attackerFileId = await shareContract(page, attackerId, attackerName);
+  const eventsBefore = await sql()`select id from job_events where lead_id = ${bystanderId}`;
+
+  const attacker = await customerPage(browser, SIGN_ATTACKER);
+  await attacker.goto(`/project/${attackerId}`);
+  const form = await fillAndSign(attacker, attackerName, "Mallory");
+  // The one edit: both hidden fields, in THIS form, now name the bystander's job and contract.
+  // Everything else is genuine, so this is the framework's own dispatch reaching the real action.
+  await forge(form, "jobId", bystanderId);
+  await forge(form, "fileId", bystanderFileId);
+  await form.getByRole("button", { name: "Sign this contract" }).click();
+  // The action ran: its redirect carries the posted ids back, answered no.
+  await expect(attacker).toHaveURL(new RegExp(`/project/${bystanderId}\\?signed=no&file=${bystanderFileId}$`));
+
+  // THE GATE: no signature on the bystander's contract or job, and no timeline row.
+  expect(await sql()`select id from contract_signatures where file_id = ${bystanderFileId}`).toHaveLength(0);
+  expect(await sql()`select id from contract_signatures where lead_id = ${bystanderId}`).toHaveLength(0);
+  expect(await sql()`select id from job_events where lead_id = ${bystanderId}`).toHaveLength(eventsBefore.length);
+  // Nor recorded against the attacker's own job instead.
+  expect(await sql()`select id from contract_signatures where lead_id = ${attackerId}`).toHaveLength(0);
+
+  // The bystander still has their contract to sign.
+  const bystander = await customerPage(browser, SIGN_BYSTANDER);
+  await bystander.goto(`/project/${bystanderId}`);
+  await expect(signForm(bystander, bystanderName).form).toHaveCount(1);
+
+  // THE POSITIVE CONTROL. Same form, same session, ids left alone: it must sign. If this fails,
+  // every refusal above proved nothing about the ownership check.
+  await attacker.goto(`/project/${attackerId}`);
+  const own = await fillAndSign(attacker, attackerName, "Mallory");
+  await own.getByRole("button", { name: "Sign this contract" }).click();
+  await expect(attacker).toHaveURL(new RegExp(`/project/${attackerId}\\?signed=1&file=${attackerFileId}$`));
+  const signed = await sql()`select lead_id, signed_email from contract_signatures where file_id = ${attackerFileId}`;
+  expect(signed).toEqual([{ lead_id: attackerId, signed_email: SIGN_ATTACKER }]);
+  // Still nothing on the bystander's, after a real signature has demonstrably worked.
+  expect(await sql()`select id from contract_signatures where lead_id = ${bystanderId}`).toHaveLength(0);
 });
 
 test("a lost job locks the customer out", async ({ browser }) => {
