@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { after } from "next/server";
 import { listSharedDocuments, readFile } from "@/lib/admin/files";
-import { setStage } from "@/lib/admin/jobs";
+import { isUuid, setStage } from "@/lib/admin/jobs";
 import { isInstalled } from "@/lib/admin/stages";
 import { approveQuote, type ApproveResult } from "@/lib/portal/approve";
 import { sendMessage, type MessageResult } from "@/lib/portal/messages";
@@ -267,6 +267,8 @@ export async function signContractAction(
     // A repeat post of a contract this job has already signed: the file has left the signable
     // list, but the honest answer is still "signed". Nothing runs again. The signature's own
     // lead_id must be this job's, so another job's file id is refused as a missing one is.
+    // file_id is a uuid column: a forged non-uuid would make Postgres throw, not answer.
+    if (!isUuid(fileId)) return "not-found";
     const existing = await signatureFor(fileId);
     return existing && existing.leadId === job.id ? "signed" : "not-found";
   }

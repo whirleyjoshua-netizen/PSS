@@ -122,6 +122,13 @@ describe("signContractAction ownership", () => {
 });
 
 describe("signContractAction repeats", () => {
+  it("refuses a non-uuid file id without querying for a signature", async () => {
+    signableContracts.mockResolvedValue([]);
+    expect(await signContractAction(MINE, "a-quote-id", "Jane Doe", true)).toBe("not-found");
+    expect(signatureFor).not.toHaveBeenCalled();
+    expect(recordSignature).not.toHaveBeenCalled();
+  });
+
   it("answers a repeat post of this job's signed contract with success, and runs nothing", async () => {
     signableContracts.mockResolvedValue([]);
     expect(await signContractAction(MINE, FILE, "Jane Doe", true)).toBe("signed");
