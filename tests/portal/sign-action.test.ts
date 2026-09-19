@@ -62,7 +62,7 @@ const SIGNED_AT = new Date("2026-09-18T17:00:00Z");
 const job = { id: MINE, name: "John Ramos", projectNo: 1048, status: "sold" };
 const contract = { id: FILE, name: "Contract - Living room.pdf", docType: "contract", leadId: MINE };
 const signature = {
-  signedName: "Jane Doe", signedEmail: EMAIL, signedAt: SIGNED_AT, docSha256: "abc", fileId: FILE,
+  signedName: "Jane Doe", signedEmail: EMAIL, signedAt: SIGNED_AT, docSha256: "abc", fileId: FILE, leadId: MINE,
 };
 const STAMPED = Buffer.from("stamped");
 
@@ -103,12 +103,14 @@ describe("signContractAction ownership", () => {
 
   it("refuses a file that is not a signable contract on this job", async () => {
     signableContracts.mockResolvedValue([]);
+    signatureFor.mockResolvedValue(null);
     expect(await signContractAction(MINE, FILE, "Jane Doe", true)).toBe("not-found");
     expect(signableContracts).toHaveBeenCalledWith(MINE);
     expect(recordSignature).not.toHaveBeenCalled();
   });
 
   it("refuses a posted id that is not in the list, even when the list is not empty", async () => {
+    signatureFor.mockResolvedValue(null);
     expect(await signContractAction(MINE, "a-quote-id", "Jane Doe", true)).toBe("not-found");
     expect(recordSignature).not.toHaveBeenCalled();
   });
@@ -116,6 +118,33 @@ describe("signContractAction ownership", () => {
   it("refuses when the box is not ticked", async () => {
     expect(await signContractAction(MINE, FILE, "Jane Doe", false)).toBe("invalid");
     expect(recordSignature).not.toHaveBeenCalled();
+  });
+});
+
+describe("signContractAction repeats", () => {
+  it("answers a repeat post of this job's signed contract with success, and runs nothing", async () => {
+    signableContracts.mockResolvedValue([]);
+    expect(await signContractAction(MINE, FILE, "Jane Doe", true)).toBe("signed");
+    expect(signatureFor).toHaveBeenCalledWith(FILE);
+    expect(recordSignature).not.toHaveBeenCalled();
+    expect(pending).toHaveLength(0);
+  });
+
+  it("refuses another job's signed file exactly as a missing one", async () => {
+    signableContracts.mockResolvedValue([]);
+    signatureFor.mockResolvedValue({ ...signature, leadId: THEIRS });
+    expect(await signContractAction(MINE, FILE, "Jane Doe", true)).toBe("not-found");
+    expect(pending).toHaveLength(0);
+  });
+
+  it("tells a raced second post it signed, but emails and stamps nothing", async () => {
+    recordSignature.mockResolvedValue("already-signed");
+    expect(await signContractAction(MINE, FILE, "Jane Doe", true)).toBe("signed");
+    expect(pending).toHaveLength(0);
+    await runAfter();
+    expect(notifyOwnersOfSignature).not.toHaveBeenCalled();
+    expect(sendCustomerSignedCopy).not.toHaveBeenCalled();
+    expect(storeSignedCopy).not.toHaveBeenCalled();
   });
 });
 
@@ -129,7 +158,7 @@ describe("signContractAction recording", () => {
     form.set("signedName", "Jane Doe");
     form.set("agreed", "on");
     form.set("email", "attacker@example.com");
-    await expect(signContractFormAction(form)).rejects.toThrow(`NEXT_REDIRECT /project/${MINE}?signed=1`);
+    await expect(signContractFormAction(form)).rejects.toThrow(`NEXT_REDIRECT /project/${MINE}?signed=1&file=${FILE}`);
     expect(recordSignature).toHaveBeenCalledWith({
       jobId: MINE, file: contract, name: "Jane Doe", email: EMAIL, ip: "203.0.113.9", userAgent: "TestBrowser/1",
     });
@@ -140,7 +169,7 @@ describe("signContractAction recording", () => {
     form.set("jobId", MINE);
     form.set("fileId", FILE);
     form.set("signedName", "Jane Doe");
-    await expect(signContractFormAction(form)).rejects.toThrow(`NEXT_REDIRECT /project/${MINE}?signed=no`);
+    await expect(signContractFormAction(form)).rejects.toThrow(`NEXT_REDIRECT /project/${MINE}?signed=no&file=${FILE}`);
     expect(recordSignature).not.toHaveBeenCalled();
   });
 

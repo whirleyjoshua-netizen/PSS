@@ -117,7 +117,7 @@ describe("recordSignature", () => {
     expect(readFile).not.toHaveBeenCalled();
   });
 
-  it("answers a repeat submission with the same success and writes nothing twice", async () => {
+  it("tells the caller a repeat submission wrote nothing, so it emails nobody", async () => {
     vi.mocked(readFile).mockResolvedValue({
       stream: new Response(bytes).body!, contentType: "application/pdf",
     });
@@ -125,7 +125,7 @@ describe("recordSignature", () => {
     const result = await recordSignature({
       jobId: JOB, file, name: "Jane Doe", email: "jane@example.com", ip: null, userAgent: null,
     });
-    expect(result).toBe("signed");
+    expect(result).toBe("already-signed");
     expect(query).toHaveBeenCalledTimes(1);
   });
 

@@ -263,7 +263,13 @@ export async function signContractAction(
 
   const contracts = await signableContracts(job.id);
   const file = contracts.find((candidate) => candidate.id === fileId);
-  if (!file) return "not-found";
+  if (!file) {
+    // A repeat post of a contract this job has already signed: the file has left the signable
+    // list, but the honest answer is still "signed". Nothing runs again. The signature's own
+    // lead_id must be this job's, so another job's file id is refused as a missing one is.
+    const existing = await signatureFor(fileId);
+    return existing && existing.leadId === job.id ? "signed" : "not-found";
+  }
 
   const headerList = await headers();
   const result = await recordSignature({
@@ -274,6 +280,9 @@ export async function signContractAction(
     ip: headerList.get("x-forwarded-for")?.split(",")[0]?.trim() || null,
     userAgent: headerList.get("user-agent"),
   });
+  // A raced second post: the first one's insert won and will send everything. This one wrote
+  // nothing, so it emails nobody, but the contract is signed and the customer is told so.
+  if (result === "already-signed") return "signed";
   if (result !== "signed") return result;
 
   after(async () => {
@@ -316,14 +325,18 @@ export async function signContractAction(
  */
 export async function signContractFormAction(formData: FormData): Promise<void> {
   const jobId = text(formData.get("jobId"));
+  const fileId = text(formData.get("fileId"));
   const result = await signContractAction(
     jobId,
-    text(formData.get("fileId")),
+    fileId,
     text(formData.get("signedName")),
     formData.get("agreed") === "on",
   );
   // Outside any try/catch: redirect() works by throwing.
-  redirect(`/project/${encodeURIComponent(jobId)}?signed=${result === "signed" ? "1" : "no"}`);
+  // The file rides along so the notice can look up THAT contract's signature, not the job's latest.
+  redirect(
+    `/project/${encodeURIComponent(jobId)}?signed=${result === "signed" ? "1" : "no"}&file=${encodeURIComponent(fileId)}`,
+  );
 }
 
 /** What acknowledging can answer. Every refusal is a plain outcome, never an exception. */

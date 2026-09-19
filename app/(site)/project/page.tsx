@@ -27,7 +27,7 @@ import { ProjectView } from "./ProjectView";
 export default async function ProjectHome({
   searchParams,
 }: {
-  searchParams?: Promise<{ requested?: string; approved?: string; acknowledged?: string; signed?: string }>;
+  searchParams?: Promise<{ requested?: string; approved?: string; acknowledged?: string; signed?: string; file?: string }>;
 } = {}) {
   const { jobs } = await requireCustomer();
   // A customer with one job lands here after a service request, an approval or an installation
@@ -42,6 +42,7 @@ export default async function ProjectHome({
         justApproved={params.approved ?? null}
         justAcknowledged={params.acknowledged ?? null}
         justSigned={params.signed ?? null}
+        justSignedFile={params.file ?? null}
       />
     );
   }

@@ -7,6 +7,13 @@ import { db } from "@/lib/db";
 /** What signing can answer. Every refusal is a plain outcome, never an exception. */
 export type SignResult = "signed" | "not-found" | "invalid";
 
+/**
+ * What recordSignature answers. "already-signed" is internal: the insert hit the unique file_id
+ * and wrote nothing, so the caller must not email or stamp again. The customer is still told
+ * "signed", because the contract is.
+ */
+export type RecordResult = SignResult | "already-signed";
+
 export type Signature = {
   id: string;
   leadId: string;
@@ -76,7 +83,7 @@ export async function recordSignature(input: {
   email: string;
   ip: string | null;
   userAgent: string | null;
-}): Promise<SignResult> {
+}): Promise<RecordResult> {
   const name = input.name.trim();
   if (!name) return "invalid";
 
@@ -87,7 +94,7 @@ export async function recordSignature(input: {
 
   // One statement, so the signature and its timeline row cannot come apart. `on conflict do
   // nothing` is what makes a second submission a no-op rather than a second signature.
-  await db()`
+  const inserted = await db()`
     with signed as (
       insert into contract_signatures
         (id, lead_id, file_id, signed_name, signed_email, ip, user_agent, doc_sha256)
@@ -102,7 +109,7 @@ export async function recordSignature(input: {
              ${`Signed "${input.file.name}" from their project page`} from signed
     )
     select * from signed`;
-  return "signed";
+  return inserted.length > 0 ? "signed" : "already-signed";
 }
 
 /**

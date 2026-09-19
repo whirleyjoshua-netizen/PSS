@@ -41,6 +41,7 @@ export async function ProjectView({
   justApproved,
   justAcknowledged,
   justSigned,
+  justSignedFile,
 }: {
   job: Job;
   /** Set only on the hop back from a service request, to name its new project number. */
@@ -60,6 +61,8 @@ export async function ProjectView({
    * SignatureNotice, which checks it against the job's recorded signatures first.
    */
   justSigned?: string | null;
+  /** The `?file=` the signing redirect names. Unvalidated: only a lookup key into this job's signatures. */
+  justSignedFile?: string | null;
 }) {
   // Request-cached, so this costs no extra round trip: the page's own guard already ran it.
   const { email } = await requireCustomer();
@@ -124,8 +127,12 @@ export async function ProjectView({
           beside it now reads Order Confirmed, which is the confirmation's own evidence. */}
       <ApprovalNotice approved={justApproved ?? null} status={project.status} />
       <AcknowledgeNotice acknowledged={justAcknowledged ?? null} status={job.status} />
-      {/* listSignatures is ordered by signed_at, so the last is the most recent. */}
-      <SignatureNotice signed={justSigned ?? null} signature={signatures.at(-1) ?? null} />
+      {/* The notice speaks about the one contract the redirect names, looked up among THIS job's
+          signatures, so another contract's signature can neither confirm nor silence it. */}
+      <SignatureNotice
+        signed={justSigned ?? null}
+        signature={signatures.find((signature) => signature.fileId === justSignedFile) ?? null}
+      />
       {contracts.length > 0 ? (
         <section className="flex flex-col gap-3" aria-labelledby="sign-heading">
           <h2 id="sign-heading" className={heading}>Your contract</h2>

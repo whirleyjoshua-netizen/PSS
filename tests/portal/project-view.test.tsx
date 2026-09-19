@@ -29,7 +29,7 @@ const requireCustomer = vi.fn();
 vi.mock("@/lib/portal/session", () => ({ requireCustomer }));
 // No contracts to sign unless a test says otherwise.
 const signableContracts = vi.fn(async () => [] as { id: string; name: string }[]);
-const listSignatures = vi.fn(async () => [] as { signedAt: Date }[]);
+const listSignatures = vi.fn(async () => [] as { signedAt: Date; fileId: string }[]);
 vi.mock("@/lib/portal/sign", () => ({ signableContracts, listSignatures }));
 
 const { ProjectView } = await import("@/app/(site)/project/ProjectView");
@@ -241,13 +241,26 @@ describe("ProjectView contract signing", () => {
   });
 
   it("confirms a signing only against a recorded signature", async () => {
-    render(await ProjectView({ job, justSigned: "1" }));
+    render(await ProjectView({ job, justSigned: "1", justSignedFile: "c1" }));
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+
+  // Two contracts: A is signed, B was refused. The notice speaks about B, not the job's latest.
+  it("shows the refusal for contract B even though contract A is signed", async () => {
+    listSignatures.mockResolvedValue([{ signedAt: new Date("2026-09-18T17:00:00Z"), fileId: "A" }]);
+    render(await ProjectView({ job, justSigned: "no", justSignedFile: "B" }));
+    expect(screen.getByRole("status")).toHaveTextContent("We could not record that signature just now.");
+  });
+
+  it("thanks nobody for a forged hint on B while only A is signed", async () => {
+    listSignatures.mockResolvedValue([{ signedAt: new Date("2026-09-18T17:00:00Z"), fileId: "A" }]);
+    render(await ProjectView({ job, justSigned: "1", justSignedFile: "B" }));
     expect(screen.queryByRole("status")).toBeNull();
   });
 
   it("confirms a recorded signature on the page they land back on", async () => {
-    listSignatures.mockResolvedValue([{ signedAt: new Date("2026-09-18T17:00:00Z") }]);
-    render(await ProjectView({ job, justSigned: "1" }));
+    listSignatures.mockResolvedValue([{ signedAt: new Date("2026-09-18T17:00:00Z"), fileId: "c1" }]);
+    render(await ProjectView({ job, justSigned: "1", justSignedFile: "c1" }));
     expect(listSignatures).toHaveBeenCalledWith(JOB);
     expect(screen.getByRole("status")).toHaveTextContent("Thank you — your contract was signed on");
   });

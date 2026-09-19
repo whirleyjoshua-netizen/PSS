@@ -8,7 +8,7 @@ export default async function ProjectJobPage({
   searchParams,
 }: {
   params: Promise<{ jobId: string }>;
-  searchParams?: Promise<{ requested?: string; approved?: string; acknowledged?: string; signed?: string }>;
+  searchParams?: Promise<{ requested?: string; approved?: string; acknowledged?: string; signed?: string; file?: string }>;
 }) {
   const { jobs } = await requireCustomer();
   const { jobId } = await params;
@@ -25,6 +25,7 @@ export default async function ProjectJobPage({
       justApproved={query.approved ?? null}
       justAcknowledged={query.acknowledged ?? null}
       justSigned={query.signed ?? null}
+      justSignedFile={query.file ?? null}
     />
   );
 }
