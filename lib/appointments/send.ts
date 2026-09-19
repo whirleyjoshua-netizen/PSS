@@ -4,7 +4,8 @@ import { business } from "@/content/business";
 import type { Job } from "@/lib/admin/jobs";
 import type { Appointment } from "@/lib/admin/appointments";
 import type { AppointmentKind } from "@/lib/admin/appointment-kinds";
-import { emailWindowLine } from "@/lib/routes/window";
+import { clientWindowLabel } from "@/lib/routes/window";
+import { roleLabel, type TeamRole } from "@/lib/admin/team-roles";
 
 /** Las Vegas shares Pacific time, including daylight saving. */
 const ZONE = "America/Los_Angeles";
@@ -44,13 +45,19 @@ const KIND_WORDS: Record<AppointmentKind, string> = {
   service: "service visit",
 };
 
-/** One line saying what actually happens, so the email answers "what is this?" on its own. */
+/** What the assigned person does at each kind of visit, after their first name. */
 const KIND_LINES: Record<AppointmentKind, string> = {
-  consultation: "We'll go over your windows and options, and answer any questions you have.",
-  measure: "We'll take exact measurements so your treatments fit perfectly.",
-  install: "We'll install your window treatments and make sure everything works the way it should.",
-  service: "We'll take care of the issue and make sure everything works the way it should.",
+  consultation: "will take a look at your windows, walk you through the available options, and help you find the right solution for your home.",
+  measure: "will take exact measurements so your treatments fit perfectly.",
+  install: "will install your window treatments and make sure everything works the way it should.",
+  service: "will take care of the issue and make sure everything works the way it should.",
 };
+
+/** The footer shows the site as people type it, without the scheme. */
+const bareDomain = business.domain.replace(/^https?:\/\//, "");
+
+/** The person the customer will meet: the job's assignee. */
+export type AppointmentAssignee = { name: string; role: TeamRole };
 
 export type AppointmentEmailInput = {
   firstName: string;
@@ -61,6 +68,8 @@ export type AppointmentEmailInput = {
   /** The arrival window as "HH:MM", or null when none was set. */
   windowStart: string | null;
   windowEnd: string | null;
+  /** Null when nobody is assigned: the email then names no one. */
+  assignee: AppointmentAssignee | null;
 };
 
 /** Plain text, like the other customer emails, so it reads the same on every phone. */
@@ -69,27 +78,37 @@ export function appointmentEmailText(input: AppointmentEmailInput): string {
   const when = input.allDay
     ? longDay(input.startsAt)
     : `${longDay(input.startsAt)} at ${timeOfDay(input.startsAt)}`;
-  const arrival = emailWindowLine(input.windowStart, input.windowEnd);
+  const arrival = clientWindowLabel(input.windowStart, input.windowEnd);
+  const person = input.assignee;
+  const role = person ? roleLabel(person.role) : null;
+  const personFirst = person ? person.name.trim().split(/\s+/)[0] : null;
   return [
     `Hi ${input.firstName},`,
     "",
-    `Your ${KIND_WORDS[input.kind]} is booked for ${when}.`,
-    ...(arrival ? ["", arrival] : []),
+    `Your ${KIND_WORDS[input.kind]} is confirmed for ${when}.`,
     "",
-    `We'll come to ${input.address}.`,
+    ...(person ? [`Your ${role}: ${person.name}`] : []),
+    ...(arrival ? [`Arrival window: ${arrival}`] : []),
+    `Location: ${input.address}`,
     "",
-    KIND_LINES[input.kind],
+    ...(person
+      ? [
+          `You’ll be meeting with ${person.name}, your ${business.name} ${role}. ${personFirst} ${KIND_LINES[input.kind]}`,
+          "",
+        ]
+      : []),
+    `Have a question before your appointment or need to make a change? Call or text us at ${business.phone.display}, or simply reply to this email.`,
     "",
-    `Need to change it? Reply to this email or call ${business.phone.display}.`,
+    "We look forward to meeting you!",
     "",
     business.name,
-    business.domain,
+    bareDomain,
   ].join("\n");
 }
 
-/** The customer's subject line: what is booked, and the day it is booked for. */
+/** The customer's subject line: what is confirmed, and the day it is for. */
 export const appointmentEmailSubject = (kind: AppointmentKind, startsAt: Date): string =>
-  `Your ${KIND_WORDS[kind]} is booked for ${shortDay(startsAt)}`;
+  `Your ${KIND_WORDS[kind]} is confirmed for ${shortDay(startsAt)}`;
 
 /**
  * Tells the customer their appointment is set. Only the confirm path calls this — an unconfirmed
@@ -113,6 +132,10 @@ export async function sendAppointmentConfirmation(job: Job, appointment: Appoint
       firstName, kind: appointment.kind, startsAt: appointment.startsAt,
       allDay: appointment.allDay, address,
       windowStart: appointment.windowStart, windowEnd: appointment.windowEnd,
+      // The job's assignee is who the customer meets; a name with no known role names no one.
+      assignee: job.assignedName?.trim() && job.assignedRole
+        ? { name: job.assignedName.trim(), role: job.assignedRole }
+        : null,
     }),
   });
   if (error) throw new Error(`Resend rejected the appointment confirmation: ${error.message}`);

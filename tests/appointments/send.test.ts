@@ -35,74 +35,86 @@ beforeEach(() => {
 
 describe("appointmentEmailText", () => {
   type Input = Parameters<typeof appointmentEmailText>[0];
+  const SHADE = { name: "Shade Momodu", role: "designer" as const };
   const text = (over: Partial<Input> = {}) =>
     appointmentEmailText({
-      firstName: "Dana", kind: "consultation", startsAt: AT, allDay: false,
-      address: "88 Palm Ct, Henderson", windowStart: null, windowEnd: null, ...over,
+      firstName: "Maria", kind: "consultation", startsAt: AT, allDay: false,
+      address: "1234 Desert Rose Dr, Henderson", windowStart: null, windowEnd: null, assignee: null, ...over,
     });
 
-  it("greets by first name and gives the Las Vegas day and time", () => {
-    const body = text();
-    expect(body).toMatch(/^Hi Dana,/);
-    expect(body).toContain("Tuesday, October 13 at 2:00 PM");
-  });
-
-  it("names each kind in customer words, never the internal label", () => {
-    expect(text({ kind: "consultation" })).toContain("consultation");
-    expect(text({ kind: "measure" })).toContain("measurement visit");
-    expect(text({ kind: "install" })).toContain("installation");
-    expect(text({ kind: "service" })).toContain("service visit");
-    expect(text({ kind: "measure" })).not.toContain("Measure");
-  });
-
-  it("shows only the day for an all-day installation", () => {
-    const body = text({ kind: "install", allDay: true });
-    expect(body).toContain("Tuesday, October 13");
-    expect(body).not.toContain("2:00 PM");
-    expect(body).not.toMatch(/October 13 at /);
-  });
-
-  it("carries the address we are coming to, the phone, and the sign-off", () => {
-    const body = text();
-    expect(body).toContain("88 Palm Ct, Henderson");
-    expect(body).toContain(business.phone.display);
-    expect(body).toContain(business.name);
-  });
-
-  it("says when we'll arrive when a window is set", () => {
-    const body = text({ allDay: true, windowStart: "08:00", windowEnd: "10:00" });
-    expect(body).toContain("We'll arrive between 8:00 and 10:00 am.");
-    expect(body.indexOf("We'll arrive")).toBeGreaterThan(body.indexOf("is booked for"));
-    expect(body.indexOf("We'll arrive")).toBeLessThan(body.indexOf("We'll come to"));
-  });
-
-  it("reads naturally for a window ending at noon or running into the afternoon", () => {
-    expect(text({ windowStart: "10:00", windowEnd: "12:00" })).toContain("We'll arrive between 10:00 am and 12:00 pm.");
-    expect(text({ windowStart: "11:30", windowEnd: "13:30" })).toContain("We'll arrive between 11:30 am and 1:30 pm.");
-    expect(text({ windowStart: "12:00", windowEnd: "14:00" })).toContain("We'll arrive between 12:00 and 2:00 pm.");
-  });
-
-  it("adds nothing new without a window", () => {
-    expect(text({ windowStart: null, windowEnd: null }).split("\n")).toEqual([
-      "Hi Dana,",
+  it("reproduces the owner's consultation template exactly", () => {
+    expect(text({ assignee: SHADE, windowStart: "14:00", windowEnd: "16:00" }).split("\n")).toEqual([
+      "Hi Maria,",
       "",
-      "Your consultation is booked for Tuesday, October 13 at 2:00 PM.",
+      "Your consultation is confirmed for Tuesday, October 13 at 2:00 PM.",
       "",
-      "We'll come to 88 Palm Ct, Henderson.",
+      "Your Designer: Shade Momodu",
+      "Arrival window: 2:00–4:00 PM",
+      "Location: 1234 Desert Rose Dr, Henderson",
       "",
-      "We'll go over your windows and options, and answer any questions you have.",
+      "You’ll be meeting with Shade Momodu, your Premier Shade Solutions Designer. Shade will take a look at your windows, walk you through the available options, and help you find the right solution for your home.",
       "",
-      `Need to change it? Reply to this email or call ${business.phone.display}.`,
+      `Have a question before your appointment or need to make a change? Call or text us at ${business.phone.display}, or simply reply to this email.`,
+      "",
+      "We look forward to meeting you!",
       "",
       business.name,
-      business.domain,
+      "premiershadesolutions.com",
     ]);
   });
 
-  it("never leaks internal wording or the job id", () => {
-    const body = text();
+  it("says what each kind of visit does, by the assignee's first name", () => {
+    const tail = (kind: Input["kind"]) => text({ kind, assignee: SHADE });
+    expect(tail("measure")).toContain("Shade will take exact measurements so your treatments fit perfectly.");
+    expect(tail("install")).toContain("Shade will install your window treatments and make sure everything works the way it should.");
+    expect(tail("service")).toContain("Shade will take care of the issue and make sure everything works the way it should.");
+    expect(tail("measure")).toContain("Your measurement visit is confirmed for");
+    expect(tail("install")).toContain("Your installation is confirmed for");
+    expect(tail("service")).toContain("Your service visit is confirmed for");
+    expect(tail("measure")).not.toContain("Measure ");
+  });
+
+  it("labels an installer as the installer", () => {
+    const body = text({ kind: "install", assignee: { name: "Luis Ortega", role: "installer" } });
+    expect(body).toContain("Your Installer: Luis Ortega");
+    expect(body).toContain("You’ll be meeting with Luis Ortega, your Premier Shade Solutions Installer. Luis will install");
+    expect(body).not.toContain("Designer");
+  });
+
+  it("drops the person line and the meeting paragraph when nobody is assigned", () => {
+    expect(text({ kind: "measure" }).split("\n")).toEqual([
+      "Hi Maria,",
+      "",
+      "Your measurement visit is confirmed for Tuesday, October 13 at 2:00 PM.",
+      "",
+      "Location: 1234 Desert Rose Dr, Henderson",
+      "",
+      `Have a question before your appointment or need to make a change? Call or text us at ${business.phone.display}, or simply reply to this email.`,
+      "",
+      "We look forward to meeting you!",
+      "",
+      business.name,
+      "premiershadesolutions.com",
+    ]);
+  });
+
+  it("writes a window that crosses noon with both periods, and none without a window", () => {
+    expect(text({ windowStart: "11:00", windowEnd: "13:00" })).toContain("Arrival window: 11:00 AM–1:00 PM");
+    expect(text()).not.toContain("Arrival window");
+    expect(text({ windowStart: "11:00", windowEnd: "13:00" })).not.toContain("We'll arrive");
+  });
+
+  it("shows only the day for an all-day appointment", () => {
+    const body = text({ kind: "install", allDay: true });
+    expect(body).toContain("Your installation is confirmed for Tuesday, October 13.\n");
+    expect(body).not.toContain("2:00 PM");
+  });
+
+  it("never leaks internal wording, the job id, or the https scheme", () => {
+    const body = text({ assignee: SHADE });
     expect(body).not.toMatch(/pending/i);
     expect(body).not.toContain(job().id);
+    expect(body).not.toContain("https://");
   });
 });
 
@@ -113,19 +125,28 @@ describe("sendAppointmentConfirmation", () => {
     expect(message.from).toBe(`${business.name} <leads@premiershadesolutions.com>`);
     expect(message.to).toBe("dana@example.com");
     expect(message.replyTo).toBe(business.email);
-    expect(message.subject).toBe("Your consultation is booked for Tue, Oct 13");
+    expect(message.subject).toBe("Your consultation is confirmed for Tue, Oct 13");
     expect(message.text).toContain("Tuesday, October 13 at 2:00 PM");
     expect(message.text).toContain("88 Palm Ct, Henderson");
   });
 
   it("passes the appointment's arrival window into the email", async () => {
     await sendAppointmentConfirmation(job(), appointment({ windowStart: "13:00", windowEnd: "15:00" }));
-    expect(send.mock.calls[0][0].text).toContain("We'll arrive between 1:00 and 3:00 pm.");
+    expect(send.mock.calls[0][0].text).toContain("Arrival window: 1:00–3:00 PM");
   });
 
   it("names the kind in the subject in customer words", async () => {
     await sendAppointmentConfirmation(job(), appointment({ kind: "install", allDay: true }));
-    expect(send.mock.calls[0][0].subject).toBe("Your installation is booked for Tue, Oct 13");
+    expect(send.mock.calls[0][0].subject).toBe("Your installation is confirmed for Tue, Oct 13");
+  });
+
+  it("names the job's assignee, and no one when the job is unassigned", async () => {
+    await sendAppointmentConfirmation(job({ assignedName: "Shade Momodu", assignedRole: "designer" }), appointment());
+    expect(send.mock.calls[0][0].text).toContain("Your Designer: Shade Momodu");
+    expect(send.mock.calls[0][0].text).toContain("Shade will take a look at your windows");
+    await sendAppointmentConfirmation(job({ assignedName: null, assignedRole: null }), appointment());
+    expect(send.mock.calls[1][0].text).not.toContain("meeting with");
+    expect(send.mock.calls[1][0].text).not.toContain("Your Designer");
   });
 
   it("greets a nameless job without an empty 'Hi ,'", async () => {
@@ -135,7 +156,7 @@ describe("sendAppointmentConfirmation", () => {
 
   it("falls back to the city when the job has no street address", async () => {
     await sendAppointmentConfirmation(job({ address: null }), appointment());
-    expect(send.mock.calls[0][0].text).toContain("Henderson");
+    expect(send.mock.calls[0][0].text).toContain("Location: Henderson\n");
   });
 
   it("refuses to send without an email address", async () => {

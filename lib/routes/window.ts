@@ -44,11 +44,15 @@ const joined = (start: Clock, end: Clock, separator: string): string => {
     : `${a.time} ${a.period}${separator}${b.time} ${b.period}`;
 };
 
+const upperWindow = (start: Clock | null, end: Clock | null, separator: string): string | null =>
+  start && end ? joined(start, end, separator).replace(/ (am|pm)/g, (m) => m.toUpperCase()) : null;
+
 /** "8:00 – 10:00 AM" for admin pages, matching formatTime's uppercase AM/PM. */
 export const adminWindowLabel = (start: Clock | null, end: Clock | null): string | null =>
-  start && end ? joined(start, end, " – ").replace(/ (am|pm)/g, (m) => m.toUpperCase()) : null;
+  upperWindow(start, end, " – ");
 
-export const emailWindowLine = (start: Clock | null, end: Clock | null): string | null =>
-  start && end ? `We'll arrive between ${joined(start, end, " and ")}.` : null;
+/** "2:00–4:00 PM" (or "11:00 AM–1:00 PM") for the customer's appointment email. */
+export const clientWindowLabel = (start: Clock | null, end: Clock | null): string | null =>
+  upperWindow(start, end, "–");
 
 export const hoursLabel = (minutes: number): string => String(minutes / 60);
