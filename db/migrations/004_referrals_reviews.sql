@@ -12,9 +12,10 @@ create unique index if not exists leads_referral_code_idx on leads (referral_cod
 create index if not exists leads_referred_by_idx on leads (referred_by);
 
 -- 002 declared the check inline, so Postgres named it job_events_kind_check.
--- 003_measure_and_files.sql redefines the same check; both list every kind so run order never narrows it.
--- Must match 011_stages_contact_log.sql, which added 'contact'.
+-- Every migration that defines job_events_kind_check lists the CURRENT FULL set of kinds
+-- (identical to 021_contract_signing.sql), because migrate.mjs re-applies every file on every
+-- run and a shorter list here would fail against rows holding newer kinds.
 alter table job_events drop constraint if exists job_events_kind_check;
 alter table job_events add constraint job_events_kind_check check (
-  kind in ('stage','note','edit','email','reward','measure','file','contact')
+  kind in ('stage','note','edit','email','reward','measure','file','contact','message','service','signature')
 );

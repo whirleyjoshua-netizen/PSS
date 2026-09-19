@@ -32,9 +32,10 @@ create table if not exists window_measurements (
 
 create index if not exists window_measurements_lead_idx on window_measurements (lead_id, position);
 
--- The job_events kind list is shared with 004_referrals_reviews.sql (portal step 2 branch) and must stay identical in both files.
--- Must match 011_stages_contact_log.sql, which added 'contact'.
+-- Every migration that defines job_events_kind_check lists the CURRENT FULL set of kinds
+-- (identical to 021_contract_signing.sql), because migrate.mjs re-applies every file on every
+-- run and a shorter list here would fail against rows holding newer kinds.
 alter table job_events drop constraint if exists job_events_kind_check;
 alter table job_events add constraint job_events_kind_check check (
-  kind in ('stage','note','edit','email','reward','measure','file','contact')
+  kind in ('stage','note','edit','email','reward','measure','file','contact','message','service','signature')
 );

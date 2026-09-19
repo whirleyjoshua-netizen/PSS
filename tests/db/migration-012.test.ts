@@ -20,10 +20,8 @@ describe("migration 012", () => {
     for (const s of all) expect(s).toMatch(/^alter table leads (drop constraint if exists|add constraint) leads_status_check/);
   });
 
-  it("keeps completed in every status list, and 011 and 012 identical", () => {
-    // 002 still carries the retired 'contacted', so only check it allows completed.
-    expect(statusList("002_job_tracker.sql")).toContain("'completed'");
-    for (const file of ["011_stages_contact_log.sql", "012_completed_stage.sql"]) {
+  it("keeps completed in every status list, and 002, 011 and 012 identical", () => {
+    for (const file of ["002_job_tracker.sql", "011_stages_contact_log.sql", "012_completed_stage.sql"]) {
       expect(statusList(file)).toContain(STATUSES);
     }
   });
