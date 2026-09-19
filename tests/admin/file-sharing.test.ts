@@ -7,7 +7,7 @@ const requireAdmin = vi.fn();
 vi.mock("@/lib/admin/session", () => ({ requireAdmin }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
-const { deleteFile, listSharedDocuments, listSharedPhotos, setDocType, setShared, toFile } = await import("@/lib/admin/files");
+const { deleteFile, listFiles, listSharedDocuments, listSharedPhotos, setDocType, setShared, toFile } = await import("@/lib/admin/files");
 const { del } = await import("@vercel/blob");
 const actions = await import("@/app/admin/jobs/measure-actions");
 
@@ -214,7 +214,9 @@ describe("a signed contract is frozen", () => {
   const PLAIN = "33333333-3333-4333-8333-333333333333";
   const OTHER_SIGNED = "44444444-4444-4444-8444-444444444444";
 
-  type Row = { id: string; lead_id: string; kind: string; name: string; blob_pathname: string; shared: boolean };
+  type Row = {
+    id: string; lead_id: string; kind: string; name: string; blob_pathname: string; shared: boolean; doc_type: string;
+  };
   let files: Row[];
   const signatures = [
     { file_id: ORIGINAL, signed_file_id: STAMPED },
@@ -231,25 +233,53 @@ describe("a signed contract is frozen", () => {
   }
 
   /** Evaluates the statement's `not exists (select 1 from contract_signatures s …)`, if any. */
-  function passesSignatureGuard(text: string, fileId: string) {
-    const clause = /not exists\s*\(\s*select 1 from contract_signatures s\s*(?:where\s+([^()]*?))?\s*\)/.exec(text);
-    if (!clause) return true;
-    if (clause[1] === undefined) return signatures.length === 0;
-    const predicates = clause[1].split(/\s+or\s+/).map((part) => {
+  const SUBQUERY = String.raw`\(\s*select 1 from contract_signatures s\s*(?:where\s+([^()]*?))?\s*\)`;
+
+  /** Evaluates `exists (select 1 from contract_signatures s [where …])` for one file. */
+  function namedBySignature(where: string | undefined, fileId: string) {
+    if (where === undefined) return signatures.length > 0;
+    const predicates = where.split(/\s+or\s+/).map((part) => {
       const match = /^s\.(file_id|signed_file_id) = job_files\.id$/.exec(part.trim());
       if (!match) throw new Error(`unmodelled predicate: ${part}`);
       return match[1] as "file_id" | "signed_file_id";
     });
-    return !signatures.some((sig) => predicates.some((column) => sig[column] === fileId));
+    return signatures.some((sig) => predicates.some((column) => sig[column] === fileId));
+  }
+
+  /** Evaluates the statement's `not exists (…)` guard, if it has one. */
+  function passesSignatureGuard(text: string, fileId: string) {
+    const clause = new RegExp(String.raw`not exists\s*${SUBQUERY}`).exec(text);
+    return clause ? !namedBySignature(clause[1], fileId) : true;
+  }
+
+  /** Evaluates listFiles' `exists (…) as signed` column; a statement without it yields no column. */
+  function signedColumn(text: string, fileId: string) {
+    const column = new RegExp(String.raw`(?<!not )exists\s*${SUBQUERY}\s*as signed`).exec(text);
+    return column ? namedBySignature(column[1], fileId) : undefined;
   }
 
   beforeEach(() => {
     files = [ORIGINAL, STAMPED, PLAIN, OTHER_SIGNED].map((id) => ({
       id, lead_id: JOB, kind: "document", name: `${id}.pdf`, blob_pathname: `jobs/${JOB}/${id}.pdf`, shared: true,
+      doc_type: "contract",
     }));
     vi.mocked(del).mockReset().mockResolvedValue(undefined as never);
     sql.mockImplementation(async (strings: TemplateStringsArray, ...values: unknown[]) => {
       const text = strings.join("?");
+      if (text.includes("update job_files set doc_type")) {
+        const id = after(strings, values, /where id = $/) as string;
+        const lead = after(strings, values, /and lead_id = $/);
+        const row = files.find((f) => f.id === id && f.lead_id === lead && f.kind === "document");
+        if (!row || !passesSignatureGuard(text, id)) return [];
+        row.doc_type = values[0] as string;
+        return [{ lead_id: row.lead_id }];
+      }
+      if (/from job_files where lead_id = \?/.test(text)) {
+        return files.filter((f) => f.lead_id === values[0]).map((f) => ({
+          id: f.id, lead_id: f.lead_id, kind: f.kind, name: f.name, size_bytes: 1, created_at: "2026-09-18T10:00:00Z",
+          blob_pathname: f.blob_pathname, doc_type: f.doc_type, signed: signedColumn(text, f.id),
+        }));
+      }
       if (text.includes("update job_files")) {
         const id = after(strings, values, /where id = $/) as string;
         const lead = after(strings, values, /and lead_id = $/);
@@ -301,9 +331,29 @@ describe("a signed contract is frozen", () => {
     expect(del).toHaveBeenCalledWith(`jobs/${JOB}/${PLAIN}.pdf`);
   });
 
+  it("refuses to relabel a signed contract or its stamped copy, and keeps both as contracts", async () => {
+    expect(await setDocType(JOB, ORIGINAL, "other", "owner@example.com")).toBe(false);
+    expect(await setDocType(JOB, STAMPED, null, "owner@example.com")).toBe(false);
+    expect(files.filter((f) => f.id === ORIGINAL || f.id === STAMPED).map((f) => f.doc_type)).toEqual(["contract", "contract"]);
+  });
+
+  it("still relabels a file nobody has signed", async () => {
+    expect(await setDocType(JOB, PLAIN, "quote", "owner@example.com")).toBe(true);
+    expect(files.find((f) => f.id === PLAIN)?.doc_type).toBe("quote");
+  });
+
+  it("marks exactly the signed original and its stamped copy as signed, in one statement", async () => {
+    const listed = await listFiles(JOB);
+    expect(sql).toHaveBeenCalledTimes(1);
+    expect(Object.fromEntries(listed.map((f) => [f.id, f.signed]))).toEqual({
+      [ORIGINAL]: true, [STAMPED]: true, [PLAIN]: false, [OTHER_SIGNED]: true,
+    });
+  });
+
   it("carries the clause in both statements (a tripwire beside the tests above, not a proof)", async () => {
     await setShared(JOB, PLAIN, false, "owner@example.com");
     await deleteFile(PLAIN, "owner@example.com");
+    await setDocType(JOB, ORIGINAL, "other", "owner@example.com");
     for (const call of sql.mock.calls) expect(text(call)).toContain("from contract_signatures s");
   });
 });

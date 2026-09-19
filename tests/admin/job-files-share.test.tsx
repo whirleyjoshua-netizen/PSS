@@ -104,3 +104,39 @@ describe("JobFiles photos and sharing", () => {
     expect(setFileShared).not.toHaveBeenCalled();
   });
 });
+
+describe("JobFiles on a signed contract", () => {
+  const signed = (f: ReturnType<typeof file>) => ({ ...f, signed: true });
+  const files = [
+    signed(file("contract", "document", new Date(), "Contract.pdf", null)),
+    signed(file("stamped", "document", new Date(), "Contract (signed).pdf", null)),
+    file("plain", "document", new Date(), "Plain.pdf", "quote"),
+  ];
+  const row = (name: string) => screen.getByRole("link", { name }).closest("li")!;
+
+  it("shows the record label instead of type, share and delete on the original and its stamped copy", () => {
+    render(<JobFiles jobId={JOB} measurements={[]} files={files} />);
+    for (const name of ["Contract.pdf", "Contract (signed).pdf"]) {
+      const li = within(row(name));
+      expect(li.getByText("Signed — kept as the record")).toBeInTheDocument();
+      expect(li.queryByRole("combobox")).toBeNull();
+      expect(li.queryByRole("switch")).toBeNull();
+      expect(li.queryByRole("button", { name: "Delete" })).toBeNull();
+    }
+  });
+
+  it("keeps every control, and no label, on a file nobody signed", () => {
+    render(<JobFiles jobId={JOB} measurements={[]} files={files} />);
+    const li = within(row("Plain.pdf"));
+    expect(li.queryByText("Signed — kept as the record")).toBeNull();
+    expect(li.getByRole("combobox", { name: "Document type for Plain.pdf" })).toBeInTheDocument();
+    expect(li.getByRole("switch", { name: "Share Plain.pdf with customer" })).toBeInTheDocument();
+    expect(li.getByRole("button", { name: "Delete" })).toBeInTheDocument();
+  });
+
+  it("still says the signed copies are shared, and still links to them", () => {
+    render(<JobFiles jobId={JOB} measurements={[]} files={files} />);
+    expect(within(row("Contract.pdf")).getByText("Shared")).toBeInTheDocument();
+    expect(row("Contract (signed).pdf").querySelector('a[href="/admin/files/stamped"]')).not.toBeNull();
+  });
+});

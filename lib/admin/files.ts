@@ -19,6 +19,12 @@ export type JobFile = {
   sharedAt?: Date | null;
   /** The label an owner put on a document; null until one is chosen. */
   docType?: DocType | null;
+  /**
+   * True when a contract_signatures row names this file, as the signed original or as the
+   * stamped copy. Only listFiles computes it; the admin list uses it to hide controls that the
+   * database would refuse anyway (setShared false, setDocType, deleteFile).
+   */
+  signed?: boolean;
 };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -36,12 +42,19 @@ export function toFile(row: Record<string, unknown>): JobFile {
     blobPathname: row.blob_pathname as string,
     sharedAt: row.shared_at ? new Date(row.shared_at as string) : null,
     docType: (row.doc_type as DocType | null) ?? null,
+    signed: row.signed === true,
   };
 }
 
 export async function listFiles(leadId: string): Promise<JobFile[]> {
   if (!UUID.test(leadId)) return [];
-  const rows = await db()`select * from job_files where lead_id = ${leadId} order by created_at desc`;
+  // One statement for the whole list, not a lookup per file.
+  const rows = await db()`
+    select job_files.*, exists (
+      select 1 from contract_signatures s
+      where s.file_id = job_files.id or s.signed_file_id = job_files.id
+    ) as signed
+    from job_files where lead_id = ${leadId} order by created_at desc`;
   return rows.map(toFile);
 }
 
@@ -187,6 +200,9 @@ export async function setShared(jobId: string, fileId: string, shared: boolean, 
  * is not sharing: this statement never reads or writes shared_at, so a document
  * stays private until setShared is called for it. `kind = 'document'` keeps a
  * photo from carrying a document label.
+ *
+ * A signed contract and its stamped copy cannot be relabelled: the `not exists` clause refuses
+ * them, and this returns false.
  */
 export async function setDocType(
   jobId: string, fileId: string, type: DocType | null, actor: string,
@@ -196,6 +212,10 @@ export async function setDocType(
     with changed as (
       update job_files set doc_type = ${type}
       where id = ${fileId} and lead_id = ${jobId} and kind = 'document'
+        and not exists (
+          select 1 from contract_signatures s
+          where s.file_id = job_files.id or s.signed_file_id = job_files.id
+        )
       returning lead_id, name
     )
     insert into job_events (lead_id, actor, kind, body)

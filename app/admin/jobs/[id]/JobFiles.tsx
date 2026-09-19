@@ -10,6 +10,14 @@ import { UploadButton } from "./UploadButton";
 
 const size = (bytes: number) => (bytes < 1024 * 1024 ? `${Math.ceil(bytes / 1024)} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`);
 
+/**
+ * Shown in place of the type, share and delete controls on a signed contract or its stamped
+ * copy. The database refuses those changes regardless; this only stops offering them.
+ */
+function SignedLabel() {
+  return <span className="text-xs uppercase tracking-wide text-charcoal">Signed — kept as the record</span>;
+}
+
 /** Measurements are shown on their own tab; they are taken here only to keep window photos out of Photos. */
 export function JobFiles({ jobId, measurements, files }: {
   jobId: string;
@@ -44,10 +52,14 @@ export function JobFiles({ jobId, measurements, files }: {
                     {file.sharedAt ? <> · <span className="text-xs uppercase tracking-wide text-charcoal">Shared</span></> : null}
                   </p>
                 </div>
-                <ShareSwitch jobId={jobId} fileId={file.id} fileName={file.name} shared={Boolean(file.sharedAt)} />
-                <form action={removeFile.bind(null, jobId, file.id)}>
-                  <DeleteButton />
-                </form>
+                {file.signed ? <SignedLabel /> : (
+                  <>
+                    <ShareSwitch jobId={jobId} fileId={file.id} fileName={file.name} shared={Boolean(file.sharedAt)} />
+                    <form action={removeFile.bind(null, jobId, file.id)}>
+                      <DeleteButton />
+                    </form>
+                  </>
+                )}
               </li>
             ))}
           </ul>
@@ -67,11 +79,15 @@ export function JobFiles({ jobId, measurements, files }: {
                     {file.sharedAt ? <> · <span className="text-xs uppercase tracking-wide text-charcoal">Shared</span></> : null}
                   </p>
                 </div>
-                <DocTypeSelect key={file.docType ?? ""} jobId={jobId} fileId={file.id} fileName={file.name} docType={file.docType ?? null} />
-                <ShareSwitch jobId={jobId} fileId={file.id} fileName={file.name} shared={Boolean(file.sharedAt)} />
-                <form action={removeFile.bind(null, jobId, file.id)}>
-                  <DeleteButton />
-                </form>
+                {file.signed ? <SignedLabel /> : (
+                  <>
+                    <DocTypeSelect key={file.docType ?? ""} jobId={jobId} fileId={file.id} fileName={file.name} docType={file.docType ?? null} />
+                    <ShareSwitch jobId={jobId} fileId={file.id} fileName={file.name} shared={Boolean(file.sharedAt)} />
+                    <form action={removeFile.bind(null, jobId, file.id)}>
+                      <DeleteButton />
+                    </form>
+                  </>
+                )}
               </li>
             ))}
           </ul>
