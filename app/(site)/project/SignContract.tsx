@@ -33,6 +33,9 @@ export function SignContract({ jobId, file }: { jobId: string; file: Pick<JobFil
             type="text"
             name="signedName"
             required
+            // `required` alone lets a name of only spaces through, which the action then refuses.
+            pattern=".*\S.*"
+            title="Type your full name"
             autoComplete="name"
             className="min-h-11 w-full border border-rule bg-ivory px-3"
           />
@@ -61,7 +64,7 @@ export function SignatureNotice({
   signed,
   signature,
 }: {
-  /** The `?signed=` flag, straight off the URL and unvalidated. */
+  /** The `?signed=` flag, straight off the URL and unvalidated: "1", "no", or "missing" (a field left empty). */
   signed?: string | null;
   /** The job's most recent recorded signature, re-derived server-side. The only thing believed. */
   signature: Pick<Signature, "signedAt"> | null;
@@ -75,7 +78,9 @@ export function SignatureNotice({
     <p role="status" className="border border-champagne bg-sand/60 p-4 text-sm">
       {confirmed && signature
         ? `Thank you — your contract was signed on ${formatShortDate(signature.signedAt)}. A copy is on its way to your email.`
-        : `We could not record that signature just now. Please call us on ${business.phone.display} and we will sort it out.`}
+        : signed === "missing"
+          ? "We could not record that signature: please type your full name and tick the box to agree, then sign again."
+          : `We could not record that signature just now. Please call us on ${business.phone.display} and we will sort it out.`}
     </p>
   );
 }

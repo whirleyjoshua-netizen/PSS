@@ -30,6 +30,13 @@ describe("toFile", () => {
     expect(toFile({ id: FILE, doc_type: "quote", size_bytes: "5" }).docType).toBe("quote");
     expect(toFile({ id: FILE, size_bytes: "5" }).docType).toBeNull();
   });
+
+  // A query that never computed `signed` must not claim the file is unsigned.
+  it("maps signed when the query computed it, and leaves it undefined when not", () => {
+    expect(toFile({ id: FILE, signed: true, size_bytes: "5" }).signed).toBe(true);
+    expect(toFile({ id: FILE, signed: false, size_bytes: "5" }).signed).toBe(false);
+    expect(toFile({ id: FILE, size_bytes: "5" }).signed).toBeUndefined();
+  });
 });
 
 describe("setShared", () => {

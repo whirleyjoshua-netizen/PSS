@@ -21,7 +21,7 @@ export type JobFile = {
   docType?: DocType | null;
   /**
    * True when a contract_signatures row names this file, as the signed original or as the
-   * stamped copy. Only listFiles computes it; the admin list uses it to hide controls that the
+   * stamped copy. Only listFiles computes it; undefined elsewhere, never a false "unsigned". The admin list uses it to hide controls that the
    * database would refuse anyway (setShared false, setDocType, deleteFile).
    */
   signed?: boolean;
@@ -42,7 +42,8 @@ export function toFile(row: Record<string, unknown>): JobFile {
     blobPathname: row.blob_pathname as string,
     sharedAt: row.shared_at ? new Date(row.shared_at as string) : null,
     docType: (row.doc_type as DocType | null) ?? null,
-    signed: row.signed === true,
+    // Absent, not false, when the query never computed it: false would claim "not signed".
+    signed: "signed" in row ? row.signed === true : undefined,
   };
 }
 

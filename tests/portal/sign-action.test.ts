@@ -171,12 +171,34 @@ describe("signContractAction recording", () => {
     });
   });
 
+  it("redirects with a plain refusal when the contract is not this job's to sign", async () => {
+    signableContracts.mockResolvedValue([]);
+    signatureFor.mockResolvedValue(null);
+    const form = new FormData();
+    form.set("jobId", MINE);
+    form.set("fileId", FILE);
+    form.set("signedName", "Jane Doe");
+    form.set("agreed", "on");
+    await expect(signContractFormAction(form)).rejects.toThrow(`NEXT_REDIRECT /project/${MINE}?signed=no&file=${FILE}`);
+  });
+
+  it("redirects naming the empty field when the name is only spaces", async () => {
+    // recordSignature is the one that trims and refuses the name; the wrapper maps its answer.
+    recordSignature.mockResolvedValue("invalid");
+    const form = new FormData();
+    form.set("jobId", MINE);
+    form.set("fileId", FILE);
+    form.set("signedName", "   ");
+    form.set("agreed", "on");
+    await expect(signContractFormAction(form)).rejects.toThrow(`NEXT_REDIRECT /project/${MINE}?signed=missing&file=${FILE}`);
+  });
+
   it("redirects with a refusal when the form arrives without the box ticked", async () => {
     const form = new FormData();
     form.set("jobId", MINE);
     form.set("fileId", FILE);
     form.set("signedName", "Jane Doe");
-    await expect(signContractFormAction(form)).rejects.toThrow(`NEXT_REDIRECT /project/${MINE}?signed=no&file=${FILE}`);
+    await expect(signContractFormAction(form)).rejects.toThrow(`NEXT_REDIRECT /project/${MINE}?signed=missing&file=${FILE}`);
     expect(recordSignature).not.toHaveBeenCalled();
   });
 
@@ -196,7 +218,7 @@ describe("signContractAction recording", () => {
       signedName: "Jane Doe", signedEmail: EMAIL, signedAt: SIGNED_AT, sha256: "abc", projectNo: "PSS-1048",
     });
     expect(storeSignedCopy).toHaveBeenCalledWith({ jobId: MINE, original: contract, bytes: STAMPED, actor: EMAIL });
-    expect(notifyOwnersOfSignature).toHaveBeenCalledWith(job, contract.name, EMAIL, true);
+    expect(notifyOwnersOfSignature).toHaveBeenCalledWith(job, contract.name, EMAIL, true, SIGNED_AT);
     expect(sendCustomerSignedCopy).toHaveBeenCalledWith(EMAIL, job, contract.name, STAMPED);
     expect(revalidatePath).toHaveBeenCalledWith(`/project/${MINE}`);
   });
@@ -206,7 +228,7 @@ describe("signContractAction recording", () => {
     expect(await signContractAction(MINE, FILE, "Jane Doe", true)).toBe("signed");
     await runAfter();
     expect(storeSignedCopy).not.toHaveBeenCalled();
-    expect(notifyOwnersOfSignature).toHaveBeenCalledWith(job, contract.name, EMAIL, false);
+    expect(notifyOwnersOfSignature).toHaveBeenCalledWith(job, contract.name, EMAIL, false, SIGNED_AT);
     expect(sendCustomerSignedCopy).toHaveBeenCalledWith(EMAIL, job, contract.name, null);
   });
 
@@ -218,7 +240,7 @@ describe("signContractAction recording", () => {
     expect(await signContractAction(MINE, FILE, "Jane Doe", true)).toBe("signed");
     await expect(runAfter()).resolves.toBeUndefined();
     // The owners still hear about it, told the stamped copy is missing.
-    expect(notifyOwnersOfSignature).toHaveBeenCalledWith(job, contract.name, EMAIL, false);
+    expect(notifyOwnersOfSignature).toHaveBeenCalledWith(job, contract.name, EMAIL, false, SIGNED_AT);
     expect(error).toHaveBeenCalledTimes(3);
     error.mockRestore();
   });

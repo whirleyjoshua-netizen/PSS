@@ -3,7 +3,7 @@ import { docTypeLabel } from "@/lib/admin/doc-types";
 import type { Job } from "@/lib/admin/jobs";
 import { listSharedDocuments, listSharedPhotos } from "@/lib/admin/files";
 import { isInstalled } from "@/lib/admin/stages";
-import { formatDateOnly, formatMonthDay, formatShortDate, lasVegasDate } from "@/lib/admin/time";
+import { formatDateOnly, formatMonthDay, formatShortDate, formatTime, lasVegasDate } from "@/lib/admin/time";
 import { toProject } from "@/lib/portal/access";
 import { currentStep } from "@/lib/portal/progress";
 import { countReferred, listServiceRequests } from "@/lib/portal/project";
@@ -133,6 +133,35 @@ export async function ProjectView({
         signed={justSigned ?? null}
         signature={signatures.find((signature) => signature.fileId === justSignedFile) ?? null}
       />
+      {/* A lasting record, not the one-time notice: only a recorded signature produces a line, and
+          it still reads Signed when no stamped copy exists — the link appears only when one does. */}
+      {signatures.length > 0 ? (
+        <section className="flex flex-col gap-2" aria-labelledby="signed-heading">
+          <h2 id="signed-heading" className={heading}>Signed</h2>
+          <ul className="flex flex-col gap-2">
+            {signatures.map((signature) => (
+              <li key={signature.fileId} className="flex flex-col gap-1">
+                <p>
+                  Signed on {formatShortDate(signature.signedAt)} at {formatTime(signature.signedAt)}:{" "}
+                  <span className="break-all">
+                    {documents.find((file) => file.id === signature.fileId)?.name ?? "your contract"}
+                  </span>
+                </p>
+                {signature.signedFileId ? (
+                  <a
+                    href={`/project/files/${signature.signedFileId}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="min-h-11 break-all underline underline-offset-4"
+                  >
+                    Download the signed copy
+                  </a>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
       {contracts.length > 0 ? (
         <section className="flex flex-col gap-3" aria-labelledby="sign-heading">
           <h2 id="sign-heading" className={heading}>Your contract</h2>

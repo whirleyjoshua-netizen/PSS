@@ -289,8 +289,11 @@ export async function signContractAction(
 
   after(async () => {
     let pdf: Buffer | null = null;
+    // The saved time, for the owners' email; the send time only if the row could not be read.
+    let signedAt: Date | null = null;
     try {
       const signature = await signatureFor(file.id);
+      signedAt = signature?.signedAt ?? null;
       const stored = await readFile(file);
       if (signature && stored) {
         const original = Buffer.from(await new Response(stored.stream).arrayBuffer());
@@ -309,7 +312,7 @@ export async function signContractAction(
       pdf = null;
     }
     await Promise.all([
-      notifyOwnersOfSignature(job, file.name, email, pdf !== null).catch(console.error),
+      notifyOwnersOfSignature(job, file.name, email, pdf !== null, signedAt ?? new Date()).catch(console.error),
       sendCustomerSignedCopy(email, job, file.name, pdf).catch(console.error),
     ]);
   });
@@ -337,7 +340,7 @@ export async function signContractFormAction(formData: FormData): Promise<void> 
   // Outside any try/catch: redirect() works by throwing.
   // The file rides along so the notice can look up THAT contract's signature, not the job's latest.
   redirect(
-    `/project/${encodeURIComponent(jobId)}?signed=${result === "signed" ? "1" : "no"}&file=${encodeURIComponent(fileId)}`,
+    `/project/${encodeURIComponent(jobId)}?signed=${result === "signed" ? "1" : result === "invalid" ? "missing" : "no"}&file=${encodeURIComponent(fileId)}`,
   );
 }
 

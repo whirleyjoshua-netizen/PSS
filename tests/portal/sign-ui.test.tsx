@@ -20,6 +20,11 @@ describe("SignContract", () => {
     const name = screen.getByLabelText("Your full name");
     expect(name).toHaveAttribute("name", "signedName");
     expect(name).toBeRequired();
+    // A name of only spaces satisfies `required`; the pattern is what refuses it in the browser.
+    expect(name).toHaveAttribute("pattern", String.raw`.*\S.*`);
+    const pattern = new RegExp(`^(?:${name.getAttribute("pattern")})$`);
+    expect(pattern.test("   ")).toBe(false);
+    expect(pattern.test("Jane Doe")).toBe(true);
     const agree = screen.getByLabelText("I agree to sign this contract electronically");
     expect(agree).toHaveAttribute("type", "checkbox");
     expect(agree).toHaveAttribute("name", "agreed");
@@ -56,6 +61,17 @@ describe("SignatureNotice", () => {
   it("owns up to a refusal when nothing was signed", () => {
     render(<SignatureNotice signed="no" signature={null} />);
     expect(screen.getByRole("status")).toHaveTextContent(FAILURE);
+  });
+
+  it("names the empty field when the name or the box was missing", () => {
+    render(<SignatureNotice signed="missing" signature={null} />);
+    const status = screen.getByRole("status");
+    expect(status).toHaveTextContent("please type your full name and tick the box to agree");
+    expect(status).not.toHaveTextContent(business.phone.display);
+  });
+
+  it("drops the field hint once that contract is signed", () => {
+    expect(renderToStaticMarkup(<SignatureNotice signed="missing" signature={SIGNED} />)).toBe("");
   });
 
   it("says nothing on an ordinary visit", () => {

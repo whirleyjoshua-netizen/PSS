@@ -31,6 +31,8 @@ export async function notifyOwnersOfSignature(
   documentName: string,
   signedBy: string,
   stamped: boolean,
+  /** The saved signed_at, so the email shows the time on record rather than the send time. */
+  signedAt: Date,
 ): Promise<void> {
   const apiKey = process.env.RESEND_API_KEY;
   const to = ownerRecipients();
@@ -40,7 +42,6 @@ export async function notifyOwnersOfSignature(
     throw new Error("Signature notification email is not configured");
   }
 
-  const now = new Date();
   const projectNo = formatProjectNo(job.projectNo);
   const text = [
     `${job.name} signed their contract from their project page.`,
@@ -48,7 +49,7 @@ export async function notifyOwnersOfSignature(
     `Signed by:   ${signedBy}`,
     `Document:    ${documentName}`,
     // Both formatters are Las Vegas time, so the day and the time cannot disagree.
-    `When:        ${formatShortDate(now)} at ${formatTime(now)}`,
+    `When:        ${formatShortDate(signedAt)} at ${formatTime(signedAt)}`,
     projectNo ? `Project:     ${projectNo}` : null,
     "",
     // Both possible causes are named: this code is not told which one happened.

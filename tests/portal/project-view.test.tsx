@@ -29,7 +29,7 @@ const requireCustomer = vi.fn();
 vi.mock("@/lib/portal/session", () => ({ requireCustomer }));
 // No contracts to sign unless a test says otherwise.
 const signableContracts = vi.fn(async () => [] as { id: string; name: string }[]);
-const listSignatures = vi.fn(async () => [] as { signedAt: Date; fileId: string }[]);
+const listSignatures = vi.fn(async () => [] as { signedAt: Date; fileId: string; signedFileId?: string | null }[]);
 vi.mock("@/lib/portal/sign", () => ({ signableContracts, listSignatures }));
 
 const { ProjectView } = await import("@/app/(site)/project/ProjectView");
@@ -263,6 +263,41 @@ describe("ProjectView contract signing", () => {
     render(await ProjectView({ job, justSigned: "1", justSignedFile: "c1" }));
     expect(listSignatures).toHaveBeenCalledWith(JOB);
     expect(screen.getByRole("status")).toHaveTextContent("Thank you — your contract was signed on");
+  });
+
+  // The lasting record: an ordinary visit, no ?signed hint at all.
+  it("keeps a Signed line with a download link once the stamped copy exists", async () => {
+    listSharedDocuments.mockResolvedValue([{ id: "c1", name: "Contract-1048.pdf", docType: "contract" }]);
+    listSignatures.mockResolvedValue([
+      { signedAt: new Date("2026-09-18T17:00:00Z"), fileId: "c1", signedFileId: "s1" },
+    ]);
+    render(await ProjectView({ job }));
+    const signed = screen.getByRole("region", { name: "Signed" });
+    // 17:00 UTC is 10:00 AM in Las Vegas (PDT).
+    expect(signed).toHaveTextContent("Signed on");
+    expect(signed).toHaveTextContent("10:00 AM");
+    expect(signed).toHaveTextContent("Contract-1048.pdf");
+    expect(within(signed).getByRole("link", { name: "Download the signed copy" })).toHaveAttribute(
+      "href",
+      "/project/files/s1",
+    );
+  });
+
+  it("still reads Signed when stamping failed, with no link to a copy that does not exist", async () => {
+    listSignatures.mockResolvedValue([
+      { signedAt: new Date("2026-09-18T17:00:00Z"), fileId: "c1", signedFileId: null },
+    ]);
+    render(await ProjectView({ job }));
+    const signed = screen.getByRole("region", { name: "Signed" });
+    expect(signed).toHaveTextContent("Signed on");
+    expect(within(signed).queryByRole("link")).toBeNull();
+  });
+
+  it("shows no Signed line until a signature exists", async () => {
+    signableContracts.mockResolvedValue([{ id: "c1", name: "Contract-1048.pdf" }]);
+    render(await ProjectView({ job }));
+    expect(screen.queryByRole("region", { name: "Signed" })).toBeNull();
+    expect(screen.queryByText(/Signed on/)).toBeNull();
   });
 });
 

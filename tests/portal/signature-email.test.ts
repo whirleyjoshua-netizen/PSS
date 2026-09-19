@@ -7,6 +7,7 @@ vi.mock("@/lib/leads/email", () => ({ ownerRecipients: () => ["owner@example.com
 import { STAMP_REASONS, notifyOwnersOfSignature, sendCustomerSignedCopy } from "@/lib/portal/send-signature-email";
 
 const job = { id: "11111111-1111-4111-8111-111111111111", name: "Jane Doe", projectNo: 1012 };
+const AT = new Date("2026-09-18T17:00:00Z");
 
 beforeEach(() => {
   send.mockReset().mockResolvedValue({ error: null });
@@ -15,7 +16,7 @@ beforeEach(() => {
 
 describe("notifyOwnersOfSignature", () => {
   it("says who signed and which document", async () => {
-    await notifyOwnersOfSignature(job, "Contract.pdf", "jane@example.com", true);
+    await notifyOwnersOfSignature(job, "Contract.pdf", "jane@example.com", true, AT);
     const text = send.mock.calls[0][0].text as string;
     expect(text).toContain("jane@example.com");
     expect(text).toContain("Contract.pdf");
@@ -25,12 +26,19 @@ describe("notifyOwnersOfSignature", () => {
 
   // The owners must not believe a stamped copy exists when it does not.
   it("says plainly when the stamped copy could not be produced", async () => {
-    await notifyOwnersOfSignature(job, "Contract.pdf", "jane@example.com", false);
+    await notifyOwnersOfSignature(job, "Contract.pdf", "jane@example.com", false, AT);
     expect(send.mock.calls[0][0].text as string).toContain("could not be produced");
   });
 
+  // The time on record, not the moment the email happened to go out.
+  it("shows the saved signing time, not the send time", async () => {
+    await notifyOwnersOfSignature(job, "Contract.pdf", "jane@example.com", true, new Date("2026-03-02T17:05:00Z"));
+    // 17:05 UTC on 2 March is 9:05 AM in Las Vegas (PST).
+    expect(send.mock.calls[0][0].text as string).toMatch(/When: +Mar 2, 2026 at 9:05 AM/);
+  });
+
   it("names both reasons the stamped copy can fail", async () => {
-    await notifyOwnersOfSignature(job, "Contract.pdf", "jane@example.com", false);
+    await notifyOwnersOfSignature(job, "Contract.pdf", "jane@example.com", false, AT);
     const text = send.mock.calls[0][0].text as string;
     expect(text).toContain("protected or damaged");
     expect(text).toContain("characters the PDF font cannot draw");
