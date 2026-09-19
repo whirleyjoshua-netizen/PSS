@@ -1034,6 +1034,19 @@ test("a signature output is never offered for signing, and a post naming it is r
   await expect(signForm(customer, second).form).toHaveCount(1);
 });
 
+test.describe("signed contract security gates", () => {
+  // Checked once per run, before either gate runs, exactly as the file isolation gate above:
+  // both need a real blob, and a security gate that quietly skips reads GREEN while proving
+  // nothing. A missing token fails loudly here. The two signing feature specs above still skip.
+  test.beforeAll(() => {
+    if (!process.env.E2E_BLOB_READ_WRITE_TOKEN) {
+      throw new Error(
+        "E2E_BLOB_READ_WRITE_TOKEN is not set. The signed-contract security gates must actually run — " +
+          "set the token against the test blob store rather than skipping them.",
+      );
+    }
+  });
+
 /**
  * The owners' controls disappear from a signed contract, so the refusal underneath can only be
  * reached from a page loaded BEFORE the signature: its forms still carry the framework's own,
@@ -1041,8 +1054,6 @@ test("a signature output is never offered for signing, and a post naming it is r
  * customer signs, and the database must refuse both.
  */
 test("a signed contract is frozen: unsharing and deleting it both fail", async ({ page, browser }) => {
-  test.skip(!process.env.E2E_BLOB_READ_WRITE_TOKEN, "Set E2E_BLOB_READ_WRITE_TOKEN to run document tests");
-
   const id = await lead(`${NAME} Frozen`, FROZEN_CUSTOMER, "sold");
   const fileName = `contract-frozen-${STAMP}.pdf`;
   await signInOwner(page);
@@ -1100,12 +1111,10 @@ test("a signed contract is frozen: unsharing and deleting it both fail", async (
  * other guard happened to refuse. It asserts on database effect, and ends with a positive control
  * proving the same form in the same session does sign.
  *
- * Needs E2E_BLOB_READ_WRITE_TOKEN for that reason. Skipped without it, and a skipped gate proves
- * nothing: run it before release.
+ * Needs E2E_BLOB_READ_WRITE_TOKEN for that reason. Never skipped: the describe's beforeAll throws
+ * without it, because a skipped gate proves nothing.
  */
 test("a customer signing cannot reach another customer's contract", async ({ page, browser }) => {
-  test.skip(!process.env.E2E_BLOB_READ_WRITE_TOKEN, "Set E2E_BLOB_READ_WRITE_TOKEN to run document tests");
-
   const bystanderId = await lead(`${NAME} Sign Bystander`, SIGN_BYSTANDER, "sold");
   const attackerId = await lead(`${NAME} Sign Attacker`, SIGN_ATTACKER, "sold");
   const bystanderName = `contract-bystander-${STAMP}.pdf`;
@@ -1148,6 +1157,7 @@ test("a customer signing cannot reach another customer's contract", async ({ pag
   expect(signed).toEqual([{ lead_id: attackerId, signed_email: SIGN_ATTACKER }]);
   // Still nothing on the bystander's, after a real signature has demonstrably worked.
   expect(await sql()`select id from contract_signatures where lead_id = ${bystanderId}`).toHaveLength(0);
+});
 });
 
 test("a lost job locks the customer out", async ({ browser }) => {
