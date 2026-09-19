@@ -361,6 +361,18 @@ describe("changing jobs", () => {
     expect(text(sql.mock.calls[0])).toContain("insert into leads");
   });
 
+  it("assigns a hand-entered job to the default from Settings, inside the same statement", async () => {
+    sql.mockResolvedValue([{ id: ID }]);
+    await jobs.createJob(
+      { name: "Dana Reyes", phone: "7025550134", city: "Henderson", source: "phone", stage: "new" },
+      "owner@example.com",
+    );
+    expect(sql).toHaveBeenCalledTimes(1);
+    const statement = text(sql.mock.calls[0]);
+    expect(statement).toMatch(/parent_job_id, assigned_to\)/);
+    expect(statement).toMatch(/\?,\s*\(select default_assignee from lead_settings where id\)\)/);
+  });
+
   it("creates a hand-entered job in the chosen stage and logs it", async () => {
     sql.mockResolvedValue([{ id: ID }]);
     await jobs.createJob(

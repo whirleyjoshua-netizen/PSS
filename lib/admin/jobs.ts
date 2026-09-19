@@ -314,6 +314,9 @@ export async function assignJob(id: string, memberId: string | null, actor: stri
  * `options.eventKind` records what kind of opening this was: a customer's service request logs
  * `service`, which is the value migration 019 widened the kind constraint to allow. It defaults
  * to `stage`, so every job entered by hand logs exactly what it always has.
+ *
+ * The new job is assigned to the default chosen in Settings (lead_settings, migration 023), read in
+ * this same statement. The new-job form has no assignee field, so there is nothing for it to override.
  */
 export async function createJob(
   input: NewJobInput,
@@ -326,10 +329,10 @@ export async function createJob(
   const kind = options.eventKind ?? "stage";
   const rows = await db()`
     with created as (
-      insert into leads (name, phone, email, city, address, notes, source, status, review_opt_out, parent_job_id)
+      insert into leads (name, phone, email, city, address, notes, source, status, review_opt_out, parent_job_id, assigned_to)
       values (${input.name}, ${input.phone}, ${input.email ?? null}, ${input.city},
               ${input.address ?? null}, ${input.notes ?? null}, ${input.source}, ${input.stage}, ${installed},
-              ${options.parentJobId ?? null})
+              ${options.parentJobId ?? null}, (select default_assignee from lead_settings where id))
       returning id
     ),
     logged as (

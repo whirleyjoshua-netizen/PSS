@@ -23,10 +23,15 @@ const saveInstallRates = vi.fn(async (..._args: unknown[]) => {
   order.push("saveRates");
 });
 vi.mock("@/lib/admin/install-rates", () => ({ saveInstallRates }));
+const saveDefaultAssignee = vi.fn(async (..._args: unknown[]): Promise<"ok" | "unknown-member"> => {
+  order.push("saveDefault");
+  return "ok";
+});
+vi.mock("@/lib/admin/lead-settings", () => ({ saveDefaultAssignee }));
 const revalidatePath = vi.fn();
 vi.mock("next/cache", () => ({ revalidatePath }));
 
-const { addMember, removeMember, saveRouteSettingsAction, saveInstallRatesAction } = await import("@/app/admin/settings/actions");
+const { addMember, removeMember, saveRouteSettingsAction, saveInstallRatesAction, saveLeadDefaultsAction } = await import("@/app/admin/settings/actions");
 const form = (entries: Record<string, string>) => {
   const data = new FormData();
   for (const [k, v] of Object.entries(entries)) data.set(k, v);
@@ -162,5 +167,48 @@ describe("saveInstallRatesAction", () => {
     expect(result.error).toMatch(/^Shutters: /);
     expect(result.values).toEqual(submitted);
     expect(saveInstallRates).not.toHaveBeenCalled();
+  });
+});
+
+describe("saveLeadDefaultsAction", () => {
+  const ID = "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c";
+
+  it("checks the session before reading any input", async () => {
+    requireAdmin.mockImplementationOnce(async () => {
+      order.push("auth");
+      throw new Error("NEXT_REDIRECT");
+    });
+    const data = form({ defaultAssignee: ID });
+    const get = vi.spyOn(data, "get");
+    await expect(saveLeadDefaultsAction({}, data)).rejects.toThrow("NEXT_REDIRECT");
+    expect(get).not.toHaveBeenCalled();
+    expect(saveDefaultAssignee).not.toHaveBeenCalled();
+  });
+
+  it("saves the chosen team member with who saved it, and refreshes Settings", async () => {
+    expect(await saveLeadDefaultsAction({}, form({ defaultAssignee: ID }))).toEqual({ ok: true });
+    expect(order).toEqual(["auth", "saveDefault"]);
+    expect(saveDefaultAssignee).toHaveBeenCalledWith(ID, "owner@example.com");
+    expect(revalidatePath).toHaveBeenCalledWith("/admin/settings");
+  });
+
+  it("saves Nobody as no default", async () => {
+    expect(await saveLeadDefaultsAction({}, form({ defaultAssignee: "" }))).toEqual({ ok: true });
+    expect(saveDefaultAssignee).toHaveBeenCalledWith(null, "owner@example.com");
+  });
+
+  it("refuses a value that is not an id, without saving", async () => {
+    expect(await saveLeadDefaultsAction({}, form({ defaultAssignee: "shade" }))).toEqual({
+      error: "Pick someone from the team list",
+    });
+    expect(saveDefaultAssignee).not.toHaveBeenCalled();
+  });
+
+  it("refuses an id that is not on the team", async () => {
+    saveDefaultAssignee.mockResolvedValueOnce("unknown-member");
+    expect(await saveLeadDefaultsAction({}, form({ defaultAssignee: ID }))).toEqual({
+      error: "That person is no longer on the team",
+    });
+    expect(revalidatePath).not.toHaveBeenCalled();
   });
 });

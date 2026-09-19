@@ -27,7 +27,10 @@ vi.mock("@/app/admin/settings/actions", () => ({
   removeMember: vi.fn(),
   saveRouteSettingsAction: vi.fn(async () => ({})),
   saveInstallRatesAction: vi.fn(async () => ({})),
+  saveLeadDefaultsAction: vi.fn(async () => ({})),
 }));
+const getDefaultAssignee = vi.fn(async (): Promise<string | null> => null);
+vi.mock("@/lib/admin/lead-settings", () => ({ getDefaultAssignee }));
 
 const { default: SettingsPage } = await import("@/app/admin/settings/page");
 
@@ -39,6 +42,15 @@ beforeEach(() => {
 });
 
 describe("settings page", () => {
+  it("offers the default for new leads with the saved choice", async () => {
+    calendarEnabled.mockReturnValue(false);
+    const shade = { id: "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c", name: "Shade Momodu", role: "designer" };
+    listTeam.mockResolvedValue([shade]);
+    getDefaultAssignee.mockResolvedValueOnce(shade.id);
+    render(await SettingsPage());
+    expect(screen.getByLabelText("Default for new leads")).toHaveValue(shade.id);
+  });
+
   it("checks the session first", async () => {
     calendarEnabled.mockReturnValue(false);
     getSyncState.mockResolvedValue({ subscriptionId: null, expiresAt: null, lastError: null, lastErrorAt: null });

@@ -24,4 +24,13 @@ describe("insertLead", () => {
     expect(text).toContain("now() + interval '24 hours'");
     expect(call).toContain("abc123");
   });
+  it("assigns the new lead to the default from Settings, inside the insert itself", async () => {
+    sql.mockClear().mockResolvedValue([{ id: "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c" }]);
+    await insertLead({ id: "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c", name: "Dana", phone: "7025550134",
+      email: "d@example.com", city: "Henderson", source: "hero" });
+    expect(sql).toHaveBeenCalledTimes(1);
+    const text = (sql.mock.calls[0][0] as TemplateStringsArray).join("?");
+    expect(text).toMatch(/questionnaire_expires_at, assigned_to\)/);
+    expect(text).toMatch(/end,\s*\(select default_assignee from lead_settings where id\)\)/);
+  });
 });

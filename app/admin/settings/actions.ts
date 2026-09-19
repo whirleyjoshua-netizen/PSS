@@ -8,6 +8,8 @@ import { saveRouteSettings } from "@/lib/routes/settings";
 import { INSTALLABLE_TREATMENTS, type InstallRate } from "@/lib/admin/install-pricing";
 import { saveInstallRates } from "@/lib/admin/install-rates";
 import { TREATMENT_TYPES } from "@/lib/leads/treatment-types";
+import { saveDefaultAssignee } from "@/lib/admin/lead-settings";
+import { isUuid } from "@/lib/admin/jobs";
 
 export type TeamFormState = { error?: string; ok?: boolean; name?: string };
 
@@ -101,5 +103,19 @@ export async function saveInstallRatesAction(
   await saveInstallRates(rates, settings.data, admin.email);
   revalidatePath("/admin/settings");
   revalidatePath("/admin/jobs/[id]", "page");
+  return { ok: true };
+}
+
+export type LeadDefaultsState = { error?: string; ok?: boolean };
+
+/** Who new leads are assigned to. An empty choice is Nobody. Jobs that already exist keep their assignee. */
+export async function saveLeadDefaultsAction(_prev: LeadDefaultsState, formData: FormData): Promise<LeadDefaultsState> {
+  const admin = await requireAdmin();
+  const raw = String(formData.get("defaultAssignee") ?? "");
+  const memberId = raw === "" ? null : raw;
+  if (memberId !== null && !isUuid(memberId)) return { error: "Pick someone from the team list" };
+  const result = await saveDefaultAssignee(memberId, admin.email);
+  if (result === "unknown-member") return { error: "That person is no longer on the team" };
+  revalidatePath("/admin/settings");
   return { ok: true };
 }
