@@ -21,11 +21,16 @@ vi.mock("@/app/(site)/project/actions", () => ({
   signOutCustomer: vi.fn(),
   sendMessageAction: vi.fn(),
   acknowledgeInstallFormAction: vi.fn(),
+  signContractFormAction: vi.fn(),
 }));
 const listMessages = vi.fn();
 vi.mock("@/lib/portal/messages", () => ({ listMessages }));
 const requireCustomer = vi.fn();
 vi.mock("@/lib/portal/session", () => ({ requireCustomer }));
+// No contracts to sign unless a test says otherwise.
+const signableContracts = vi.fn(async () => [] as { id: string; name: string }[]);
+const listSignatures = vi.fn(async () => [] as { signedAt: Date }[]);
+vi.mock("@/lib/portal/sign", () => ({ signableContracts, listSignatures }));
 
 const { ProjectView } = await import("@/app/(site)/project/ProjectView");
 const { FilesTabs } = await import("@/app/(site)/project/FilesTabs");
@@ -214,6 +219,37 @@ describe("ProjectView after approving", () => {
   it("says nothing on an ordinary visit", async () => {
     render(await ProjectView({ job: { ...job, status: "sold" as const } }));
     expect(screen.queryByRole("status")).toBeNull();
+  });
+});
+
+describe("ProjectView contract signing", () => {
+  beforeEach(() => {
+    signableContracts.mockReset().mockResolvedValue([]);
+    listSignatures.mockReset().mockResolvedValue([]);
+  });
+
+  it("offers one signing form per signable contract, from the helper the action uses", async () => {
+    signableContracts.mockResolvedValue([{ id: "c1", name: "Contract-1048.pdf" }]);
+    render(await ProjectView({ job }));
+    expect(signableContracts).toHaveBeenCalledWith(JOB);
+    expect(screen.getAllByLabelText("Your full name")).toHaveLength(1);
+  });
+
+  it("offers no form when nothing is left to sign", async () => {
+    render(await ProjectView({ job }));
+    expect(screen.queryByLabelText("Your full name")).toBeNull();
+  });
+
+  it("confirms a signing only against a recorded signature", async () => {
+    render(await ProjectView({ job, justSigned: "1" }));
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+
+  it("confirms a recorded signature on the page they land back on", async () => {
+    listSignatures.mockResolvedValue([{ signedAt: new Date("2026-09-18T17:00:00Z") }]);
+    render(await ProjectView({ job, justSigned: "1" }));
+    expect(listSignatures).toHaveBeenCalledWith(JOB);
+    expect(screen.getByRole("status")).toHaveTextContent("Thank you — your contract was signed on");
   });
 });
 

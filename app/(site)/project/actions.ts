@@ -2,8 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { after } from "next/server";
-import { listSharedDocuments } from "@/lib/admin/files";
+import { listSharedDocuments, readFile } from "@/lib/admin/files";
 import { setStage } from "@/lib/admin/jobs";
 import { isInstalled } from "@/lib/admin/stages";
 import { approveQuote, type ApproveResult } from "@/lib/portal/approve";
@@ -11,6 +12,10 @@ import { sendMessage, type MessageResult } from "@/lib/portal/messages";
 import { notifyOwnersOfAcknowledgement } from "@/lib/portal/send-acknowledgement-email";
 import { notifyOwnersOfApproval } from "@/lib/portal/send-approval-email";
 import { notifyOwnersOfMessage } from "@/lib/portal/send-message-email";
+import { formatProjectNo } from "@/lib/portal/project-no";
+import { notifyOwnersOfSignature, sendCustomerSignedCopy } from "@/lib/portal/send-signature-email";
+import { recordSignature, signableContracts, signatureFor, storeSignedCopy, type SignResult } from "@/lib/portal/sign";
+import { stampSignature } from "@/lib/portal/stamp";
 import { requestService } from "@/lib/portal/service-request";
 import { serviceRequestSchema } from "@/lib/portal/service-schema";
 import { destroyCustomerSession, requireCustomer } from "@/lib/portal/session";
@@ -227,6 +232,98 @@ export async function approveQuoteFormAction(formData: FormData): Promise<void> 
   const result = await approveQuoteAction(jobId);
   // Outside any try/catch: redirect() works by throwing.
   redirect(`/project/${encodeURIComponent(jobId)}?approved=${result === "approved" ? "1" : "no"}`);
+}
+
+/**
+ * Records a customer's electronic signature on one of their job's shared contracts.
+ *
+ * Settled server-side, in this order, none of it taken from the request:
+ *
+ * 1. Ownership. A jobId not among the session's own jobs is refused exactly as a job that does
+ *    not exist is, before anything is read.
+ * 2. The file. It is re-derived from signableContracts — the same list the page renders from —
+ *    so a posted id naming a quote, another job's file, a signed copy or an already-signed
+ *    contract is refused exactly as a missing one is. The posted id is only a key into that list.
+ * 3. The identity. The email recorded is the session's, never anything the form sent.
+ *
+ * Once recordSignature answers "signed" the signature is permanent. Stamping, storing the copy
+ * and both emails then run inside after(), each failure caught and logged, so none of them can
+ * delay, fail or undo the answer the customer gets.
+ */
+export async function signContractAction(
+  jobId: string,
+  fileId: string,
+  name: string,
+  agreed: boolean,
+): Promise<SignResult> {
+  const { email, jobs } = await requireCustomer();
+  const job = jobs.find((candidate) => candidate.id === jobId);
+  if (!job) return "not-found";
+  if (!agreed) return "invalid";
+
+  const contracts = await signableContracts(job.id);
+  const file = contracts.find((candidate) => candidate.id === fileId);
+  if (!file) return "not-found";
+
+  const headerList = await headers();
+  const result = await recordSignature({
+    jobId: job.id,
+    file,
+    name,
+    email,
+    ip: headerList.get("x-forwarded-for")?.split(",")[0]?.trim() || null,
+    userAgent: headerList.get("user-agent"),
+  });
+  if (result !== "signed") return result;
+
+  after(async () => {
+    let pdf: Buffer | null = null;
+    try {
+      const signature = await signatureFor(file.id);
+      const stored = await readFile(file);
+      if (signature && stored) {
+        const original = Buffer.from(await new Response(stored.stream).arrayBuffer());
+        pdf = await stampSignature(original, {
+          signedName: signature.signedName,
+          signedEmail: signature.signedEmail,
+          signedAt: signature.signedAt,
+          sha256: signature.docSha256,
+          projectNo: formatProjectNo(job.projectNo),
+        });
+        if (pdf) await storeSignedCopy({ jobId: job.id, original: file, bytes: pdf, actor: email });
+      }
+    } catch (error) {
+      // The signature stands without its stamped copy; the owners' email says the copy is missing.
+      console.error(error);
+      pdf = null;
+    }
+    await Promise.all([
+      notifyOwnersOfSignature(job, file.name, email, pdf !== null).catch(console.error),
+      sendCustomerSignedCopy(email, job, file.name, pdf).catch(console.error),
+    ]);
+  });
+
+  // Both paths render the same view: /project renders ProjectView directly for a customer
+  // with a single job, so revalidating only the [jobId] path would leave the common case stale.
+  revalidatePath("/project");
+  revalidatePath(`/project/${job.id}`);
+  return "signed";
+}
+
+/**
+ * The form's wrapper. The outcome rides back on the URL as a hint only; SignatureNotice
+ * re-derives what to say from the job's recorded signatures.
+ */
+export async function signContractFormAction(formData: FormData): Promise<void> {
+  const jobId = text(formData.get("jobId"));
+  const result = await signContractAction(
+    jobId,
+    text(formData.get("fileId")),
+    text(formData.get("signedName")),
+    formData.get("agreed") === "on",
+  );
+  // Outside any try/catch: redirect() works by throwing.
+  redirect(`/project/${encodeURIComponent(jobId)}?signed=${result === "signed" ? "1" : "no"}`);
 }
 
 /** What acknowledging can answer. Every refusal is a plain outcome, never an exception. */

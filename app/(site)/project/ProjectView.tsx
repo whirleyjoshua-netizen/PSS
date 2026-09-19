@@ -9,6 +9,7 @@ import { currentStep } from "@/lib/portal/progress";
 import { countReferred, listServiceRequests } from "@/lib/portal/project";
 import { formatProjectNo } from "@/lib/portal/project-no";
 import { listMessages } from "@/lib/portal/messages";
+import { listSignatures, signableContracts } from "@/lib/portal/sign";
 import { requireCustomer } from "@/lib/portal/session";
 import { installAppointmentAt, lastMeasuredAt, stageDates } from "@/lib/portal/timeline";
 import { ensureReferralCode } from "@/lib/referrals/db";
@@ -21,6 +22,7 @@ import { CopyLinkButton } from "./CopyLinkButton";
 import { DetailsCard } from "./DetailsCard";
 import { FilesTabs } from "./FilesTabs";
 import { MessageForm } from "./MessageForm";
+import { SignatureNotice, SignContract } from "./SignContract";
 import { StatusBanner, STEP_NEXT } from "./StatusBanner";
 import { StepTracker } from "./StepTracker";
 import { UpdatesList } from "./UpdatesList";
@@ -38,6 +40,7 @@ export async function ProjectView({
   justRequested,
   justApproved,
   justAcknowledged,
+  justSigned,
 }: {
   job: Job;
   /** Set only on the hop back from a service request, to name its new project number. */
@@ -52,10 +55,15 @@ export async function ProjectView({
    * — see AcknowledgeNotice, which checks it against the job's real status first.
    */
   justAcknowledged?: string | null;
+  /**
+   * The `?signed=` flag from the hop back after signing a contract. Unvalidated — see
+   * SignatureNotice, which checks it against the job's recorded signatures first.
+   */
+  justSigned?: string | null;
 }) {
   // Request-cached, so this costs no extra round trip: the page's own guard already ran it.
   const { email } = await requireCustomer();
-  const [photos, documents, code, referred, dates, measuredAt, installAt, messages, serviceAt] = await Promise.all([
+  const [photos, documents, code, referred, dates, measuredAt, installAt, messages, serviceAt, contracts, signatures] = await Promise.all([
     listSharedPhotos(job.id),
     listSharedDocuments(job.id),
     ensureReferralCode(job.id),
@@ -66,6 +74,9 @@ export async function ProjectView({
     listMessages(job.id, email),
     // Only a finished job can show the lines, so an unfinished one does not pay for the query.
     isInstalled(job.status) ? listServiceRequests(job.id) : Promise.resolve([]),
+    // The same helper the sign action re-derives from, so the page and the guard cannot drift.
+    signableContracts(job.id),
+    listSignatures(job.id),
   ]);
   const project = toProject(job, {
     stageDates: dates,
@@ -113,6 +124,16 @@ export async function ProjectView({
           beside it now reads Order Confirmed, which is the confirmation's own evidence. */}
       <ApprovalNotice approved={justApproved ?? null} status={project.status} />
       <AcknowledgeNotice acknowledged={justAcknowledged ?? null} status={job.status} />
+      {/* listSignatures is ordered by signed_at, so the last is the most recent. */}
+      <SignatureNotice signed={justSigned ?? null} signature={signatures.at(-1) ?? null} />
+      {contracts.length > 0 ? (
+        <section className="flex flex-col gap-3" aria-labelledby="sign-heading">
+          <h2 id="sign-heading" className={heading}>Your contract</h2>
+          {contracts.map((file) => (
+            <SignContract key={file.id} jobId={job.id} file={file} />
+          ))}
+        </section>
+      ) : null}
 
       <section className="flex flex-col gap-4" aria-labelledby="progress-heading">
         <h2 id="progress-heading" className={heading}>Your project</h2>
