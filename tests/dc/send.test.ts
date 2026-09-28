@@ -148,11 +148,36 @@ describe("sendContract", () => {
 
     const values = sql.mock.calls[0].slice(1);
     const lineJson = values.find((v: unknown) => typeof v === "string" && v.startsWith("[{"));
-    expect(JSON.parse(lineJson as string)).toEqual([{ position: 1, pct: 60, sell_unit_cents: priced.lines[0].sellUnitCents, overridden: false }]);
+    expect(JSON.parse(lineJson as string)).toEqual([{ position: 1, override: null, pct: 60, sell_unit_cents: priced.lines[0].sellUnitCents, overridden: false }]);
     for (const figure of [priced.installQuoteId, priced.installCents, priced.productsCents, priced.clientTotalCents, FILE, V1, JOB, OWNER]) {
       expect(values).toContain(figure);
     }
     expect(values).toContain(`Sent Contract PSS-1042 v1.pdf for ${formatCents(priced.clientTotalCents)}`);
+  });
+  it("the freeze re-checks the stored pricing inputs the review read (waive, no-install, every line's %)", async () => {
+    const waived = { ...version, waiveHandling: true, lines: version.lines.map((l) => ({ ...l, pctOverride: 64.1 })) };
+    store.listVersions.mockResolvedValue([waived]);
+    const review = await loadReview(JOB);
+    await sendContract({ jobId: JOB, versionId: V1, fingerprint: review!.fingerprint, actor: OWNER });
+    const call = sql.mock.calls[0];
+    const s = text(call);
+    const frozen = s.slice(s.indexOf("frozen as ("), s.indexOf("priced_lines as ("));
+    expect(frozen).toContain("and waive_handling = ? and no_install = ?");
+    expect(frozen).toMatch(/and not exists \( select 1 from dc_quote_lines q join jsonb_to_recordset\(\?::jsonb\) as r\(position int, override numeric\) on q.position = r.position where q.version_id = \? and q.pct_override is distinct from r.override \)/);
+    // The values bound to those guards are the ones the review priced from.
+    const strings = call[0] as TemplateStringsArray;
+    const valueAfter = (fragment: string) => call[1 + strings.findIndex((part) => part.replace(/\s+/g, " ").endsWith(fragment))];
+    expect(valueAfter("and waive_handling = ")).toBe(true);
+    expect(valueAfter(" and no_install = ")).toBe(false);
+    const lineJson = JSON.parse(call.slice(1).find((v: unknown) => typeof v === "string" && v.startsWith("[{")) as string);
+    expect(lineJson[0]).toMatchObject({ position: 1, override: 64.1, pct: 64.1, overridden: true });
+  });
+  it("the freeze re-checks, where they are stored, that the job is not Lost and has an email", async () => {
+    const review = await loadReview(JOB);
+    await sendContract({ jobId: JOB, versionId: V1, fingerprint: review!.fingerprint, actor: OWNER });
+    const s = text(sql.mock.calls[0]);
+    const frozen = s.slice(s.indexOf("frozen as ("), s.indexOf("priced_lines as ("));
+    expect(frozen).toContain("and exists (select 1 from leads where id = ? and status <> 'lost' and nullif(trim(email), '') is not null)");
   });
   it("removes the generated file when the freeze statement matched nothing (a race)", async () => {
     sql.mockResolvedValue([]);
@@ -160,6 +185,15 @@ describe("sendContract", () => {
     expect(await sendContract({ jobId: JOB, versionId: V1, fingerprint: review!.fingerprint, actor: OWNER })).toEqual({ error: "This quote changed while you were sending. Reload and try again." });
     expect(deleteFile).toHaveBeenCalledWith(FILE, OWNER);
     expect(sendContractEmail).not.toHaveBeenCalled();
+  });
+  it("logs when the race cleanup cannot remove the file", async () => {
+    sql.mockResolvedValue([]);
+    files.deleteFile.mockResolvedValue(false);
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const review = await loadReview(JOB);
+    expect(await sendContract({ jobId: JOB, versionId: V1, fingerprint: review!.fingerprint, actor: OWNER })).toEqual({ error: "This quote changed while you were sending. Reload and try again." });
+    expect(spy).toHaveBeenCalledWith(expect.stringContaining(FILE));
+    spy.mockRestore();
   });
   it("removes the generated file when the freeze statement throws, and the error still propagates", async () => {
     sql.mockRejectedValue(new Error("db down"));

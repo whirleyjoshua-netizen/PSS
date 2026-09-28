@@ -76,7 +76,7 @@ export async function sendContract(input: { jobId: string; versionId: string; fi
 
   const lineRows = JSON.stringify(version.lines.map((l) => {
     const p = pricedLine(l.position);
-    return { position: l.position, pct: p.pct, sell_unit_cents: p.sellUnitCents, overridden: p.source === "override" };
+    return { position: l.position, override: l.pctOverride, pct: p.pct, sell_unit_cents: p.sellUnitCents, overridden: p.source === "override" };
   }));
   let rows: Record<string, unknown>[];
   try {
@@ -92,6 +92,17 @@ export async function sendContract(input: { jobId: string; versionId: string; fi
           contract_file_id = ${file.id}, sent_at = now(), sent_by = ${input.actor}
         where id = ${version.id} and lead_id = ${job.id} and status = 'draft'
           and version = (select max(version) from dc_quote_versions where lead_id = ${job.id})
+          -- The inputs this price was computed from must be the ones still stored: a waive,
+          -- no-install or per-line % saved after the review would otherwise sit beside a total
+          -- that ignores it.
+          and waive_handling = ${version.waiveHandling} and no_install = ${version.noInstall}
+          and not exists (
+            select 1 from dc_quote_lines q
+            join jsonb_to_recordset(${lineRows}::jsonb) as r(position int, override numeric) on q.position = r.position
+            where q.version_id = ${version.id} and q.pct_override is distinct from r.override
+          )
+          -- The job-level blockers, rechecked where they are stored.
+          and exists (select 1 from leads where id = ${job.id} and status <> 'lost' and nullif(trim(email), '') is not null)
         returning id
       ),
       priced_lines as (
@@ -141,7 +152,7 @@ export async function sendContract(input: { jobId: string; versionId: string; fi
   }
   if (rows.length === 0) {
     // The version stopped being the latest draft (another send, or a newer import) after we read it.
-    await deleteFile(file.id, input.actor);
+    if (!(await deleteFile(file.id, input.actor))) console.error(`Could not remove the unsent contract ${file.id}`);
     return { error: "This quote changed while you were sending. Reload and try again." };
   }
   try {
