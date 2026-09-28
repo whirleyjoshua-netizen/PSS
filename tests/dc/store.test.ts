@@ -70,3 +70,43 @@ describe("saveMarkupRule", () => {
     expect(text(sql.mock.calls[1])).toContain("delete from markup_rules");
   });
 });
+
+describe("percentages with float error", () => {
+  it("accepts 2-decimal values whose *100 is not an exact float (64.1, 57.35, 33.3)", async () => {
+    sql.mockResolvedValue([{ id: "e1" }]);
+    for (const pct of [64.1, 57.35, 33.3]) {
+      await expect(store.setLineOverride(JOB, VERSION, 1, pct, "o@x.com")).resolves.toBe(true);
+      await expect(store.saveMarkupRule("Duette", pct, "o@x.com")).resolves.toBeUndefined();
+    }
+  });
+  it("still rejects 0, 1000.01 and 60.123", async () => {
+    for (const pct of [0, 1000.01, 60.123]) {
+      await expect(store.setLineOverride(JOB, VERSION, 1, pct, "o@x.com")).resolves.toBe(false);
+      await expect(store.saveMarkupRule("Duette", pct, "o@x.com")).rejects.toThrow();
+    }
+    expect(sql).not.toHaveBeenCalled();
+  });
+});
+
+describe("one markup rule per product line, whatever its case", () => {
+  it("saving a spelling removes other-case spellings in the same statement as the upsert", async () => {
+    sql.mockResolvedValue([]);
+    await store.saveMarkupRule("duette", 70, "o@x.com");
+    expect(sql).toHaveBeenCalledTimes(1);
+    const s = text(sql.mock.calls[0]);
+    expect(s).toMatch(/delete from markup_rules where lower\(collection\) = lower\(\?\) and collection <> \?.*insert into markup_rules/);
+    expect(s).toContain("on conflict (collection) do update");
+  });
+  it("lists rules in a fixed order", async () => {
+    sql.mockResolvedValue([]);
+    await store.listMarkupRules();
+    expect(text(sql.mock.calls[0])).toContain("order by");
+  });
+  it("lists each seen product line once, case-folded, preferring the ruled spelling", async () => {
+    sql.mockResolvedValue([{ collection: "Duette" }]);
+    expect(await store.listSeenCollections()).toEqual(["Duette"]);
+    const s = text(sql.mock.calls[0]);
+    expect(s).toContain("distinct on (lower(");
+    expect(s).toMatch(/from markup_rules.*union all.*from dc_quote_lines/);
+  });
+});

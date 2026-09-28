@@ -15,7 +15,9 @@ export type StoredVersion = {
 };
 export type DcSettings = { termsPathname: string | null; termsUpdatedAt: Date | null; lastPolledAt: Date | null };
 
-const validPct = (pct: number) => Number.isFinite(pct) && pct > 0 && pct <= 1000 && Math.round(pct * 100) === pct * 100;
+/** 0.01–1000 with at most two decimals. A tolerance, because 64.1 * 100 is 6409.999999999999 in floating point. */
+const validPct = (pct: number) =>
+  Number.isFinite(pct) && pct > 0 && pct <= 1000 && Math.abs(pct * 100 - Math.round(pct * 100)) < 1e-6;
 
 export async function isProcessed(messageId: string): Promise<boolean> {
   const rows = await db()`select 1 from ingested_messages where message_id = ${messageId}`;
@@ -153,16 +155,24 @@ export async function setVersionChoices(leadId: string, versionId: string, choic
 }
 
 export async function listMarkupRules(): Promise<Record<string, number>> {
-  const rows = await db()`select collection, pct_of_msrp from markup_rules`;
+  const rows = await db()`select collection, pct_of_msrp from markup_rules order by lower(collection), collection`;
   return Object.fromEntries(rows.map((r) => [r.collection as string, Number(r.pct_of_msrp)]));
 }
 
-/** Every collection any imported quote has used, plus every ruled one, sorted. */
+/**
+ * Every product line any imported quote has used, plus every ruled one, once each ignoring case
+ * ("Duette" and "DUETTE" are one line), spelled as its rule is when it has one, sorted.
+ */
 export async function listSeenCollections(): Promise<string[]> {
   const rows = await db()`
-    select collection from markup_rules
-    union select distinct trim(collection) from dc_quote_lines
-    order by 1`;
+    select collection from (
+      select distinct on (lower(collection)) collection from (
+        select collection, 0 as ruled_first from markup_rules
+        union all select trim(collection), 1 from dc_quote_lines
+      ) seen
+      order by lower(collection), ruled_first, collection
+    ) folded
+    order by lower(collection), collection`;
   return rows.map((r) => r.collection as string);
 }
 
@@ -174,7 +184,11 @@ export async function saveMarkupRule(collection: string, pct: number | null, act
     return;
   }
   if (!validPct(pct)) throw new Error("Enter a percentage between 0.01 and 1000");
+  // One statement: other-case spellings of this line go, so exactly one rule prices it.
   await db()`
+    with gone as (
+      delete from markup_rules where lower(collection) = lower(${name}) and collection <> ${name}
+    )
     insert into markup_rules (collection, pct_of_msrp, updated_by, updated_at)
     values (${name}, ${pct}, ${actor}, now())
     on conflict (collection) do update set pct_of_msrp = excluded.pct_of_msrp, updated_by = excluded.updated_by, updated_at = now()`;
