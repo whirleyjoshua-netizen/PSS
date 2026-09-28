@@ -31,7 +31,15 @@ vi.mock("@/app/admin/settings/actions", () => ({
   saveLeadDefaultsAction: vi.fn(async () => ({})),
   giveAccess: vi.fn(async () => ({})),
   removeAccess: vi.fn(),
+  saveMarkupAction: vi.fn(async () => ({})),
 }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
+const dcStore = {
+  listMarkupRules: vi.fn(async (): Promise<Record<string, number>> => ({})),
+  listSeenCollections: vi.fn(async (): Promise<string[]> => []),
+  getDcSettings: vi.fn(async () => ({ termsPathname: null as string | null, termsUpdatedAt: null as Date | null, lastPolledAt: null })),
+};
+vi.mock("@/lib/dc/store", () => dcStore);
 const getDefaultAssignee = vi.fn(async (): Promise<string | null> => null);
 vi.mock("@/lib/admin/lead-settings", () => ({ getDefaultAssignee }));
 
@@ -201,5 +209,32 @@ describe("installation rates section", () => {
     calendarEnabled.mockReturnValue(false);
     render(await SettingsPage());
     expect(screen.getByRole("region", { name: "Installation rates" })).toBeInTheDocument();
+  });
+});
+
+describe("Direct Connect sections", () => {
+  it("shows markup per product line and the contract terms after installation rates", async () => {
+    calendarEnabled.mockReturnValue(false);
+    dcStore.listSeenCollections.mockResolvedValueOnce(["Duette", "Pirouette"]);
+    dcStore.listMarkupRules.mockResolvedValueOnce({ Duette: 60 });
+    dcStore.getDcSettings.mockResolvedValueOnce({
+      termsPathname: "settings/contract-terms/a.pdf", termsUpdatedAt: new Date("2026-09-20T18:00:00Z"), lastPolledAt: null,
+    });
+    render(await SettingsPage());
+    expect(screen.getByLabelText("Duette % of MSRP")).toHaveValue("60");
+    expect(screen.getByLabelText("Pirouette % of MSRP")).toHaveValue("");
+    expect(screen.getByRole("region", { name: "Contract terms" })).toHaveTextContent(/Terms last updated Sun, Sep 20/);
+    const headings = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
+    const at = (name: string) => headings.indexOf(name);
+    expect(at("Installation rates")).toBeGreaterThanOrEqual(0);
+    expect(at("Markup by product line")).toBe(at("Installation rates") + 1);
+    expect(at("Contract terms")).toBe(at("Markup by product line") + 1);
+    expect(at("Google Ads")).toBe(headings.length - 1);
+  });
+
+  it("says contracts can't be sent until terms are uploaded", async () => {
+    calendarEnabled.mockReturnValue(false);
+    render(await SettingsPage());
+    expect(screen.getByText("No terms uploaded. Contracts can't be sent until you add them.")).toBeInTheDocument();
   });
 });

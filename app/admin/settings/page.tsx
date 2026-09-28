@@ -14,13 +14,16 @@ import { LeadDefaultsSection } from "./LeadDefaultsSection";
 import { parseAllowlist } from "@/lib/admin/allowlist";
 import { listAddedAdmins } from "@/lib/admin/admin-access";
 import { AdminAccessSection } from "./AdminAccessSection";
+import { getDcSettings, listMarkupRules, listSeenCollections } from "@/lib/dc/store";
+import { MarkupSection } from "./MarkupSection";
+import { TermsSection } from "./TermsSection";
 
 /** The team list, plus account and client-portal options as later portal steps land. */
 export default async function SettingsPage() {
   const admin = await requireAdmin();
   const enabled = calendarEnabled();
   // Read both together, so neither rejection is left unhandled while the other is awaited.
-  const [team, rates, installSettings, calendar, routeSettings, defaultAssignee, addedAdmins] = await Promise.all([
+  const [team, rates, installSettings, calendar, routeSettings, defaultAssignee, addedAdmins, rules, collections, dcSettings] = await Promise.all([
     listTeam(),
     listInstallRates(),
     getInstallSettings(),
@@ -37,6 +40,9 @@ export default async function SettingsPage() {
     getRouteSettings(),
     getDefaultAssignee(),
     listAddedAdmins(),
+    listMarkupRules(),
+    listSeenCollections(),
+    getDcSettings(),
   ]);
   const routeSetup = {
     map: Boolean(process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY && process.env.NEXT_PUBLIC_GOOGLE_MAP_ID),
@@ -54,6 +60,8 @@ export default async function SettingsPage() {
       <LeadDefaultsSection team={team} defaultAssignee={defaultAssignee} />
       <RoutesSection settings={routeSettings} setup={routeSetup} />
       <InstallRatesSection rates={rates} settings={installSettings} />
+      <MarkupSection collections={collections} rules={rules} />
+      <TermsSection updatedAt={dcSettings.termsUpdatedAt} />
       <section aria-labelledby="outlook-heading" className="flex flex-col gap-2">
         <h2 id="outlook-heading" className="text-lg font-semibold">
           Outlook calendar
