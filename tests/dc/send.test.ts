@@ -78,6 +78,58 @@ describe("loadReview", () => {
     expect(review!.priced.installCents).toBe(25000);
     expect(review!.fingerprint).toBe(pricingFingerprint(review!.priced));
   });
+  describe("a sent version shows what was sent, not today's price", () => {
+    const line = version.lines[0];
+    const productsCents = 39300 * line.qty;
+    const frozenTotal = productsCents + version.handlingFeeCents + version.oversizedFeeCents + 25000;
+    const sent: StoredVersion = {
+      ...version, status: "sent", sentAt: new Date("2026-09-27T20:00:00Z"), installQuoteId: INSTALL, installCents: 25000,
+      productsCents, clientTotalCents: frozenTotal, contractFileId: FILE,
+      lines: [{ ...line, markupPct: 60, sellUnitCents: 39300, markupOverridden: false }],
+    };
+    const newer = { id: "88888888-8888-4888-8888-888888888888", kind: "final", totalCents: 31000, createdAt: new Date("2026-09-28T12:00:00Z") };
+
+    beforeEach(() => {
+      // Both changed after sending: the rule went from 60 to 70 and a newer install price was saved.
+      store.listMarkupRules.mockResolvedValue({ Duette: 70 });
+      installs.listInstallQuotes.mockResolvedValue([newer, install]);
+    });
+
+    it("prices every line and total from the frozen columns", async () => {
+      store.listVersions.mockResolvedValue([sent]);
+      const review = await loadReview(JOB);
+      expect(review!.priced).toEqual({
+        lines: [{ position: line.position, pct: 60, source: "rule", sellUnitCents: 39300, sellExtendedCents: productsCents, marginCents: productsCents - line.costExtendedCents }],
+        productsCents, handlingChargedCents: version.handlingFeeCents, oversizedCents: version.oversizedFeeCents,
+        installCents: 25000, installQuoteId: INSTALL, clientTotalCents: frozenTotal, costCents: version.dealerTotalCents,
+        marginCents: frozenTotal - 25000 - version.dealerTotalCents, waiveHandling: false, blockers: [],
+      });
+      expect(review!.install).toEqual(install);
+      expect(review!.fingerprint).toBe(pricingFingerprint(review!.priced));
+    });
+
+    it("keeps a waived fee, an override and no installation as they were sent", async () => {
+      const total = 41000 * line.qty + version.oversizedFeeCents;
+      store.listVersions.mockResolvedValue([{ ...sent, status: "signed", waiveHandling: true, noInstall: true, installQuoteId: null, installCents: 0,
+        productsCents: 41000 * line.qty, clientTotalCents: total,
+        lines: [{ ...sent.lines[0], pctOverride: 62.6, markupPct: 62.6, sellUnitCents: 41000, markupOverridden: true }] }]);
+      const review = await loadReview(JOB);
+      expect(review!.priced).toMatchObject({ handlingChargedCents: 0, installCents: 0, installQuoteId: null, clientTotalCents: total, waiveHandling: true });
+      expect(review!.priced.lines[0]).toMatchObject({ pct: 62.6, source: "override", sellUnitCents: 41000 });
+      expect(review!.install).toBeNull();
+    });
+
+    it("still refuses to send it: the status blocker remains", async () => {
+      store.listVersions.mockResolvedValue([sent]);
+      const review = await loadReview(JOB);
+      expect(review!.blockers).toEqual(["This version has already been sent."]);
+      expect(await sendContract({ jobId: JOB, versionId: V1, fingerprint: review!.fingerprint, actor: OWNER }))
+        .toEqual({ error: "This version has already been sent." });
+      expect(createFile).not.toHaveBeenCalled();
+      expect(sql).not.toHaveBeenCalled();
+    });
+  });
+
   it("answers null for a job with no Direct Connect quote", async () => {
     store.listVersions.mockResolvedValue([]);
     expect(await loadReview(JOB)).toBeNull();

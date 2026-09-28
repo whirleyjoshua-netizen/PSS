@@ -64,10 +64,17 @@ function PctInput({ jobId, versionId, line, priced, rule, locked }: {
   );
 }
 
-function Choice({ label, checked, locked, onChange }: { label: string; checked: boolean; locked: boolean; onChange: (checked: boolean) => void }) {
+/**
+ * Uncontrolled and keyed by the saved value plus a refusal count, so a refresh or a refused save
+ * puts the box back to what is stored. Disabled while any choice is saving, so two quick
+ * toggles can't land out of order.
+ */
+function Choice({ label, checked, locked, busy, resets, onChange }: {
+  label: string; checked: boolean; locked: boolean; busy: boolean; resets: number; onChange: (checked: boolean) => void;
+}) {
   return (
     <label className="inline-flex min-h-11 items-center gap-2 text-sm">
-      <input key={String(checked)} type="checkbox" defaultChecked={checked} disabled={locked}
+      <input key={`${checked}:${resets}`} type="checkbox" defaultChecked={checked} disabled={locked || busy}
         onChange={(event) => onChange(event.currentTarget.checked)} />
       {label}
     </label>
@@ -97,7 +104,8 @@ export function QuoteReview({ jobId, review }: { jobId: string; review: Review }
   const [choiceError, setChoiceError] = useState<string | null>(null);
   const [sendResult, setSendResult] = useState<{ ok: string } | { error: string } | null>(null);
   const [sending, startSend] = useTransition();
-  const [, startChoice] = useTransition();
+  const [choosing, startChoice] = useTransition();
+  const [refusals, setRefusals] = useState(0);
 
   const pricedFor = (position: number) => priced.lines.find((l) => l.position === position)!;
   const previous = olderVersions[0];
@@ -105,7 +113,11 @@ export function QuoteReview({ jobId, review }: { jobId: string; review: Review }
   const signedEarlier = olderVersions.find((v) => v.status === "signed");
 
   const choose = (choices: { waiveHandling?: boolean; noInstall?: boolean }) =>
-    startChoice(async () => setChoiceError((await setChoicesAction(jobId, version.id, choices)).error ?? null));
+    startChoice(async () => {
+      const { error } = await setChoicesAction(jobId, version.id, choices);
+      setChoiceError(error ?? null);
+      if (error) setRefusals((n) => n + 1);
+    });
 
   const send = () =>
     startSend(async () => {
@@ -130,10 +142,7 @@ export function QuoteReview({ jobId, review }: { jobId: string; review: Review }
         <a className={TEXT_LINK} href={`/admin/files/${version.sourceFileId}`} target="_blank" rel="noreferrer">Dealer copy</a>
       </header>
 
-      {version.sentAt ? <p className="text-sm">Sent {formatShortDate(version.sentAt)} for {formatCents(version.clientTotalCents)}</p> : null}
-      {locked && version.clientTotalCents !== null && version.clientTotalCents !== priced.clientTotalCents ? (
-        <p className="text-sm text-ink-soft">The contract sent was {formatCents(version.clientTotalCents)}. The figures below are recalculated with today&apos;s markup.</p>
-      ) : null}
+      {version.sentAt ? <p className="text-sm">Sent {formatShortDate(version.sentAt)} for {formatCents(priced.clientTotalCents)}</p> : null}
       {version.status === "signed" ? (
         <div className="flex flex-col gap-1">
           {version.signedAt ? <p className="text-sm">Signed {formatShortDate(version.signedAt)}</p> : null}
@@ -206,14 +215,14 @@ export function QuoteReview({ jobId, review }: { jobId: string; review: Review }
       <dl className="flex max-w-xl flex-col self-end">
         <Total label="Products" value={formatCents(priced.productsCents)} />
         <Total label="HD handling fee" value={formatCents(priced.handlingChargedCents)}>
-          <Choice label="Waive" checked={priced.waiveHandling} locked={locked} onChange={(checked) => choose({ waiveHandling: checked })} />
+          <Choice label="Waive" checked={priced.waiveHandling} locked={locked} busy={choosing} resets={refusals} onChange={(checked) => choose({ waiveHandling: checked })} />
         </Total>
         {priced.oversizedCents > 0 ? <Total label="Oversized" value={formatCents(priced.oversizedCents)} /> : null}
         <Total label="Installation" value={formatCents(priced.installCents)}>
           {installNote ? <span className="text-xs text-ink-soft">{installNote}</span> : (
             <a className={TEXT_LINK} href={`/admin/jobs/${jobId}?tab=install`}>No installation price saved yet</a>
           )}
-          <Choice label="No installation on this job" checked={version.noInstall} locked={locked} onChange={(checked) => choose({ noInstall: checked })} />
+          <Choice label="No installation on this job" checked={version.noInstall} locked={locked} busy={choosing} resets={refusals} onChange={(checked) => choose({ noInstall: checked })} />
         </Total>
         <div className="border-t border-charcoal pt-1 font-semibold">
           <Total label="Client total" value={formatCents(priced.clientTotalCents)} />

@@ -13,6 +13,28 @@ import { getDcSettings, listMarkupRules, listVersions, type DcSettings, type Sto
 
 export type Review = { version: StoredVersion; priced: PricedVersion; blockers: string[]; fingerprint: string; install: InstallChoice | null; rules: Record<string, number>; olderVersions: StoredVersion[] };
 
+/** A sent version's price as Send froze it: the per-line % and sell stored at send, and the stored totals. */
+function frozenPrice(version: StoredVersion): PricedVersion {
+  const lines = version.lines.map((l) => {
+    const sellExtendedCents = l.sellUnitCents === null ? null : l.sellUnitCents * l.qty;
+    return {
+      position: l.position, pct: l.markupPct, source: l.markupOverridden ? "override" as const : "rule" as const,
+      sellUnitCents: l.sellUnitCents, sellExtendedCents,
+      marginCents: sellExtendedCents === null ? null : sellExtendedCents - l.costExtendedCents,
+    };
+  });
+  const installCents = version.installCents ?? 0;
+  const clientTotalCents = version.clientTotalCents;
+  return {
+    lines, productsCents: version.productsCents,
+    handlingChargedCents: version.waiveHandling ? 0 : version.handlingFeeCents, oversizedCents: version.oversizedFeeCents,
+    installCents, installQuoteId: version.installQuoteId, clientTotalCents, costCents: version.dealerTotalCents,
+    // As priceVersion computes it: product margin, installation excluded.
+    marginCents: clientTotalCents === null ? null : clientTotalCents - installCents - version.dealerTotalCents,
+    waiveHandling: version.waiveHandling, blockers: [],
+  };
+}
+
 /** The review plus the job and settings it was computed from, so Send uses the very same reads. */
 async function review(jobId: string): Promise<{ review: Review; job: Job; settings: DcSettings } | null> {
   const [job, versions, rules, installs, settings] = await Promise.all([
@@ -20,12 +42,21 @@ async function review(jobId: string): Promise<{ review: Review; job: Job; settin
   ]);
   if (!job || versions.length === 0) return null;
   const [version, ...olderVersions] = versions;
-  const install = pickInstallQuote(installs.map((q) => ({ id: q.id, kind: q.kind, totalCents: q.totalCents, createdAt: q.createdAt })));
-  const priced = priceVersion({
-    lines: version.lines.map((l) => ({ position: l.position, qty: l.qty, collection: l.collection, msrpUnitCents: l.msrpUnitCents, costExtendedCents: l.costExtendedCents, pctOverride: l.pctOverride })),
-    rules, handlingFeeCents: version.handlingFeeCents, oversizedFeeCents: version.oversizedFeeCents,
-    dealerTotalCents: version.dealerTotalCents, waiveHandling: version.waiveHandling, install, noInstall: version.noInstall,
-  });
+  const choices: InstallChoice[] = installs.map((q) => ({ id: q.id, kind: q.kind, totalCents: q.totalCents, createdAt: q.createdAt }));
+  let install: InstallChoice | null;
+  let priced: PricedVersion;
+  if (version.status === "draft") {
+    install = pickInstallQuote(choices);
+    priced = priceVersion({
+      lines: version.lines.map((l) => ({ position: l.position, qty: l.qty, collection: l.collection, msrpUnitCents: l.msrpUnitCents, costExtendedCents: l.costExtendedCents, pctOverride: l.pctOverride })),
+      rules, handlingFeeCents: version.handlingFeeCents, oversizedFeeCents: version.oversizedFeeCents,
+      dealerTotalCents: version.dealerTotalCents, waiveHandling: version.waiveHandling, install, noInstall: version.noInstall,
+    });
+  } else {
+    // Sent, signed or superseded: what was sent, never a re-price with today's markup or install price.
+    install = version.installQuoteId ? choices.find((q) => q.id === version.installQuoteId) ?? null : null;
+    priced = frozenPrice(version);
+  }
   const blockers = sendBlockers(priced, {
     hasTerms: settings.termsPathname !== null, isLatest: true, versionStatus: version.status,
     jobStatus: job.status, customerEmail: job.email,

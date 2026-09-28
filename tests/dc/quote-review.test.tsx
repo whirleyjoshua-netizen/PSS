@@ -182,11 +182,24 @@ describe("QuoteReview choices", () => {
     await waitFor(() => expect(setChoicesAction).toHaveBeenCalledWith(J, V, { noInstall: true }));
   });
 
-  it("shows a refusal", async () => {
+  it("shows a refusal and puts the box back to what is saved", async () => {
     setChoicesAction.mockResolvedValueOnce({ error: "This version can no longer be changed." });
     render(<QuoteReview jobId={J} review={review()} />);
     fireEvent.click(screen.getByRole("checkbox", { name: "Waive" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("This version can no longer be changed.");
+    expect(screen.getByRole("checkbox", { name: "Waive" })).not.toBeChecked();
+  });
+
+  it("disables both boxes while a choice is saving, so two toggles can't land out of order", async () => {
+    let finish!: (value: object) => void;
+    setChoicesAction.mockReturnValueOnce(new Promise((resolve) => { finish = resolve; }));
+    render(<QuoteReview jobId={J} review={review()} />);
+    fireEvent.click(screen.getByRole("checkbox", { name: "Waive" }));
+    await waitFor(() => expect(screen.getByRole("checkbox", { name: "Waive" })).toBeDisabled());
+    expect(screen.getByRole("checkbox", { name: "No installation on this job" })).toBeDisabled();
+    finish({});
+    await waitFor(() => expect(screen.getByRole("checkbox", { name: "Waive" })).toBeEnabled());
+    expect(screen.getByRole("checkbox", { name: "No installation on this job" })).toBeEnabled();
   });
 });
 
@@ -236,9 +249,11 @@ describe("QuoteReview after sending", () => {
     expect(screen.queryByText(/ready to order/)).toBeNull();
   });
 
-  it("says when today's markup would price a sent version differently", () => {
-    render(<QuoteReview jobId={J} review={review({ version: { ...sent, clientTotalCents: 180000 }, blockers: ["This version has already been sent."] })} />);
-    expect(screen.getByText("The contract sent was $1,800. The figures below are recalculated with today's markup.")).toBeInTheDocument();
+  it("reads the sent total from review.priced, the frozen figures", () => {
+    const r = review({ version: { ...sent, clientTotalCents: 180000 }, blockers: ["This version has already been sent."] });
+    render(<QuoteReview jobId={J} review={{ ...r, priced: { ...r.priced, clientTotalCents: 177717 } }} />);
+    expect(screen.getByText("Sent Sep 21, 2026 for $1,777.17")).toBeInTheDocument();
+    expect(total("Client total")).toHaveTextContent("$1,777.17");
   });
 
   it("points a signed version at Direct Connect to order", () => {
