@@ -33,13 +33,17 @@ export async function listCandidateMessages(since: Date): Promise<MailMessage[]>
   return found;
 }
 
-/** The message's .html file attachments, decoded. Anything over 1 MB is not a Dealer Copy and is left out. */
-export async function htmlAttachments(messageId: string): Promise<{ name: string; bytes: Buffer }[]> {
+/**
+ * Every .html file attachment on the message, so the caller counts all of them. `bytes` is the
+ * decoded file, or null when it is over 1 MB (not a Dealer Copy) or arrived empty: such a file
+ * still counts, and makes the message unreadable rather than silently disappearing.
+ */
+export async function htmlAttachments(messageId: string): Promise<{ name: string; bytes: Buffer | null }[]> {
   const mailbox = dcMailbox();
   if (!mailbox) return [];
   const page: { value: { "@odata.type": string; name: string; size: number; contentBytes?: string }[] } =
     await graphJson(`users/${encodeURIComponent(mailbox)}/messages/${encodeURIComponent(messageId)}/attachments`);
   return page.value
-    .filter((a) => a["@odata.type"] === "#microsoft.graph.fileAttachment" && /\.html?$/i.test(a.name) && a.size <= MAX_BYTES && a.contentBytes)
-    .map((a) => ({ name: a.name, bytes: Buffer.from(a.contentBytes!, "base64") }));
+    .filter((a) => a["@odata.type"] === "#microsoft.graph.fileAttachment" && /\.html?$/i.test(a.name))
+    .map((a) => ({ name: a.name, bytes: a.size <= MAX_BYTES && a.contentBytes ? Buffer.from(a.contentBytes, "base64") : null }));
 }

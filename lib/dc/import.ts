@@ -52,7 +52,14 @@ export async function importDealerCopy(input: { internetMessageId: string; recei
   });
   if (!file) return { outcome: "no-match", leadId: null, detail: "job disappeared" };
 
-  const imported = await importVersion({ ...base, leadId: job.id, quote, sourceFileId: file.id, sha256, actor: IMPORT_ACTOR });
+  let imported: Awaited<ReturnType<typeof importVersion>>;
+  try {
+    imported = await importVersion({ ...base, leadId: job.id, quote, sourceFileId: file.id, sha256, actor: IMPORT_ACTOR });
+  } catch (error) {
+    // Nothing links to the copy yet: remove it, or every retry leaves another one on the job.
+    await deleteFile(file.id, IMPORT_ACTOR).catch((cleanup) => console.error("Could not remove the unimported Dealer Copy", cleanup));
+    throw error;
+  }
   if (!imported) {
     // Another run recorded this message first: its version owns its own copy, so this one goes.
     await deleteFile(file.id, IMPORT_ACTOR);
@@ -74,12 +81,15 @@ export async function pollMailbox(now = new Date()): Promise<{ seen: number; res
     try {
       if (await isProcessed(message.internetMessageId)) continue;
       const attachments = await htmlAttachments(message.id);
-      if (attachments.length !== 1) {
-        await recordOutcome({ messageId: message.internetMessageId, receivedAt: message.receivedAt, outcome: "unreadable", leadId: null, dcQuoteNo: null, detail: `${attachments.length} HTML attachments` });
+      // Exactly one .html attachment, and that one within the size limit, or the message is unreadable.
+      const bytes = attachments.length === 1 ? attachments[0].bytes : null;
+      if (!bytes) {
+        const detail = attachments.length === 1 ? "HTML attachment over 1 MB or empty" : `${attachments.length} HTML attachments`;
+        await recordOutcome({ messageId: message.internetMessageId, receivedAt: message.receivedAt, outcome: "unreadable", leadId: null, dcQuoteNo: null, detail });
         results.push({ messageId: message.internetMessageId, outcome: "unreadable" });
         continue;
       }
-      const { outcome } = await importDealerCopy({ internetMessageId: message.internetMessageId, receivedAt: message.receivedAt, html: attachments[0].bytes.toString("utf8") });
+      const { outcome } = await importDealerCopy({ internetMessageId: message.internetMessageId, receivedAt: message.receivedAt, html: bytes.toString("utf8") });
       results.push({ messageId: message.internetMessageId, outcome });
     } catch (error) {
       // Not recorded: the next run retries it. The mark does not advance past it.

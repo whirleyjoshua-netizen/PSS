@@ -27,13 +27,17 @@ describe("listCandidateMessages", () => {
 });
 
 describe("htmlAttachments", () => {
-  it("returns decoded .html file attachments only, and refuses anything over 1 MB", async () => {
+  it("returns every .html file attachment, decoded, with anything over 1 MB listed but not decoded", async () => {
     graphJson.mockResolvedValueOnce({ value: [
       { "@odata.type": "#microsoft.graph.fileAttachment", name: "DEALER COPY 1.html", size: 10, contentBytes: Buffer.from("<html>").toString("base64") },
       { "@odata.type": "#microsoft.graph.fileAttachment", name: "logo.png", size: 10, contentBytes: "" },
-      { "@odata.type": "#microsoft.graph.fileAttachment", name: "big.html", size: 2_000_000, contentBytes: "" },
+      { "@odata.type": "#microsoft.graph.itemAttachment", name: "forwarded.html", size: 10 },
+      { "@odata.type": "#microsoft.graph.fileAttachment", name: "big.html", size: 2_000_000, contentBytes: Buffer.from("<html>").toString("base64") },
     ] });
     const found = await mailbox.htmlAttachments("a");
-    expect(found).toEqual([{ name: "DEALER COPY 1.html", bytes: Buffer.from("<html>") }]);
+    expect(found).toEqual([
+      { name: "DEALER COPY 1.html", bytes: Buffer.from("<html>") },
+      { name: "big.html", bytes: null },
+    ]);
   });
 });

@@ -69,6 +69,35 @@ describe("importDealerCopy", () => {
     await importDealerCopy(input);
     expect(files.deleteFile).toHaveBeenCalledWith("f1", "Direct Connect");
   });
+  it("if the import statement throws, the stored copy is removed and the error still propagates", async () => {
+    store.findJobByProjectNo.mockResolvedValue(JOB_A);
+    store.importVersion.mockRejectedValue(new Error("db down"));
+    files.deleteFile.mockRejectedValue(new Error("cleanup failed too"));
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    await expect(importDealerCopy(input)).rejects.toThrow("db down");
+    expect(files.deleteFile).toHaveBeenCalledWith("f1", "Direct Connect");
+    expect(spy).toHaveBeenCalled();
+    spy.mockRestore();
+  });
+  it("an owner email that fails does not undo or fail the import", async () => {
+    store.findJobByProjectNo.mockResolvedValue(JOB_A);
+    notify.notifyOwners.mockRejectedValueOnce(new Error("Resend down"));
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const result = await importDealerCopy(input);
+    expect(result).toMatchObject({ outcome: "imported", version: 1 });
+    expect(spy).toHaveBeenCalledWith("DC import email failed", expect.any(Error));
+    spy.mockRestore();
+  });
+  it("an unchanged re-send emails nobody", async () => {
+    store.findJobByProjectNo.mockResolvedValue(JOB_A);
+    const { createHash } = await import("node:crypto");
+    store.latestSha.mockResolvedValue(createHash("sha256").update(ONE).digest("hex"));
+    notify.notifyOwners.mockClear();
+    notify.importEmail.mockClear();
+    await importDealerCopy(input);
+    expect(notify.importEmail).not.toHaveBeenCalled();
+    expect(notify.notifyOwners).not.toHaveBeenCalled();
+  });
 });
 
 describe("pollMailbox", () => {
@@ -89,6 +118,31 @@ describe("pollMailbox", () => {
     mailbox.htmlAttachments.mockResolvedValue([]);
     const { results } = await pollMailbox(new Date());
     expect(results).toEqual([{ messageId: "<z@x>", outcome: "unreadable" }]);
+  });
+  it("a real copy plus an oversized .html is unreadable, not imported", async () => {
+    store.getDcSettings.mockResolvedValue({ lastPolledAt: null });
+    mailbox.listCandidateMessages.mockResolvedValue([message]);
+    mailbox.htmlAttachments.mockResolvedValue([{ name: "DEALER COPY 1.html", bytes: Buffer.from(ONE) }, { name: "big.html", bytes: null }]);
+    const { results } = await pollMailbox(new Date());
+    expect(results).toEqual([{ messageId: "<z@x>", outcome: "unreadable" }]);
+    expect(store.findJobByProjectNo).not.toHaveBeenCalled();
+    expect(store.recordOutcome).toHaveBeenCalledWith(expect.objectContaining({ outcome: "unreadable", detail: "2 HTML attachments" }));
+  });
+  it("a single oversized .html is unreadable", async () => {
+    store.getDcSettings.mockResolvedValue({ lastPolledAt: null });
+    mailbox.listCandidateMessages.mockResolvedValue([message]);
+    mailbox.htmlAttachments.mockResolvedValue([{ name: "big.html", bytes: null }]);
+    const { results } = await pollMailbox(new Date());
+    expect(results).toEqual([{ messageId: "<z@x>", outcome: "unreadable" }]);
+    expect(store.recordOutcome).toHaveBeenCalledWith(expect.objectContaining({ outcome: "unreadable", detail: "HTML attachment over 1 MB or empty" }));
+  });
+  it("a single normal .html attachment is imported", async () => {
+    store.getDcSettings.mockResolvedValue({ lastPolledAt: null });
+    mailbox.listCandidateMessages.mockResolvedValue([message]);
+    mailbox.htmlAttachments.mockResolvedValue([{ name: "DEALER COPY 1.html", bytes: Buffer.from(ONE) }]);
+    store.findJobByProjectNo.mockResolvedValue(JOB_A);
+    const { results } = await pollMailbox(new Date());
+    expect(results).toEqual([{ messageId: "<z@x>", outcome: "imported" }]);
   });
   it("skips a message already processed without fetching its attachments", async () => {
     store.getDcSettings.mockResolvedValue({ lastPolledAt: null });
