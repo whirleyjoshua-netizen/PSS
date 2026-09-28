@@ -57,6 +57,13 @@ describe("priceVersion", () => {
     expect(p.blockers).toEqual([]);
     expect(p.installCents).toBe(0);
   });
+  it("'No installation' drops a saved install quote from the price", () => {
+    const p = priceVersion({ ...base, noInstall: true });
+    expect(p.installCents).toBe(0);
+    expect(p.installQuoteId).toBeNull();
+    expect(p.clientTotalCents).toBe(106780 + 6600);
+    expect(p.blockers).toEqual([]);
+  });
   it("oversized fees pass through to the client", () => {
     expect(priceVersion({ ...base, oversizedFeeCents: 1500 }).clientTotalCents).toBe(106780 + 6600 + 1500 + 25000);
   });
