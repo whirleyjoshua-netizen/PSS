@@ -91,15 +91,19 @@ export default function PrivacyPage() {
               This website
             </h2>
             <p>
-              This site does not use advertising cookies or third-party tracking
-              pixels. If you arrive by clicking one of our Google ads, your
-              browser keeps the click&apos;s reference number and ad campaign
-              name for up to 90 days, and sends them with a consultation request
-              if you make one. We use them only to learn which of our ads bring
-              in customers, which can include telling Google that a click led
-              to a request or a sale, identified by that reference number alone. Our hosting provider records standard server request
-              information, such as IP addresses and pages requested, to keep the
-              site running and to protect it from abuse.
+              This site uses Google Analytics, which sets its own cookies, to
+              count visits and to note when someone sends a consultation request
+              or taps our phone number. If you arrive by clicking one of our
+              Google ads, your browser keeps the click&apos;s reference number
+              and ad campaign name for up to 90 days, and sends them with a
+              consultation request if you make one. We use these only to learn
+              which of our ads bring in customers, which includes sharing those
+              counts with Google Ads and telling Google that a click led to a
+              request or a sale, identified by that reference number alone. We
+              never send Google your name, phone number or email. Our hosting
+              provider records standard server request information, such as IP
+              addresses and pages requested, to keep the site running and to
+              protect it from abuse.
             </p>
           </section>
 

@@ -7,6 +7,8 @@ import { business } from "@/content/business";
 
 const push = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
+const sendGAEvent = vi.fn();
+vi.mock("@next/third-parties/google", () => ({ sendGAEvent: (...args: unknown[]) => sendGAEvent(...args) }));
 
 const ok = () =>
   vi.fn(async () => new Response(JSON.stringify({ ok: true }), { status: 201 }));
@@ -20,6 +22,7 @@ async function fillHero(user: ReturnType<typeof userEvent.setup>, phone = "70255
 beforeEach(() => {
   vi.stubGlobal("fetch", ok());
   push.mockReset();
+  sendGAEvent.mockReset();
 });
 
 afterEach(() => {
@@ -47,6 +50,7 @@ describe("HeroForm", () => {
 
     await waitFor(() => expect(fetch).toHaveBeenCalledOnce());
     await waitFor(() => expect(push).toHaveBeenCalledWith("/thank-you"));
+    expect(sendGAEvent).toHaveBeenCalledWith("event", "generate_lead", { form: "hero" });
   });
 
   it("stays on the page when the server rejects the request", async () => {
@@ -62,6 +66,7 @@ describe("HeroForm", () => {
 
     await screen.findByRole("alert");
     expect(push).not.toHaveBeenCalled();
+    expect(sendGAEvent).not.toHaveBeenCalled();
   });
 
   it("sends the hero source so leads can be attributed", async () => {

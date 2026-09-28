@@ -3,6 +3,7 @@ import { Footer } from "@/components/layout/Footer";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { localBusinessSchema } from "@/lib/seo/schema";
 import { AttributionCapture } from "@/components/analytics/AttributionCapture";
+import { PhoneClickTracking } from "@/components/analytics/PhoneClickTracking";
 
 /** Chrome for every public page, including the 404 page. The admin area supplies its own. */
 export function SiteChrome({ children }: { children: React.ReactNode }) {
@@ -21,6 +22,7 @@ export function SiteChrome({ children }: { children: React.ReactNode }) {
       <Footer />
       <JsonLd schema={localBusinessSchema()} />
       <AttributionCapture />
+      <PhoneClickTracking />
     </>
   );
 }

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { consultationSchema } from "@/lib/leads/schema";
 import { recallAttribution } from "@/lib/leads/attribution";
+import { trackLead } from "@/lib/analytics/events";
 
 export type FormState = "idle" | "submitting" | "success" | "error";
 
@@ -70,6 +71,7 @@ export function useConsultationForm(source: "hero" | "contact") {
       }
 
       form.reset();
+      trackLead(source);
       // The inline success message covers the moment before navigation lands.
       setState("success");
       router.push("/thank-you");
