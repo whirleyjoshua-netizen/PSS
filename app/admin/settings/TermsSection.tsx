@@ -3,9 +3,8 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { formatWhen } from "@/lib/admin/time";
+import { TERMS_MAX_BYTES, TERMS_NOT_A_PDF, TERMS_TOO_LARGE } from "@/lib/dc/terms";
 
-/** The terms route refuses the same thing, with the same words. */
-const NOT_A_PDF = "Upload a PDF file (its type must be application/pdf).";
 const FAILED = "Upload failed. Check your signal and try again.";
 
 async function postTerms(file: File): Promise<{ ok: true } | { error: string }> {
@@ -52,7 +51,9 @@ export function TermsSection({ updatedAt }: { updatedAt: Date | null }) {
             const file = event.target.files?.[0];
             event.target.value = "";
             if (!file) return;
-            if (file.type !== "application/pdf") return setError(NOT_A_PDF);
+            // The route refuses the same files with the same words; checking here saves a slow upload.
+            if (file.type !== "application/pdf") return setError(TERMS_NOT_A_PDF);
+            if (file.size === 0 || file.size > TERMS_MAX_BYTES) return setError(TERMS_TOO_LARGE);
             setError(null);
             startTransition(async () => {
               const result = await postTerms(file);

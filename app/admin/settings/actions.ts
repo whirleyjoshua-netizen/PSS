@@ -15,7 +15,7 @@ import { isUuid } from "@/lib/admin/jobs";
 import { isOwner } from "@/lib/admin/allowlist";
 import { addAdmin, removeAdmin } from "@/lib/admin/admin-access";
 import { adminSignInUrl, sendAccessEmail } from "@/lib/admin/access-email";
-import { saveMarkupRule } from "@/lib/dc/store";
+import { listMarkupRules, saveMarkupRule } from "@/lib/dc/store";
 
 export type TeamFormState = { error?: string; ok?: boolean; name?: string };
 
@@ -160,11 +160,13 @@ export async function removeAccess(rawEmail: string): Promise<void> {
   revalidatePath("/admin/settings");
 }
 
-export type MarkupState = { error?: string; ok?: boolean };
+/** `updated` names the existing rule an Add replaced, spelled as it was saved before. */
+export type MarkupState = { error?: string; ok?: boolean; updated?: string };
 
 /**
  * One product line's markup, as % of MSRP. Blank clears it, which blocks sending quotes that use it.
- * `mode=add` is the "Add a product line" form: there a blank % would save nothing, so it is refused.
+ * `mode=add` is the "Add a product line" form: there a blank % would save nothing, so it is refused,
+ * and a name matching an existing rule (ignoring case) replaces that rule, which the answer says.
  */
 export async function saveMarkupAction(_prev: MarkupState, formData: FormData): Promise<MarkupState> {
   const admin = await requireAdmin();
@@ -177,9 +179,12 @@ export async function saveMarkupAction(_prev: MarkupState, formData: FormData): 
     pct = Number(raw);
     if (!/^\d{1,4}(\.\d{1,2})?$/.test(raw) || pct <= 0 || pct > 1000) return { error: "Enter a percentage like 60 or 57.5" };
   }
+  const existing = adding
+    ? Object.keys(await listMarkupRules()).find((name) => name.toLowerCase() === collection.toLowerCase())
+    : undefined;
   await saveMarkupRule(collection, pct, admin.email);
   revalidatePath("/admin/settings");
   // Job pages price their Direct Connect lines with these percentages.
   revalidatePath("/admin/jobs/[id]", "page");
-  return { ok: true };
+  return existing === undefined ? { ok: true } : { ok: true, updated: existing };
 }

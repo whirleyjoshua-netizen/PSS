@@ -76,5 +76,17 @@ describe("markup section", () => {
       expect(data.get("collection")).toBe("Alta Honeycomb Shades");
       expect(data.get("pct")).toBe("62.5");
     });
+
+    it("says which rule it updated when the name matched an existing one", async () => {
+      saveMarkupAction.mockResolvedValueOnce({ ok: true, updated: "Duette" });
+      render(<MarkupSection collections={["Duette"]} rules={{ Duette: 60 }} />);
+      const add = screen.getByRole("form", { name: "Add a product line" });
+      fireEvent.change(within(add).getByLabelText("Product line"), { target: { value: "duette" } });
+      fireEvent.change(within(add).getByLabelText("% of MSRP"), { target: { value: "62" } });
+      fireEvent.click(within(add).getByRole("button", { name: "Add product line" }));
+      const status = await within(add).findByRole("status");
+      expect(status).toHaveTextContent("Updated Duette.");
+      expect(status).not.toHaveTextContent("Added.");
+    });
   });
 });

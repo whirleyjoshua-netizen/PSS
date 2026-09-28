@@ -58,6 +58,20 @@ describe("terms section", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("refuses a PDF over 4 MB before sending it", async () => {
+    render(<TermsSection updatedAt={null} />);
+    choose(new File([new Uint8Array(4 * 1024 * 1024 + 1)], "Terms.pdf", { type: "application/pdf" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("The PDF must be under 4 MB.");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("sends a PDF of exactly 4 MB", async () => {
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ ok: true }), { status: 200 }));
+    render(<TermsSection updatedAt={null} />);
+    choose(new File([new Uint8Array(4 * 1024 * 1024)], "Terms.pdf", { type: "application/pdf" }));
+    await waitFor(() => expect(refresh).toHaveBeenCalled());
+  });
+
   it("says the file is too large when the server refuses its size", async () => {
     fetchMock.mockResolvedValue(new Response("Request Entity Too Large", { status: 413 }));
     render(<TermsSection updatedAt={null} />);

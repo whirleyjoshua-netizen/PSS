@@ -76,7 +76,7 @@ function AddLine() {
       ) : null}
       {state.ok ? (
         <p role="status" className="text-sm text-ink-soft">
-          Added.
+          {state.updated ? `Updated ${state.updated}.` : "Added."}
         </p>
       ) : null}
     </form>

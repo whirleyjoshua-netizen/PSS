@@ -11,7 +11,8 @@ vi.mock("next/cache", () => ({ revalidatePath }));
 const saveMarkupRule = vi.fn(async (..._args: unknown[]) => {
   order.push("save");
 });
-vi.mock("@/lib/dc/store", () => ({ saveMarkupRule }));
+const listMarkupRules = vi.fn(async (): Promise<Record<string, number>> => ({}));
+vi.mock("@/lib/dc/store", () => ({ saveMarkupRule, listMarkupRules }));
 
 const { saveMarkupAction } = await import("@/app/admin/settings/actions");
 
@@ -68,6 +69,12 @@ describe("saveMarkupAction", () => {
     expect(order[0]).toBe("auth");
   });
 
+  it("saving a row never reports an update, even though its rule exists", async () => {
+    listMarkupRules.mockResolvedValue({ Duette: 60 });
+    expect(await saveMarkupAction({}, form({ collection: "Duette", pct: "61" }))).toEqual({ ok: true });
+    listMarkupRules.mockResolvedValue({});
+  });
+
   it("saves nothing when the session check fails", async () => {
     requireAdmin.mockRejectedValueOnce(new Error("NEXT_REDIRECT"));
     const data = form({ collection: "Duette", pct: "60" });
@@ -81,6 +88,19 @@ describe("saveMarkupAction", () => {
       const result = await saveMarkupAction({}, form({ mode: "add", collection: " Silhouette Window Shadings ", pct: "62.5" }));
       expect(result).toEqual({ ok: true });
       expect(saveMarkupRule).toHaveBeenCalledWith("Silhouette Window Shadings", 62.5, "o@x.com");
+    });
+
+    it("says Added for a new line: the answer names no rule it replaced", async () => {
+      listMarkupRules.mockResolvedValueOnce({ Duette: 60 });
+      expect(await saveMarkupAction({}, form({ mode: "add", collection: "Pirouette", pct: "58" }))).toEqual({ ok: true });
+    });
+
+    it("names the existing rule, as it was spelled, when the typed name matches it ignoring case", async () => {
+      listMarkupRules.mockResolvedValueOnce({ Duette: 60, Pirouette: 58 });
+      const result = await saveMarkupAction({}, form({ mode: "add", collection: "DUETTE", pct: "62" }));
+      expect(result).toEqual({ ok: true, updated: "Duette" });
+      expect(listMarkupRules.mock.invocationCallOrder[0]).toBeLessThan(saveMarkupRule.mock.invocationCallOrder[0]);
+      expect(saveMarkupRule).toHaveBeenCalledWith("DUETTE", 62, "o@x.com");
     });
 
     it("refuses a blank or whitespace name", async () => {

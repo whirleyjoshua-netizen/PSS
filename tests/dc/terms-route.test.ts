@@ -81,11 +81,11 @@ describe("POST /admin/settings/terms", () => {
     expect(blob.put).not.toHaveBeenCalled();
   });
 
-  it("refuses an empty file and one over 10 MB", async () => {
-    for (const file of [pdf(""), pdf(new Uint8Array(10 * 1024 * 1024 + 1))]) {
+  it("refuses an empty file and one over 4 MB, which Vercel's body limit leaves room for", async () => {
+    for (const file of [pdf(""), pdf(new Uint8Array(4 * 1024 * 1024 + 1))]) {
       const response = await POST(post(file));
       expect(response.status).toBe(400);
-      expect(await response.json()).toEqual({ error: "The PDF must be under 10 MB." });
+      expect(await response.json()).toEqual({ error: "The PDF must be under 4 MB." });
     }
     expect(blob.put).not.toHaveBeenCalled();
   });
