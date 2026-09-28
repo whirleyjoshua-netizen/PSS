@@ -125,8 +125,11 @@ export async function saveLeadDefaultsAction(_prev: LeadDefaultsState, formData:
   return { ok: true };
 }
 
-/** `ok` is the sentence to show; on error `email` carries what was typed. */
-export type AccessFormState = { error?: string; ok?: string; email?: string };
+/**
+ * `ok` is the sentence to show; on error `email` carries what was typed. `given` is the normalized
+ * address a success or "already has access" is about, so the form can drop it once they are removed.
+ */
+export type AccessFormState = { error?: string; ok?: string; email?: string; given?: string };
 
 export async function giveAccess(_prev: AccessFormState, formData: FormData): Promise<AccessFormState> {
   const admin = await requireAdmin();
@@ -135,10 +138,11 @@ export async function giveAccess(_prev: AccessFormState, formData: FormData): Pr
   if (!parsed.success) return { error: parsed.error.issues[0].message, email: typed };
   const { email } = parsed.data;
   if (isOwner(email)) return { error: "That address is already an owner.", email: typed };
-  if (!(await addAdmin(email, admin.email))) return { error: "That address already has access.", email: typed };
+  if (!(await addAdmin(email, admin.email))) return { error: "That address already has access.", email: typed, given: email };
   revalidatePath("/admin/settings");
   const sent = await sendAccessEmail(email, admin.email);
   return {
+    given: email,
     ok: sent
       ? `Access given to ${email}. We emailed them the sign-in link.`
       : `Access given to ${email}, but the welcome email could not be sent. Tell them to sign in at ${adminSignInUrl()}.`,
@@ -148,7 +152,8 @@ export async function giveAccess(_prev: AccessFormState, formData: FormData): Pr
 /** Owners and your own address are refused here too, not only hidden in the page. */
 export async function removeAccess(rawEmail: string): Promise<void> {
   const admin = await requireAdmin();
-  const email = rawEmail.trim().toLowerCase();
+  // A hand-posted non-string must not throw.
+  const email = String(rawEmail ?? "").trim().toLowerCase();
   if (isOwner(email) || email === admin.email.trim().toLowerCase()) return;
   await removeAdmin(email);
   revalidatePath("/admin/settings");

@@ -36,6 +36,12 @@ describe("admin access store", () => {
     expect(query).toContain("delete from admin_access");
     expect(query).toContain("delete from admin_sessions");
     expect(query).toMatch(/delete from admin_login_tokens[\s\S]*used_at is null/);
+    // Scoped to the removed address: an unscoped delete here would sign everyone out.
+    const flat = query.replace(/\s+/g, " ");
+    expect(flat).toMatch(/delete from admin_sessions where email in \(select email from removed\)/);
+    expect(flat).toMatch(/delete from admin_login_tokens where used_at is null and email in \(select email from removed\)/);
+    expect(flat).toMatch(/delete from admin_access where email = \?/);
+    expect(sql.mock.calls[0]).toContain("a@x.com");
   });
 
   it("reports removing an unknown address as false", async () => {

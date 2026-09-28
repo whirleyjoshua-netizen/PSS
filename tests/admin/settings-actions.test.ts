@@ -250,7 +250,10 @@ describe("giveAccess", () => {
     expect(order[0]).toBe("auth");
     expect(addAdmin).toHaveBeenCalledWith("alia@example.com", "owner@example.com");
     expect(sendAccessEmail).toHaveBeenCalledWith("alia@example.com", "owner@example.com");
-    expect(result).toEqual({ ok: "Access given to alia@example.com. We emailed them the sign-in link." });
+    expect(result).toEqual({
+      ok: "Access given to alia@example.com. We emailed them the sign-in link.",
+      given: "alia@example.com",
+    });
   });
 
   it("still gives access when the email fails, and says how to tell them", async () => {
@@ -260,6 +263,7 @@ describe("giveAccess", () => {
     expect(result.ok).toBe(
       "Access given to alia@example.com, but the welcome email could not be sent. Tell them to sign in at https://pss.test/admin/sign-in.",
     );
+    expect(result.given).toBe("alia@example.com");
   });
 
   it("rejects an invalid address, keeping what was typed", async () => {
@@ -276,8 +280,8 @@ describe("giveAccess", () => {
 
   it("does not email someone who already had access", async () => {
     addAdmin.mockResolvedValueOnce(false);
-    const result = await giveAccess({}, accessForm("alia@example.com"));
-    expect(result).toEqual({ error: "That address already has access.", email: "alia@example.com" });
+    const result = await giveAccess({}, accessForm(" Alia@Example.com"));
+    expect(result).toEqual({ error: "That address already has access.", email: " Alia@Example.com", given: "alia@example.com" });
     expect(sendAccessEmail).not.toHaveBeenCalled();
   });
 });
@@ -292,6 +296,11 @@ describe("removeAccess", () => {
   it("refuses to remove an owner, even posted by hand", async () => {
     await removeAccess(" SHADE@example.com");
     expect(removeAdmin).not.toHaveBeenCalled();
+  });
+
+  it("treats a hand-posted non-string as no address, without throwing", async () => {
+    await expect(removeAccess(undefined as unknown as string)).resolves.toBeUndefined();
+    expect(removeAdmin).toHaveBeenCalledWith("");
   });
 
   it("refuses to remove yourself", async () => {

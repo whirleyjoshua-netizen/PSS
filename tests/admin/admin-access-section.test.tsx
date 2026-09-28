@@ -51,6 +51,44 @@ describe("admin access section", () => {
     expect(screen.getByLabelText("Email")).toHaveValue("");
   });
 
+  it("drops the result once that address is no longer on the list", async () => {
+    giveAccess.mockResolvedValue({
+      ok: "Access given to new@example.com. We emailed them the sign-in link.",
+      given: "new@example.com",
+    });
+    const now = [{ email: "new@example.com", addedBy: "owner@example.com", addedAt: new Date("2026-09-28T18:00:00Z") }];
+    // In the app the refreshed list arrives with the result, so render it with them already listed.
+    const { rerender } = render(<AdminAccessSection owners={[]} added={now} me="owner@example.com" />);
+    await userEvent.type(screen.getByLabelText("Email"), "new@example.com");
+    await userEvent.click(screen.getByRole("button", { name: "Give access" }));
+    expect(await screen.findByRole("status")).toHaveTextContent("Access given to new@example.com.");
+
+    // Any later refresh that still lists them keeps the line.
+    rerender(<AdminAccessSection owners={[]} added={[...now]} me="owner@example.com" />);
+    expect(screen.getByRole("status")).toHaveTextContent("Access given to new@example.com.");
+
+    rerender(<AdminAccessSection owners={[]} added={[]} me="owner@example.com" />);
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(screen.queryByText(/Access given to/)).toBeNull();
+  });
+
+  it("drops \"already has access\" once that address is removed", async () => {
+    giveAccess.mockResolvedValue({ error: "That address already has access.", email: "alia@example.com", given: "alia@example.com" });
+    const { rerender } = render(<AdminAccessSection owners={[]} added={added} me="owner@example.com" />);
+    await userEvent.type(screen.getByLabelText("Email"), "alia@example.com");
+    await userEvent.click(screen.getByRole("button", { name: "Give access" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("That address already has access.");
+
+    rerender(<AdminAccessSection owners={[]} added={added.slice(1)} me="owner@example.com" />);
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByLabelText("Email")).not.toHaveAttribute("aria-invalid");
+  });
+
+  it("lists a repeated owner once", () => {
+    render(<AdminAccessSection owners={["owner@example.com", "owner@example.com"]} added={[]} me="owner@example.com" />);
+    expect(screen.getAllByText("owner@example.com")).toHaveLength(1);
+  });
+
   it("shows a problem and keeps what was typed", async () => {
     giveAccess.mockResolvedValue({ error: "That address is already an owner.", email: "Owner@example.com" });
     render(<AdminAccessSection owners={[]} added={[]} me="owner@example.com" />);
@@ -59,5 +97,6 @@ describe("admin access section", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("That address is already an owner.");
     expect(screen.getByLabelText("Email")).toHaveValue("Owner@example.com");
     expect(screen.getByLabelText("Email")).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByLabelText("Email")).toHaveAttribute("aria-describedby", "access-email-error");
   });
 });

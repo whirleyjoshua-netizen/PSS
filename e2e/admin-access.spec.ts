@@ -44,8 +44,10 @@ test("give access, they sign in, remove them, they are out", async ({ browser })
   await expect(guestPage.getByRole("heading", { name: "Jobs", exact: true })).toBeVisible();
 
   await access.getByRole("button", { name: `Remove ${GUEST}` }).click();
-  // The "Access given to ..." status stays on screen after a Remove, so look in the list rows only.
   await expect(access.getByRole("listitem").filter({ hasText: GUEST })).toHaveCount(0);
+  // Removing one person leaves the owner in place, and the "Access given to" line goes with them.
+  await expect(access.getByRole("listitem").filter({ hasText: OWNER })).toContainText("Owner");
+  await expect(access.getByText(/Access given to/)).toHaveCount(0);
 
   await guestPage.goto("/admin/settings");
   await expect(guestPage).toHaveURL(/\/admin\/sign-in/);
