@@ -36,7 +36,8 @@ export function conversionsCsv(rows: ConversionRow[]): string {
       lines.push([cell(row.gclid), name, conversionTime(at), value, value ? "USD" : ""].join(","));
     add(CONVERSIONS.lead, row.createdAt);
     if (row.bookedAt) add(CONVERSIONS.booked, row.bookedAt);
-    if (row.soldAt && row.soldCents) add(CONVERSIONS.sale, row.soldAt, (row.soldCents / 100).toFixed(2));
+    // A sale with no amount entered still counts; Google then uses the action's default value.
+    if (row.soldAt) add(CONVERSIONS.sale, row.soldAt, row.soldCents ? (row.soldCents / 100).toFixed(2) : "");
   }
   return lines.join("\n") + "\n";
 }

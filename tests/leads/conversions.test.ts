@@ -18,6 +18,11 @@ describe("conversionsCsv", () => {
       "",
     ]);
   });
+  it("still reports a sale whose amount was never entered, without a value", () => {
+    const csv = conversionsCsv([{ gclid: "x", createdAt: new Date("2026-09-14T00:00:00Z"), bookedAt: null,
+      soldAt: new Date("2026-09-20T18:30:00Z"), soldCents: null }]);
+    expect(csv.trim().split("\n")[2]).toBe("x,Sale,2026-09-20 18:30:00+00:00,,");
+  });
   it("writes only the lead for a job that has gone nowhere yet", () => {
     const csv = conversionsCsv([{ gclid: "x", createdAt: new Date("2026-09-14T00:00:00Z"), bookedAt: null, soldAt: null, soldCents: null }]);
     expect(csv.trim().split("\n")).toHaveLength(2);
