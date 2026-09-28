@@ -22,7 +22,7 @@ export async function requestSignIn(rawEmail: string): Promise<void> {
 
   after(async () => {
     try {
-      if (!isAllowed(email)) return;
+      if (!(await isAllowed(email))) return;
 
       const sql = db();
       await sql`delete from admin_login_tokens where expires_at < now() - interval '1 day'`;
@@ -80,5 +80,5 @@ export async function consumeSignIn(token: string): Promise<string | null> {
     where token_hash = ${hashToken(token)} and used_at is null and expires_at > now()
     returning email`;
   const email = rows[0]?.email as string | undefined;
-  return email && isAllowed(email) ? email : null;
+  return email && (await isAllowed(email)) ? email : null;
 }

@@ -40,7 +40,7 @@ export const getAdmin = cache(async (): Promise<{ email: string } | null> => {
     select email from admin_sessions
     where token_hash = ${hashToken(token)} and expires_at > now()`;
   const email = rows[0]?.email as string | undefined;
-  return email && isAllowed(email) ? { email } : null;
+  return email && (await isAllowed(email)) ? { email } : null;
 });
 
 /** The only guard admin pages and actions rely on. proxy.ts is a courtesy. */

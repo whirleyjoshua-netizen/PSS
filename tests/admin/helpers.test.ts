@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { newToken, hashToken } from "@/lib/admin/tokens";
-import { parseAllowlist, isAllowed } from "@/lib/admin/allowlist";
+import { parseAllowlist } from "@/lib/admin/allowlist";
 import { dollarsToCents, formatCents } from "@/lib/admin/money";
 import { fromLocalInput, toLocalInput, formatDay } from "@/lib/admin/time";
 
@@ -22,12 +22,6 @@ describe("allowlist", () => {
   it("trims, lowercases, and drops blanks", () => {
     expect(parseAllowlist(" A@x.com, ,b@Y.com ")).toEqual(["a@x.com", "b@y.com"]);
     expect(parseAllowlist(undefined)).toEqual([]);
-  });
-
-  it("matches regardless of case or surrounding space", () => {
-    expect(isAllowed("  Owner@Example.com ", "owner@example.com")).toBe(true);
-    expect(isAllowed("someone@example.com", "owner@example.com")).toBe(false);
-    expect(isAllowed("owner@example.com", "")).toBe(false);
   });
 });
 

@@ -70,8 +70,18 @@ describe("sessions", () => {
 
   it("returns null once the address is off the allowlist", async () => {
     jar.set(SESSION_COOKIE, "tok");
-    sql.mockResolvedValue([{ email: "former@example.com" }]);
+    sql.mockImplementation(async (strings: TemplateStringsArray) =>
+      strings.join("?").includes("from admin_access") ? [] : [{ email: "former@example.com" }],
+    );
     expect(await getAdmin()).toBeNull();
+  });
+
+  it("finds an admin given access in Settings", async () => {
+    jar.set(SESSION_COOKIE, "tok");
+    sql.mockImplementation(async (strings: TemplateStringsArray) =>
+      strings.join("?").includes("from admin_access") ? [{ "?column?": 1 }] : [{ email: "alia@example.com" }],
+    );
+    expect(await getAdmin()).toEqual({ email: "alia@example.com" });
   });
 
   it("requireAdmin redirects to sign-in when there is no owner", async () => {

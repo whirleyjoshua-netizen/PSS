@@ -87,11 +87,23 @@ describe("requestSignIn", () => {
     expect(insert).not.toContain(token);
   });
 
-  it("says nothing to a stranger and does no work at all", async () => {
+  it("says nothing to a stranger and only looks them up", async () => {
     await requestSignIn("stranger@example.com");
     await runScheduledWork();
     expect(send).not.toHaveBeenCalled();
-    expect(sql).not.toHaveBeenCalled();
+    expect(sql).toHaveBeenCalledTimes(1);
+    expect(text(sql.mock.calls[0])).toContain("from admin_access");
+  });
+
+  it("emails an admin given access in Settings", async () => {
+    sql.mockImplementation(async (strings: TemplateStringsArray) => {
+      const query = strings.join("?");
+      if (query.includes("from admin_access")) return [{ "?column?": 1 }];
+      return query.includes("count(*)") ? [{ count: 0 }] : [];
+    });
+    await requestSignIn("alia@example.com");
+    await runScheduledWork();
+    expect(send.mock.calls[0][0].to).toBe("alia@example.com");
   });
 
   it("stops sending after five links in an hour", async () => {
@@ -132,7 +144,9 @@ describe("consumeSignIn", () => {
   });
 
   it("returns null when the address has since been removed from the allowlist", async () => {
-    sql.mockResolvedValue([{ email: "former@example.com" }]);
+    sql.mockImplementation(async (strings: TemplateStringsArray) =>
+      strings.join("?").includes("from admin_access") ? [] : [{ email: "former@example.com" }],
+    );
     expect(await consumeSignIn("tok")).toBeNull();
   });
 });
