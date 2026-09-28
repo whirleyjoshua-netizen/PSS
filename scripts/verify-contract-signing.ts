@@ -310,6 +310,11 @@ test("contract signing: record, stamp, freeze and cascade against a real databas
     // A draft on the same lead pointing at the same file must NOT be signed: only 'sent' is.
     const draftC = await newVersion(leadC, 1, "draft", contractC.id, 99);
     const versionC = await newVersion(leadC, 2, "sent", contractC.id, 123456);
+    // Migration 024's partial unique index: a second 'sent' version on the same contract is refused.
+    const duplicate = await newVersion(leadC, 3, "sent", contractC.id, 1)
+      .then(() => "inserted", (error: { code?: string }) => error.code ?? "no code");
+    check(duplicate === "23505", "a second sent version on the same contract is a unique violation",
+      `got ${duplicate}`);
     const signedC = await recordSignature({
       jobId: leadC, file: contractC, name: "Jane Doe", email: ACTOR, ip: null, userAgent: null,
     });

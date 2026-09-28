@@ -42,6 +42,9 @@ create table if not exists dc_quote_versions (
 
 create index if not exists dc_quote_versions_contract_idx on dc_quote_versions (contract_file_id);
 
+-- At most one sent version per contract file, so signing it can never match two versions
+create unique index if not exists dc_quote_versions_sent_contract_key on dc_quote_versions (contract_file_id) where status = 'sent' and contract_file_id is not null;
+
 create table if not exists dc_quote_lines (
   version_id          uuid not null references dc_quote_versions(id) on delete cascade,
   position            integer not null,

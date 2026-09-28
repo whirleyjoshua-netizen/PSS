@@ -39,6 +39,12 @@ describe("migration 024", () => {
   it("numbers versions per job, uniquely", () => {
     expect(find("create table if not exists dc_quote_versions")).toContain("unique (lead_id, version)");
   });
+  it("allows at most one sent version per contract file, keeping the plain lookup index", () => {
+    expect(find("create unique index if not exists dc_quote_versions_sent_contract_key")).toBe(
+      "create unique index if not exists dc_quote_versions_sent_contract_key on dc_quote_versions (contract_file_id) where status = 'sent' and contract_file_id is not null",
+    );
+    expect(find("create index if not exists dc_quote_versions_contract_idx")).toContain("(contract_file_id)");
+  });
   it("stores money as integer cents", () => {
     const lines = find("create table if not exists dc_quote_lines")!;
     for (const c of ["msrp_unit_cents integer not null", "cost_unit_cents integer not null", "cost_extended_cents integer not null"]) {

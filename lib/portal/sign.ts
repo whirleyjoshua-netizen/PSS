@@ -117,6 +117,7 @@ export async function recordSignature(input: {
       returning lead_id, version, client_total_cents
     ),
     prev as (select l.status from leads l join version v on l.id = v.lead_id),
+    -- ('new','visit_booked','quoted') mirrors the pre-Sold stages in lib/admin/stages.ts.
     sold as (
       update leads set sold_cents = (select client_total_cents from version),
         status = case when status in ('new','visit_booked','quoted') then 'sold' else status end,
