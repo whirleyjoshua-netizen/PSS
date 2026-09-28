@@ -83,16 +83,29 @@ describe("winAnsiSafe", () => {
   it("keeps the WinAnsi characters outside Latin-1, like the trade mark and euro, and still replaces an emoji", () => {
     expect(winAnsiSafe("Duette™ €5 • Œuvre 🙂")).toBe("Duette™ €5 • Œuvre ?");
   });
+  // Walks all ~63k BMP characters, so it gets its own timeout: under a loaded single-worker run the
+  // default 5s is not enough. Each character is encoded once, and failures are collected and asserted
+  // once, so the loop does not pay for 130k expect() calls.
   it("agrees with pdf-lib's Helvetica on every character: keeps what it can encode, never returns what it cannot", async () => {
     const font = await helvetica();
+    const chars: string[] = [];
     for (let cp = 0; cp <= 0xffff; cp++) {
       if (cp >= 0xd800 && cp <= 0xdfff) continue; // lone surrogates are not characters
-      const ch = String.fromCodePoint(cp);
-      const safe = winAnsiSafe(ch);
-      expect(encodes(font, safe), `U+${cp.toString(16)} -> ${JSON.stringify(safe)}`).toBe(true);
-      if (encodes(font, ch) && ch !== "?" && !/\s/.test(ch)) expect(safe, `U+${cp.toString(16)}`).not.toBe("?");
+      chars.push(String.fromCodePoint(cp));
     }
-  });
+    const encodable = new Set(chars.filter((ch) => encodes(font, ch)));
+    const hex = (ch: string) => `U+${ch.codePointAt(0)!.toString(16)}`;
+    const unencodableOutput: string[] = [];
+    const lostEncodable: string[] = [];
+    for (const ch of chars) {
+      const safe = winAnsiSafe(ch);
+      if (![...safe].every((c) => encodable.has(c))) unencodableOutput.push(`${hex(ch)} -> ${JSON.stringify(safe)}`);
+      if (encodable.has(ch) && ch !== "?" && !/\s/.test(ch) && safe === "?") lostEncodable.push(hex(ch));
+    }
+    expect(encodable.size).toBeGreaterThan(200); // the set really came from the font
+    expect(unencodableOutput).toEqual([]);
+    expect(lostEncodable).toEqual([]);
+  }, 60_000);
   it("keeps Latin-1, maps typographic marks, replaces the rest", () => {
     expect(winAnsiSafe("48½″ — Café “Den” 🚪")).toBe('48½" - Café "Den" ?');
   });
