@@ -353,7 +353,10 @@ test.describe("send, sign and the release gate", () => {
   test("the customer signs the contract, and the owner sees Sold and ready to order", async ({ page, browser }) => {
     const customer = await customerPage(browser, CUSTOMER);
     await expect(customer.getByRole("heading", { name: "Your contract" })).toBeVisible();
-    const details = customer.locator("details", { has: customer.getByRole("link", { name: contractName() }) });
+    // By text, not by role: the contract's link sits inside a CLOSED <details>, and role locators
+    // skip elements hidden from the accessibility tree, so a role-based `has:` would match nothing.
+    const details = customer.locator("details", { hasText: contractName() });
+    await expect(details).toHaveCount(1);
     await details.locator("summary").click();
     const form = details.locator("form");
     await form.getByLabel("Your full name").fill("Pat Buyer");
