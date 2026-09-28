@@ -250,6 +250,9 @@ export const teamMemberSchema = z.object({
   role: z.enum(TEAM_ROLE_VALUES, { error: "Pick Designer or Installer" }),
 });
 
+/** The website form's email rule: trimmed, lowercased, a real-looking address. */
+export const adminAccessSchema = z.object({ email: site.email });
+
 /**
  * A money field on the installation rates form, parsed like every other money field ("$1,500" works).
  * Blank is rejected: a job-level number must be entered, even if it is 0. The action skips blank

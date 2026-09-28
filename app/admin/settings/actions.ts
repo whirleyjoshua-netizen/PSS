@@ -2,7 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/admin/session";
-import { installRateSchema, installSettingsSchema, routeSettingsSchema, teamMemberSchema } from "@/lib/admin/schema";
+import {
+  adminAccessSchema, installRateSchema, installSettingsSchema, routeSettingsSchema, teamMemberSchema,
+} from "@/lib/admin/schema";
 import { addTeamMember, removeTeamMember } from "@/lib/admin/team";
 import { saveRouteSettings } from "@/lib/routes/settings";
 import { INSTALLABLE_TREATMENTS, type InstallRate } from "@/lib/admin/install-pricing";
@@ -10,6 +12,9 @@ import { saveInstallRates } from "@/lib/admin/install-rates";
 import { TREATMENT_TYPES } from "@/lib/leads/treatment-types";
 import { saveDefaultAssignee } from "@/lib/admin/lead-settings";
 import { isUuid } from "@/lib/admin/jobs";
+import { isOwner } from "@/lib/admin/allowlist";
+import { addAdmin, removeAdmin } from "@/lib/admin/admin-access";
+import { adminSignInUrl, sendAccessEmail } from "@/lib/admin/access-email";
 
 export type TeamFormState = { error?: string; ok?: boolean; name?: string };
 
@@ -118,4 +123,33 @@ export async function saveLeadDefaultsAction(_prev: LeadDefaultsState, formData:
   if (result === "unknown-member") return { error: "That person is no longer on the team" };
   revalidatePath("/admin/settings");
   return { ok: true };
+}
+
+/** `ok` is the sentence to show; on error `email` carries what was typed. */
+export type AccessFormState = { error?: string; ok?: string; email?: string };
+
+export async function giveAccess(_prev: AccessFormState, formData: FormData): Promise<AccessFormState> {
+  const admin = await requireAdmin();
+  const typed = String(formData.get("email") ?? "");
+  const parsed = adminAccessSchema.safeParse({ email: typed });
+  if (!parsed.success) return { error: parsed.error.issues[0].message, email: typed };
+  const { email } = parsed.data;
+  if (isOwner(email)) return { error: "That address is already an owner.", email: typed };
+  if (!(await addAdmin(email, admin.email))) return { error: "That address already has access.", email: typed };
+  revalidatePath("/admin/settings");
+  const sent = await sendAccessEmail(email, admin.email);
+  return {
+    ok: sent
+      ? `Access given to ${email}. We emailed them the sign-in link.`
+      : `Access given to ${email}, but the welcome email could not be sent. Tell them to sign in at ${adminSignInUrl()}.`,
+  };
+}
+
+/** Owners and your own address are refused here too, not only hidden in the page. */
+export async function removeAccess(rawEmail: string): Promise<void> {
+  const admin = await requireAdmin();
+  const email = rawEmail.trim().toLowerCase();
+  if (isOwner(email) || email === admin.email.trim().toLowerCase()) return;
+  await removeAdmin(email);
+  revalidatePath("/admin/settings");
 }

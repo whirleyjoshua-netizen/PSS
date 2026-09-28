@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const order: string[] = [];
 const requireAdmin = vi.fn(async () => {
@@ -28,10 +28,26 @@ const saveDefaultAssignee = vi.fn(async (..._args: unknown[]): Promise<"ok" | "u
   return "ok";
 });
 vi.mock("@/lib/admin/lead-settings", () => ({ saveDefaultAssignee }));
+const addAdmin = vi.fn(async (..._args: unknown[]) => {
+  order.push("addAdmin");
+  return true;
+});
+const removeAdmin = vi.fn(async (..._args: unknown[]) => {
+  order.push("removeAdmin");
+  return true;
+});
+vi.mock("@/lib/admin/admin-access", () => ({ addAdmin, removeAdmin }));
+const sendAccessEmail = vi.fn(async (..._args: unknown[]) => true);
+vi.mock("@/lib/admin/access-email", () => ({
+  sendAccessEmail,
+  adminSignInUrl: () => "https://pss.test/admin/sign-in",
+}));
 const revalidatePath = vi.fn();
 vi.mock("next/cache", () => ({ revalidatePath }));
 
-const { addMember, removeMember, saveRouteSettingsAction, saveInstallRatesAction, saveLeadDefaultsAction } = await import("@/app/admin/settings/actions");
+const {
+  addMember, removeMember, saveRouteSettingsAction, saveInstallRatesAction, saveLeadDefaultsAction, giveAccess, removeAccess,
+} = await import("@/app/admin/settings/actions");
 const form = (entries: Record<string, string>) => {
   const data = new FormData();
   for (const [k, v] of Object.entries(entries)) data.set(k, v);
@@ -41,6 +57,15 @@ const form = (entries: Record<string, string>) => {
 beforeEach(() => {
   order.length = 0;
   vi.clearAllMocks();
+  addAdmin.mockClear();
+  removeAdmin.mockClear();
+  // mockReset drops any mockResolvedValue(false) a test set, so it cannot leak into the next test.
+  sendAccessEmail.mockReset().mockResolvedValue(true);
+  vi.stubEnv("ADMIN_EMAILS", "owner@example.com,shade@example.com");
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
 });
 
 describe("team actions", () => {
@@ -210,5 +235,68 @@ describe("saveLeadDefaultsAction", () => {
       error: "That person is no longer on the team",
     });
     expect(revalidatePath).not.toHaveBeenCalled();
+  });
+});
+
+const accessForm = (email: string) => {
+  const data = new FormData();
+  data.set("email", email);
+  return data;
+};
+
+describe("giveAccess", () => {
+  it("checks the session, normalizes, adds, emails, and says so", async () => {
+    const result = await giveAccess({}, accessForm("  Alia@Example.com "));
+    expect(order[0]).toBe("auth");
+    expect(addAdmin).toHaveBeenCalledWith("alia@example.com", "owner@example.com");
+    expect(sendAccessEmail).toHaveBeenCalledWith("alia@example.com", "owner@example.com");
+    expect(result).toEqual({ ok: "Access given to alia@example.com. We emailed them the sign-in link." });
+  });
+
+  it("still gives access when the email fails, and says how to tell them", async () => {
+    sendAccessEmail.mockResolvedValue(false);
+    const result = await giveAccess({}, accessForm("alia@example.com"));
+    expect(addAdmin).toHaveBeenCalled();
+    expect(result.ok).toBe(
+      "Access given to alia@example.com, but the welcome email could not be sent. Tell them to sign in at https://pss.test/admin/sign-in.",
+    );
+  });
+
+  it("rejects an invalid address, keeping what was typed", async () => {
+    const result = await giveAccess({}, accessForm("not-an-email"));
+    expect(result).toEqual({ error: "Please enter a valid email address", email: "not-an-email" });
+    expect(addAdmin).not.toHaveBeenCalled();
+  });
+
+  it("refuses an owner however it is typed, adding nothing", async () => {
+    const result = await giveAccess({}, accessForm(" Shade@EXAMPLE.com "));
+    expect(result).toEqual({ error: "That address is already an owner.", email: " Shade@EXAMPLE.com " });
+    expect(addAdmin).not.toHaveBeenCalled();
+  });
+
+  it("does not email someone who already had access", async () => {
+    addAdmin.mockResolvedValueOnce(false);
+    const result = await giveAccess({}, accessForm("alia@example.com"));
+    expect(result).toEqual({ error: "That address already has access.", email: "alia@example.com" });
+    expect(sendAccessEmail).not.toHaveBeenCalled();
+  });
+});
+
+describe("removeAccess", () => {
+  it("checks the session, then removes", async () => {
+    await removeAccess("alia@example.com");
+    expect(order).toEqual(["auth", "removeAdmin"]);
+    expect(removeAdmin).toHaveBeenCalledWith("alia@example.com");
+  });
+
+  it("refuses to remove an owner, even posted by hand", async () => {
+    await removeAccess(" SHADE@example.com");
+    expect(removeAdmin).not.toHaveBeenCalled();
+  });
+
+  it("refuses to remove yourself", async () => {
+    requireAdmin.mockResolvedValueOnce({ email: "alia@example.com" });
+    await removeAccess("Alia@example.com");
+    expect(removeAdmin).not.toHaveBeenCalled();
   });
 });
