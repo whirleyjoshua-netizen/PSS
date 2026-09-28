@@ -1,9 +1,9 @@
 /**
  * The type labels an owner can put on a document. Safe to import from client
  * components: this module imports nothing that reaches the database, so it must
- * stay free of imports that run only on the server. The values match the
- * job_files.doc_type check constraint last defined in
- * db/migrations/021_contract_signing.sql; changing one without the other fails
+ * stay free of imports that run only on the server. These values plus
+ * DEALER_COPY match the job_files.doc_type check constraint last defined in
+ * db/migrations/024_dc_quote_import.sql; changing one without the other fails
  * at write time. The migration lists the values in the order they were added to
  * the database; the order here is the order an owner sees in the menu.
  */
