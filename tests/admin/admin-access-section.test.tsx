@@ -35,6 +35,13 @@ describe("admin access section", () => {
     expect(screen.getByText("alia@example.com").closest("li")).toHaveTextContent("added by owner@example.com");
   });
 
+  it("lists an owner who also has a row once, as Owner, with no Remove", () => {
+    const promoted = [{ email: "x@example.com", addedBy: "owner@example.com", addedAt: new Date("2026-09-28T18:00:00Z") }];
+    render(<AdminAccessSection owners={["x@example.com"]} added={promoted} me="owner@example.com" />);
+    expect(screen.queryByRole("button", { name: "Remove x@example.com" })).toBeNull();
+    expect(screen.getAllByText("x@example.com")).toHaveLength(1);
+  });
+
   it("shows the result of giving access", async () => {
     giveAccess.mockResolvedValue({ ok: "Access given to new@example.com. We emailed them the sign-in link." });
     render(<AdminAccessSection owners={[]} added={[]} me="owner@example.com" />);

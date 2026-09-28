@@ -7,6 +7,9 @@ import { GiveAccessForm } from "./GiveAccessForm";
 /** Who can sign in. Owners come from ADMIN_EMAILS and are never removable here. */
 export function AdminAccessSection({ owners, added, me }: { owners: string[]; added: AddedAdmin[]; me: string }) {
   const self = me.trim().toLowerCase();
+  // An owner who also has a row (added, then made an owner) shows once, as Owner: Remove would do nothing.
+  const ownerSet = new Set(owners.map((email) => email.trim().toLowerCase()));
+  const others = added.filter((person) => !ownerSet.has(person.email.trim().toLowerCase()));
   return (
     <section aria-labelledby="access-heading" className="flex flex-col gap-3">
       <h2 id="access-heading" className="text-lg font-semibold">
@@ -19,7 +22,7 @@ export function AdminAccessSection({ owners, added, me }: { owners: string[]; ad
             <span className="text-ink-soft">Owner</span>
           </li>
         ))}
-        {added.map((person) => (
+        {others.map((person) => (
           <li key={person.email} className="flex items-center justify-between gap-3 px-4 py-2 text-sm">
             <span>
               {person.email}
