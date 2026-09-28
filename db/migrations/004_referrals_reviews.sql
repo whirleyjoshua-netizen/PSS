@@ -17,5 +17,5 @@ create index if not exists leads_referred_by_idx on leads (referred_by);
 -- run and a shorter list here would fail against rows holding newer kinds.
 alter table job_events drop constraint if exists job_events_kind_check;
 alter table job_events add constraint job_events_kind_check check (
-  kind in ('stage','note','edit','email','reward','measure','file','contact','message','service','signature')
+  kind in ('stage','note','edit','email','reward','measure','file','contact','message','service','signature','quote')
 );

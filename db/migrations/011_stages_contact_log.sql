@@ -16,5 +16,5 @@ alter table leads add constraint leads_status_check check (
 alter table job_events drop constraint if exists job_events_kind_check;
 
 alter table job_events add constraint job_events_kind_check check (
-  kind in ('stage','note','edit','email','reward','measure','file','contact','message','service','signature')
+  kind in ('stage','note','edit','email','reward','measure','file','contact','message','service','signature','quote')
 );

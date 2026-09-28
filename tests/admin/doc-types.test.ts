@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
-import { DOC_TYPES, docTypeLabel, isDocType } from "@/lib/admin/doc-types";
+import { DEALER_COPY, DOC_TYPES, docTypeLabel, isDocType, storedDocTypeLabel } from "@/lib/admin/doc-types";
 
 describe("document types", () => {
   it("offers the five types, in order, with their labels", () => {
@@ -29,9 +29,9 @@ describe("document types", () => {
   });
 
   it("matches the values the database allows", () => {
-    // 021 is the LAST migration to define this constraint, so it is the one the
-    // database ends up with; 016 defined the narrower earlier version.
-    const sql = readFileSync("db/migrations/021_contract_signing.sql", "utf8");
+    // 024 is the LAST migration to define this constraint, so it is the one the
+    // database ends up with (every earlier definition is kept identical to it).
+    const sql = readFileSync("db/migrations/024_dc_quote_import.sql", "utf8");
     // Scoped to the check constraint itself: a bare toContain("'quote'") would
     // pass on any unrelated occurrence elsewhere in the migration.
     const constraint = /doc_type\s+is\s+null\s+or\s+doc_type\s+in\s*\(([^)]*)\)/i.exec(sql);
@@ -39,7 +39,16 @@ describe("document types", () => {
     const allowed = constraint![1].split(",").map((value) => value.trim());
     // Compared as sets: the migration lists the values in the order they were added
     // to the database, DOC_TYPES in the order an owner should see them in the menu.
-    expect([...allowed].sort()).toEqual(DOC_TYPES.map((type) => `'${type.value}'`).sort());
+    // The database also allows the Dealer Copy, which only the import ever stores.
+    const stored = [...DOC_TYPES.map((type) => type.value), DEALER_COPY];
+    expect([...allowed].sort()).toEqual(stored.map((value) => `'${value}'`).sort());
+  });
+
+  it("never offers the Dealer Copy in the owner's menu, but labels it as internal", () => {
+    expect(isDocType(DEALER_COPY)).toBe(false);
+    expect(DOC_TYPES.map((type) => type.value)).not.toContain(DEALER_COPY);
+    expect(storedDocTypeLabel(DEALER_COPY)).toBe("Dealer copy (internal)");
+    expect(storedDocTypeLabel("quote")).toBe("Quote");
   });
 
   it("imports nothing server-only, so a client component may use it", () => {

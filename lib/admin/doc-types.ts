@@ -30,3 +30,13 @@ const DOC_TYPE_LABELS: { [K in DocType]: Extract<(typeof DOC_TYPES)[number], { v
 };
 
 export const docTypeLabel = (type: DocType): string => DOC_TYPE_LABELS[type];
+
+/**
+ * Set only by the Direct Connect import, never by an owner: the menu (DOC_TYPES) never offers it,
+ * setDocType refuses it, and the database refuses to share it (job_files_dealer_copy_never_shared).
+ */
+export const DEALER_COPY = "dealer_copy" as const;
+export type StoredDocType = DocType | typeof DEALER_COPY;
+
+export const storedDocTypeLabel = (type: StoredDocType): string =>
+  type === DEALER_COPY ? "Dealer copy (internal)" : docTypeLabel(type);

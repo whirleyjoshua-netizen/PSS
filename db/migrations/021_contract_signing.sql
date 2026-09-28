@@ -6,7 +6,7 @@
 alter table job_files drop constraint if exists job_files_doc_type_check;
 
 alter table job_files add constraint job_files_doc_type_check check (
-  doc_type is null or doc_type in ('quote','po','invoice','other','contract')
+  doc_type is null or doc_type in ('quote','po','invoice','other','contract','dealer_copy')
 );
 
 -- 019_service_requests.sql last defined this check. Every migration that touches it lists
@@ -14,7 +14,7 @@ alter table job_files add constraint job_files_doc_type_check check (
 alter table job_events drop constraint if exists job_events_kind_check;
 
 alter table job_events add constraint job_events_kind_check check (
-  kind in ('stage','note','edit','email','reward','measure','file','contact','message','service','signature')
+  kind in ('stage','note','edit','email','reward','measure','file','contact','message','service','signature','quote')
 );
 
 -- One signature per contract file. doc_sha256 is the fingerprint of the exact bytes the

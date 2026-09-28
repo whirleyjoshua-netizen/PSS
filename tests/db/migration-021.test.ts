@@ -17,7 +17,7 @@ describe("migration 021", () => {
   it("re-adds the doc_type check with every existing type plus contract", () => {
     const check = statements.find((s) => s.includes("add constraint job_files_doc_type_check"));
     expect(check).toBeDefined();
-    for (const type of ["quote", "po", "invoice", "other", "contract"]) {
+    for (const type of ["quote", "po", "invoice", "other", "contract", "dealer_copy"]) {
       expect(check).toContain(`'${type}'`);
     }
     expect(check).toContain("doc_type is null or");
@@ -28,7 +28,7 @@ describe("migration 021", () => {
     const check = statements.find((s) => s.includes("add constraint job_events_kind_check"));
     expect(check).toBeDefined();
     for (const kind of [
-      "stage", "note", "edit", "email", "reward", "measure", "file", "contact", "message", "service", "signature",
+      "stage", "note", "edit", "email", "reward", "measure", "file", "contact", "message", "service", "signature", "quote",
     ]) {
       expect(check).toContain(`'${kind}'`);
     }

@@ -2,7 +2,7 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { del, get, put } from "@vercel/blob";
 import { db } from "@/lib/db";
-import { docTypeLabel, type DocType } from "./doc-types";
+import { docTypeLabel, type DocType, type StoredDocType } from "./doc-types";
 import { safeName, type FileKind } from "./uploads";
 
 export type JobFile = {
@@ -18,7 +18,7 @@ export type JobFile = {
   /** Set when an owner shares this file with the customer. */
   sharedAt?: Date | null;
   /** The label an owner put on a document; null until one is chosen. */
-  docType?: DocType | null;
+  docType?: StoredDocType | null;
   /**
    * True when a contract_signatures row names this file, as the signed original or as the
    * stamped copy. Only listFiles computes it; undefined elsewhere, never a false "unsigned". The admin list uses it to hide controls that the
@@ -41,7 +41,7 @@ export function toFile(row: Record<string, unknown>): JobFile {
     sizeBytes: Number(row.size_bytes),
     blobPathname: row.blob_pathname as string,
     sharedAt: row.shared_at ? new Date(row.shared_at as string) : null,
-    docType: (row.doc_type as DocType | null) ?? null,
+    docType: (row.doc_type as StoredDocType | null) ?? null,
     // Absent, not false, when the query never computed it: false would claim "not signed".
     signed: "signed" in row ? row.signed === true : undefined,
   };

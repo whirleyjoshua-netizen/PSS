@@ -1,5 +1,5 @@
 import { business } from "@/content/business";
-import { docTypeLabel } from "@/lib/admin/doc-types";
+import { storedDocTypeLabel } from "@/lib/admin/doc-types";
 import type { Job } from "@/lib/admin/jobs";
 import { listSharedDocuments, listSharedPhotos } from "@/lib/admin/files";
 import { isInstalled } from "@/lib/admin/stages";
@@ -244,7 +244,7 @@ export async function ProjectView({
                     >
                       {file.name}
                     </a>
-                    <span className={heading}>{file.docType ? docTypeLabel(file.docType) : "Document"}</span>
+                    <span className={heading}>{file.docType ? storedDocTypeLabel(file.docType) : "Document"}</span>
                   </li>
                 ))}
               </ul>

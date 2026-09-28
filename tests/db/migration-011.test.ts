@@ -5,7 +5,7 @@ const statements = (file: string) => readFileSync(`db/migrations/${file}`, "utf8
   .split("\n").filter((line) => !line.trim().startsWith("--")).join("\n")
   .split(";").map((s) => s.trim()).filter(Boolean);
 
-const KINDS = "kind in ('stage','note','edit','email','reward','measure','file','contact','message','service','signature')";
+const KINDS = "kind in ('stage','note','edit','email','reward','measure','file','contact','message','service','signature','quote')";
 const kindList = (file: string) =>
   statements(file).find((s) => s.includes("job_events_kind_check check"))?.replace(/\s+/g, " ");
 
