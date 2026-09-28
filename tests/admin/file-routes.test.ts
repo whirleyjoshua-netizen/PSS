@@ -87,6 +87,23 @@ describe("GET view", () => {
     expect((await view.GET(new Request("http://localhost"), params({ fileId: FILE }))).status).toBe(404);
   });
 
+  it("serves a Dealer Copy sandboxed, so its scripts and tracking image never run on our origin", async () => {
+    files.getFile.mockResolvedValue({ id: FILE, name: "DEALER COPY 1.html", docType: "dealer_copy" });
+    files.readFile.mockResolvedValue({ stream: new Blob(["<p>x</p>"]).stream(), contentType: "text/html" });
+    const response = await view.GET(new Request("http://localhost"), params({ fileId: FILE }));
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-security-policy")).toBe("sandbox; default-src 'none'; style-src 'unsafe-inline'");
+    expect(response.headers.get("cache-control")).toBe("private, no-store");
+  });
+
+  it("adds no sandbox to any other document, such as a contract", async () => {
+    files.getFile.mockResolvedValue({ id: FILE, name: "Contract.pdf", docType: "contract" });
+    files.readFile.mockResolvedValue({ stream: new Blob(["%PDF"]).stream(), contentType: "application/pdf" });
+    const response = await view.GET(new Request("http://localhost"), params({ fileId: FILE }));
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-security-policy")).toBeNull();
+  });
+
   it("does nothing without a session", async () => {
     requireAdmin.mockRejectedValue(new Error("NEXT_REDIRECT"));
     await expect(view.GET(new Request("http://localhost"), params({ fileId: FILE }))).rejects.toThrow("NEXT_REDIRECT");

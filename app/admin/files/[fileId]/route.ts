@@ -11,12 +11,14 @@ export async function GET(_request: Request, { params }: { params: Promise<{ fil
   const content = file ? await readFile(file) : null;
   if (!file || !content) return new Response("Not found", { status: 404 });
 
-  return new Response(content.stream, {
-    headers: {
-      "Content-Type": content.contentType,
-      "Cache-Control": "private, no-store",
-      "Content-Disposition": contentDisposition(file.name),
-      "X-Content-Type-Options": "nosniff",
-    },
-  });
+  const headers: Record<string, string> = {
+    "Content-Type": content.contentType,
+    "Cache-Control": "private, no-store",
+    "Content-Disposition": contentDisposition(file.name),
+    "X-Content-Type-Options": "nosniff",
+  };
+  // A Dealer Copy is HTML written by a third party: render it inert on our origin. The sandbox
+  // blocks its scripts and default-src 'none' its tracking image, while its styles still render.
+  if (file.docType === "dealer_copy") headers["Content-Security-Policy"] = "sandbox; default-src 'none'; style-src 'unsafe-inline'";
+  return new Response(content.stream, { headers });
 }

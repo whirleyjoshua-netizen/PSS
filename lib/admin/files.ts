@@ -2,7 +2,7 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { del, get, put } from "@vercel/blob";
 import { db } from "@/lib/db";
-import { docTypeLabel, type DocType, type StoredDocType } from "./doc-types";
+import { docTypeLabel, isDocType, type DocType, type StoredDocType } from "./doc-types";
 import { safeName, type FileKind } from "./uploads";
 
 export type JobFile = {
@@ -82,6 +82,9 @@ export async function getFile(fileId: string): Promise<JobFile | null> {
  * Stores the bytes privately, then records the file and its event in one
  * statement. If the row cannot be saved, the blob is removed so nothing is
  * left unreachable.
+ *
+ * `docType` is written in the same insert, so a file born as a Dealer Copy is never, even
+ * for a moment, a document without that label. It defaults to null.
  */
 export async function createFile(input: {
   leadId: string;
@@ -90,6 +93,7 @@ export async function createFile(input: {
   contentType: string;
   body: Blob;
   actor: string;
+  docType?: StoredDocType;
 }): Promise<JobFile | null> {
   if (!UUID.test(input.leadId)) return null;
   const sql = db();
@@ -103,9 +107,9 @@ export async function createFile(input: {
   try {
     const rows = await sql`
       with created as (
-        insert into job_files (id, lead_id, uploaded_by, kind, name, content_type, size_bytes, blob_pathname)
+        insert into job_files (id, lead_id, uploaded_by, kind, name, content_type, size_bytes, blob_pathname, doc_type)
         values (${id}, ${input.leadId}, ${input.actor}, ${input.kind}, ${input.name},
-                ${input.contentType}, ${input.body.size}, ${pathname})
+                ${input.contentType}, ${input.body.size}, ${pathname}, ${input.docType ?? null})
         returning *
       ),
       logged as (
@@ -126,6 +130,10 @@ export async function createFile(input: {
  * A signed contract, and the stamped copy made from it, are frozen: the `not exists` clause
  * makes the database refuse them, and the blob is only deleted after a row was removed, so a
  * refusal leaves the bytes where they are. Returns false for a refusal, as for a missing file.
+ *
+ * A file a Direct Connect quote version names — its Dealer Copy (source_file_id) or its
+ * contract (contract_file_id) — is refused the same way. Those foreign keys have no on-delete
+ * action, so without the second `not exists` the delete would raise instead of returning false.
  */
 export async function deleteFile(fileId: string, actor: string): Promise<boolean> {
   if (!UUID.test(fileId)) return false;
@@ -136,6 +144,10 @@ export async function deleteFile(fileId: string, actor: string): Promise<boolean
         and not exists (
           select 1 from contract_signatures s
           where s.file_id = job_files.id or s.signed_file_id = job_files.id
+        )
+        and not exists (
+          select 1 from dc_quote_versions v
+          where v.source_file_id = job_files.id or v.contract_file_id = job_files.id
         )
       returning lead_id, name, blob_pathname
     ),
@@ -174,6 +186,10 @@ export async function readFile(file: JobFile) {
  * A signed contract and its stamped copy cannot be unshared: when `shared` is false the
  * `not exists` clause matches nothing for a file named by any contract_signatures row, and
  * this returns false. Sharing one again is allowed; it is a no-op on a file already shared.
+ *
+ * A Dealer Copy (doc_type 'dealer_copy') shows dealer cost and is never matched, so sharing
+ * one returns false. The database refuses it too (job_files_dealer_copy_never_shared); this
+ * clause only turns that check violation into a plain refusal.
  */
 export async function setShared(jobId: string, fileId: string, shared: boolean, actor: string): Promise<boolean> {
   if (!UUID.test(jobId) || !UUID.test(fileId)) return false;
@@ -182,6 +198,7 @@ export async function setShared(jobId: string, fileId: string, shared: boolean, 
       update job_files
       set shared_at = case when ${shared} then coalesce(shared_at, now()) else null end
       where id = ${fileId} and lead_id = ${jobId} and kind in ('photo','document')
+        and doc_type is distinct from 'dealer_copy'
         and (${shared} or not exists (
           select 1 from contract_signatures s
           where s.file_id = job_files.id or s.signed_file_id = job_files.id
@@ -204,15 +221,22 @@ export async function setShared(jobId: string, fileId: string, shared: boolean, 
  *
  * A signed contract and its stamped copy cannot be relabelled: the `not exists` clause refuses
  * them, and this returns false.
+ *
+ * A Dealer Copy can never be relabelled either, in both directions: the row that holds
+ * 'dealer_copy' is never matched (relabelling it would free it to be shared), and
+ * 'dealer_copy' is refused as a new label before any query, since the value arrives from a
+ * form through a Server Action and its type is not enforced at runtime.
  */
 export async function setDocType(
   jobId: string, fileId: string, type: DocType | null, actor: string,
 ): Promise<boolean> {
   if (!UUID.test(jobId) || !UUID.test(fileId)) return false;
+  if (type !== null && !isDocType(type)) return false;
   const rows = await db()`
     with changed as (
       update job_files set doc_type = ${type}
       where id = ${fileId} and lead_id = ${jobId} and kind = 'document'
+        and doc_type is distinct from 'dealer_copy'
         and not exists (
           select 1 from contract_signatures s
           where s.file_id = job_files.id or s.signed_file_id = job_files.id

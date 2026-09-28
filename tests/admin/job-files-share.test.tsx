@@ -13,7 +13,7 @@ const { JobFiles } = await import("@/app/admin/jobs/[id]/JobFiles");
 const JOB = "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c";
 const file = (
   id: string, kind: "photo" | "document", sharedAt: Date | null,
-  name = `${id}.jpg`, docType: "quote" | "po" | "invoice" | "other" | null = null,
+  name = `${id}.jpg`, docType: "quote" | "po" | "invoice" | "other" | "dealer_copy" | null = null,
 ) => ({
   id, leadId: JOB, createdAt: new Date("2026-09-13T10:00:00Z"), uploadedBy: "owner@example.com",
   kind, name, contentType: kind === "photo" ? "image/jpeg" : "application/pdf", sizeBytes: 2048,
@@ -138,5 +138,32 @@ describe("JobFiles on a signed contract", () => {
     render(<JobFiles jobId={JOB} measurements={[]} files={files} />);
     expect(within(row("Contract.pdf")).getByText("Shared")).toBeInTheDocument();
     expect(row("Contract (signed).pdf").querySelector('a[href="/admin/files/stamped"]')).not.toBeNull();
+  });
+});
+
+describe("JobFiles on a Dealer Copy", () => {
+  const files = [
+    file("dealer", "document", null, "DEALER COPY 1.html", "dealer_copy"),
+    file("plain", "document", null, "Plain.pdf", "quote"),
+  ];
+  const row = (name: string) => screen.getByRole("link", { name }).closest("li")!;
+
+  it("says it is internal and offers no type, share or delete control", () => {
+    render(<JobFiles jobId={JOB} measurements={[]} files={files} />);
+    const li = within(row("DEALER COPY 1.html"));
+    expect(li.getByText("Dealer copy · internal, never shared")).toBeInTheDocument();
+    expect(li.queryByRole("combobox")).toBeNull();
+    expect(li.queryByRole("switch")).toBeNull();
+    expect(li.queryByRole("button", { name: "Delete" })).toBeNull();
+  });
+
+  it("still links to it, and leaves every control on the other documents", () => {
+    render(<JobFiles jobId={JOB} measurements={[]} files={files} />);
+    expect(row("DEALER COPY 1.html").querySelector('a[href="/admin/files/dealer"]')).not.toBeNull();
+    const li = within(row("Plain.pdf"));
+    expect(li.queryByText("Dealer copy · internal, never shared")).toBeNull();
+    expect(li.getByRole("combobox", { name: "Document type for Plain.pdf" })).toBeInTheDocument();
+    expect(li.getByRole("switch", { name: "Share Plain.pdf with customer" })).toBeInTheDocument();
+    expect(li.getByRole("button", { name: "Delete" })).toBeInTheDocument();
   });
 });

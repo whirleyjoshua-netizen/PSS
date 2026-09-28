@@ -18,6 +18,15 @@ function SignedLabel() {
   return <span className="text-xs uppercase tracking-wide text-charcoal">Signed — kept as the record</span>;
 }
 
+/**
+ * Shown in place of the type, share and delete controls on a Dealer Copy: it shows dealer cost,
+ * so it is never shared, never relabelled, and kept while a quote version names it. The server
+ * refuses all three regardless; this only stops offering them.
+ */
+function DealerCopyLabel() {
+  return <span className="text-sm text-ink-soft">Dealer copy · internal, never shared</span>;
+}
+
 /** Measurements are shown on their own tab; they are taken here only to keep window photos out of Photos. */
 export function JobFiles({ jobId, measurements, files }: {
   jobId: string;
@@ -79,7 +88,7 @@ export function JobFiles({ jobId, measurements, files }: {
                     {file.sharedAt ? <> · <span className="text-xs uppercase tracking-wide text-charcoal">Shared</span></> : null}
                   </p>
                 </div>
-                {file.signed ? <SignedLabel /> : (
+                {file.docType === "dealer_copy" ? <DealerCopyLabel /> : file.signed ? <SignedLabel /> : (
                   <>
                     <DocTypeSelect key={file.docType ?? ""} jobId={jobId} fileId={file.id} fileName={file.name} docType={file.docType ?? null} />
                     <ShareSwitch jobId={jobId} fileId={file.id} fileName={file.name} shared={Boolean(file.sharedAt)} />
