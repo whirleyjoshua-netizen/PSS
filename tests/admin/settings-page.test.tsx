@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { AddedAdmin } from "@/lib/admin/admin-access";
 
 const requireAdmin = vi.fn(async () => ({ email: "owner@example.com" }));
 vi.mock("@/lib/admin/session", () => ({ requireAdmin }));
@@ -28,9 +29,14 @@ vi.mock("@/app/admin/settings/actions", () => ({
   saveRouteSettingsAction: vi.fn(async () => ({})),
   saveInstallRatesAction: vi.fn(async () => ({})),
   saveLeadDefaultsAction: vi.fn(async () => ({})),
+  giveAccess: vi.fn(async () => ({})),
+  removeAccess: vi.fn(),
 }));
 const getDefaultAssignee = vi.fn(async (): Promise<string | null> => null);
 vi.mock("@/lib/admin/lead-settings", () => ({ getDefaultAssignee }));
+
+const listAddedAdmins = vi.fn(async (): Promise<AddedAdmin[]> => []);
+vi.mock("@/lib/admin/admin-access", () => ({ listAddedAdmins }));
 
 const { default: SettingsPage } = await import("@/app/admin/settings/page");
 
@@ -39,6 +45,7 @@ beforeEach(() => {
   calendarEnabled.mockReset();
   getSyncState.mockReset();
   listTeam.mockReset().mockResolvedValue([]);
+  vi.stubEnv("ADMIN_EMAILS", "owner@example.com");
 });
 
 describe("settings page", () => {
@@ -145,6 +152,18 @@ describe("team section", () => {
     expect(screen.getAllByRole("button", { name: /^Remove / })).toHaveLength(2);
     expect(screen.getByRole("button", { name: "Remove Shade" })).toBeInTheDocument();
     expect(team).toHaveTextContent("Removing someone leaves their jobs unassigned.");
+  });
+});
+
+describe("admin access section", () => {
+  it("lists who can sign in, owners first", async () => {
+    calendarEnabled.mockReturnValue(false);
+    listAddedAdmins.mockResolvedValueOnce([
+      { email: "alia@example.com", addedBy: "owner@example.com", addedAt: new Date("2026-09-28T18:00:00Z") },
+    ]);
+    render(await SettingsPage());
+    const region = screen.getByRole("region", { name: "Admin access" });
+    expect(region).toHaveTextContent(/owner@example\.com[\s\S]*alia@example\.com/);
   });
 });
 
