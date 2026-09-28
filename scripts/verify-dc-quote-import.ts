@@ -420,8 +420,11 @@ test("DC quote import: import, edit, send, sign and the Dealer Copy guard agains
       "both Dealer Copies are still unshared", `got ${JSON.stringify(dealerCopies)}`);
 
     console.log("step 7: a second send");
-    const again = await sendContract({ jobId: A.id, versionId: v2, fingerprint: fresh!.fingerprint, actor: ACTOR });
-    check("error" in again, "sending v2 again is refused", `got ${JSON.stringify(again)}`);
+    // A fresh, matching fingerprint, so the only thing that can refuse it is the version being sent.
+    const resend = await loadReview(A.id);
+    const again = await sendContract({ jobId: A.id, versionId: v2, fingerprint: resend!.fingerprint, actor: ACTOR });
+    check(same(again, { error: "This version has already been sent." }),
+      "sending v2 again is refused: This version has already been sent.", `got ${JSON.stringify(again)}`);
     check((await contractFiles(A.id)).length === 1 && (await versionRow(v2)).contract_file_id === contractId,
       "still exactly one contract file, still v2's", JSON.stringify(await contractFiles(A.id)));
     check(hooks.emails.length === 1, "no second client email", `got ${JSON.stringify(hooks.emails)}`);
@@ -485,33 +488,49 @@ test("DC quote import: import, edit, send, sign and the Dealer Copy guard agains
 
     console.log("\nPASSED: the DC quote import holds against a real database. Manual run, not coverage.\n");
   } finally {
-    // Step 12. Runs even on failure. Also sweeps leads an interrupted earlier run left behind.
+    // Step 12. Runs even on failure, and never throws: a throw here would replace the failure
+    // being reported. The shared rows (markup_rules, dc_settings) go back first, each on its own,
+    // so a failed delete below cannot leave them changed. Also sweeps leads an interrupted
+    // earlier run left behind.
     hooks.duringBuild = null;
-    const leads = [...new Set([A.id, B.id, ...(await scriptLeads())])];
-    await sql`delete from contract_signatures where lead_id = any(${leads})`;
-    await sql`delete from dc_quote_versions where lead_id = any(${leads})`;
-    await sql`delete from ingested_messages where lead_id = any(${leads}) or message_id like ${`<verify-dc-%`}`;
-    await sql`delete from job_events where lead_id = any(${leads})`;
-    await sql`delete from job_files where lead_id = any(${leads})`;
-    await sql`delete from leads where id = any(${leads})`;
-    await sql`delete from markup_rules where lower(collection) = any(${COLLECTIONS.map((c) => c.toLowerCase())})`;
-    for (const rule of priorRules) {
-      await sql`insert into markup_rules (collection, pct_of_msrp, updated_by, updated_at)
-                values (${rule.collection}, ${rule.pct_of_msrp}, ${rule.updated_by}, ${rule.updated_at})`;
-    }
-    await sql`update dc_settings set terms_file_pathname = ${priorSettings.terms_file_pathname},
-                terms_updated_by = ${priorSettings.terms_updated_by}, terms_updated_at = ${priorSettings.terms_updated_at}
-              where id`;
-    const residue = await sql`select count(*)::int as n from leads where name like ${`${NAME_PREFIX} %`}`;
-    const rulesBack = await sql`
-      select collection, pct_of_msrp from markup_rules where lower(collection) = any(${COLLECTIONS.map((c) => c.toLowerCase())})
-      order by collection`;
-    const messagesLeft = await sql`select count(*)::int as n from ingested_messages where message_id like ${`<verify-dc-%`}`;
-    const [settingsBack] = await sql`select terms_file_pathname, terms_updated_by, terms_updated_at from dc_settings where id`;
-    console.log(
-      `step 12: cleanup, ${residue[0].n} leads and ${messagesLeft[0].n} messages left, ` +
-        `${rulesBack.length} fixture rules (was ${priorRules.length}), ` +
-        `dc_settings ${same(settingsBack, priorSettings) ? "restored" : "NOT RESTORED"}`,
-    );
+    const attempt = async (label: string, work: () => Promise<unknown>) => {
+      try {
+        await work();
+      } catch (error) {
+        console.error(`step 12: cleanup could not ${label}:`, (error as Error).message);
+      }
+    };
+    await attempt("restore the markup rules", async () => {
+      await sql`delete from markup_rules where lower(collection) = any(${COLLECTIONS.map((c) => c.toLowerCase())})`;
+      for (const rule of priorRules) {
+        await sql`insert into markup_rules (collection, pct_of_msrp, updated_by, updated_at)
+                  values (${rule.collection}, ${rule.pct_of_msrp}, ${rule.updated_by}, ${rule.updated_at})`;
+      }
+    });
+    await attempt("restore dc_settings", () => sql`
+      update dc_settings set terms_file_pathname = ${priorSettings.terms_file_pathname},
+        terms_updated_by = ${priorSettings.terms_updated_by}, terms_updated_at = ${priorSettings.terms_updated_at}
+      where id`);
+    let leads = [A.id, B.id];
+    await attempt("find leftover leads", async () => { leads = [...new Set([...leads, ...(await scriptLeads())])]; });
+    await attempt("delete signatures", () => sql`delete from contract_signatures where lead_id = any(${leads})`);
+    await attempt("delete versions", () => sql`delete from dc_quote_versions where lead_id = any(${leads})`);
+    await attempt("delete messages",
+      () => sql`delete from ingested_messages where lead_id = any(${leads}) or message_id like ${`<verify-dc-%`}`);
+    await attempt("delete events", () => sql`delete from job_events where lead_id = any(${leads})`);
+    await attempt("delete files", () => sql`delete from job_files where lead_id = any(${leads})`);
+    await attempt("delete leads", () => sql`delete from leads where id = any(${leads})`);
+    await attempt("report what is left", async () => {
+      const residue = await sql`select count(*)::int as n from leads where name like ${`${NAME_PREFIX} %`}`;
+      const rulesBack = await sql`
+        select collection from markup_rules where lower(collection) = any(${COLLECTIONS.map((c) => c.toLowerCase())})`;
+      const messagesLeft = await sql`select count(*)::int as n from ingested_messages where message_id like ${`<verify-dc-%`}`;
+      const [settingsBack] = await sql`select terms_file_pathname, terms_updated_by, terms_updated_at from dc_settings where id`;
+      console.log(
+        `step 12: cleanup, ${residue[0].n} leads and ${messagesLeft[0].n} messages left, ` +
+          `${rulesBack.length} fixture rules (was ${priorRules.length}), ` +
+          `dc_settings ${same(settingsBack, priorSettings) ? "restored" : "NOT RESTORED"}`,
+      );
+    });
   }
 });
