@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { PDFDocument, PDFPage } from "pdf-lib";
+import { PDFDocument, PDFPage, StandardFonts, type PDFFont } from "pdf-lib";
 import { contractRows, keyDetails, winAnsiSafe, type ContractInput } from "@/lib/dc/contract-layout";
 import { buildContractPdf } from "@/lib/dc/contract-pdf";
 
@@ -24,18 +24,24 @@ const FORBIDDEN = ["MSRP", "cost", "Cost", "%", "22250749", "Factor", "900.00", 
 
 /** Every string the builder draws, captured before pdf-lib encodes it. */
 function spyOnDrawText() {
-  const drawn: { text: string; x: number; right: number }[] = [];
+  const drawn: { text: string; x: number; y: number; right: number }[] = [];
   const original = PDFPage.prototype.drawText;
   vi.spyOn(PDFPage.prototype, "drawText").mockImplementation(function (this: PDFPage, text, options) {
     const x = options?.x ?? 0;
     const width = options?.font && options.size ? options.font.widthOfTextAtSize(text, options.size) : 0;
-    drawn.push({ text, x, right: x + width });
+    drawn.push({ text, x, y: options?.y ?? 0, right: x + width });
     return original.call(this, text, options);
   });
   return drawn;
 }
 
 afterEach(() => vi.restoreAllMocks());
+
+/** pdf-lib's real Helvetica: its encodeText throws on anything the standard fonts cannot draw. */
+async function helvetica(): Promise<PDFFont> {
+  return (await PDFDocument.create()).embedFont(StandardFonts.Helvetica);
+}
+const encodes = (font: PDFFont, text: string) => { try { font.encodeText(text); return true; } catch { return false; } };
 
 describe("contractRows", () => {
   it("shows room, product, key details, qty and client prices only", () => {
@@ -71,6 +77,22 @@ describe("keyDetails", () => {
 });
 
 describe("winAnsiSafe", () => {
+  it("turns newlines, tabs and runs of whitespace into one space", () => {
+    expect(winAnsiSafe("1 Main St\r\nApt 4\t\tUnit B")).toBe("1 Main St Apt 4 Unit B");
+  });
+  it("keeps the WinAnsi characters outside Latin-1, like the trade mark and euro, and still replaces an emoji", () => {
+    expect(winAnsiSafe("Duette™ €5 • Œuvre 🙂")).toBe("Duette™ €5 • Œuvre ?");
+  });
+  it("agrees with pdf-lib's Helvetica on every character: keeps what it can encode, never returns what it cannot", async () => {
+    const font = await helvetica();
+    for (let cp = 0; cp <= 0xffff; cp++) {
+      if (cp >= 0xd800 && cp <= 0xdfff) continue; // lone surrogates are not characters
+      const ch = String.fromCodePoint(cp);
+      const safe = winAnsiSafe(ch);
+      expect(encodes(font, safe), `U+${cp.toString(16)} -> ${JSON.stringify(safe)}`).toBe(true);
+      if (encodes(font, ch) && ch !== "?" && !/\s/.test(ch)) expect(safe, `U+${cp.toString(16)}`).not.toBe("?");
+    }
+  });
   it("keeps Latin-1, maps typographic marks, replaces the rest", () => {
     expect(winAnsiSafe("48½″ — Café “Den” 🚪")).toBe('48½" - Café "Den" ?');
   });
@@ -85,7 +107,8 @@ describe("buildContractPdf", () => {
     expect(doc.getPageCount()).toBeGreaterThanOrEqual(3);
   });
   it("draws only encodable text, whatever field carries the unencodable characters", async () => {
-    const odd = "½″—“x”🙂 ™";
+    // Half, double prime, em dash, curly quotes, an emoji, a narrow no-break space, a newline, a tab, trade mark.
+    const odd = `½″—“x”🙂${String.fromCodePoint(0x202f)}\n\t™`;
     const drawn = spyOnDrawText();
     const everywhere: ContractInput = {
       ...input,
@@ -96,7 +119,9 @@ describe("buildContractPdf", () => {
     };
     await expect(buildContractPdf(everywhere, await (await PDFDocument.create()).save())).resolves.toBeInstanceOf(Uint8Array);
     expect(drawn.length).toBeGreaterThan(0);
-    for (const { text } of drawn) expect(text).toMatch(/^[\x20-\x7e\xa1-\xff]*$/);
+    const font = await helvetica();
+    for (const { text } of drawn) expect(encodes(font, text), text).toBe(true);
+    expect(drawn.map(({ text }) => text).join("")).not.toMatch(/[\n\t]/);
   });
   it("can draw every Latin-1 character winAnsiSafe keeps", async () => {
     const latin1 = Array.from({ length: 0xff - 0xa1 + 1 }, (_, i) => String.fromCharCode(0xa1 + i)).join("");
@@ -130,10 +155,20 @@ describe("buildContractPdf", () => {
       for (const { x, right } of column(ch)) { expect(x).toBe(54 + 95); expect(right).toBeLessThanOrEqual(390); }
     }
   });
+  it("shows the version in the title, so a change order is told apart from the original", async () => {
+    const drawn = spyOnDrawText();
+    await buildContractPdf({ ...input, version: 2 }, await (await PDFDocument.create()).save());
+    const all = drawn.map(({ text }) => text).join("\n");
+    expect(all).toContain("Contract PSS-1042 · Version 2");
+    expect(all).not.toContain("Version 1");
+  });
   it("spills a long quote onto more pages instead of drawing off the page", async () => {
     const terms = await (await PDFDocument.create()).save();
     const many = { ...input, lines: Array.from({ length: 60 }, () => input.lines[0]) };
+    const drawn = spyOnDrawText();
     const doc = await PDFDocument.load(await buildContractPdf(many, terms));
     expect(doc.getPageCount()).toBeGreaterThan(1);
+    expect(drawn.length).toBeGreaterThan(60 * 3);
+    for (const { y, text } of drawn) expect(y, text).toBeGreaterThanOrEqual(54);
   });
 });

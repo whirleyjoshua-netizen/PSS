@@ -49,7 +49,7 @@ export async function buildContractPdf(input: ContractInput, termsPdf: Uint8Arra
   text(business.legalName, MARGIN, 14, bold); y -= 16;
   text(`${business.phone.display} · ${business.email}`, MARGIN, 9); y -= 26;
   const date = formatShortDate(input.date);
-  const title = wrap(`Contract ${input.projectNo}`, bold, 16, fullWidth - regular.widthOfTextAtSize(winAnsiSafe(date), 10) - 16);
+  const title = wrap(`Contract ${input.projectNo} \u00b7 Version ${input.version}`, bold, 16, fullWidth - regular.widthOfTextAtSize(winAnsiSafe(date), 10) - 16);
   right(date, LETTER[0] - MARGIN, 10);
   title.forEach((l, i) => { if (i) y -= 18; text(l, MARGIN, 16, bold); }); y -= 20;
   for (const l of wrap(input.client.name, bold, 11, fullWidth)) { text(l, MARGIN, 11, bold); y -= 13; }

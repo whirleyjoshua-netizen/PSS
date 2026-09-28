@@ -12,14 +12,30 @@ export type ContractInput = {
 };
 export type ContractRow = { room: string; product: string; details: string; qty: string; unit: string; total: string };
 
+/** Marks mapped to plain ASCII so the contract reads the same whatever the source typed. */
 const TYPOGRAPHIC: Record<string, string> = {
-  "‘": "'", "’": "'", "“": '"', "”": '"', "″": '"', "′": "'",
-  "–": "-", "—": "-", "…": "...", " ": " ", " ": " ",
+  "\u2018": "'", "\u2019": "'", "\u201c": '"', "\u201d": '"', "\u2033": '"', "\u2032": "'",
+  "\u2013": "-", "\u2014": "-", "\u2026": "...", "\u00a0": " ", "\u202f": " ",
 };
 
-/** Text pdf-lib's standard (WinAnsi) fonts can draw: Latin-1 kept, typographic marks mapped, the rest "?". */
+/**
+ * Characters outside Latin-1 that WinAnsi (the standard fonts' encoding) places in 0x80-0x9F:
+ * € ‚ ƒ „ † ‡ ˆ ‰ Š ‹ Œ Ž • ˜ ™ š › œ ž Ÿ (quotes, dashes and ellipsis are mapped above).
+ * The test checks this list against pdf-lib's own Helvetica encoder.
+ */
+const WIN_ANSI_EXTRA = new Set([
+  0x20ac, 0x201a, 0x0192, 0x201e, 0x2020, 0x2021, 0x02c6, 0x2030, 0x0160, 0x2039, 0x0152, 0x017d,
+  0x2022, 0x02dc, 0x2122, 0x0161, 0x203a, 0x0153, 0x017e, 0x0178,
+]);
+
+const encodable = (ch: string) => /[\x20-\x7e\xa1-\xff]/.test(ch) || WIN_ANSI_EXTRA.has(ch.codePointAt(0)!);
+
+/**
+ * Text pdf-lib's standard (WinAnsi) fonts can draw: any run of whitespace (newlines, tabs)
+ * becomes one space, typographic marks are mapped, WinAnsi characters are kept, the rest "?".
+ */
 export function winAnsiSafe(text: string): string {
-  return [...text].map((ch) => TYPOGRAPHIC[ch] ?? (/[\x20-\x7e\xa1-\xff]/.test(ch) ? ch : "?")).join("");
+  return [...text.replace(/\s+/g, " ")].map((ch) => TYPOGRAPHIC[ch] ?? (encodable(ch) ? ch : "?")).join("");
 }
 
 /** The details a client recognises: size, mount, fabric and color, control. Everything else stays in DC. */
