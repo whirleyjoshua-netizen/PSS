@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const store = {
   getCalendarJob: vi.fn(), getLinks: vi.fn(), getLinkByEvent: vi.fn(), saveLink: vi.fn(), deleteLink: vi.fn(), claimLink: vi.fn(),
@@ -39,7 +39,11 @@ const link = { leadId: ID, kind: "consultation", eventId: "e1", changeKey: "ck1"
 const calls = () => graphFetch.mock.calls.map(([path, init]) => `${init?.method ?? "GET"} ${path}`);
 const subjects = () => graphFetch.mock.calls.filter(([, init]) => init?.method === "POST").map(([, init]) => init.body.subject);
 
+// The fixtures are fixed dates, and sync treats a past date as history; pin "now" before them
+// so the suite doesn't change meaning as the calendar moves on. Only Date is faked.
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-09-15T12:00:00Z"));
   Object.values(store).forEach((fn) => fn.mockReset());
   graphFetch.mockReset();
   enabled.mockReturnValue(true);
@@ -48,6 +52,10 @@ beforeEach(() => {
   store.claimLink.mockResolvedValue("pending:new");
   store.deleteLink.mockResolvedValue(undefined); // async like the real store
   vi.spyOn(console, "error").mockImplementation(() => {});
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe("every appointment kind", () => {
