@@ -75,6 +75,13 @@ export async function signableContracts(leadId: string): Promise<JobFile[]> {
  *
  * The timeline body names the DOCUMENT, never the typed name. `signed_name` is stored as data
  * and nothing a customer typed reaches the owners' permanent record.
+ *
+ * A generated contract (a `dc_quote_versions` row in 'sent' points at this file through
+ * contract_file_id) is also closed in the same statement: the version becomes 'signed', the job's
+ * sold_cents becomes that version's client_total_cents (even past Sold, so a signed change order
+ * updates the sold amount), and a job still at new/visit_booked/quoted moves to Sold with one
+ * 'stage' event. A hand-uploaded contract matches no version, so `version` is empty and nothing
+ * but the signature and its event is written, exactly as before.
  */
 export async function recordSignature(input: {
   jobId: string;
@@ -92,8 +99,9 @@ export async function recordSignature(input: {
   const bytes = Buffer.from(await new Response(stored.stream).arrayBuffer());
   const sha256 = createHash("sha256").update(bytes).digest("hex");
 
-  // One statement, so the signature and its timeline row cannot come apart. `on conflict do
-  // nothing` is what makes a second submission a no-op rather than a second signature.
+  // One statement, so the signature, its timeline row and the sale cannot come apart. `on
+  // conflict do nothing` is what makes a second submission a no-op rather than a second
+  // signature, and with `signed` empty nothing below it moves either.
   const inserted = await db()`
     with signed as (
       insert into contract_signatures
@@ -102,6 +110,26 @@ export async function recordSignature(input: {
               ${input.ip}, ${input.userAgent}, ${sha256})
       on conflict (file_id) do nothing
       returning *
+    ),
+    version as (
+      update dc_quote_versions set status = 'signed', signed_at = now()
+      where contract_file_id = (select file_id from signed) and lead_id = (select lead_id from signed) and status = 'sent'
+      returning lead_id, version, client_total_cents
+    ),
+    prev as (select l.status from leads l join version v on l.id = v.lead_id),
+    sold as (
+      update leads set sold_cents = (select client_total_cents from version),
+        status = case when status in ('new','visit_booked','quoted') then 'sold' else status end,
+        stage_changed_at = case when status in ('new','visit_booked','quoted') then now() else stage_changed_at end,
+        updated_at = now()
+      where id = (select lead_id from version)
+      returning id
+    ),
+    stage_logged as (
+      insert into job_events (lead_id, actor, kind, from_status, to_status, body)
+      select sold.id, ${input.email}, 'stage', prev.status, 'sold', 'Signed contract version ' || version.version
+      from sold, prev, version
+      where prev.status in ('new','visit_booked','quoted')
     ),
     logged as (
       insert into job_events (lead_id, actor, kind, body)

@@ -108,6 +108,22 @@ describe("recordSignature", () => {
     expect(query.mock.calls[0][0].join("")).not.toContain("Jane Doe");
   });
 
+  it("in the SAME statement, marks a generated contract's version signed and moves the job to Sold", async () => {
+    vi.mocked(readFile).mockResolvedValue({ stream: new Response("pdf bytes").body!, contentType: "application/pdf" });
+    query.mockResolvedValue([{ id: "s1", lead_id: JOB, file_id: FILE, signed_name: "A", signed_email: "a@x", signed_at: new Date(), doc_sha256: "x", signed_file_id: null }]);
+    await recordSignature({ jobId: JOB, file: doc(FILE, "Contract PSS-1042 v1.pdf", "contract"), name: "A", email: "a@x", ip: null, userAgent: null });
+    expect(query).toHaveBeenCalledTimes(1);
+    const s = (query.mock.calls[0][0] as TemplateStringsArray).join("?").replace(/\s+/g, " ");
+    expect(s).toContain("update dc_quote_versions set status = 'signed'");
+    expect(s).toContain("contract_file_id = (select file_id from signed)");
+    expect(s).toContain("sold_cents");
+    expect(s).toContain("status in ('new','visit_booked','quoted')");
+    // The stage event is attributed to the signer, bound once more before the timeline body.
+    expect(query.mock.calls[0].slice(1).slice(-3)).toEqual([
+      "a@x", "a@x", 'Signed "Contract PSS-1042 v1.pdf" from their project page',
+    ]);
+  });
+
   it("refuses an empty name without touching the database", async () => {
     const result = await recordSignature({
       jobId: JOB, file, name: "   ", email: "jane@example.com", ip: null, userAgent: null,
