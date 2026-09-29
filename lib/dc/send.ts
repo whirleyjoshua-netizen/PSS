@@ -6,7 +6,8 @@ import { getJob, type Job } from "@/lib/admin/jobs";
 import { listInstallQuotes } from "@/lib/admin/install-quotes";
 import { formatCents } from "@/lib/admin/money";
 import { formatProjectNo } from "@/lib/portal/project-no";
-import { fieldValues, fillFields } from "@/lib/docs/fill";
+import { FIELD_KEYS, TERMS_FIELDS } from "@/lib/docs/fields";
+import { fieldValues, fillFields, type FieldValues } from "@/lib/docs/fill";
 import { remainingMarkers } from "@/lib/docs/parse";
 import { liveTemplateOfKind, type DocumentTemplate } from "@/lib/docs/templates";
 import { buildContractPdf, type ContractTerms } from "./contract-pdf";
@@ -38,6 +39,21 @@ function frozenPrice(version: StoredVersion): PricedVersion {
   };
 }
 
+/**
+ * Spec §8: the terms template filled for this job at `now`. Only TERMS_FIELDS are filled: any other
+ * marker (a total, a deposit) stays and refuses, so terms never print a figure beside the contract's.
+ */
+function fillTerms(template: DocumentTemplate, job: Job, now: Date): { text: string } | { error: string } {
+  const all = fieldValues(job, now);
+  const values = Object.fromEntries(FIELD_KEYS.map((key) => [key, TERMS_FIELDS.includes(key) ? all[key] : null])) as FieldValues;
+  const filled = fillFields(template.body, values);
+  const left = remainingMarkers(filled.text);
+  if (left.length > 0) {
+    return { error: `Your contract terms have ${left.join(", ")} with no value for this job. Fix the terms on the Documents page.` };
+  }
+  return { text: filled.text };
+}
+
 /** The review plus the job and settings it was computed from, so Send uses the very same reads. */
 async function review(jobId: string): Promise<{ review: Review; job: Job; settings: DcSettings; termsTemplate: DocumentTemplate | null } | null> {
   const [job, versions, rules, installs, settings, termsTemplate] = await Promise.all([
@@ -64,6 +80,11 @@ async function review(jobId: string): Promise<{ review: Review; job: Job; settin
     hasTerms: termsTemplate !== null || settings.termsPathname !== null, isLatest: true, versionStatus: version.status,
     jobStatus: job.status, customerEmail: job.email,
   });
+  // Shown before Send; Send fills and checks again with its own `now`.
+  if (termsTemplate) {
+    const filled = fillTerms(termsTemplate, job, new Date());
+    if ("error" in filled) blockers.push(filled.error);
+  }
   return { review: { version, priced, blockers, fingerprint: pricingFingerprint(priced), install, rules, olderVersions }, job, settings, termsTemplate };
 }
 
@@ -90,12 +111,9 @@ export async function sendContract(input: { jobId: string; versionId: string; fi
   const now = new Date();
   let terms: ContractTerms;
   if (termsTemplate) {
-    const filled = fillFields(termsTemplate.body, fieldValues(job, now));
-    const left = remainingMarkers(filled.text);
-    if (left.length > 0) {
-      return { error: `Your contract terms have ${left.join(", ")} with no value for this job. Fix the terms on the Documents page.` };
-    }
-    terms = { text: filled.text };
+    const filled = fillTerms(termsTemplate, job, now);
+    if ("error" in filled) return filled;
+    terms = filled;
   } else {
     const stored = await get(settings.termsPathname!, { access: "private" });
     if (!stored || stored.statusCode !== 200) {

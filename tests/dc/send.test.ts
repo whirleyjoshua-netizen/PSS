@@ -301,4 +301,21 @@ describe("terms from the Documents page", () => {
     expect(pdf.buildContractPdf).not.toHaveBeenCalled();
     expect(createFile).not.toHaveBeenCalled();
   });
+  it("shows a terms field with no value as a blocker on the review, before Send", async () => {
+    templates.liveTemplateOfKind.mockResolvedValue(TERMS);
+    jobs.getJob.mockResolvedValue({ ...job, name: "   " });
+    expect((await loadReview(JOB))!.blockers)
+      .toContain("Your contract terms have {{client_name}} with no value for this job. Fix the terms on the Documents page.");
+  });
+  it("never fills a field terms may not use, so a stray figure cannot print beside the contract total", async () => {
+    templates.liveTemplateOfKind.mockResolvedValue({ ...TERMS, body: "## Terms\n\nPay {{deposit}} on signing." });
+    jobs.getJob.mockResolvedValue({ ...job, depositCents: 50000, soldCents: 200000 });
+    const review = await loadReview(JOB);
+    const refusal = "Your contract terms have {{deposit}} with no value for this job. Fix the terms on the Documents page.";
+    expect(review!.blockers).toContain(refusal);
+    expect(await sendContract({ jobId: JOB, versionId: V1, fingerprint: review!.fingerprint, actor: OWNER })).toEqual({ error: refusal });
+    expect(pdf.buildContractPdf).not.toHaveBeenCalled();
+    expect(createFile).not.toHaveBeenCalled();
+    expect(sql).not.toHaveBeenCalled();
+  });
 });
