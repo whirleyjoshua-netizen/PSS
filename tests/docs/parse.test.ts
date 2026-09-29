@@ -69,4 +69,17 @@ describe("markers", () => {
   it("lists the markers still in the text, as written", () =>
     expect(remainingMarkers(text)).toEqual(["{{client_name}}", "{{deposit}}", "{{ nope }}", "{{a b}}"]));
   it("finds nothing in text without markers", () => expect(remainingMarkers("Just { braces } and }} {{")).toEqual([]));
+  it("keeps an unclosed marker literal, and does not count it as remaining", () => {
+    expect(parseDocText("Hi {{client_name and more")).toEqual([{ type: "paragraph", inlines: [t("Hi {{client_name and more")] }]);
+    expect(remainingMarkers("Hi {{client_name and more")).toEqual([]);
+  });
+  it("reads {{{deposit}}} as a field between literal braces", () =>
+    expect(parseInline("{{{deposit}}}")).toEqual([t("{"), f("deposit"), t("}")]));
+  it("parses 200k characters of open braces without throwing, in under 2s", () => {
+    const source = "{{".repeat(100_000);
+    const start = performance.now();
+    expect(parseDocText(source)).toEqual([{ type: "paragraph", inlines: [t(source)] }]);
+    expect(remainingMarkers(source)).toEqual([]);
+    expect(performance.now() - start).toBeLessThan(2000);
+  });
 });

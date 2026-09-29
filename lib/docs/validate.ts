@@ -1,6 +1,5 @@
-import { isFieldKey } from "./fields";
+import { isFieldKey, markerPattern } from "./fields";
 import { allowedFields, isDocResponse, isSingletonKind, isTemplateKind, templateKindLabel } from "./kinds";
-import { findFieldKeys } from "./parse";
 
 export const NAME_MAX = 120;
 export const BODY_MAX = 100_000;
@@ -21,10 +20,14 @@ export function templateErrors(input: TemplateInput): string[] {
   else if (input.body.length > BODY_MAX) errors.push("The template is too long.");
   if (isTemplateKind(input.kind)) {
     const allowed = allowedFields(input.kind);
-    for (const key of findFieldKeys(input.body)) {
-      if (!isFieldKey(key)) errors.push(`Unknown field {{${key}}}.`);
+    // The parser reads line by line, so a marker split across lines renders as literal text
+    // while remainingMarkers still counts it: refuse it here, where the owner can see why.
+    for (const match of input.body.matchAll(markerPattern())) {
+      const key = match[1].trim();
+      if (/[\r\n]/.test(match[1])) errors.push(`Field {{${key}}} must be on one line.`);
+      else if (!isFieldKey(key)) errors.push(`Unknown field {{${key}}}.`);
       else if (!allowed.includes(key)) errors.push(`{{${key}}} can't be used in ${templateKindLabel(input.kind)}.`);
     }
   }
-  return errors;
+  return [...new Set(errors)];
 }

@@ -28,4 +28,19 @@ describe("templateErrors", () => {
     expect(templateErrors({ name: "Care", kind: "guide_care", response: "view", body: "Hi {{client_first_name}}" }))
       .toEqual(["{{client_first_name}} can't be used in Caring for your shades."]);
   });
+  it("refuses a marker split across lines, once per marker and never as unknown", () => {
+    expect(templateErrors({ ...ok, body: "Pay {{deposit\n}} now" })).toEqual(["Field {{deposit}} must be on one line."]);
+    expect(templateErrors({ ...ok, body: "Pay {{deposit\n\n}} now" })).toEqual(["Field {{deposit}} must be on one line."]);
+    expect(templateErrors({ ...ok, body: "Pay {{\r\ndeposit}} now" })).toEqual(["Field {{deposit}} must be on one line."]);
+    expect(templateErrors({ ...ok, body: "{{nope\r}} and {{deposit\n}} and {{deposit\n}}" }))
+      .toEqual(["Field {{nope}} must be on one line.", "Field {{deposit}} must be on one line."]);
+  });
+  it("reads an empty marker as an unknown field", () =>
+    expect(templateErrors({ ...ok, body: "Hi {{}}" })).toEqual(["Unknown field {{}}."]));
+  it("checks a 200k-character body without throwing, in under 2s", () => {
+    const body = "{{".repeat(100_000);
+    const start = performance.now();
+    expect(templateErrors({ ...ok, body })).toEqual(["The template is too long."]);
+    expect(performance.now() - start).toBeLessThan(2000);
+  });
 });
