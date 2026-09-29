@@ -10,9 +10,11 @@
  * removed from the environment) and lib/docs/emails (no network). Every statement reaches the
  * database for real, and the PDF is really built.
  *
- * IT WRITES TO THE DATABASE IT IS GIVEN. It takes its connection from E2E_POSTGRES_URL alone and
- * refuses a URL that looks like production. It archives any live terms or guide template for the
- * run (the singleton checks need a clean slate) and puts them back in `finally`.
+ * IT WRITES TO THE DATABASE IT IS GIVEN. It takes its connection from E2E_POSTGRES_URL alone,
+ * refuses a URL that looks like production, and refuses any host but the ep-lingering-fog test
+ * branch. It archives any live terms or guide template for the run (the singleton checks need a
+ * clean slate) and puts exactly those back in `finally`. Cleanup deletes only the ids this run
+ * created; VERIFY_DOCUMENTS_SWEEP=1 opts in to also sweeping an earlier crashed run's leftovers.
  *
  * Usage (PowerShell, from the worktree root; loads the URL without printing it):
  *   Get-Content .env.test.local | ForEach-Object { if ($_ -match '^\s*E2E_POSTGRES_URL\s*=\s*(.*)$') { $env:E2E_POSTGRES_URL = $matches[1].Trim().Trim('"').Trim("'") } }
@@ -67,6 +69,7 @@ import { acknowledgeableDocuments, recordAcknowledgement } from "../lib/portal/a
 import { formatProjectNo } from "../lib/portal/project-no";
 import { recordSignature } from "../lib/portal/sign";
 
+const REQUIRED_HOST = "ep-lingering-fog";
 const FORBIDDEN_HOSTS = ["cold-term"];
 const BANNER = "\n================ verify-documents REFUSED TO RUN ================\n";
 function refuse(reason: string): never {
@@ -85,9 +88,11 @@ const host = (() => {
     return refuse("E2E_POSTGRES_URL is not a valid URL, so its host cannot be checked.");
   }
 })();
+// The messages name the pattern that failed, never the host: the host is part of a secret.
 for (const forbidden of FORBIDDEN_HOSTS) {
-  if (url.includes(forbidden)) refuse(`E2E_POSTGRES_URL points at ${host}, which matches the production endpoint "${forbidden}". Use a Neon test branch.`);
+  if (host.includes(forbidden)) refuse(`E2E_POSTGRES_URL matches the production endpoint pattern "${forbidden}". Use a Neon test branch.`);
 }
+if (!host.includes(REQUIRED_HOST)) refuse(`E2E_POSTGRES_URL does not match the test branch pattern "${REQUIRED_HOST}". This script runs only against that branch.`);
 
 // The modules under test read the connection through lib/db at call time: only the vetted URL.
 process.env.POSTGRES_URL = url;
@@ -132,7 +137,18 @@ const fileRow = async (id: string) =>
   (await sql`select shared_at, doc_type, name, blob_pathname from job_files where id = ${id}`)[0];
 const documentEvents = async (leadId: string) =>
   (await sql`select body from job_events where lead_id = ${leadId} and kind = 'document' order by created_at`).map((r) => r.body as string);
-const scriptLeads = async () => (await sql`select id from leads where name like ${`${NAME_PREFIX} %`}`).map((r) => r.id as string);
+const liveOfKind = async (kind: string) =>
+  (await sql`select count(*)::int as n from document_templates where kind = ${kind} and archived_at is null`)[0].n as number;
+const acksFor = async (fileId: string) =>
+  (await sql`select count(*)::int as n from document_acknowledgements where file_id = ${fileId}`)[0].n as number;
+
+/**
+ * Opt-in only (VERIFY_DOCUMENTS_SWEEP=1): also removes rows an EARLIER, crashed run left, found by
+ * name and actor. Off by default because parallel sessions share this branch, and a sweep by
+ * pattern could delete another session's rows mid-run. The default cleanup touches only ids this
+ * run holds.
+ */
+const SWEEP = process.env.VERIFY_DOCUMENTS_SWEEP === "1";
 
 /** Creates a document from `templateId` on the job, replaces its text with `body`, sends it, answers its id and file. */
 async function sendNew(jobId: string, templateId: string, body: string): Promise<{ id: string; fileId: string }> {
@@ -146,31 +162,50 @@ async function sendNew(jobId: string, templateId: string, body: string): Promise
 
 test("Documents: templates, drafts, send, acknowledge, void and sign against a real database", async () => {
   console.log("\nverify-documents: writing to a test branch\n");
-  const prior = (await sql`select id from document_templates where archived_at is null and kind = any(${SINGLETONS})`).map((r) => r.id as string);
-  if (prior.length > 0) await sql`update document_templates set archived_at = now() where id = any(${prior})`;
-  const A = await newLead("A");
-  const B = await newLead("B");
+  // Declared out here, filled inside the try: whatever setup managed before a failure is undone.
+  let prior: string[] = [];
+  const leadIds: string[] = [];
+  const templateIds: string[] = [];
+  let A: { id: string; projectNo: number } | undefined;
+  let B: { id: string; projectNo: number } | undefined;
+  /** Every template this run creates goes through here, so cleanup can delete it by id. */
+  const keepTemplate = (result: { id: string } | { error: string }, what: string): string => {
+    const id = idOf(result, what);
+    templateIds.push(id);
+    return id;
+  };
 
   try {
+    // One statement: `prior` is exactly the rows this run archived, so only those are put back.
+    prior = (await sql`update document_templates set archived_at = now()
+      where archived_at is null and kind = any(${SINGLETONS}) returning id`).map((r) => r.id as string);
+    A = await newLead("A");
+    leadIds.push(A.id);
+    B = await newLead("B");
+    leadIds.push(B.id);
     console.log("step 1: templates and the singleton index");
     const terms = await createTemplate({ name: "VERIFY terms", kind: "terms", response: "sign", body: "For {{client_name}}", actor: ACTOR });
-    const termsId = idOf(terms, "create terms");
+    const termsId = keepTemplate(terms, "create terms");
     check((await sql`select response from document_templates where id = ${termsId}`)[0].response === "view",
       "terms are stored view-only whatever was asked", "not view");
     const second = await createTemplate({ name: "VERIFY terms 2", kind: "terms", response: "view", body: "x", actor: ACTOR });
     check("error" in second, "a second live terms template is refused by the unique index", JSON.stringify(second));
-    idOf(await createTemplate({ name: "VERIFY install guide", kind: "guide_install", response: "view", body: "x", actor: ACTOR }), "guide");
+    check((await liveOfKind("terms")) === 1, "and there is still exactly one live terms template", String(await liveOfKind("terms")));
+    keepTemplate(await createTemplate({ name: "VERIFY install guide", kind: "guide_install", response: "view", body: "x", actor: ACTOR }), "guide");
     const secondGuide = await createTemplate({ name: "VERIFY install guide 2", kind: "guide_install", response: "view", body: "x", actor: ACTOR });
     check("error" in secondGuide, "a second live install guide is refused too", JSON.stringify(secondGuide));
+    check((await liveOfKind("guide_install")) === 1, "and there is still exactly one live install guide", String(await liveOfKind("guide_install")));
     check((await archiveTemplate(termsId, ACTOR)) === true, "archiving the live terms answers true", "false");
     check((await archiveTemplate(termsId, ACTOR)) === false, "archiving it again answers false", "true");
     check((await updateTemplate({ id: termsId, name: "x", response: "view", body: "x", actor: ACTOR })) === false,
       "an archived template cannot be edited", "true");
-    idOf(await createTemplate({ name: "VERIFY terms 3", kind: "terms", response: "view", body: "x", actor: ACTOR }), "terms 3");
+    const archived = (await sql`select name, body from document_templates where id = ${termsId}`)[0];
+    check(archived.name === "VERIFY terms" && archived.body === "For {{client_name}}", "its name and body are unchanged", JSON.stringify(archived));
+    keepTemplate(await createTemplate({ name: "VERIFY terms 3", kind: "terms", response: "view", body: "x", actor: ACTOR }), "terms 3");
     console.log("  ok  with the old terms archived, a new live one is allowed");
-    const saId = idOf(await createTemplate({ name: "VERIFY Service agreement", kind: "service_agreement", response: "acknowledge",
+    const saId = keepTemplate(await createTemplate({ name: "VERIFY Service agreement", kind: "service_agreement", response: "acknowledge",
       body: "## Scope\n\nHi {{client_first_name}}. Deposit {{deposit}}.", actor: ACTOR }), "service agreement");
-    idOf(await createTemplate({ name: "VERIFY Service agreement 2", kind: "service_agreement", response: "acknowledge", body: "x", actor: ACTOR }), "sa 2");
+    keepTemplate(await createTemplate({ name: "VERIFY Service agreement 2", kind: "service_agreement", response: "acknowledge", body: "x", actor: ACTOR }), "sa 2");
     console.log("  ok  a client-document kind may have many live templates");
 
     console.log("step 2: a draft, filled from the job");
@@ -197,7 +232,9 @@ test("Documents: templates, drafts, send, acknowledge, void and sign against a r
 
     console.log("step 4: draft edits");
     const finalBody = "## Scope\n\nHi VERIFY. Deposit $500.";
-    check((await updateDraft({ leadId: B.id, documentId: d1, title, body: finalBody })) === false, "another job cannot edit the draft", "true");
+    check((await updateDraft({ leadId: B.id, documentId: d1, title: "B's title", body: "B's text" })) === false, "another job cannot edit the draft", "true");
+    const untouched = await docRow(d1);
+    check(untouched.title === title && untouched.body === row1.body, "its stored title and body are unchanged", JSON.stringify(untouched));
     check((await updateDraft({ leadId: A.id, documentId: d1, title, body: finalBody })) === true, "the draft is edited", "false");
 
     console.log("step 5: markSent re-checks everything where it is stored");
@@ -236,11 +273,17 @@ test("Documents: templates, drafts, send, acknowledge, void and sign against a r
     check(blobs.get(file1.blob_pathname as string)?.subarray(0, 5).toString() === "%PDF-", "the stored bytes are a PDF", "not a PDF");
     check((await documentEvents(A.id)).includes(`Sent "${title}"`), "a Sent event is logged", JSON.stringify(await documentEvents(A.id)));
     check(same(emails, [title]), "the client email was sent once", JSON.stringify(emails));
+    const beforeResend = await footprint(A.id);
     const resend = await sendJobDocument({ jobId: A.id, documentId: d1, actor: ACTOR });
     check("error" in resend && resend.error === "This document has already been sent.", "a second send is refused", JSON.stringify(resend));
+    const afterResend = await footprint(A.id);
+    check(afterResend.files === beforeResend.files && afterResend.events === beforeResend.events && emails.length === 1,
+      "no second PDF, event or email", JSON.stringify({ beforeResend, afterResend, emails: emails.length }));
 
     console.log("step 7: frozen once sent");
-    check((await updateDraft({ leadId: A.id, documentId: d1, title, body: "changed" })) === false, "a sent document cannot be edited", "true");
+    check((await updateDraft({ leadId: A.id, documentId: d1, title: "changed", body: "changed" })) === false, "a sent document cannot be edited", "true");
+    const sentText = await docRow(d1);
+    check(sentText.title === title && sentText.body === finalBody, "its stored title and body are unchanged", JSON.stringify(sentText));
     check((await discardDraft(A.id, d1, ACTOR)) === false, "nor discarded", "true");
     check((await setShared(A.id, file1Id, false, ACTOR)) === false, "the Files tab cannot unshare its PDF", "true");
     check((await setShared(A.id, file1Id, true, ACTOR)) === false, "nor share it", "true");
@@ -289,6 +332,7 @@ test("Documents: templates, drafts, send, acknowledge, void and sign against a r
     check((await documentEvents(A.id)).includes(`Voided "${title}"`), "a Voided event is logged", "no event");
     check((await voidDocument(A.id, d2.id, ACTOR)) === false, "voiding it again answers false", "true");
     check((await setShared(A.id, d2.fileId, true, ACTOR)) === false, "the Files tab cannot share a voided document again", "true");
+    check((await fileRow(d2.fileId)).shared_at === null, "its PDF is still unshared", "shared");
     check((await deleteFile(d2.fileId, ACTOR)) === false, "nor delete its PDF", "true");
     const voidedFile = await getFile(d2.fileId);
     const aBeforeLate = await footprint(A.id);
@@ -300,19 +344,23 @@ test("Documents: templates, drafts, send, acknowledge, void and sign against a r
     await sql`update job_files set shared_at = now() where id = ${d2.fileId}`;
     check(!(await acknowledgeableDocuments(A.id)).some((doc) => doc.id === d2.id),
       "a void document is not offered for acknowledgement, even with its file shared", "offered");
+    const beforeLateShared = await footprint(A.id);
     const lateShared = await recordAcknowledgement({ jobId: A.id, document: { id: d2.id, title, file: voidedFile! }, name: "Pat", email: "pat@example.com", ip: null, userAgent: null });
     check(lateShared === "not-found" && (await docRow(d2.id)).status === "void", "even with its file shared, a void document takes no acknowledgement", lateShared);
+    check(same(await footprint(A.id), beforeLateShared) && (await acksFor(d2.fileId)) === 0,
+      "and wrote no record, event or change", JSON.stringify(await footprint(A.id)));
     await sql`update job_files set shared_at = null where id = ${d2.fileId}`;
 
     console.log("step 10b: void is refused when an acknowledgement row exists");
     const d6 = await sendNew(A.id, saId, finalBody);
+    // doc_sha256 'verify' is deliberately not a real hash: this row exists only to trip void's guard.
     await sql`insert into document_acknowledgements (id, lead_id, file_id, acknowledged_name, acknowledged_email, doc_sha256)
       values (${randomUUID()}, ${A.id}, ${d6.fileId}, 'Pat Client', 'pat@example.com', 'verify')`;
     check((await voidDocument(A.id, d6.id, ACTOR)) === false, "void refuses a sent document whose PDF has an acknowledgement", "true");
     check((await docRow(d6.id)).status === "sent" && (await fileRow(d6.fileId)).shared_at !== null, "it stays sent and shared", "changed");
 
     console.log("step 11: a view document completes when sent");
-    const viewId = idOf(await createTemplate({ name: "VERIFY Care notes", kind: "other", response: "view", body: "Dust weekly.", actor: ACTOR }), "view");
+    const viewId = keepTemplate(await createTemplate({ name: "VERIFY Care notes", kind: "other", response: "view", body: "Dust weekly.", actor: ACTOR }), "view");
     const d3 = idOf(await createDocumentFromTemplate({ jobId: A.id, templateId: viewId, actor: ACTOR }), "create d3");
     const viewSent = await sendJobDocument({ jobId: A.id, documentId: d3, actor: ACTOR });
     const row4 = await docRow(d3);
@@ -321,7 +369,7 @@ test("Documents: templates, drafts, send, acknowledge, void and sign against a r
     check((await docRow(d3)).status === "completed", "and it stays completed", "changed");
 
     console.log("step 12: a sign document is signed through the contract path");
-    const signTemplate = idOf(await createTemplate({ name: "VERIFY Change order", kind: "change_order", response: "sign",
+    const signTemplate = keepTemplate(await createTemplate({ name: "VERIFY Change order", kind: "change_order", response: "sign",
       body: "## Change\n\nOne more shade for {{client_name}}.", actor: ACTOR }), "sign");
     const d4 = idOf(await createDocumentFromTemplate({ jobId: A.id, templateId: signTemplate, actor: ACTOR }), "create d4");
     const signSent = await sendJobDocument({ jobId: A.id, documentId: d4, actor: ACTOR });
@@ -332,9 +380,12 @@ test("Documents: templates, drafts, send, acknowledge, void and sign against a r
     const [lead] = await sql`select status, sold_cents from leads where id = ${A.id}`;
     check(lead.status === "sold" && lead.sold_cents === null, "no Direct Connect version: the sale is untouched", JSON.stringify(lead));
     check((await voidDocument(A.id, d4, ACTOR)) === false, "a signed document cannot be voided", "true");
+    check((await docRow(d4)).status === "completed" && (await fileRow(signFileId)).shared_at !== null,
+      "it stays completed and its PDF shared", "changed");
 
     console.log("step 12b: void is refused when a signature row exists");
     const d7 = await sendNew(A.id, signTemplate, "## Change\n\nOne more shade.");
+    // doc_sha256 'verify' is deliberately not a real hash: this row exists only to trip void's guard.
     await sql`insert into contract_signatures (id, lead_id, file_id, signed_name, signed_email, doc_sha256)
       values (${randomUUID()}, ${A.id}, ${d7.fileId}, 'Pat Client', 'pat@example.com', 'verify')`;
     check((await voidDocument(A.id, d7.id, ACTOR)) === false, "void refuses a sent document whose PDF has a signature", "true");
@@ -359,28 +410,34 @@ test("Documents: templates, drafts, send, acknowledge, void and sign against a r
         console.error(`cleanup could not ${label}:`, (error as Error).message);
       }
     };
-    let leads = [A.id, B.id];
-    await attempt("find leftover leads", async () => { leads = [...new Set([...leads, ...(await scriptLeads())])]; });
+    const leads = [...leadIds];
+    const templates = [...templateIds];
+    if (SWEEP) {
+      await attempt("sweep leftovers of earlier runs (VERIFY_DOCUMENTS_SWEEP=1)", async () => {
+        leads.push(...(await sql`select id from leads where name like ${`${NAME_PREFIX} %`}`).map((r) => r.id as string));
+        templates.push(...(await sql`select id from document_templates where created_by = ${ACTOR}`).map((r) => r.id as string));
+      });
+    }
     await attempt("delete acknowledgements", () => sql`delete from document_acknowledgements where lead_id = any(${leads})`);
     await attempt("delete signatures", () => sql`delete from contract_signatures where lead_id = any(${leads})`);
     await attempt("delete documents", () => sql`delete from job_documents where lead_id = any(${leads})`);
     await attempt("delete events", () => sql`delete from job_events where lead_id = any(${leads})`);
     await attempt("delete files", () => sql`delete from job_files where lead_id = any(${leads})`);
     await attempt("delete leads", () => sql`delete from leads where id = any(${leads})`);
-    await attempt("delete templates", () => sql`delete from document_templates where created_by = ${ACTOR}`);
+    await attempt("delete templates", () => sql`delete from document_templates where id = any(${templates})`);
     await attempt("restore the owners' live terms and guides",
       () => sql`update document_templates set archived_at = null where id = any(${prior})`);
     await attempt("report", async () => {
       const [left] = await sql`select
-        (select count(*)::int from leads where name like ${`${NAME_PREFIX} %`} or id = any(${leads})) as leads,
-        (select count(*)::int from document_templates where created_by = ${ACTOR}) as templates,
+        (select count(*)::int from leads where id = any(${leads})) as leads,
+        (select count(*)::int from document_templates where id = any(${templates})) as templates,
         (select count(*)::int from job_documents where lead_id = any(${leads})) as documents,
         (select count(*)::int from job_files where lead_id = any(${leads})) as files,
         (select count(*)::int from job_events where lead_id = any(${leads})) as events,
         (select count(*)::int from document_acknowledgements where lead_id = any(${leads})) as acknowledgements,
         (select count(*)::int from contract_signatures where lead_id = any(${leads})) as signatures,
         (select count(*)::int from document_templates where id = any(${prior}) and archived_at is null) as restored`;
-      console.log(`cleanup: ${left.leads} leads and ${left.templates} templates left, ${left.restored} of ${prior.length} owner templates restored`);
+      console.log(`cleanup: ${left.leads} of ${leads.length} leads and ${left.templates} of ${templates.length} templates left, ${left.restored} of ${prior.length} owner templates restored${SWEEP ? " (sweep on)" : ""}`);
       console.log(`cleanup: ${left.documents} documents, ${left.files} files, ${left.events} events, ${left.acknowledgements} acknowledgements, ${left.signatures} signatures left`);
     });
   }
