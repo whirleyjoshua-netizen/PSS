@@ -31,6 +31,8 @@ export type Category = {
   navLabel: string;
   tagline: string;
   intro: string[];
+  /** A photo of our own install, shown beside the intro. */
+  image?: { src: string; alt: string };
   seo: Seo;
 };
 
@@ -70,6 +72,10 @@ export const categories: Category[] = [
       "Shades are a single panel of fabric rather than a stack of slats, so they read as part of the room instead of hardware bolted to a window. That makes them the most versatile category we carry — the same window can get a sheer that glows all afternoon or a blackout that reads as midnight at two in the afternoon.",
       "In this valley the fabric choice matters more than anywhere else. Openness factor, screen weave, and liner determine whether a west-facing room stays livable in July, and it is the part homeowners most often get wrong when they buy online.",
     ],
+    image: {
+      src: "/gallery/cellular-shades-cabin-dining-room.webp",
+      alt: "White cellular shades on the tall windows of a wood-paneled great room, above a dining table set with candles",
+    },
     seo: {
       title: "Window Shades in Las Vegas, NV | Premier Shade Solutions",
       description:
@@ -85,6 +91,10 @@ export const categories: Category[] = [
       "Shutters are the only window treatment that reads as architecture. They are fitted to the opening, framed, and finished, so they look like part of the house rather than something added to it — which is why they are the one treatment that reliably shows up in appraisals and listing photos.",
       "They are also the most durable thing we install. A well-built shutter outlasts the paint on the wall around it, holds up to sun that destroys fabric, and never needs a cord replaced.",
     ],
+    image: {
+      src: "/gallery/plantation-shutters-kitchen-sink.webp",
+      alt: "White plantation shutters with open louvers over a farmhouse kitchen sink and marble countertop",
+    },
     seo: {
       title: "Plantation Shutters in Las Vegas, NV | Premier Shade",
       description:

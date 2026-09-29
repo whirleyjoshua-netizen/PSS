@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import { notFound } from "next/navigation";
 import { Section } from "@/components/ui/Section";
 import {
@@ -63,10 +64,28 @@ export default async function CategoryPage({
       />
 
       <Section tone="ivory">
-        <div className="flex max-w-[72ch] flex-col gap-5 text-lg leading-relaxed text-ink-soft">
-          {found.intro.map((paragraph) => (
-            <p key={paragraph.slice(0, 40)}>{paragraph}</p>
-          ))}
+        <div
+          className={
+            found.image ? "grid items-center gap-12 lg:grid-cols-2" : undefined
+          }
+        >
+          <div className="flex max-w-[72ch] flex-col gap-5 text-lg leading-relaxed text-ink-soft">
+            {found.intro.map((paragraph) => (
+              <p key={paragraph.slice(0, 40)}>{paragraph}</p>
+            ))}
+          </div>
+
+          {found.image ? (
+            <div className="relative mx-auto aspect-3/4 w-full max-w-md overflow-hidden bg-sand">
+              <Image
+                src={found.image.src}
+                alt={found.image.alt}
+                fill
+                sizes="(min-width: 1024px) 28rem, 100vw"
+                className="object-cover"
+              />
+            </div>
+          ) : null}
         </div>
 
         {children.length > 0 ? (
