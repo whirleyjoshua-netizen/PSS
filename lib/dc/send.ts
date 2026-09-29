@@ -9,6 +9,7 @@ import { formatProjectNo } from "@/lib/portal/project-no";
 import { FIELD_KEYS, TERMS_FIELDS } from "@/lib/docs/fields";
 import { fieldValues, fillFields, type FieldValues } from "@/lib/docs/fill";
 import { remainingMarkers } from "@/lib/docs/parse";
+import { STARTER_TERMS } from "@/lib/docs/starter-terms";
 import { liveTemplateOfKind, type DocumentTemplate } from "@/lib/docs/templates";
 import { buildContractPdf, type ContractTerms } from "./contract-pdf";
 import { pickInstallQuote, priceVersion, pricingFingerprint, sendBlockers, type InstallChoice, type PricedVersion } from "./pricing";
@@ -54,6 +55,14 @@ function fillTerms(template: DocumentTemplate, job: Job, now: Date): { text: str
   return { text: filled.text };
 }
 
+/** The starter terms banner (their first line), which the owner deletes once an attorney has reviewed them. */
+const STARTER_DRAFT_LINE = STARTER_TERMS.split("\n")[0].trim();
+
+/** True while the terms still carry the starter DRAFT banner as one of their lines. */
+function carriesDraftLine(body: string): boolean {
+  return body.split("\n").some((line) => line.trim() === STARTER_DRAFT_LINE);
+}
+
 /** The review plus the job and settings it was computed from, so Send uses the very same reads. */
 async function review(jobId: string): Promise<{ review: Review; job: Job; settings: DcSettings; termsTemplate: DocumentTemplate | null } | null> {
   const [job, versions, rules, installs, settings, termsTemplate] = await Promise.all([
@@ -84,6 +93,7 @@ async function review(jobId: string): Promise<{ review: Review; job: Job; settin
   if (termsTemplate) {
     const filled = fillTerms(termsTemplate, job, new Date());
     if ("error" in filled) blockers.push(filled.error);
+    if (carriesDraftLine(termsTemplate.body)) blockers.push("Your contract terms still carry the DRAFT line. Remove it on the Documents page.");
   }
   return { review: { version, priced, blockers, fingerprint: pricingFingerprint(priced), install, rules, olderVersions }, job, settings, termsTemplate };
 }

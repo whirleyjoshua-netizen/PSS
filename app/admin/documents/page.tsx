@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ACTION_LINK } from "@/app/admin/jobs/[id]/ui";
 import { requireAdmin } from "@/lib/admin/session";
+import { getDcSettings } from "@/lib/dc/store";
 import { formatWhen } from "@/lib/admin/time";
 import { TEMPLATE_GROUPS, docResponseLabel, templateGroup, templateKindLabel, type TemplateGroup } from "@/lib/docs/kinds";
 import { listTemplates } from "@/lib/docs/templates";
@@ -11,12 +12,15 @@ const EMPTY: Record<TemplateGroup, string> = {
   client: "No client document templates yet.",
   guide: "No portal guides yet. A guide appears on the client's page only once you write it.",
 };
+const UPLOADED_TERMS = "Contracts use your uploaded PDF. Creating terms here replaces it in every contract from then on.";
 
 /** Spec §5: live templates, grouped. Archived templates are not listed. */
 export default async function DocumentsPage({ searchParams }: { searchParams: Promise<{ starter?: string | string[] }> }) {
   await requireAdmin();
-  const [templates, query] = await Promise.all([listTemplates(), searchParams]);
+  const [templates, query, dcSettings] = await Promise.all([listTemplates(), searchParams, getDcSettings()]);
   const hasTerms = templates.some((template) => template.kind === "terms");
+  // Spec §8: with no terms template, contracts print the PDF uploaded before Documents existed.
+  const empty: Record<TemplateGroup, string> = dcSettings.termsPathname === null ? EMPTY : { ...EMPTY, terms: UPLOADED_TERMS };
   const starter = Array.isArray(query.starter) ? query.starter[0] : query.starter;
 
   return (
@@ -31,7 +35,7 @@ export default async function DocumentsPage({ searchParams }: { searchParams: Pr
         return (
           <section key={group.value} aria-labelledby={`group-${group.value}`} className="flex flex-col gap-3">
             <h2 id={`group-${group.value}`} className="text-lg font-semibold">{group.label}</h2>
-            {inGroup.length === 0 ? <p className="text-sm text-ink-soft">{EMPTY[group.value]}</p> : (
+            {inGroup.length === 0 ? <p className="text-sm text-ink-soft">{empty[group.value]}</p> : (
               <ul className="flex flex-col divide-y divide-rule border border-rule">
                 {inGroup.map((template) => (
                   <li key={template.id} className="flex flex-wrap items-baseline justify-between gap-2 p-3 text-sm">

@@ -307,6 +307,31 @@ describe("terms from the Documents page", () => {
     expect((await loadReview(JOB))!.blockers)
       .toContain("Your contract terms have {{client_name}} with no value for this job. Fix the terms on the Documents page.");
   });
+  describe("the starter's DRAFT line", () => {
+    const DRAFT = "Your contract terms still carry the DRAFT line. Remove it on the Documents page.";
+    it("blocks the review and refuses Send while the live terms still carry it", async () => {
+      const { STARTER_TERMS } = await import("@/lib/docs/starter-terms");
+      templates.liveTemplateOfKind.mockResolvedValue({ ...TERMS, body: STARTER_TERMS });
+      const review = await loadReview(JOB);
+      expect(review!.blockers).toContain(DRAFT);
+      expect(await sendContract({ jobId: JOB, versionId: V1, fingerprint: review!.fingerprint, actor: OWNER })).toEqual({ error: DRAFT });
+      expect(pdf.buildContractPdf).not.toHaveBeenCalled();
+      expect(createFile).not.toHaveBeenCalled();
+      expect(sql).not.toHaveBeenCalled();
+    });
+    it("finds the line anywhere in the body, padded with spaces", async () => {
+      const { STARTER_TERMS } = await import("@/lib/docs/starter-terms");
+      const first = STARTER_TERMS.split("\n")[0].trim();
+      templates.liveTemplateOfKind.mockResolvedValue({ ...TERMS, body: `## Terms\n\n  ${first}  \n\nMore.` });
+      expect((await loadReview(JOB))!.blockers).toEqual([DRAFT]);
+    });
+    it("clears once the owner deletes the line", async () => {
+      const { STARTER_TERMS } = await import("@/lib/docs/starter-terms");
+      const reviewed = STARTER_TERMS.split("\n").slice(1).join("\n");
+      templates.liveTemplateOfKind.mockResolvedValue({ ...TERMS, body: reviewed });
+      expect((await loadReview(JOB))!.blockers).toEqual([]);
+    });
+  });
   it("never fills a field terms may not use, so a stray figure cannot print beside the contract total", async () => {
     templates.liveTemplateOfKind.mockResolvedValue({ ...TERMS, body: "## Terms\n\nPay {{deposit}} on signing." });
     jobs.getJob.mockResolvedValue({ ...job, depositCents: 50000, soldCents: 200000 });
