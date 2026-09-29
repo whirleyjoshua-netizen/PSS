@@ -20,6 +20,9 @@ const nextConfig: NextConfig = {
         destination: "https://premiershadesolutions.com/:path*",
         permanent: true,
       },
+      // Products we no longer carry; old links and search results land on Blinds.
+      { source: "/blinds/aluminum-blinds", destination: "/blinds", permanent: true },
+      { source: "/blinds/mini-blinds", destination: "/blinds", permanent: true },
     ];
   },
 };

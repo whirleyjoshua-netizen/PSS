@@ -24,8 +24,14 @@ describe("product taxonomy", () => {
     expect(getCategory("drapery")).toBeUndefined();
   });
 
-  it("has sixteen child products", () => {
-    expect(products).toHaveLength(16);
+  it("has fourteen child products", () => {
+    expect(products).toHaveLength(14);
+  });
+
+  it("no longer carries aluminum or mini blinds", () => {
+    const slugs = products.map((product) => product.slug);
+    expect(slugs).not.toContain("aluminum-blinds");
+    expect(slugs).not.toContain("mini-blinds");
   });
 
   it("gives motorization no children", () => {
@@ -82,7 +88,7 @@ describe("product taxonomy", () => {
   });
 
   it("produces one static path per child product", () => {
-    expect(allProductPaths()).toHaveLength(16);
+    expect(allProductPaths()).toHaveLength(14);
     expect(allProductPaths()).toContainEqual({
       category: "shades",
       product: "solar-shades",
