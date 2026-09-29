@@ -7,6 +7,8 @@ import type { DcLine, DcQuote, ImportOutcome } from "./types";
 export type StoredLine = DcLine & { pctOverride: number | null; markupPct: number | null; sellUnitCents: number | null; markupOverridden: boolean };
 export type StoredVersion = {
   id: string; leadId: string; version: number; dcQuoteNo: string; poReference: string;
+  /** DC's "Client:" name as printed, "" when blank. Shown so a quote on the wrong household stands out. */
+  clientName: string;
   sourceFileId: string; sourceSha256: string; status: "draft" | "sent" | "signed" | "superseded";
   subtotalCents: number; handlingFeeCents: number; oversizedFeeCents: number; dealerTotalCents: number;
   waiveHandling: boolean; noInstall: boolean;
@@ -63,11 +65,11 @@ export async function importVersion(input: { messageId: string; receivedAt: Date
       returning message_id
     ),
     version as (
-      insert into dc_quote_versions (id, lead_id, version, dc_quote_no, po_reference, source_file_id, source_sha256,
+      insert into dc_quote_versions (id, lead_id, version, dc_quote_no, po_reference, client_name, source_file_id, source_sha256,
         message_id, status, dealer_subtotal_cents, handling_fee_cents, oversized_fee_cents, dealer_total_cents)
       select ${randomUUID()}, ${input.leadId},
         coalesce((select max(version) from dc_quote_versions where lead_id = ${input.leadId}), 0) + 1,
-        ${q.quoteNo}, ${q.poReference}, ${input.sourceFileId}, ${input.sha256}, msg.message_id, 'draft',
+        ${q.quoteNo}, ${q.poReference}, ${q.clientName}, ${input.sourceFileId}, ${input.sha256}, msg.message_id, 'draft',
         ${q.subtotalCents}, ${q.handlingFeeCents}, ${q.oversizedFeeCents}, ${q.dealerTotalCents}
       from msg
       returning id, lead_id, version
@@ -113,7 +115,7 @@ export async function listVersions(leadId: string): Promise<StoredVersion[]> {
   const lines = await db()`select * from dc_quote_lines where version_id = any(${ids}) order by position`;
   return versions.map((v) => ({
     id: v.id as string, leadId: v.lead_id as string, version: Number(v.version), dcQuoteNo: v.dc_quote_no as string,
-    poReference: v.po_reference as string, sourceFileId: v.source_file_id as string, sourceSha256: v.source_sha256 as string,
+    poReference: v.po_reference as string, clientName: (v.client_name as string | null) ?? "", sourceFileId: v.source_file_id as string, sourceSha256: v.source_sha256 as string,
     status: v.status as StoredVersion["status"], subtotalCents: Number(v.dealer_subtotal_cents),
     handlingFeeCents: Number(v.handling_fee_cents), oversizedFeeCents: Number(v.oversized_fee_cents),
     dealerTotalCents: Number(v.dealer_total_cents), waiveHandling: v.waive_handling === true, noInstall: v.no_install === true,

@@ -138,6 +138,8 @@ export function QuoteReview({ jobId, review }: { jobId: string; review: Review }
         <h2 id="dc-quote-heading" className="text-lg font-semibold">
           DC quote {version.dcQuoteNo} · version {version.version}{olderVersions.length > 0 ? ` of ${olderVersions.length + 1}` : ""}
         </h2>
+        {/* The name DC printed, so a quote filed on the wrong household is visible before it is priced. */}
+        <span className="text-sm">Direct Connect client: {version.clientName || "none given"}</span>
         <span className="border border-rule px-2 py-0.5 text-xs uppercase tracking-wide">{STATUS[version.status]}</span>
         <a className={TEXT_LINK} href={`/admin/files/${version.sourceFileId}`} target="_blank" rel="noreferrer">Dealer copy</a>
       </header>

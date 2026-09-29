@@ -35,7 +35,7 @@ const LINES: StoredLine[] = [
 ];
 
 const version = (over: Partial<StoredVersion> = {}): StoredVersion => ({
-  id: V, leadId: J, version: 2, dcQuoteNo: "12345678", poReference: "PSS-1042", sourceFileId: "file-1", sourceSha256: "x",
+  id: V, leadId: J, version: 2, dcQuoteNo: "12345678", poReference: "PSS-1042", clientName: "Jane Client", sourceFileId: "file-1", sourceSha256: "x",
   status: "draft", subtotalCents: 0, handlingFeeCents: 2500, oversizedFeeCents: 0, dealerTotalCents: 121277,
   waiveHandling: false, noInstall: false, installQuoteId: null, installCents: null, productsCents: null, clientTotalCents: null,
   contractFileId: null, sentAt: null, signedAt: null, createdAt: new Date("2026-09-20T18:00:00Z"), lines: LINES, ...over,
@@ -123,6 +123,17 @@ describe("QuoteReview figures", () => {
     expect(screen.getByRole("heading", { name: "DC quote 12345678 · version 2 of 2" })).toBeInTheDocument();
     expect(screen.getByText("Draft")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Dealer copy" })).toHaveAttribute("href", "/admin/files/file-1");
+  });
+
+  it("names the Direct Connect client beside the quote number, so a wrong household stands out", () => {
+    render(<QuoteReview jobId={J} review={review()} />);
+    const header = screen.getByRole("heading", { name: /^DC quote 12345678/ }).closest("header")!;
+    expect(within(header).getByText("Direct Connect client: Jane Client")).toBeInTheDocument();
+  });
+
+  it("says so when DC printed no client name", () => {
+    render(<QuoteReview jobId={J} review={review({ version: version({ clientName: "" }) })} />);
+    expect(screen.getByText("Direct Connect client: none given")).toBeInTheDocument();
   });
 });
 

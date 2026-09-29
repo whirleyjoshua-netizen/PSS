@@ -36,9 +36,28 @@ describe("importVersion", () => {
     expect(line).toMatchObject({ position: 1, qty: 1, msrp_unit_cents: 65500, cost_extended_cents: 33667, collection: "Duette" });
     expect(line.options[0]).toEqual(["Location", "Living Room"]);
   });
+  it("stores the DC Client name on the version, beside the PO", async () => {
+    sql.mockResolvedValue([{ id: "v1", version: 1 }]);
+    await store.importVersion({ messageId: "<m@x>", receivedAt: new Date(), leadId: JOB, quote: { ...parsed.quote, clientName: "Jane Client" },
+      sourceFileId: FILE, sha256: "abc", actor: "Direct Connect" });
+    const statement = text(sql.mock.calls[0]);
+    expect(statement).toContain("dc_quote_no, po_reference, client_name, source_file_id");
+    const binds = sql.mock.calls[0].slice(1);
+    expect(binds[binds.indexOf("PSS-1042") + 1]).toBe("Jane Client");
+  });
   it("answers null when the message was already imported (the statement inserted nothing)", async () => {
     sql.mockResolvedValue([]);
     expect(await store.importVersion({ messageId: "<m@x>", receivedAt: new Date(), leadId: JOB, quote: parsed.quote, sourceFileId: FILE, sha256: "abc", actor: "Direct Connect" })).toBeNull();
+  });
+});
+
+describe("listVersions", () => {
+  it("reads the DC Client name back", async () => {
+    sql.mockResolvedValueOnce([{ id: VERSION, lead_id: JOB, version: 1, dc_quote_no: "1", po_reference: "PSS-1042", client_name: "Jane Client",
+      source_file_id: FILE, source_sha256: "x", status: "draft", dealer_subtotal_cents: 1, handling_fee_cents: 0, oversized_fee_cents: 0,
+      dealer_total_cents: 1, created_at: new Date().toISOString() }]).mockResolvedValueOnce([]);
+    const [version] = await store.listVersions(JOB);
+    expect(version.clientName).toBe("Jane Client");
   });
 });
 
