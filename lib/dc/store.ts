@@ -204,15 +204,6 @@ export async function getDcSettings(): Promise<DcSettings> {
   };
 }
 
-/** Points the terms at a new stored file and answers the pathname it replaced. */
-export async function saveTermsPathname(pathname: string, actor: string): Promise<string | null> {
-  const rows = await db()`
-    with prev as (select terms_file_pathname from dc_settings where id)
-    update dc_settings set terms_file_pathname = ${pathname}, terms_updated_by = ${actor}, terms_updated_at = now()
-    where id returning (select terms_file_pathname from prev) as previous`;
-  return (rows[0]?.previous as string | null) ?? null;
-}
-
 export async function setLastPolledAt(at: Date): Promise<void> {
   await db()`update dc_settings set last_polled_at = ${at} where id`;
 }
