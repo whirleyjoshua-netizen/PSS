@@ -6,7 +6,7 @@ import { formatShortDate, formatWhen } from "@/lib/admin/time";
 import { keyDetails } from "@/lib/dc/contract-layout";
 import { diffLines, type LineChange } from "@/lib/dc/diff";
 import { dcQuoteUrl } from "@/lib/dc/links";
-import { cancellationWindowEnd } from "@/lib/docs/business-days";
+import { cancellationWindowEnd, inCancellationWindow } from "@/lib/docs/business-days";
 import { ruleFor, type PricedLine } from "@/lib/dc/pricing";
 import type { Review } from "@/lib/dc/send";
 import type { StoredLine, StoredVersion } from "@/lib/dc/store";
@@ -114,7 +114,7 @@ export function QuoteReview({ jobId, review, now }: { jobId: string; review: Rev
   const signedEarlier = olderVersions.find((v) => v.status === "signed");
   // Spec §9: the order is not placed until the 3-business-day cancellation window has passed.
   const windowEnd = version.status === "signed" && version.signedAt ? cancellationWindowEnd(version.signedAt) : null;
-  const inWindow = windowEnd !== null && (now ?? new Date()).getTime() < windowEnd.getTime();
+  const inWindow = windowEnd !== null && version.signedAt !== null && inCancellationWindow(version.signedAt, now ?? new Date());
 
   const choose = (choices: { waiveHandling?: boolean; noInstall?: boolean }) =>
     startChoice(async () => {

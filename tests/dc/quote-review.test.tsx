@@ -281,6 +281,11 @@ describe("QuoteReview after sending", () => {
       expect(screen.getByText(/^Signed Sep 28, 2026\. Cancellation window ends Fri, Oct 2, 12:00\sAM — place the Direct Connect order after that\.$/)).toBeInTheDocument();
       expect(screen.queryByRole("link", { name: /ready to order/ })).toBeNull();
     });
+    it("is still in the window a millisecond before midnight after the third business day", () => {
+      render(<QuoteReview jobId={J} review={review({ version: signedMonday() })} now={new Date("2026-10-02T06:59:59.999Z")} />);
+      expect(screen.getByText(/^Signed Sep 28, 2026\. Cancellation window ends Fri, Oct 2, 12:00\sAM — place the Direct Connect order after that\.$/)).toBeInTheDocument();
+      expect(screen.queryByRole("link", { name: /ready to order/ })).toBeNull();
+    });
     it("from midnight after the third business day, is ready to order", () => {
       render(<QuoteReview jobId={J} review={review({ version: signedMonday() })} now={new Date("2026-10-02T07:00:00Z")} />);
       expect(screen.getByRole("link", { name: /^Signed — ready to order/ })).toBeInTheDocument();
