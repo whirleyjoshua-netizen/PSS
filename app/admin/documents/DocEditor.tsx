@@ -3,8 +3,10 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { DocText } from "@/components/docs/DocText";
 import { insertText, prefixLines, wrapBold, type EditState } from "@/lib/docs/edit";
-import { FIELDS, type FieldKey } from "@/lib/docs/fields";
-import { parseDocText, remainingMarkers, unknownFields } from "@/lib/docs/parse";
+import { FIELDS } from "@/lib/docs/fields";
+import { allowedFields, type TemplateKind } from "@/lib/docs/kinds";
+import { parseDocText, remainingMarkers } from "@/lib/docs/parse";
+import { fieldErrors } from "@/lib/docs/validate";
 
 const TOOL = "inline-flex min-h-11 items-center border border-rule px-3 text-sm hover:border-charcoal";
 
@@ -13,17 +15,22 @@ const TOOL = "inline-flex min-h-11 items-center border border-rule px-3 text-sm 
  * live preview from the same parser as the PDF. It sits inside the caller's form: the text area
  * posts as `name`. Preview PDF posts the current text to /admin/documents/preview in a new tab.
  */
-export function DocEditor({ name, label, defaultValue, mode, allowedFields = [], titleField, previewExtras = {}, onChange }: {
+export function DocEditor(props: {
   name: string;
   label: string;
   defaultValue: string;
-  mode: "template" | "document";
-  allowedFields?: readonly FieldKey[];
   /** The enclosing form's input whose value titles the preview PDF. */
   titleField: string;
   previewExtras?: Record<string, string>;
   onChange?: (value: string) => void;
-}) {
+} & (
+  /** A template: its kind decides the fields offered and the same field problems saving refuses. */
+  | { mode: "template"; kind: TemplateKind }
+  /** A job document: no field menu; markers left in are named until replaced. */
+  | { mode: "document" }
+)) {
+  const { name, label, defaultValue, mode, titleField, previewExtras = {}, onChange } = props;
+  const kind = props.mode === "template" ? props.kind : null;
   const area = useRef<HTMLTextAreaElement>(null);
   const pending = useRef<{ start: number; end: number } | null>(null);
   const [value, setValue] = useState(defaultValue);
@@ -69,9 +76,10 @@ export function DocEditor({ name, label, defaultValue, mode, allowedFields = [],
     form.remove();
   };
 
-  const problems = mode === "template" ? unknownFields(value, allowedFields).map((key) => `{{${key}}} can't be used here.`) : [];
+  const problems = kind ? fieldErrors(value, kind) : [];
   const markers = mode === "document" ? remainingMarkers(value) : [];
-  const offered = FIELDS.filter((field) => allowedFields.includes(field.key));
+  const allowed = kind ? allowedFields(kind) : [];
+  const offered = FIELDS.filter((field) => allowed.includes(field.key));
 
   return (
     <div className="flex flex-col gap-3">
@@ -80,7 +88,7 @@ export function DocEditor({ name, label, defaultValue, mode, allowedFields = [],
         <button type="button" className={TOOL} onClick={() => apply(prefixLines(current(), "### "))}>Subheading</button>
         <button type="button" className={`${TOOL} font-semibold`} onClick={() => apply(wrapBold(current()))}>Bold</button>
         <button type="button" className={TOOL} onClick={() => apply(prefixLines(current(), "- "))}>Bullet</button>
-        {mode === "template" && offered.length > 0 ? (
+        {offered.length > 0 ? (
           <select
             aria-label="Insert field"
             value=""

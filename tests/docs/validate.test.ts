@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BODY_MAX, NAME_MAX, templateErrors } from "@/lib/docs/validate";
+import { BODY_MAX, NAME_MAX, fieldErrors, templateErrors } from "@/lib/docs/validate";
 
 const ok = { name: "Service agreement", kind: "service_agreement", response: "acknowledge", body: "## Scope\n\nHi {{client_name}}." };
 
@@ -43,4 +43,15 @@ describe("templateErrors", () => {
     expect(templateErrors({ ...ok, body })).toEqual(["The template is too long."]);
     expect(performance.now() - start).toBeLessThan(2000);
   });
+});
+
+describe("fieldErrors", () => {
+  it("gives the field messages templateErrors gives, once each, in order", () => {
+    const body = "{{deposit}} {{nope}} {{client_name\n}} {{deposit}} {{client_name}}";
+    expect(fieldErrors(body, "terms")).toEqual([
+      "{{deposit}} can't be used in Contract terms.", "Unknown field {{nope}}.", "Field {{client_name}} must be on one line.",
+    ]);
+    expect(templateErrors({ name: "Terms", kind: "terms", response: "view", body })).toEqual(fieldErrors(body, "terms"));
+  });
+  it("accepts the fields the kind allows", () => expect(fieldErrors("{{client_name}} {{deposit}}", "service_agreement")).toEqual([]));
 });

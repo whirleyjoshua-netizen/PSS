@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { BODY_MAX } from "@/lib/docs/validate";
 
 const requireAdmin = vi.fn();
 vi.mock("@/lib/admin/session", () => ({ requireAdmin }));
@@ -44,7 +45,7 @@ describe("POST /admin/documents/preview", () => {
       client: { name: "Client name", address: "Street address", city: "City", email: "client@example.com" } }));
   });
   it("refuses text over the template limit", async () => {
-    expect((await POST(post({ body: "x".repeat(100_001) }))).status).toBe(413);
+    expect((await POST(post({ body: "x".repeat(BODY_MAX + 1) }))).status).toBe(413);
     expect(buildDocumentPdf).not.toHaveBeenCalled();
   });
 });
