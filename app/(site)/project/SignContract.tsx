@@ -2,6 +2,7 @@ import { business } from "@/content/business";
 import type { JobFile } from "@/lib/admin/files";
 import { formatShortDate } from "@/lib/admin/time";
 import type { Signature } from "@/lib/portal/sign";
+import { TYPED_NAME_MAX } from "@/lib/portal/typed-name";
 import { signContractFormAction } from "./actions";
 
 /**
@@ -33,6 +34,7 @@ export function SignContract({ jobId, file }: { jobId: string; file: Pick<JobFil
             type="text"
             name="signedName"
             required
+            maxLength={TYPED_NAME_MAX}
             // `required` alone lets a name of only spaces through, which the action then refuses.
             pattern=".*\S.*"
             title="Type your full name"

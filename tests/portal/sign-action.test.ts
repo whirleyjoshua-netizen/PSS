@@ -51,6 +51,7 @@ const redirect = vi.fn((path: string) => {
 vi.mock("next/navigation", () => ({ redirect }));
 
 const { signContractAction, signContractFormAction } = await import("@/app/(site)/project/actions");
+const { TYPED_NAME_MAX } = await import("@/lib/portal/typed-name");
 
 const MINE = "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c";
 const THEIRS = "9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d";
@@ -118,6 +119,15 @@ describe("signContractAction ownership", () => {
   it("refuses when the box is not ticked", async () => {
     expect(await signContractAction(MINE, FILE, "Jane Doe", false)).toBe("invalid");
     expect(recordSignature).not.toHaveBeenCalled();
+  });
+
+  it("refuses a typed name longer than the cap, reading nothing, and takes one at the cap", async () => {
+    expect(await signContractAction(MINE, FILE, "a".repeat(TYPED_NAME_MAX + 1), true)).toBe("invalid");
+    expect(signableContracts).not.toHaveBeenCalled();
+    expect(recordSignature).not.toHaveBeenCalled();
+    // Surrounding spaces are not the name: the cap counts what would be recorded.
+    expect(await signContractAction(MINE, FILE, ` ${"a".repeat(TYPED_NAME_MAX)} `, true)).toBe("signed");
+    expect(recordSignature).toHaveBeenCalledTimes(1);
   });
 });
 
