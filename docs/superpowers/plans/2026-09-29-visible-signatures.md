@@ -89,7 +89,7 @@ Every task's requirements include these.
 |---|---|---|---|
 | `lib/pdf/fonts/GreatVibes-Regular.ttf`, `lib/pdf/fonts/OFL.txt` | new (controller download) | The handwriting font and its licence | 0 |
 | `package.json`, `package-lock.json` | modify | Add `@pdf-lib/fontkit` | 1 |
-| `.gitattributes` | new | `*.ttf binary` | 1 |
+| `.gitattributes` | new (controller) | `*.ttf binary` | 0 |
 | `scripts/embed-handwriting-font.mjs` | new | Generates the base64 module from the TTF | 1 |
 | `lib/pdf/fonts/great-vibes.ts` | new (generated) | The TTF as base64 | 1 |
 | `lib/pdf/handwriting.ts` | new | Embed the hand font, split runs, draw fitted handwriting with Helvetica Oblique fallback | 1 |
@@ -144,7 +144,7 @@ Each wave's tasks run in parallel, each in its own worktree cut from `feat/signa
 
 | Wave | Task | Owns (creates or modifies) — nothing else |
 |---|---|---|
-| 1 | 1 | `package.json`, `package-lock.json`, `.gitattributes`, `scripts/embed-handwriting-font.mjs`, `lib/pdf/fonts/great-vibes.ts`, `lib/pdf/handwriting.ts`, `tests/pdf/handwriting.test.ts` |
+| 1 | 1 | `package.json`, `package-lock.json`, `scripts/embed-handwriting-font.mjs`, `lib/pdf/fonts/great-vibes.ts`, `lib/pdf/handwriting.ts`, `tests/pdf/handwriting.test.ts` |
 | 1 | 2 | `db/migrations/029_visible_signatures.sql`, `tests/db/migration-029.test.ts` |
 | 1 | 3 | `lib/pdf/sign-marks.ts`, `tests/pdf/sign-marks.test.ts` |
 | 1 | 4 | `lib/portal/adoption-limits.ts`, `lib/portal/adoption.ts`, `tests/fixtures/png.ts`, `tests/portal/adoption.test.ts` |
@@ -193,5 +193,647 @@ These are the input classes most likely to bite a real client, each pinned by a 
 5. **An oversized or forged PNG.**
    - Expected: anything that is not a small real PNG is refused as "invalid" and nothing is stored. A PNG whose header is valid but whose data is corrupt still signs, and the stamped copy is simply missing.
    - Pinned by Task 4 (each rule, with power checks), Task 11 (nothing reaches `recordSignature`), Task 9 (corrupt data returns null, no throw).
+
+---
+
+## Task 0 (controller only): obtain the handwriting font
+
+**Files:**
+- Create: `lib/pdf/fonts/GreatVibes-Regular.ttf`, `lib/pdf/fonts/OFL.txt`, `.gitattributes`
+
+This is not an implementer task: it downloads files from the internet.
+
+- [ ] **Step 1: Ask the owner for permission to download**, naming both URLs:
+  - `https://raw.githubusercontent.com/google/fonts/main/ofl/greatvibes/GreatVibes-Regular.ttf`
+  - `https://raw.githubusercontent.com/google/fonts/main/ofl/greatvibes/OFL.txt`
+
+  Do nothing until the owner says yes.
+
+- [ ] **Step 2: Download both files into `feat/signatures`** (the base worktree, not a task worktree):
+
+```bash
+cd C:/Users/whirl/pss/.claude/worktrees/signatures
+mkdir -p lib/pdf/fonts
+curl -fsSL -o lib/pdf/fonts/GreatVibes-Regular.ttf https://raw.githubusercontent.com/google/fonts/main/ofl/greatvibes/GreatVibes-Regular.ttf
+curl -fsSL -o lib/pdf/fonts/OFL.txt https://raw.githubusercontent.com/google/fonts/main/ofl/greatvibes/OFL.txt
+```
+
+If either command 404s, use the Allura fallback (Decisions 1): `ofl/allura/Allura-Regular.ttf` and `ofl/allura/OFL.txt`. Then tell the Task 1 and Task 12 implementers the new file name.
+
+- [ ] **Step 3: Verify it is a static TrueType font with an OFL licence**
+
+```bash
+node -e "const b=require('fs').readFileSync('lib/pdf/fonts/GreatVibes-Regular.ttf');console.log(b.length, b.subarray(0,4).toString('hex'), require('crypto').createHash('sha256').update(b).digest('hex'))"
+grep -ci "SIL OPEN FONT LICENSE" lib/pdf/fonts/OFL.txt
+```
+
+Expected:
+- a size over 20000;
+- magic `00010000` (TrueType outlines);
+- a count of at least 1.
+
+Task 1's test also proves the font has no variation axes.
+
+- [ ] **Step 4: Mark fonts as binary** so `core.autocrlf` never touches them:
+
+```bash
+printf '*.ttf binary\n' > .gitattributes
+```
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add .gitattributes lib/pdf/fonts/GreatVibes-Regular.ttf lib/pdf/fonts/OFL.txt
+git commit -m "chore: Great Vibes handwriting font (SIL OFL 1.1) for visible signatures
+
+Downloaded with the owner's permission from github.com/google/fonts ofl/greatvibes.
+sha256 <paste from Step 3>
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01VsZpDCE8YaRq5jxSkaAZGj"
+```
+
+- [ ] **Step 6: Re-confirm migration 029** with the owner's other session (028 is theirs), then start Wave 1.
+
+---
+
+## Task 1: Handwriting font module and `@pdf-lib/fontkit`
+
+**Files:**
+- Modify: `package.json`, `package-lock.json`
+- Create: `scripts/embed-handwriting-font.mjs`, `lib/pdf/fonts/great-vibes.ts` (generated), `lib/pdf/handwriting.ts`
+- Test: `tests/pdf/handwriting.test.ts`
+
+**Interfaces:**
+- Consumes: `lib/pdf/fonts/GreatVibes-Regular.ttf` and `OFL.txt` (Task 0); `winAnsiSafe(text: string): string` from `@/lib/dc/contract-layout`.
+- Produces (used by Tasks 5 and 9):
+  - `handwritingTtf(): Uint8Array`
+  - `type Handwriting = { hand: PDFFont; fallback: PDFFont; supported: Set<number> }`
+  - `embedHandwriting(pdf: PDFDocument): Promise<Handwriting>`
+  - `type HandRun = { text: string; hand: boolean }`
+  - `handRuns(text: string, supported: Set<number>): HandRun[]`
+  - `drawHandwriting(page: PDFPage, fonts: Handwriting, text: string, box: { x: number; y: number; maxWidth: number; maxSize: number }): number` (returns the size used)
+  - `GREAT_VIBES_TTF_BASE64: string`
+
+- [ ] **Step 1: Install the dependency**
+
+```bash
+npm ci
+npm install @pdf-lib/fontkit@^1.1.1
+```
+
+Expected: `package.json` `dependencies` gains `"@pdf-lib/fontkit": "^1.1.1"`, and `package-lock.json` changes. No other dependency changes. Check with `git diff --stat package.json package-lock.json`.
+
+- [ ] **Step 2: Write the generator** `scripts/embed-handwriting-font.mjs`
+
+```js
+/**
+ * Writes lib/pdf/fonts/great-vibes.ts: the handwriting TTF as base64, so the server bundle carries
+ * the font and nothing reads a file at runtime (no output-file-tracing doubt on Vercel).
+ * Re-run after replacing the TTF. tests/pdf/handwriting.test.ts fails if the two ever differ.
+ *
+ * Usage: node scripts/embed-handwriting-font.mjs
+ */
+import { readFileSync, writeFileSync } from "node:fs";
+
+const source = "lib/pdf/fonts/GreatVibes-Regular.ttf";
+const base64 = readFileSync(source).toString("base64");
+const lines = base64.match(/.{1,100}/g) ?? [];
+const out = [
+  `// Generated by scripts/embed-handwriting-font.mjs from ${source}. Do not edit by hand.`,
+  "// Great Vibes, SIL Open Font License 1.1: see lib/pdf/fonts/OFL.txt.",
+  "export const GREAT_VIBES_TTF_BASE64 = [",
+  ...lines.map((line) => `  "${line}",`),
+  '].join("");',
+  "",
+].join("\n");
+writeFileSync("lib/pdf/fonts/great-vibes.ts", out);
+console.log(`wrote lib/pdf/fonts/great-vibes.ts (${lines.length} lines)`);
+```
+
+Run: `node scripts/embed-handwriting-font.mjs`. Expected: `wrote lib/pdf/fonts/great-vibes.ts (N lines)`.
+
+The module is an array joined at load, not a `+` chain: a chain of thousands of `+` operands can overflow the TypeScript checker's stack.
+
+- [ ] **Step 3: Write the failing test** `tests/pdf/handwriting.test.ts`
+
+```ts
+// @vitest-environment node
+import { readFileSync } from "node:fs";
+import fontkit from "@pdf-lib/fontkit";
+import { PDFDocument, PDFPage, StandardFonts } from "pdf-lib";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { GREAT_VIBES_TTF_BASE64 } from "@/lib/pdf/fonts/great-vibes";
+import { drawHandwriting, embedHandwriting, handRuns, handwritingTtf } from "@/lib/pdf/handwriting";
+
+const TTF = "lib/pdf/fonts/GreatVibes-Regular.ttf";
+
+function spyOnDrawText() {
+  const drawn: { text: string; x: number; y: number; size: number; font: string }[] = [];
+  const original = PDFPage.prototype.drawText;
+  vi.spyOn(PDFPage.prototype, "drawText").mockImplementation(function (this: PDFPage, text, options) {
+    drawn.push({ text, x: options?.x ?? 0, y: options?.y ?? 0, size: options?.size ?? 0, font: options?.font?.name ?? "" });
+    return original.call(this, text, options);
+  });
+  return drawn;
+}
+afterEach(() => vi.restoreAllMocks());
+
+describe("the handwriting font", () => {
+  it("is embedded byte for byte from the committed TTF", () => {
+    expect(Buffer.from(GREAT_VIBES_TTF_BASE64, "base64").equals(readFileSync(TTF))).toBe(true);
+    expect(Buffer.from(handwritingTtf()).equals(readFileSync(TTF))).toBe(true);
+  });
+  it("is a static font (no variation axes) with its OFL licence committed beside it", () => {
+    const font = fontkit.create(readFileSync(TTF)) as unknown as { variationAxes: Record<string, unknown> };
+    expect(Object.keys(font.variationAxes ?? {})).toEqual([]);
+    expect(readFileSync("lib/pdf/fonts/OFL.txt", "utf8")).toMatch(/SIL OPEN FONT LICENSE/i);
+  });
+});
+
+describe("handRuns", () => {
+  const supported = new Set([..."Zoë Jan"].map((ch) => ch.codePointAt(0)!));
+  it("keeps characters the font draws in one hand run", () => {
+    expect(handRuns("Jan Zoë", supported)).toEqual([{ text: "Jan Zoë", hand: true }]);
+  });
+  it("puts characters the font cannot draw in fallback runs, WinAnsi-safe", () => {
+    expect(handRuns("Zoë 日本 Jan", supported)).toEqual([
+      { text: "Zoë ", hand: true }, { text: "??", hand: false }, { text: " Jan", hand: true },
+    ]);
+  });
+  it("collapses whitespace and trims", () => {
+    expect(handRuns("  Jan\n\tZoë ", supported)).toEqual([{ text: "Jan Zoë", hand: true }]);
+  });
+});
+
+describe("drawHandwriting", () => {
+  it("draws in the hand font, at most maxSize", async () => {
+    const pdf = await PDFDocument.create();
+    const page = pdf.addPage();
+    const fonts = await embedHandwriting(pdf);
+    const drawn = spyOnDrawText();
+    const size = drawHandwriting(page, fonts, "Jo", { x: 10, y: 20, maxWidth: 500, maxSize: 24 });
+    expect(size).toBe(24);
+    expect(drawn).toEqual([{ text: "Jo", x: 10, y: 20, size: 24, font: fonts.hand.name }]);
+    await expect(pdf.save()).resolves.toBeInstanceOf(Uint8Array);
+  });
+  it("shrinks a long name to fit maxWidth", async () => {
+    const pdf = await PDFDocument.create();
+    const page = pdf.addPage();
+    const fonts = await embedHandwriting(pdf);
+    const name = "Maximiliana Alexandrina Montgomery-Worthington";
+    const size = drawHandwriting(page, fonts, name, { x: 0, y: 0, maxWidth: 120, maxSize: 24 });
+    expect(size).toBeLessThan(24);
+    expect(fonts.hand.widthOfTextAtSize(name, size)).toBeLessThanOrEqual(120 + 0.01);
+  });
+  it("draws what the font lacks in Helvetica Oblique, encodably, and never throws", async () => {
+    const pdf = await PDFDocument.create();
+    const page = pdf.addPage();
+    const fonts = await embedHandwriting(pdf);
+    const drawn = spyOnDrawText();
+    expect(() => drawHandwriting(page, fonts, "Jan 日本", { x: 0, y: 0, maxWidth: 300, maxSize: 20 })).not.toThrow();
+    const fallback = drawn.filter((d) => d.font === "Helvetica-Oblique");
+    expect(fallback.map((d) => d.text)).toEqual(["??"]);
+    const oblique = await (await PDFDocument.create()).embedFont(StandardFonts.HelveticaOblique);
+    for (const { text } of fallback) expect(() => oblique.encodeText(text)).not.toThrow();
+    // Consecutive runs sit side by side, never on top of one another.
+    expect(drawn[1].x).toBeGreaterThan(drawn[0].x);
+    await expect(pdf.save()).resolves.toBeInstanceOf(Uint8Array);
+  });
+});
+```
+
+- [ ] **Step 4: Run it to see it fail**
+
+Run: `npx vitest run --maxWorkers=2 tests/pdf/handwriting.test.ts`
+Expected: FAIL, the module `@/lib/pdf/handwriting` cannot be resolved.
+
+- [ ] **Step 5: Implement** `lib/pdf/handwriting.ts`
+
+```ts
+import "server-only";
+import fontkit from "@pdf-lib/fontkit";
+import { StandardFonts, type PDFDocument, type PDFFont, type PDFPage } from "pdf-lib";
+import { winAnsiSafe } from "@/lib/dc/contract-layout";
+import { GREAT_VIBES_TTF_BASE64 } from "./fonts/great-vibes";
+
+let ttf: Uint8Array | null = null;
+
+/** The handwriting font's bytes (spec §7), decoded once per process. */
+export function handwritingTtf(): Uint8Array {
+  ttf ??= new Uint8Array(Buffer.from(GREAT_VIBES_TTF_BASE64, "base64"));
+  return ttf;
+}
+
+/** The hand font, its fallback (spec §7: Helvetica Oblique) and the code points the hand font can draw. */
+export type Handwriting = { hand: PDFFont; fallback: PDFFont; supported: Set<number> };
+
+export async function embedHandwriting(pdf: PDFDocument): Promise<Handwriting> {
+  pdf.registerFontkit(fontkit);
+  const hand = await pdf.embedFont(handwritingTtf(), { subset: true });
+  const fallback = await pdf.embedFont(StandardFonts.HelveticaOblique);
+  return { hand, fallback, supported: new Set(hand.getCharacterSet()) };
+}
+
+export type HandRun = { text: string; hand: boolean };
+
+/**
+ * Splits text into runs the hand font draws and runs it cannot. A custom font never throws on a
+ * missing glyph (it draws an empty box), so the check is by code point. The fallback text goes
+ * through winAnsiSafe, because the standard font WOULD throw.
+ */
+export function handRuns(text: string, supported: Set<number>): HandRun[] {
+  const runs: HandRun[] = [];
+  for (const ch of text.replace(/\s+/g, " ").trim()) {
+    const hand = supported.has(ch.codePointAt(0)!);
+    const piece = hand ? ch : winAnsiSafe(ch);
+    const last = runs[runs.length - 1];
+    if (last && last.hand === hand) last.text += piece;
+    else runs.push({ text: piece, hand });
+  }
+  return runs;
+}
+
+/** Draws `text` in handwriting on the baseline at (x, y), sized to fit maxWidth and never above maxSize. Answers the size. */
+export function drawHandwriting(
+  page: PDFPage, fonts: Handwriting, text: string, box: { x: number; y: number; maxWidth: number; maxSize: number },
+): number {
+  const runs = handRuns(text, fonts.supported);
+  const fontOf = (run: HandRun) => (run.hand ? fonts.hand : fonts.fallback);
+  const widthAtOne = runs.reduce((sum, run) => sum + fontOf(run).widthOfTextAtSize(run.text, 1), 0);
+  const size = widthAtOne > 0 ? Math.min(box.maxSize, box.maxWidth / widthAtOne) : box.maxSize;
+  let x = box.x;
+  for (const run of runs) {
+    page.drawText(run.text, { x, y: box.y, size, font: fontOf(run) });
+    x += fontOf(run).widthOfTextAtSize(run.text, size);
+  }
+  return size;
+}
+```
+
+- [ ] **Step 6: Run the tests and typecheck**
+
+Run: `npx vitest run --maxWorkers=2 tests/pdf/handwriting.test.ts && npm run typecheck`
+Expected: PASS, with no type errors.
+
+If `"Jan 日本"` produces no `Helvetica-Oblique` run, Great Vibes covers those glyphs (it should not). Then change the test string to another script it does not cover (for example `"Jan ᚠᚢ"`, runic), and say so in the commit.
+
+- [ ] **Step 7: Power checks** (one at a time, revert after each)
+  1. In `handRuns`, change `supported.has(...)` to `true`. The "fallback runs" and "Helvetica Oblique" tests should go red.
+  2. In `drawHandwriting`, replace the `Math.min(...)` expression with `box.maxSize`. "shrinks a long name to fit maxWidth" should go red.
+  3. Change one character inside one string of `great-vibes.ts`. "is embedded byte for byte" should go red.
+
+- [ ] **Step 8: Commit**
+
+```bash
+git add package.json package-lock.json scripts/embed-handwriting-font.mjs lib/pdf/fonts/great-vibes.ts lib/pdf/handwriting.ts tests/pdf/handwriting.test.ts
+git commit -m "feat: handwriting font embedded for signatures, with Helvetica Oblique fallback
+
+Power checks: <names of the red tests>
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01VsZpDCE8YaRq5jxSkaAZGj"
+```
+
+---
+
+## Task 2: Migration 029
+
+**Files:**
+- Create: `db/migrations/029_visible_signatures.sql`
+- Test: `tests/db/migration-029.test.ts`
+
+**Interfaces:**
+- Produces columns:
+  - `job_files.sign_marks jsonb` (nullable, an object when set);
+  - `contract_signatures.signature_method text` (null, `typed` or `drawn`);
+  - `contract_signatures.signed_initials text`;
+  - `contract_signatures.signature_image_pathname text`;
+  - `contract_signatures.initials_image_pathname text`.
+- Produces constraints:
+  - `job_files_sign_marks_check`;
+  - `contract_signatures_signature_method_check`;
+  - `contract_signatures_adoption_check`.
+
+- [ ] **Step 1: Write the failing test** `tests/db/migration-029.test.ts`
+
+```ts
+import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+
+const source = readFileSync("db/migrations/029_visible_signatures.sql", "utf8");
+const statements = source.split(/\r?\n/).filter((line) => !line.trim().startsWith("--")).join("\n")
+  .split(";").map((s) => s.replace(/\s+/g, " ").trim()).filter(Boolean);
+const find = (text: string) => statements.find((s) => s.includes(text));
+
+describe("migration 029", () => {
+  it("never puts a semicolon inside a comment", () => {
+    for (const line of source.split(/\r?\n/)) if (line.trim().startsWith("--")) expect(line).not.toContain(";");
+  });
+  it("never puts a semicolon inside a string literal (every statement has balanced quotes)", () => {
+    for (const s of statements) expect(s.split("'").length % 2, s).toBe(1);
+  });
+  it("is re-runnable: every column is added if missing, every check is dropped right before it is added", () => {
+    for (const s of statements) {
+      expect(s).toMatch(/^alter table (job_files|contract_signatures) (add column if not exists|drop constraint if exists|add constraint) /);
+    }
+    for (const name of ["job_files_sign_marks_check", "contract_signatures_signature_method_check", "contract_signatures_adoption_check"]) {
+      const drop = statements.findIndex((s) => s.endsWith(`drop constraint if exists ${name}`));
+      const add = statements.findIndex((s) => s.includes(`add constraint ${name} check`));
+      expect(drop, name).toBeGreaterThanOrEqual(0);
+      expect(add, name).toBe(drop + 1);
+    }
+  });
+  it("adds the nullable columns, none with a default", () => {
+    expect(find("sign_marks jsonb")).toBe("alter table job_files add column if not exists sign_marks jsonb");
+    for (const column of ["signature_method", "signed_initials", "signature_image_pathname", "initials_image_pathname"]) {
+      expect(find(`if not exists ${column} `)).toBe(`alter table contract_signatures add column if not exists ${column} text`);
+    }
+  });
+  it("keeps sign marks an object when present", () => {
+    expect(find("add constraint job_files_sign_marks_check")).toBe(
+      "alter table job_files add constraint job_files_sign_marks_check check ( sign_marks is null or jsonb_typeof(sign_marks) = 'object' )");
+  });
+  it("allows only typed or drawn, and null for signatures made before adoption existed", () => {
+    expect(find("add constraint contract_signatures_signature_method_check")).toBe(
+      "alter table contract_signatures add constraint contract_signatures_signature_method_check check ( signature_method is null or signature_method in ('typed','drawn') )");
+  });
+  it("ties the stored adoption to its method", () => {
+    expect(find("add constraint contract_signatures_adoption_check")).toBe(
+      "alter table contract_signatures add constraint contract_signatures_adoption_check check ( " +
+      "(signature_method is null and signed_initials is null and signature_image_pathname is null and initials_image_pathname is null) " +
+      "or (signature_method = 'typed' and signature_image_pathname is null and initials_image_pathname is null) " +
+      "or (signature_method = 'drawn' and signature_image_pathname is not null and signed_initials is null) )");
+  });
+  it("redefines neither shared kind check", () => {
+    expect(source).not.toMatch(/job_events_kind_check|job_files_doc_type_check/);
+  });
+});
+```
+
+- [ ] **Step 2: Run it to see it fail**
+
+Run: `npx vitest run --maxWorkers=2 tests/db/migration-029.test.ts`
+Expected: FAIL, ENOENT for `029_visible_signatures.sql`.
+
+- [ ] **Step 3: Write** `db/migrations/029_visible_signatures.sql`
+
+```sql
+-- Visible signatures and initials. Spec docs/superpowers/specs/2026-09-29-visible-signatures-design.md section 6.
+-- Idempotent: scripts/migrate.mjs re-applies every file on every run.
+-- Whole-line comments only, and no semicolons in comments or string literals.
+
+-- Where the initials and the signature block sit on a generated PDF, written with the file.
+-- Null for hand-uploaded files and anything generated before this shipped.
+alter table job_files add column if not exists sign_marks jsonb;
+
+alter table job_files drop constraint if exists job_files_sign_marks_check;
+alter table job_files add constraint job_files_sign_marks_check check (
+  sign_marks is null or jsonb_typeof(sign_marks) = 'object'
+);
+
+-- What the client adopted. A null method means the signature was made before adoption existed.
+-- Typed initials are text. Drawn signatures and initials are private Blob pathnames.
+alter table contract_signatures add column if not exists signature_method text;
+alter table contract_signatures add column if not exists signed_initials text;
+alter table contract_signatures add column if not exists signature_image_pathname text;
+alter table contract_signatures add column if not exists initials_image_pathname text;
+
+alter table contract_signatures drop constraint if exists contract_signatures_signature_method_check;
+alter table contract_signatures add constraint contract_signatures_signature_method_check check (
+  signature_method is null or signature_method in ('typed','drawn')
+);
+
+-- Each method stores only its own kind of adoption. A drawn signature always has its image.
+alter table contract_signatures drop constraint if exists contract_signatures_adoption_check;
+alter table contract_signatures add constraint contract_signatures_adoption_check check (
+  (signature_method is null and signed_initials is null and signature_image_pathname is null and initials_image_pathname is null)
+  or (signature_method = 'typed' and signature_image_pathname is null and initials_image_pathname is null)
+  or (signature_method = 'drawn' and signature_image_pathname is not null and signed_initials is null)
+);
+```
+
+- [ ] **Step 4: Run the tests, including the cross-file check guard**
+
+Run: `npx vitest run --maxWorkers=2 tests/db/migration-029.test.ts tests/db/migration-checks-consistent.test.ts`
+Expected: PASS.
+
+- [ ] **Step 5: Power checks, then commit** (revert after each check)
+  1. Remove the `drop constraint if exists contract_signatures_adoption_check` statement. "is re-runnable" should go red.
+  2. Add `;` to a comment line. "never puts a semicolon inside a comment" should go red.
+  3. Change `'drawn'` to `'drew'` in the method check. Its test should go red.
+
+```bash
+git add db/migrations/029_visible_signatures.sql tests/db/migration-029.test.ts
+git commit -m "feat: migration 029 — sign marks on files, adoption on signatures
+
+Power checks: <names>
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01VsZpDCE8YaRq5jxSkaAZGj"
+```
+
+- [ ] **Step 6 (controller, after the Wave 1 merge): prove the migration on the test branch twice.**
+
+The branch is the one named by `E2E_TEST_ENDPOINT`, or `ep-lingering-fog` by default. Load its URL without printing it. Before running, check that the host contains that endpoint id and not `cold-term`:
+
+```powershell
+Get-Content .env.test.local | ForEach-Object { if ($_ -match '^\s*E2E_POSTGRES_URL\s*=\s*(.*)$') { $env:MIGRATE_DATABASE_URL = $matches[1].Trim().Trim('"').Trim("'") } }
+$endpoint = if ($env:E2E_TEST_ENDPOINT) { $env:E2E_TEST_ENDPOINT } else { "ep-lingering-fog" }
+$h = ([Uri]$env:MIGRATE_DATABASE_URL).Host; if ($h -like "*cold-term*" -or $h -notlike "*$endpoint*") { throw "wrong branch" }
+node scripts/migrate.mjs; node scripts/migrate.mjs
+```
+
+Expected: both runs finish with no error, and both list the `029_visible_signatures.sql` statements. The second run proves the file is idempotent.
+
+Production is migrated only at deploy time, following memory "pss production migrations". That step is not part of this plan's waves.
+
+---
+
+## Task 3: Sign marks — types, geometry, numbered sections
+
+**Files:**
+- Create: `lib/pdf/sign-marks.ts`
+- Test: `tests/pdf/sign-marks.test.ts`
+
+**Interfaces:**
+- Produces (used by Tasks 6, 7, 8, 9, 11 and 12). This module holds types and constants only, so it is safe in client components.
+  - `type MarkPoint = { page: number; x: number; y: number }`
+  - `type InitialsMark = MarkPoint & { section: string }`
+  - `type SignMarks = { initials: InitialsMark[]; signature: MarkPoint | null }`
+  - `sectionNumber(headingText: string): string | null`
+  - `INITIALS_GUTTER = 64`
+  - `INITIALS_BOX = { width: 56, height: 16, lineDrop: 3 }`
+  - `SIGNATURE_BLOCK = { before: 30, row: 30, labelWidth: 100, lineWidth: 240, dateWidth: 120, signatureHeight: 26, lineDrop: 2, height: 110 }`
+  - `parseSignMarks(value: unknown): SignMarks | null`
+  - `initialedSections(marks: SignMarks | null): string[]`
+  - `hasInitialMarks(marks: SignMarks | null | undefined): boolean`
+
+The geometry contract (the renderer draws it, and the stamp writes into it):
+- **Initials mark:** the left end of the initials line, in PDF points from the bottom-left of the page.
+  - The line runs `INITIALS_BOX.width` to the right, at the heading's first baseline minus `lineDrop`.
+  - The initials are written inside `[x, y + 1, width, height]`.
+- **Signature mark:** the left end of the "Client signature" line.
+  - The "Printed name" line is at `y - row`, and the "Date" line at `y - 2 * row`, at the same x.
+  - The signature is written above its line, inside `[x, y + 1, lineWidth, signatureHeight]`.
+  - The printed name and date are drawn on the baseline `lineY + 4`.
+
+- [ ] **Step 1: Write the failing test** `tests/pdf/sign-marks.test.ts`
+
+```ts
+import { describe, expect, it } from "vitest";
+import {
+  INITIALS_BOX, INITIALS_GUTTER, hasInitialMarks, initialedSections, parseSignMarks, sectionNumber, type SignMarks,
+} from "@/lib/pdf/sign-marks";
+
+const marks: SignMarks = {
+  initials: [{ page: 1, x: 502, y: 700, section: "4" }, { page: 2, x: 502, y: 735, section: "5" }],
+  signature: { page: 3, x: 154, y: 400 },
+};
+
+describe("sectionNumber (spec §2)", () => {
+  it.each([["4. Your Right to Cancel", "4"], ["18. Contact Us", "18"], ["  2. Leading spaces", "2"]])("numbers %s", (text, n) => {
+    expect(sectionNumber(text)).toBe(n);
+  });
+  it.each([["Scope"], ["4.Your"], ["4 Your"], ["A. Lettered"], ["Section 4. Late"], ["4."]])("does not number %s", (text) => {
+    expect(sectionNumber(text)).toBeNull();
+  });
+});
+
+describe("geometry", () => {
+  it("leaves room in the gutter for the box and a gap", () => {
+    expect(INITIALS_GUTTER).toBeGreaterThanOrEqual(INITIALS_BOX.width + 8);
+  });
+});
+
+describe("parseSignMarks", () => {
+  it("accepts what the renderer stores, as an object or as JSON text", () => {
+    expect(parseSignMarks(marks)).toEqual(marks);
+    expect(parseSignMarks(JSON.stringify(marks))).toEqual(marks);
+    expect(parseSignMarks({ initials: [], signature: null })).toEqual({ initials: [], signature: null });
+  });
+  it("drops unknown keys", () => {
+    expect(parseSignMarks({ ...marks, extra: 1, initials: [{ ...marks.initials[0], note: "x" }] }))
+      .toEqual({ initials: [marks.initials[0]], signature: marks.signature });
+  });
+  it.each([
+    ["null", null],
+    ["a number", 3],
+    ["no initials", { signature: null }],
+    ["missing signature key", { initials: [] }],
+    ["a negative page", { initials: [{ page: -1, x: 1, y: 1, section: "1" }], signature: null }],
+    ["a fractional page", { initials: [], signature: { page: 0.5, x: 1, y: 1 } }],
+    ["a non-numeric section", { initials: [{ page: 0, x: 1, y: 1, section: "four" }], signature: null }],
+    ["an infinite x", { initials: [], signature: { page: 0, x: Infinity, y: 1 } }],
+    ["bad JSON", "{"],
+  ])("refuses %s", (_label, value) => expect(parseSignMarks(value)).toBeNull());
+});
+
+describe("helpers", () => {
+  it("lists initialed sections in order, and none for a legacy file", () => {
+    expect(initialedSections(marks)).toEqual(["4", "5"]);
+    expect(initialedSections(null)).toEqual([]);
+  });
+  it("says whether initials are needed", () => {
+    expect(hasInitialMarks(marks)).toBe(true);
+    expect(hasInitialMarks({ initials: [], signature: marks.signature })).toBe(false);
+    expect(hasInitialMarks(null)).toBe(false);
+    expect(hasInitialMarks(undefined)).toBe(false);
+  });
+});
+```
+
+- [ ] **Step 2: Run it to see it fail**
+
+Run: `npx vitest run --maxWorkers=2 tests/pdf/sign-marks.test.ts`
+Expected: FAIL, the module cannot be resolved.
+
+- [ ] **Step 3: Implement** `lib/pdf/sign-marks.ts`
+
+```ts
+/**
+ * Sign marks (spec §2): where, on a generated PDF, the initials and the signature block belong.
+ * Types and constants only, safe to import anywhere. The renderer (lib/docs/pdf.ts) draws the empty
+ * boxes and records the marks, and the stamp (lib/portal/stamp.ts) writes into them. Both read the
+ * geometry below, so the two can never disagree about where a box is.
+ */
+export type MarkPoint = { page: number; x: number; y: number };
+/** `section` is the heading's number ("4" for "4. Your Right to Cancel"), for "Initialed sections: 4, 5". */
+export type InitialsMark = MarkPoint & { section: string };
+export type SignMarks = { initials: InitialsMark[]; signature: MarkPoint | null };
+
+const NUMBERED = /^(\d+)\.\s/;
+
+/** The section number of a numbered heading's text (spec §2: `^\d+\.\s`), or null. */
+export const sectionNumber = (headingText: string): string | null => NUMBERED.exec(headingText.trimStart())?.[1] ?? null;
+
+/** How much narrower a numbered heading wraps, leaving room for its initials box at the right margin. */
+export const INITIALS_GUTTER = 64;
+/** The initials line. The mark is its left end, lineDrop below the heading's first baseline. */
+export const INITIALS_BOX = { width: 56, height: 16, lineDrop: 3 } as const;
+/**
+ * The signature block. The mark is the left end of the "Client signature" line. "Printed name" and
+ * "Date" follow `row` points below each other. `height` is what the renderer keeps free before drawing it.
+ */
+export const SIGNATURE_BLOCK = {
+  before: 30, row: 30, labelWidth: 100, lineWidth: 240, dateWidth: 120, signatureHeight: 26, lineDrop: 2, height: 110,
+} as const;
+
+const isPoint = (value: unknown): value is MarkPoint => {
+  if (typeof value !== "object" || value === null) return false;
+  const { page, x, y } = value as Record<string, unknown>;
+  return Number.isInteger(page) && (page as number) >= 0 && Number.isFinite(x) && Number.isFinite(y);
+};
+const isInitials = (value: unknown): value is InitialsMark =>
+  isPoint(value) && typeof (value as InitialsMark).section === "string" && /^\d+$/.test((value as InitialsMark).section);
+
+/** Reads a stored `sign_marks` value. Anything malformed is null, and is then signed as a file with no marks. */
+export function parseSignMarks(value: unknown): SignMarks | null {
+  let parsed = value;
+  if (typeof parsed === "string") {
+    try {
+      parsed = JSON.parse(parsed);
+    } catch {
+      return null;
+    }
+  }
+  if (typeof parsed !== "object" || parsed === null) return null;
+  const record = parsed as Record<string, unknown>;
+  if (!Array.isArray(record.initials) || !record.initials.every(isInitials)) return null;
+  if (!("signature" in record) || (record.signature !== null && !isPoint(record.signature))) return null;
+  const signature = record.signature as MarkPoint | null;
+  return {
+    initials: (record.initials as InitialsMark[]).map(({ page, x, y, section }) => ({ page, x, y, section })),
+    signature: signature === null ? null : { page: signature.page, x: signature.x, y: signature.y },
+  };
+}
+
+export const initialedSections = (marks: SignMarks | null): string[] => marks?.initials.map((mark) => mark.section) ?? [];
+
+/** True when the file has numbered sections to initial, in which case initials are required (spec §4). */
+export const hasInitialMarks = (marks: SignMarks | null | undefined): boolean => (marks?.initials.length ?? 0) > 0;
+```
+
+- [ ] **Step 4: Run the tests**
+
+Run: `npx vitest run --maxWorkers=2 tests/pdf/sign-marks.test.ts`
+Expected: PASS.
+
+- [ ] **Step 5: Power checks** (revert after each)
+  1. Change `NUMBERED` to `/^(\d+)\.?\s/`. "does not number 4 Your" should go red.
+  2. Delete `!("signature" in record) ||`. "refuses missing signature key" should go red.
+  3. Delete `&& (page as number) >= 0`. "refuses a negative page" should go red.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add lib/pdf/sign-marks.ts tests/pdf/sign-marks.test.ts
+git commit -m "feat: sign marks — numbered sections, box geometry and a strict reader
+
+Power checks: <names>
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01VsZpDCE8YaRq5jxSkaAZGj"
+```
 
 ---
