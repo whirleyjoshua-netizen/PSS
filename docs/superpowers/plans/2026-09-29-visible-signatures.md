@@ -3061,6 +3061,7 @@ vi.mock("next/font/local", () => ({ default: () => ({ className: "font-hand", st
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { renderToStaticMarkup } from "react-dom/server";
+import type { ReactElement } from "react";
 import { PNG_DATA_URL_MAX } from "@/lib/portal/adoption-limits";
 
 vi.mock("@/app/(site)/project/actions", () => ({ signContractFormAction: vi.fn() }));
@@ -3099,10 +3100,12 @@ const draw = (canvas: HTMLElement) => {
   fireEvent.pointerUp(canvas, { clientX: 200, clientY: 60, pointerId: 1 });
 };
 const field = (form: HTMLFormElement, name: string) => form.querySelector<HTMLInputElement>(`[name="${name}"]`);
+// React's server renderer puts <!-- --> between adjacent text nodes ("sign this {noun} electronically").
+const markup = (element: ReactElement) => renderToStaticMarkup(element).replace(/<!-- -->/g, "");
 
 describe("with JavaScript off (the server-rendered HTML)", () => {
   it("is a typed form: method typed, name, initials, and no Draw and no pad", () => {
-    const html = renderToStaticMarkup(<SignContract jobId={JOB} file={FILE} />);
+    const html = markup(<SignContract jobId={JOB} file={FILE} />);
     expect(html).toContain('name="signatureMethod" value="typed"');
     expect(html).toContain('name="signedName"');
     expect(html).toMatch(/name="signedInitials"[^>]*required/);
@@ -3111,12 +3114,12 @@ describe("with JavaScript off (the server-rendered HTML)", () => {
     expect(html).toContain("I agree to sign this contract electronically and to initial every numbered section");
   });
   it("asks for no initials when the document has no numbered sections", () => {
-    const html = renderToStaticMarkup(<SignContract jobId={JOB} file={PLAIN} />);
+    const html = markup(<SignContract jobId={JOB} file={PLAIN} />);
     expect(html).not.toContain('name="signedInitials"');
     expect(html).toContain("I agree to sign this contract electronically</label>");
   });
   it("asks for no initials on a hand-uploaded contract (no marks at all)", () => {
-    const html = renderToStaticMarkup(<SignContract jobId={JOB} file={{ id: FILE.id, name: FILE.name }} />);
+    const html = markup(<SignContract jobId={JOB} file={{ id: FILE.id, name: FILE.name }} />);
     expect(html).not.toContain('name="signedInitials"');
   });
 });
