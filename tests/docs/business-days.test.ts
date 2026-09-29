@@ -18,6 +18,10 @@ describe("federal holidays", () => {
     expect(isFederalHoliday("2027-12-24")).toBe(true); // Christmas 2027 is a Saturday
     expect(isFederalHoliday("2027-12-30")).toBe(false);
   });
+  it("observes a Sunday holiday on the Monday after", () => {
+    expect(isFederalHoliday("2027-07-05")).toBe(true); // Independence Day 2027 is a Sunday
+    expect(isBusinessDay("2027-07-05")).toBe(false);
+  });
   it("counts every day but Sundays and holidays as a business day", () => {
     expect(isBusinessDay("2026-10-03")).toBe(true); // Saturday
     expect(isBusinessDay("2026-10-04")).toBe(false); // Sunday
@@ -37,6 +41,8 @@ describe("cancellation window", () => {
     expect(end("2026-10-02T06:30:00Z")).toBe("2026-10-06T07:00:00.000Z"));
   it("skips an observed holiday and the holiday itself", () =>
     expect(end("2026-07-02T17:00:00Z")).toBe("2026-07-09T07:00:00.000Z"));
+  it("skips a Sunday holiday and its Monday observance", () =>
+    expect(end("2027-07-03T17:00:00Z")).toBe("2027-07-09T07:00:00.000Z"));
   it("skips Thanksgiving, ending in standard time", () =>
     expect(end("2026-11-25T18:00:00Z")).toBe("2026-12-01T08:00:00.000Z"));
   it("crosses the year end over New Year's Day", () =>
