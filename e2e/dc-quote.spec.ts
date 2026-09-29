@@ -367,6 +367,12 @@ test.describe("send, sign and the release gate", () => {
 
     const [version] = await sql()`select status from dc_quote_versions where id = ${versionId}`;
     expect(version.status).toBe("signed");
+    // The stamped copy is written in after(), once the response has gone. Wait for it, so it is
+    // proven to exist and so afterAll's cleanup sees its row and removes its blob.
+    await expect.poll(async () => {
+      const [signature] = await sql()`select signed_file_id from contract_signatures where lead_id = ${job.id}`;
+      return signature?.signed_file_id ?? null;
+    }, { timeout: 20_000 }).not.toBeNull();
     const [row] = await sql()`select status, sold_cents from leads where id = ${job.id}`;
     expect(row).toEqual({ status: "sold", sold_cents: waivedTotal() });
 
