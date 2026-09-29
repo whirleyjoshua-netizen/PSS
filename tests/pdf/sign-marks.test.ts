@@ -12,7 +12,10 @@ describe("sectionNumber (spec §2)", () => {
   it.each([["4. Your Right to Cancel", "4"], ["18. Contact Us", "18"], ["  2. Leading spaces", "2"]])("numbers %s", (text, n) => {
     expect(sectionNumber(text)).toBe(n);
   });
-  it.each([["Scope"], ["4.Your"], ["4 Your"], ["A. Lettered"], ["Section 4. Late"], ["4."]])("does not number %s", (text) => {
+  it("drops leading zeros, so 04. X is section 4", () => {
+    expect(sectionNumber("04. X")).toBe("4");
+  });
+  it.each([["Scope"], ["4.Your"], ["4 Your"], ["A. Lettered"], ["Section 4. Late"], ["4."], ["v1. X"]])("does not number %s", (text) => {
     expect(sectionNumber(text)).toBeNull();
   });
 });
@@ -43,6 +46,11 @@ describe("parseSignMarks", () => {
     ["a non-numeric section", { initials: [{ page: 0, x: 1, y: 1, section: "four" }], signature: null }],
     ["an infinite x", { initials: [], signature: { page: 0, x: Infinity, y: 1 } }],
     ["bad JSON", "{"],
+    ["a top-level array", [marks.initials[0]]],
+    ["initials as an object", { initials: { 0: marks.initials[0] }, signature: null }],
+    ["a NaN coordinate", { initials: [{ page: 0, x: NaN, y: 1, section: "1" }], signature: null }],
+    ["a missing x", { initials: [], signature: { page: 0, y: 1 } }],
+    ["a sparse initials array", { initials: [marks.initials[0], , marks.initials[1]], signature: null }],
   ])("refuses %s", (_label, value) => expect(parseSignMarks(value)).toBeNull());
 });
 

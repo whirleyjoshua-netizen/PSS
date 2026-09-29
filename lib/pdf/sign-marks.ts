@@ -11,8 +11,11 @@ export type SignMarks = { initials: InitialsMark[]; signature: MarkPoint | null 
 
 const NUMBERED = /^(\d+)\.\s/;
 
-/** The section number of a numbered heading's text (spec §2: `^\d+\.\s`), or null. */
-export const sectionNumber = (headingText: string): string | null => NUMBERED.exec(headingText.trimStart())?.[1] ?? null;
+/** The section number of a numbered heading's text (spec §2: `^\d+\.\s`), or null. Leading zeros drop: "04." is "4". */
+export const sectionNumber = (headingText: string): string | null => {
+  const digits = NUMBERED.exec(headingText.trimStart())?.[1];
+  return digits === undefined ? null : String(Number(digits));
+};
 
 /** How much narrower a numbered heading wraps, leaving room for its initials box at the right margin. */
 export const INITIALS_GUTTER = 64;
@@ -46,7 +49,9 @@ export function parseSignMarks(value: unknown): SignMarks | null {
   }
   if (typeof parsed !== "object" || parsed === null) return null;
   const record = parsed as Record<string, unknown>;
-  if (!Array.isArray(record.initials) || !record.initials.every(isInitials)) return null;
+  if (!Array.isArray(record.initials)) return null;
+  // A plain loop, not `every`: `every` skips the holes of a sparse array, and a hole is not a mark.
+  for (let i = 0; i < record.initials.length; i++) if (!isInitials(record.initials[i])) return null;
   if (record.signature !== null && !isPoint(record.signature)) return null;
   const signature = record.signature as MarkPoint | null;
   return {
