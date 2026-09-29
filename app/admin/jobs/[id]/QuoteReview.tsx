@@ -2,10 +2,11 @@
 
 import { useState, useTransition, type ReactNode } from "react";
 import { formatCents } from "@/lib/admin/money";
-import { formatShortDate } from "@/lib/admin/time";
+import { formatShortDate, formatWhen } from "@/lib/admin/time";
 import { keyDetails } from "@/lib/dc/contract-layout";
 import { diffLines, type LineChange } from "@/lib/dc/diff";
 import { dcQuoteUrl } from "@/lib/dc/links";
+import { cancellationWindowEnd } from "@/lib/docs/business-days";
 import { ruleFor, type PricedLine } from "@/lib/dc/pricing";
 import type { Review } from "@/lib/dc/send";
 import type { StoredLine, StoredVersion } from "@/lib/dc/store";
@@ -98,7 +99,7 @@ function Total({ label, value, children, muted }: { label: string; value: string
  * from `review.priced`, the object whose fingerprint Send compares, so the screen can't show a
  * number Send wouldn't charge. Nothing is fetched here: the server passes the whole review.
  */
-export function QuoteReview({ jobId, review }: { jobId: string; review: Review }) {
+export function QuoteReview({ jobId, review, now }: { jobId: string; review: Review; now?: Date }) {
   const { version, priced, blockers, fingerprint, install, rules, olderVersions } = review;
   const locked = version.status !== "draft";
   const [choiceError, setChoiceError] = useState<string | null>(null);
@@ -111,6 +112,9 @@ export function QuoteReview({ jobId, review }: { jobId: string; review: Review }
   const previous = olderVersions[0];
   const changes = previous ? diffLines(previous.lines, version.lines) : [];
   const signedEarlier = olderVersions.find((v) => v.status === "signed");
+  // Spec §9: the order is not placed until the 3-business-day cancellation window has passed.
+  const windowEnd = version.status === "signed" && version.signedAt ? cancellationWindowEnd(version.signedAt) : null;
+  const inWindow = windowEnd !== null && (now ?? new Date()).getTime() < windowEnd.getTime();
 
   const choose = (choices: { waiveHandling?: boolean; noInstall?: boolean }) =>
     startChoice(async () => {
@@ -147,10 +151,18 @@ export function QuoteReview({ jobId, review }: { jobId: string; review: Review }
       {version.sentAt ? <p className="text-sm">Sent {formatShortDate(version.sentAt)} for {formatCents(priced.clientTotalCents)}</p> : null}
       {version.status === "signed" ? (
         <div className="flex flex-col gap-1">
-          {version.signedAt ? <p className="text-sm">Signed {formatShortDate(version.signedAt)}</p> : null}
-          <a className={`${TEXT_LINK} font-semibold`} href={dcQuoteUrl(version.dcQuoteNo)} target="_blank" rel="noopener noreferrer">
-            Signed — ready to order: Open quote {version.dcQuoteNo} in Direct Connect
-          </a>
+          {inWindow && version.signedAt && windowEnd ? (
+            <p className="text-sm font-semibold">
+              Signed {formatShortDate(version.signedAt)}. Cancellation window ends {formatWhen(windowEnd)} — place the Direct Connect order after that.
+            </p>
+          ) : (
+            <>
+              {version.signedAt ? <p className="text-sm">Signed {formatShortDate(version.signedAt)}</p> : null}
+              <a className={`${TEXT_LINK} font-semibold`} href={dcQuoteUrl(version.dcQuoteNo)} target="_blank" rel="noopener noreferrer">
+                Signed — ready to order: Open quote {version.dcQuoteNo} in Direct Connect
+              </a>
+            </>
+          )}
         </div>
       ) : null}
 

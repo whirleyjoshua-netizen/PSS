@@ -269,9 +269,23 @@ describe("QuoteReview after sending", () => {
 
   it("points a signed version at Direct Connect to order", () => {
     const signed = { ...sent, status: "signed" as const, signedAt: new Date("2026-09-22T18:00:00Z") };
-    render(<QuoteReview jobId={J} review={review({ version: signed, blockers: ["This version has already been sent."] })} />);
+    render(<QuoteReview jobId={J} review={review({ version: signed, blockers: ["This version has already been sent."] })} now={new Date("2026-10-01T12:00:00Z")} />);
     expect(screen.getByText("Signed Sep 22, 2026")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Signed — ready to order: Open quote 12345678 in Direct Connect" })).toHaveAttribute("href", dcQuoteUrl("12345678"));
+  });
+
+  describe("the cancellation window", () => {
+    const signedMonday = () => ({ ...sent, status: "signed" as const, signedAt: new Date("2026-09-28T17:00:00Z") });
+    it("during the window, says when it ends and offers no order link", () => {
+      render(<QuoteReview jobId={J} review={review({ version: signedMonday() })} now={new Date("2026-09-29T17:00:00Z")} />);
+      expect(screen.getByText(/^Signed Sep 28, 2026\. Cancellation window ends Fri, Oct 2, 12:00\sAM — place the Direct Connect order after that\.$/)).toBeInTheDocument();
+      expect(screen.queryByRole("link", { name: /ready to order/ })).toBeNull();
+    });
+    it("from midnight after the third business day, is ready to order", () => {
+      render(<QuoteReview jobId={J} review={review({ version: signedMonday() })} now={new Date("2026-10-02T07:00:00Z")} />);
+      expect(screen.getByRole("link", { name: /^Signed — ready to order/ })).toBeInTheDocument();
+      expect(screen.queryByText(/Cancellation window/)).toBeNull();
+    });
   });
 });
 

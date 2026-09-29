@@ -14,7 +14,7 @@ export async function QuoteTab({ job }: { job: Pick<Job, "id" | "projectNo"> }) 
         <CheckNowButton jobId={job.id} />
       </div>
       {review ? (
-        <QuoteReview jobId={job.id} review={review} />
+        <QuoteReview jobId={job.id} review={review} now={new Date()} />
       ) : (
         <p className="text-sm">
           No Direct Connect quote yet. Put {projectNo ?? "the job's PSS number"} in PO Reference and email the Dealer Copy with Owner and Include dealer costs ticked.
