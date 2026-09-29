@@ -63,6 +63,11 @@ describe("board", () => {
     expect(screen.getByText("PSS-1042")).toBeInTheDocument();
   });
 
+  it("shows no number on a card for a job that has none", () => {
+    render(<JobCard job={job({ projectNo: null })} now={new Date("2026-09-10T00:00:00Z")} />);
+    expect(screen.queryByText(/^PSS-/)).toBeNull();
+  });
+
   it("says nothing about an assignee when the job has none", () => {
     render(<JobCard job={job({})} now={new Date("2026-09-10T00:00:00Z")} />);
     // No "Name · Role" line at all — not merely the absence of the word "Designer".

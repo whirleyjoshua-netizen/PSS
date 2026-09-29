@@ -153,10 +153,12 @@ const likePattern = (term: string) => `%${term.replace(/[\\%_]/g, (c) => `\\${c}
 /**
  * "PSS-1042", "pss 1042" or "1042" → 1042, so an owner can find a job by the number Direct Connect
  * shows in its PO column. Four or more digits only: project numbers start at 1001, and a shorter
- * number is far more likely part of a phone or an address.
+ * number is far more likely part of a phone or an address. At most nine digits, so the value always
+ * fits `project_no`'s integer column: a ten-digit phone must never reach the query as a number.
+ * An en or em dash, or "#", counts as the hyphen, because email clients often convert them.
  */
 export function projectNoFromSearch(term: string): number | null {
-  const match = /^(?:pss[\s-]*)?(\d{4,9})$/i.exec(term.trim());
+  const match = /^(?:pss[\s\-–—#]*)?(\d{4,9})$/i.exec(term.trim());
   return match ? Number(match[1]) : null;
 }
 

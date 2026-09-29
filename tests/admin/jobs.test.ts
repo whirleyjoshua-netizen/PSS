@@ -563,7 +563,7 @@ describe("searching jobs", () => {
   });
 
   it("finds a job by its PSS number, typed with or without the prefix", async () => {
-    for (const term of ["PSS-1042", "pss 1042", " 1042 ", "Pss1042"]) {
+    for (const term of ["PSS-1042", "pss 1042", " 1042 ", "Pss1042", "PSS–1042", "PSS#1042"]) {
       sql.query.mockClear();
       await jobs.listJobs({ search: term });
       const [statement, params] = sql.query.mock.calls[0];
@@ -573,7 +573,8 @@ describe("searching jobs", () => {
   });
 
   it("does not treat a short number or a word as a PSS number", async () => {
-    for (const term of ["104", "PSS-", "Reyes", "PSS-10x2"]) {
+    // "7025550134": a bare ten-digit phone must never become a number, or it would overflow the integer column.
+    for (const term of ["104", "PSS-", "Reyes", "PSS-10x2", "7025550134"]) {
       sql.query.mockClear();
       await jobs.listJobs({ search: term });
       expect(sql.query.mock.calls[0][1]?.[2]).toBeNull();
