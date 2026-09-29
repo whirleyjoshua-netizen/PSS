@@ -18,6 +18,7 @@ create table if not exists dc_quote_versions (
   version               integer not null check (version > 0),
   dc_quote_no           text not null,
   po_reference          text not null,
+  client_name           text not null default '',
   source_file_id        uuid not null references job_files(id),
   source_sha256         text not null,
   message_id            text references ingested_messages(message_id),
@@ -39,6 +40,9 @@ create table if not exists dc_quote_versions (
   created_at            timestamptz not null default now(),
   unique (lead_id, version)
 );
+
+-- The DC Client name, shown beside the quote number as a wrong-household cue. Added after the table first shipped to the test branch
+alter table dc_quote_versions add column if not exists client_name text not null default '';
 
 create index if not exists dc_quote_versions_contract_idx on dc_quote_versions (contract_file_id);
 
@@ -83,6 +87,9 @@ create table if not exists dc_settings (
 );
 
 insert into dc_settings (id) values (true) on conflict (id) do nothing;
+
+-- Start the poll mark at the migration, never null, so the first run cannot import the test Dealer Copies already in support@
+update dc_settings set last_polled_at = now() where last_polled_at is null;
 
 -- Every migration that defines job_files_doc_type_check lists the CURRENT FULL set of types
 alter table job_files drop constraint if exists job_files_doc_type_check;

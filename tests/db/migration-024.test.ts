@@ -51,4 +51,14 @@ describe("migration 024", () => {
       expect(lines).toContain(c);
     }
   });
+  it("sets the poll mark when it seeds dc_settings, so the first run never imports older test copies", () => {
+    const seed = statements.findIndex((s) => s.startsWith("insert into dc_settings"));
+    const mark = statements.findIndex((s) => s === "update dc_settings set last_polled_at = now() where last_polled_at is null");
+    expect(seed).toBeGreaterThanOrEqual(0);
+    expect(mark).toBe(seed + 1);
+  });
+  it("stores the DC client name on each version, also on a database that already has the table", () => {
+    expect(find("create table if not exists dc_quote_versions")).toContain("client_name text not null default ''");
+    expect(statements).toContain("alter table dc_quote_versions add column if not exists client_name text not null default ''");
+  });
 });
