@@ -837,3 +837,502 @@ Claude-Session: https://claude.ai/code/session_01VsZpDCE8YaRq5jxSkaAZGj"
 ```
 
 ---
+
+## Task 4: Adoption validation
+
+**Files:**
+- Create: `lib/portal/adoption-limits.ts`, `lib/portal/adoption.ts`, `tests/fixtures/png.ts`
+- Test: `tests/portal/adoption.test.ts`
+
+**Interfaces:**
+- Produces, in `adoption-limits.ts` (client-safe, used by Task 12):
+  - `INITIALS_MAX = 6`, `INITIALS_PATTERN: RegExp`, `INITIALS_INPUT_PATTERN: string`;
+  - `PNG_MAX_BYTES = 153600`, `PNG_MAX_WIDTH = 1200`, `PNG_MAX_HEIGHT = 400`;
+  - `PNG_DATA_URL_PREFIX = "data:image/png;base64,"`, `PNG_DATA_URL_MAX`;
+  - `SIGNATURE_PAD = { maxWidth: 600, maxHeight: 200 }`, `INITIALS_PAD = { maxWidth: 200, maxHeight: 100 }`, `MAX_PIXEL_RATIO = 2`.
+- Produces, in `adoption.ts` (server, used by Tasks 8, 9 and 11):
+  - `type Adoption = { method: "typed"; initials: string | null } | { method: "drawn"; signaturePng: Buffer; initialsPng: Buffer | null }`
+  - `type AdoptionForm = { method: string; initials: string; signatureImage: string; initialsImage: string }`
+  - `pngSize(bytes: Buffer): { width: number; height: number } | null`
+  - `parsePngDataUrl(value: string): Buffer | null`
+  - `parseAdoption(form: AdoptionForm): Adoption | null`
+  - `requireInitials(adoption: Adoption, needed: boolean): Adoption | null`
+- Produces, in `tests/fixtures/png.ts` (used by Tasks 5, 8, 9, 11 and 13):
+  - `PNG_SIGNATURE: Buffer`
+  - `pngBytes(width: number, height: number): Buffer`
+  - `pngDataUrl(bytes: Buffer): string`
+  - `corruptPng(width: number, height: number): Buffer`
+
+- [ ] **Step 1: Write the PNG helper** `tests/fixtures/png.ts`. It is a real encoder and needs no dependency: `pngjs` is in devDependencies but untyped and unused.
+
+```ts
+import { deflateSync } from "node:zlib";
+
+const CRC_TABLE = Array.from({ length: 256 }, (_, n) => {
+  let c = n;
+  for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+  return c >>> 0;
+});
+const crc32 = (bytes: Buffer): number => {
+  let c = 0xffffffff;
+  for (const byte of bytes) c = CRC_TABLE[(c ^ byte) & 0xff] ^ (c >>> 8);
+  return (c ^ 0xffffffff) >>> 0;
+};
+const chunk = (type: string, data: Buffer): Buffer => {
+  const length = Buffer.alloc(4);
+  length.writeUInt32BE(data.length);
+  const body = Buffer.concat([Buffer.from(type, "latin1"), data]);
+  const crc = Buffer.alloc(4);
+  crc.writeUInt32BE(crc32(body));
+  return Buffer.concat([length, body, crc]);
+};
+
+export const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+
+/** A real 8-bit RGBA PNG, transparent except for one opaque pixel: what a canvas pad produces, and what any decoder opens. */
+export function pngBytes(width: number, height: number): Buffer {
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(width, 0);
+  ihdr.writeUInt32BE(height, 4);
+  ihdr[8] = 8; // bit depth
+  ihdr[9] = 6; // RGBA
+  const rows = Buffer.alloc((width * 4 + 1) * height); // each row: filter byte 0, then pixels
+  if (rows.length > 4) rows[4] = 255; // row 0, pixel 0, alpha
+  return Buffer.concat([PNG_SIGNATURE, chunk("IHDR", ihdr), chunk("IDAT", deflateSync(rows)), chunk("IEND", Buffer.alloc(0))]);
+}
+
+export const pngDataUrl = (bytes: Buffer): string => `data:image/png;base64,${bytes.toString("base64")}`;
+
+/** A valid header (so it passes validation, which never decodes) over image data no decoder can inflate. */
+export function corruptPng(width: number, height: number): Buffer {
+  const png = pngBytes(width, height);
+  const idat = png.indexOf("IDAT", 0, "latin1");
+  png.fill(0x41, idat + 4, idat + 12); // the zlib header and the first deflate bytes
+  return png;
+}
+```
+
+- [ ] **Step 2: Write the failing test** `tests/portal/adoption.test.ts`
+
+```ts
+// @vitest-environment node
+import { describe, expect, it, vi } from "vitest";
+import { parseAdoption, parsePngDataUrl, pngSize, requireInitials, type AdoptionForm } from "@/lib/portal/adoption";
+import {
+  INITIALS_INPUT_PATTERN, INITIALS_MAX, INITIALS_PATTERN, PNG_DATA_URL_MAX, PNG_DATA_URL_PREFIX, PNG_MAX_BYTES,
+} from "@/lib/portal/adoption-limits";
+import { PNG_SIGNATURE, corruptPng, pngBytes, pngDataUrl } from "../fixtures/png";
+
+const typed = (initials: string): AdoptionForm => ({ method: "typed", initials, signatureImage: "", initialsImage: "" });
+const drawn = (signatureImage: string, initialsImage = ""): AdoptionForm => ({ method: "drawn", initials: "", signatureImage, initialsImage });
+const SIG = pngBytes(600, 200);
+const INI = pngBytes(200, 100);
+
+describe("pngSize reads IHDR without decoding", () => {
+  it("reads width and height", () => expect(pngSize(pngBytes(123, 45))).toEqual({ width: 123, height: 45 }));
+  it("refuses bytes that are not a PNG", () => {
+    expect(pngSize(Buffer.from([0xff, 0xd8, 0xff, 0xe0, ...Buffer.alloc(40)]))).toBeNull(); // a JPEG header
+    expect(pngSize(PNG_SIGNATURE)).toBeNull(); // too short for IHDR
+  });
+  it("refuses a PNG whose first chunk is not a 13-byte IHDR", () => {
+    const wrongType = pngBytes(10, 10);
+    wrongType.write("IHDX", 12, "latin1");
+    expect(pngSize(wrongType)).toBeNull();
+    const wrongLength = pngBytes(10, 10);
+    wrongLength.writeUInt32BE(12, 8);
+    expect(pngSize(wrongLength)).toBeNull();
+  });
+});
+
+describe("parsePngDataUrl (spec §6)", () => {
+  it("accepts a real PNG at the size limits", () => {
+    const edge = pngBytes(1200, 400);
+    expect(parsePngDataUrl(pngDataUrl(edge))?.equals(edge)).toBe(true);
+  });
+  it.each([[1201, 10], [10, 401], [0, 10], [10, 0]])("refuses %i x %i", (w, h) => {
+    expect(parsePngDataUrl(pngDataUrl(pngBytes(w, h)))).toBeNull();
+  });
+  it("refuses another image type, a missing prefix and malformed base64", () => {
+    expect(parsePngDataUrl(`data:image/jpeg;base64,${SIG.toString("base64")}`)).toBeNull();
+    expect(parsePngDataUrl(SIG.toString("base64"))).toBeNull();
+    expect(parsePngDataUrl(`${PNG_DATA_URL_PREFIX}${SIG.toString("base64")}!`)).toBeNull();
+    expect(parsePngDataUrl(`${PNG_DATA_URL_PREFIX}${SIG.toString("base64").slice(0, -1)}`)).toBeNull();
+    expect(parsePngDataUrl(PNG_DATA_URL_PREFIX)).toBeNull();
+  });
+  it("refuses data that is not a PNG whatever the prefix says", () => {
+    expect(parsePngDataUrl(`${PNG_DATA_URL_PREFIX}${Buffer.from("GIF89a is not a png at all.....").toString("base64")}`)).toBeNull();
+  });
+  it("accepts exactly 150 KB decoded and refuses one byte more", () => {
+    const base = pngBytes(10, 10);
+    const atLimit = Buffer.concat([base, Buffer.alloc(PNG_MAX_BYTES - base.length)]);
+    expect(atLimit.length).toBe(150 * 1024);
+    expect(parsePngDataUrl(pngDataUrl(atLimit))).not.toBeNull();
+    expect(parsePngDataUrl(pngDataUrl(Buffer.concat([atLimit, Buffer.alloc(1)])))).toBeNull();
+  });
+  it("refuses an overlong data URL before decoding anything", () => {
+    const from = vi.spyOn(Buffer, "from");
+    expect(parsePngDataUrl(PNG_DATA_URL_PREFIX + "A".repeat(PNG_DATA_URL_MAX))).toBeNull();
+    expect(from).not.toHaveBeenCalled();
+    from.mockRestore();
+  });
+  it("lets a header-valid PNG with corrupt data through: it is never decoded here (spec §9)", () => {
+    expect(parsePngDataUrl(pngDataUrl(corruptPng(20, 10)))).not.toBeNull();
+  });
+});
+
+describe("parseAdoption", () => {
+  it("takes typed initials trimmed, and none when left empty", () => {
+    expect(parseAdoption(typed(" J.D "))).toEqual({ method: "typed", initials: "J.D" });
+    expect(parseAdoption(typed("Jo-Ann"))).toEqual({ method: "typed", initials: "Jo-Ann" });
+    expect(parseAdoption(typed("   "))).toEqual({ method: "typed", initials: null });
+  });
+  it.each([["1D"], ["ABCDEFG"], ["J@"], [".J"], ["J_D"]])("refuses typed initials %s", (value) => {
+    expect(parseAdoption(typed(value))).toBeNull();
+  });
+  it("ignores image fields in typed mode", () => {
+    expect(parseAdoption({ ...typed("JD"), signatureImage: "junk", initialsImage: "junk" })).toEqual({ method: "typed", initials: "JD" });
+  });
+  it("takes drawn images as bytes, with or without initials", () => {
+    const both = parseAdoption(drawn(pngDataUrl(SIG), pngDataUrl(INI)));
+    if (both?.method !== "drawn") throw new Error("expected a drawn adoption");
+    expect(both.signaturePng.equals(SIG)).toBe(true);
+    expect(both.initialsPng?.equals(INI)).toBe(true);
+    expect(parseAdoption(drawn(pngDataUrl(SIG)))).toMatchObject({ method: "drawn", initialsPng: null });
+  });
+  it("ignores typed initials in drawn mode", () => {
+    expect(parseAdoption({ ...drawn(pngDataUrl(SIG)), initials: "JD" })).toMatchObject({ method: "drawn", initialsPng: null });
+  });
+  it("refuses a drawn adoption without a valid signature, or with invalid initials", () => {
+    expect(parseAdoption(drawn(""))).toBeNull();
+    expect(parseAdoption(drawn(pngDataUrl(pngBytes(1201, 10))))).toBeNull();
+    expect(parseAdoption(drawn(pngDataUrl(SIG), "data:image/png;base64,AAAA"))).toBeNull();
+  });
+  it.each([[""], ["Typed"], ["both"]])("refuses method %j", (method) => {
+    expect(parseAdoption({ ...typed("JD"), method })).toBeNull();
+  });
+});
+
+describe("requireInitials (initials present exactly when the file has initial marks)", () => {
+  it.each([
+    [{ method: "typed", initials: "JD" } as const, true, true],
+    [{ method: "typed", initials: null } as const, true, false],
+    [{ method: "typed", initials: "JD" } as const, false, false],
+    [{ method: "typed", initials: null } as const, false, true],
+  ])("typed %j, needed %s -> accepted %s", (adoption, needed, accepted) => {
+    expect(requireInitials(adoption, needed) !== null).toBe(accepted);
+  });
+  it("applies the same rule to drawn initials", () => {
+    expect(requireInitials({ method: "drawn", signaturePng: SIG, initialsPng: INI }, true)).not.toBeNull();
+    expect(requireInitials({ method: "drawn", signaturePng: SIG, initialsPng: null }, true)).toBeNull();
+    expect(requireInitials({ method: "drawn", signaturePng: SIG, initialsPng: INI }, false)).toBeNull();
+    expect(requireInitials({ method: "drawn", signaturePng: SIG, initialsPng: null }, false)).not.toBeNull();
+  });
+});
+
+describe("the limits the form shares", () => {
+  it("the HTML pattern, compiled as browsers do (v flag), agrees with the server's rule", () => {
+    const html = new RegExp(`^(?:${INITIALS_INPUT_PATTERN})$`, "v");
+    for (const sample of ["J", "JD", "J.D.", "Jo-Ann", "A B", "ABCDEF", "ABCDEFG", "1D", "J@", "", ".J", "J_D"]) {
+      expect(html.test(sample), sample).toBe(INITIALS_PATTERN.test(sample));
+    }
+    expect(INITIALS_MAX).toBe(6);
+  });
+  it("the data URL cap is exactly the base64 length of 150 KB", () => {
+    expect(PNG_DATA_URL_MAX).toBe(PNG_DATA_URL_PREFIX.length + 204800);
+  });
+});
+```
+
+- [ ] **Step 3: Run it to see it fail**
+
+Run: `npx vitest run --maxWorkers=2 tests/portal/adoption.test.ts`
+Expected: FAIL, the modules cannot be resolved.
+
+- [ ] **Step 4: Implement** `lib/portal/adoption-limits.ts`
+
+```ts
+/**
+ * The adoption's limits (spec §4, §6), shared by the form and the server, so an input's own limits
+ * and the server's checks cannot drift apart. Constants only, so this is safe in a client
+ * component. That is why they are not in adoption.ts, which uses Buffer and is server-only.
+ */
+export const INITIALS_MAX = 6;
+/** Spec §6, verbatim. Applied to the trimmed value. */
+export const INITIALS_PATTERN = /^[A-Za-z][A-Za-z.\- ]{0,5}$/;
+/** The same rule as an HTML pattern attribute. Browsers compile it with the v flag, where "-" in a class must be escaped. */
+export const INITIALS_INPUT_PATTERN = "[A-Za-z][A-Za-z.\\- ]{0,5}";
+
+export const PNG_MAX_BYTES = 150 * 1024;
+export const PNG_MAX_WIDTH = 1200;
+export const PNG_MAX_HEIGHT = 400;
+export const PNG_DATA_URL_PREFIX = "data:image/png;base64,";
+/** The longest data URL that can decode to PNG_MAX_BYTES. Checked before anything is decoded. */
+export const PNG_DATA_URL_MAX = PNG_DATA_URL_PREFIX.length + Math.ceil(PNG_MAX_BYTES / 3) * 4;
+
+/** CSS pixel caps for the two pads (spec §4). At a pixel ratio of at most 2, the PNGs stay within 1200 x 400. */
+export const SIGNATURE_PAD = { maxWidth: 600, maxHeight: 200 } as const;
+export const INITIALS_PAD = { maxWidth: 200, maxHeight: 100 } as const;
+export const MAX_PIXEL_RATIO = 2;
+```
+
+- [ ] **Step 5: Implement** `lib/portal/adoption.ts`
+
+```ts
+import "server-only";
+import {
+  INITIALS_PATTERN, PNG_DATA_URL_MAX, PNG_DATA_URL_PREFIX, PNG_MAX_BYTES, PNG_MAX_HEIGHT, PNG_MAX_WIDTH,
+} from "./adoption-limits";
+
+/** What the client adopted (spec §2). Typed: the signature is the typed full name, drawn in the handwriting font. */
+export type Adoption =
+  | { method: "typed"; initials: string | null }
+  | { method: "drawn"; signaturePng: Buffer; initialsPng: Buffer | null };
+
+/** The adoption's form fields, as posted. Nothing here is trusted until parseAdoption accepts it. */
+export type AdoptionForm = { method: string; initials: string; signatureImage: string; initialsImage: string };
+
+const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+const BASE64 = /^[A-Za-z0-9+/]+={0,2}$/;
+
+/**
+ * Width and height from the IHDR chunk, which the PNG format requires first: bytes 8-11 are its
+ * length (13), 12-15 its type ("IHDR"), 16-19 the width and 20-23 the height, all big-endian.
+ * Nothing is decoded (spec §9). Null when the header is not a PNG's.
+ */
+export function pngSize(bytes: Buffer): { width: number; height: number } | null {
+  if (bytes.length < 33) return null; // signature 8 + length 4 + type 4 + data 13 + CRC 4
+  if (!bytes.subarray(0, 8).equals(PNG_MAGIC)) return null;
+  if (bytes.readUInt32BE(8) !== 13 || bytes.toString("latin1", 12, 16) !== "IHDR") return null;
+  return { width: bytes.readUInt32BE(16), height: bytes.readUInt32BE(20) };
+}
+
+/** A drawn image (spec §6): a PNG data URL, at most 150 KB decoded, 1 to 1200 wide and 1 to 400 high. Otherwise null. */
+export function parsePngDataUrl(value: string): Buffer | null {
+  // Length first, so a forged multi-megabyte post is refused without being decoded.
+  if (value.length > PNG_DATA_URL_MAX || !value.startsWith(PNG_DATA_URL_PREFIX)) return null;
+  const body = value.slice(PNG_DATA_URL_PREFIX.length);
+  // Buffer.from silently skips characters that are not base64, so the text is checked before decoding.
+  if (body.length % 4 !== 0 || !BASE64.test(body)) return null;
+  const bytes = Buffer.from(body, "base64");
+  if (bytes.length > PNG_MAX_BYTES) return null;
+  const size = pngSize(bytes);
+  if (!size || size.width < 1 || size.height < 1 || size.width > PNG_MAX_WIDTH || size.height > PNG_MAX_HEIGHT) return null;
+  return bytes;
+}
+
+/**
+ * The posted adoption, validated (spec §6), or null for "invalid". The other method's fields are
+ * ignored, not refused: a client who switched from Draw back to Type may still post a stale image.
+ * Whether initials are required depends on the file, so requireInitials settles that afterwards.
+ */
+export function parseAdoption(form: AdoptionForm): Adoption | null {
+  if (form.method === "typed") {
+    const initials = form.initials.trim();
+    if (!initials) return { method: "typed", initials: null };
+    return INITIALS_PATTERN.test(initials) ? { method: "typed", initials } : null;
+  }
+  if (form.method === "drawn") {
+    const signaturePng = parsePngDataUrl(form.signatureImage);
+    if (!signaturePng) return null;
+    if (!form.initialsImage) return { method: "drawn", signaturePng, initialsPng: null };
+    const initialsPng = parsePngDataUrl(form.initialsImage);
+    return initialsPng ? { method: "drawn", signaturePng, initialsPng } : null;
+  }
+  return null;
+}
+
+/** Spec §6: initials are present exactly when the file has initial marks. Otherwise null ("invalid"). */
+export function requireInitials(adoption: Adoption, needed: boolean): Adoption | null {
+  const present = adoption.method === "typed" ? adoption.initials !== null : adoption.initialsPng !== null;
+  return present === needed ? adoption : null;
+}
+```
+
+- [ ] **Step 6: Run the tests and typecheck**
+
+Run: `npx vitest run --maxWorkers=2 tests/portal/adoption.test.ts && npm run typecheck`
+Expected: PASS.
+
+- [ ] **Step 7: Power checks** (revert after each)
+  1. Delete `value.length > PNG_DATA_URL_MAX ||`. "refuses an overlong data URL before decoding anything" should go red.
+  2. Delete `|| !BASE64.test(body)`. "refuses … malformed base64" should go red.
+  3. Change `> PNG_MAX_WIDTH` to `> PNG_MAX_WIDTH + 1`. "refuses 1201 x 10" should go red.
+  4. Delete the IHDR length and type check. "refuses a PNG whose first chunk is not a 13-byte IHDR" should go red.
+  5. Make `requireInitials` return `adoption` unconditionally. The requireInitials cases should go red.
+  6. Change `INITIALS_INPUT_PATTERN`'s `\\-` to `-`. "the HTML pattern … agrees" should go red (a v-flag SyntaxError).
+
+- [ ] **Step 8: Commit**
+
+```bash
+git add lib/portal/adoption-limits.ts lib/portal/adoption.ts tests/fixtures/png.ts tests/portal/adoption.test.ts
+git commit -m "feat: adoption validation — typed initials and drawn PNGs checked by header only
+
+Power checks: <names>
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01VsZpDCE8YaRq5jxSkaAZGj"
+```
+
+---
+
+## Task 5: `pdfPages`, a font-aware PDF reader for tests
+
+`e2e/fixtures/pdf-text.ts`'s `pdfText` decodes every `<hex> Tj` as Latin-1. That is right for the standard fonts, but gives glyph ids for text in an embedded font. Handwritten initials and signatures (spec §10: "initials appear once per numbered section") need a reader that knows which font drew each run, decodes embedded fonts through their ToUnicode CMap, and counts image draws. `pdfText` stays as it is: its callers are unchanged.
+
+**Files:**
+- Create: `e2e/fixtures/pdf-pages.ts`
+- Test: `tests/e2e-fixtures/pdf-pages.test.ts`
+
+**Interfaces:**
+- Consumes: `embedHandwriting` (Task 1) and `pngBytes` (Task 4), in the test only.
+- Produces (used by Task 14):
+  - `type DrawnRun = { font: string; text: string }`
+  - `type DrawnPage = { runs: DrawnRun[]; images: number }`
+  - `pdfPages(bytes: Uint8Array): Promise<DrawnPage[]>`
+
+  `font` is the font's base name: `Helvetica`, `Helvetica-Bold`, `Helvetica-Oblique` or the hand font's PostScript name (`GreatVibes-Regular`). pdf-lib names a page's font resource `<font.name>-<random digits>`, and `pdfPages` strips that suffix.
+
+- [ ] **Step 1: Write the failing test** `tests/e2e-fixtures/pdf-pages.test.ts`
+
+```ts
+// @vitest-environment node
+import { PDFDocument, StandardFonts } from "pdf-lib";
+import { describe, expect, it } from "vitest";
+import { pdfPages } from "@/e2e/fixtures/pdf-pages";
+import { embedHandwriting } from "@/lib/pdf/handwriting";
+import { pngBytes } from "../fixtures/png";
+
+async function sample() {
+  const pdf = await PDFDocument.create();
+  const helvetica = await pdf.embedFont(StandardFonts.Helvetica);
+  const hand = await embedHandwriting(pdf);
+  const image = await pdf.embedPng(pngBytes(40, 20));
+  const first = pdf.addPage();
+  first.drawText("4. Your Right to Cancel", { x: 50, y: 700, size: 11, font: helvetica });
+  first.drawText("JD", { x: 500, y: 700, size: 14, font: hand.hand });
+  first.drawImage(image, { x: 500, y: 650, width: 40, height: 20 });
+  const second = pdf.addPage();
+  second.drawText("Jane Doe", { x: 150, y: 400, size: 20, font: hand.hand });
+  second.drawImage(image, { x: 1, y: 1, width: 4, height: 2 });
+  second.drawImage(image, { x: 9, y: 9, width: 4, height: 2 });
+  return { bytes: await pdf.save(), handName: hand.hand.name };
+}
+
+describe("pdfPages", () => {
+  it("reads each page's runs with their font, decoding the embedded font through ToUnicode", async () => {
+    const { bytes, handName } = await sample();
+    const pages = await pdfPages(bytes);
+    expect(pages).toHaveLength(2);
+    expect(pages[0].runs).toEqual([
+      { font: "Helvetica", text: "4. Your Right to Cancel" },
+      { font: handName, text: "JD" },
+    ]);
+    expect(pages[1].runs).toEqual([{ font: handName, text: "Jane Doe" }]);
+  });
+  it("counts image draws per page", async () => {
+    const pages = await pdfPages((await sample()).bytes);
+    expect(pages.map((page) => page.images)).toEqual([1, 2]);
+  });
+  it("reads a page that was drawn on again after loading (several content streams)", async () => {
+    const loaded = await PDFDocument.load((await sample()).bytes);
+    loaded.getPage(0).drawText("Printed", { x: 10, y: 10, size: 9, font: await loaded.embedFont(StandardFonts.Helvetica) });
+    const pages = await pdfPages(await loaded.save());
+    expect(pages[0].runs.map((run) => run.text)).toEqual(["4. Your Right to Cancel", "JD", "Printed"]);
+  });
+});
+```
+
+- [ ] **Step 2: Run it to see it fail**
+
+Run: `npx vitest run --maxWorkers=2 tests/e2e-fixtures/pdf-pages.test.ts`
+Expected: FAIL, `@/e2e/fixtures/pdf-pages` cannot be resolved.
+
+- [ ] **Step 3: Implement** `e2e/fixtures/pdf-pages.ts`
+
+```ts
+import { PDFArray, PDFDict, PDFDocument, PDFName, PDFRawStream, PDFRef, decodePDFRawStream, type PDFObject } from "pdf-lib";
+
+export type DrawnRun = { font: string; text: string };
+export type DrawnPage = { runs: DrawnRun[]; images: number };
+
+/**
+ * What pdf-lib drew on each page: every `Tj` run with the base name of the font that drew it, and
+ * the number of image draws (`Do`). A run in an embedded font is decoded through that font's
+ * ToUnicode CMap (pdf-lib writes `<glyph> <unicode>` pairs in one beginbfchar block), so
+ * handwritten text reads back as text. A run in a standard font is decoded as Latin-1, as pdfText does.
+ * Only for PDFs pdf-lib wrote: this is not a general PDF parser.
+ */
+export async function pdfPages(bytes: Uint8Array): Promise<DrawnPage[]> {
+  const pdf = await PDFDocument.load(bytes);
+  const decode = (object: PDFObject | undefined): string => {
+    const stream = object instanceof PDFRef ? pdf.context.lookup(object) : object;
+    return Buffer.from(decodePDFRawStream(stream as PDFRawStream).decode()).toString("latin1");
+  };
+
+  return pdf.getPages().map((page) => {
+    // Resource key ("/GreatVibes-Regular-4812930311") -> base name and, for an embedded font, its glyph map.
+    const fonts = new Map<string, { name: string; glyphs: Map<string, string> | null }>();
+    const fontDict = page.node.Resources()?.lookupMaybe(PDFName.of("Font"), PDFDict);
+    for (const [key, ref] of fontDict?.entries() ?? []) {
+      const dict = pdf.context.lookup(ref, PDFDict);
+      const toUnicode = dict.get(PDFName.of("ToUnicode"));
+      let glyphs: Map<string, string> | null = null;
+      if (toUnicode) {
+        glyphs = new Map();
+        const block = /beginbfchar([\s\S]*?)endbfchar/.exec(decode(toUnicode))?.[1] ?? "";
+        for (const [, glyph, unicode] of block.matchAll(/<([0-9A-Fa-f]{4})>\s*<([0-9A-Fa-f]+)>/g)) {
+          const units = (unicode.match(/.{4}/g) ?? []).map((hex) => parseInt(hex, 16));
+          glyphs.set(glyph.toLowerCase(), String.fromCharCode(...units));
+        }
+      }
+      fonts.set(key.asString(), { name: key.asString().replace(/^\//, "").replace(/-\d+$/, ""), glyphs });
+    }
+
+    const contents = page.node.Contents();
+    const streams = contents instanceof PDFArray ? contents.asArray() : contents ? [contents] : [];
+    const runs: DrawnRun[] = [];
+    let images = 0;
+    let current: { name: string; glyphs: Map<string, string> | null } = { name: "", glyphs: null };
+    for (const source of streams.map(decode)) {
+      for (const [, fontKey, hex, xobject] of source.matchAll(/(\/[^\s/<>[\]()]+)\s+[\d.]+\s+Tf|<([0-9A-Fa-f]*)>\s*Tj|\/[^\s/<>[\]()]+\s+(Do)\b/g)) {
+        if (fontKey) current = fonts.get(fontKey) ?? { name: fontKey.slice(1), glyphs: null };
+        else if (xobject) images++;
+        else if (hex !== undefined) {
+          const glyphs = current.glyphs;
+          const text = glyphs
+            ? (hex.match(/.{4}/g) ?? []).map((glyph) => glyphs.get(glyph.toLowerCase()) ?? "�").join("")
+            : Buffer.from(hex, "hex").toString("latin1");
+          runs.push({ font: current.name, text });
+        }
+      }
+    }
+    return { runs, images };
+  });
+}
+```
+
+- [ ] **Step 4: Run the test and typecheck**
+
+Run: `npx vitest run --maxWorkers=2 tests/e2e-fixtures/pdf-pages.test.ts && npm run typecheck`
+Expected: PASS.
+
+If the `Do` regex also counts the Tf alternation's font key, fix the regex, not the test.
+
+- [ ] **Step 5: Power checks** (revert after each)
+  1. Force `glyphs` to `null` everywhere, so everything is decoded as Latin-1. The first test should go red on the hand runs.
+  2. Change `.replace(/-\d+$/, "")` to nothing. The font names should no longer match and the first test go red.
+  3. Remove the `(Do)` alternative. "counts image draws per page" should go red.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add e2e/fixtures/pdf-pages.ts tests/e2e-fixtures/pdf-pages.test.ts
+git commit -m "test: pdfPages reads drawn runs by font, decoding embedded fonts, and counts images
+
+Power checks: <names>
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01VsZpDCE8YaRq5jxSkaAZGj"
+```
+
+---
