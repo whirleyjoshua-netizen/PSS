@@ -1336,3 +1336,569 @@ Claude-Session: https://claude.ai/code/session_01VsZpDCE8YaRq5jxSkaAZGj"
 ```
 
 ---
+
+## Task 6: The renderer records marks, and both builders draw the boxes and the signature block
+
+**Files:**
+- Modify: `lib/docs/pdf.ts` (the whole file is 123 lines; the changed regions are named below)
+- Modify: `lib/dc/contract-pdf.ts` (97 lines, CRLF in the working tree: keep it)
+- Test: `tests/docs/pdf.test.ts`, `tests/dc/contract.test.ts`
+
+**Interfaces:**
+- Consumes (Task 3): `INITIALS_BOX`, `INITIALS_GUTTER`, `SIGNATURE_BLOCK`, `sectionNumber`, `type InitialsMark`, `type MarkPoint`, `type SignMarks` from `@/lib/pdf/sign-marks`.
+- Produces, from `lib/docs/pdf.ts`:
+  - `type PdfPen = { doc; page; y; regular; bold; initials?: InitialsMark[] }` (the field is new and optional);
+  - `renderBlocks(pen: PdfPen, blocks: Block[]): void` (signature unchanged);
+  - `drawSignatureBlock(pen: PdfPen): MarkPoint` (new);
+  - `type RenderedPdf = { bytes: Uint8Array; marks: SignMarks }` (new);
+  - `renderDocumentPdf(input: DocumentPdfInput): Promise<RenderedPdf>` (new);
+  - `buildDocumentPdf(input: DocumentPdfInput): Promise<Uint8Array>` (unchanged signature);
+  - `SIGN_CLOSING` is **removed**: the signature block replaces it (spec §3). Its only users are `lib/docs/pdf.ts` and `tests/docs/pdf.test.ts`.
+- Produces, from `lib/dc/contract-pdf.ts`:
+  - `renderContractPdf(input: ContractInput, terms: ContractTerms): Promise<RenderedPdf>` (new);
+  - `buildContractPdf(input, terms): Promise<Uint8Array>` (unchanged signature);
+  - `buildTermsPdf(text: string): Promise<Uint8Array>` (unchanged signature; it now also draws the initials boxes and the signature block, exactly as the contract prints them after its terms).
+
+What is drawn:
+- **Numbered heading, when `pen.initials` is set:**
+  - the heading wraps at `WIDTH - INITIALS_GUTTER`;
+  - after the page-break decision, a 0.5pt line runs from `x = 612 - 54 - 56 = 502` to `558`, at `y = firstBaseline - 3`;
+  - the caption "Initials" (Helvetica 6pt) sits at `y - 8`;
+  - the mark `{ page, x: 502, y: firstBaseline - 3, section }` is pushed.
+- **Signature block:**
+  - `ensure(pen, 110)`, then `top = pen.y - 30`;
+  - labels "Client signature", "Printed name" and "Date" (Helvetica 10pt) at `x = 54`, with baselines `top`, `top - 30` and `top - 60`;
+  - 0.5pt lines from `x = 154`, 2pt below each baseline, 240, 240 and 120 long;
+  - mark `{ page, x: 154, y: top - 2 }`.
+
+- [ ] **Step 1: Update the tests in `tests/docs/pdf.test.ts`**
+
+  1. Change the import on line 4 to:
+     ```ts
+     import { buildDocumentPdf, renderDocumentPdf, type DocumentPdfInput } from "@/lib/docs/pdf";
+     ```
+  2. In `spyOnDrawText` (lines 8–16), record the size too:
+     - the type becomes `{ text: string; x: number; y: number; size: number; font: string; page: PDFPage }[]`;
+     - the push becomes `drawn.push({ text, x: options?.x ?? 0, y: options?.y ?? 0, size: options?.size ?? 0, font: options?.font?.name ?? "", page: this });`.
+  3. Replace the test "ends a sign document with the signing line, and only a sign document" (lines 73–81) with:
+
+```ts
+  it("ends a sign document with the signature block, and only a sign document (spec §3)", async () => {
+    let drawn = spyOnDrawText();
+    await buildDocumentPdf(input([{ type: "paragraph", inlines: [t("Body")] }], "sign"));
+    for (const label of ["Client signature", "Printed name", "Date"]) expect(drawn.filter((d) => d.text === label)).toHaveLength(1);
+    expect(drawn.map((d) => d.text)).not.toContain("Signed electronically on the client's project page.");
+    vi.restoreAllMocks();
+    drawn = spyOnDrawText();
+    await buildDocumentPdf(input([{ type: "paragraph", inlines: [t("Body")] }], "acknowledge"));
+    expect(drawn.map((d) => d.text)).not.toContain("Client signature");
+  });
+```
+
+  4. Append the new describe block below the "page breaks with headings and bullets" block:
+
+```ts
+const INITIALS_X = 612 - 54 - 56;
+/** The order pages were first drawn on is the order of the pages. */
+const pageIndexOf = (drawn: ReturnType<typeof spyOnDrawText>, page: PDFPage) => [...new Set(drawn.map((d) => d.page))].indexOf(page);
+
+describe("sign marks (spec §3)", () => {
+  const numbered: Block[] = [
+    { type: "heading", level: 2, inlines: [t("1. Scope")] },
+    { type: "paragraph", inlines: [t("Two shades.")] },
+    { type: "heading", level: 2, inlines: [t("Notes")] },
+    { type: "heading", level: 3, inlines: [t("2.", true), t(" Payment")] },
+    { type: "paragraph", inlines: [t("On install.")] },
+  ];
+
+  it("records an initials mark level with each numbered heading, and draws its empty box", async () => {
+    const drawn = spyOnDrawText();
+    const { marks } = await renderDocumentPdf(input(numbered, "sign"));
+    expect(marks.initials.map((m) => m.section)).toEqual(["1", "2"]);
+    for (const [mark, heading] of [[marks.initials[0], "1. Scope"], [marks.initials[1], "2. Payment"]] as const) {
+      const line = drawn.find((d) => d.text === heading)!;
+      expect(mark).toMatchObject({ page: pageIndexOf(drawn, line.page), x: INITIALS_X, y: line.y - 3 });
+    }
+    const captions = drawn.filter((d) => d.text === "Initials");
+    expect(captions).toHaveLength(2);
+    captions.forEach((caption, i) => expect(caption).toMatchObject({ x: INITIALS_X, y: marks.initials[i].y - 8, size: 6 }));
+  });
+
+  it("wraps a numbered heading 64pt narrower so it never runs under its box", async () => {
+    const drawn = spyOnDrawText();
+    const long = "7. Your Choices and Approvals of Every Fabric, Color, Mount and Control Before We Order";
+    await renderDocumentPdf(input([{ type: "heading", level: 2, inlines: [t(long)] }], "sign"));
+    const bold = await (await PDFDocument.create()).embedFont(StandardFonts.HelveticaBold);
+    const lines = drawn.filter((d) => d.font === "Helvetica-Bold" && d.size === 13 && long.includes(d.text));
+    expect(lines.length).toBeGreaterThan(1);
+    for (const line of lines) expect(line.x + bold.widthOfTextAtSize(line.text, 13)).toBeLessThanOrEqual(612 - 54 - 64);
+  });
+
+  it("records the signature block's mark at its signature line", async () => {
+    const drawn = spyOnDrawText();
+    const { marks } = await renderDocumentPdf(input(numbered, "sign"));
+    const label = drawn.find((d) => d.text === "Client signature")!;
+    expect(marks.signature).toEqual({ page: pageIndexOf(drawn, label.page), x: 54 + 100, y: label.y - 2 });
+    expect(drawn.find((d) => d.text === "Printed name")!.y).toBe(label.y - 30);
+    expect(drawn.find((d) => d.text === "Date")!.y).toBe(label.y - 60);
+  });
+
+  it("a sign document with no numbered sections has the block and no initials", async () => {
+    const drawn = spyOnDrawText();
+    const { marks } = await renderDocumentPdf(input([{ type: "heading", level: 2, inlines: [t("Change")] }, { type: "paragraph", inlines: [t("One more shade.")] }], "sign"));
+    expect(marks.initials).toEqual([]);
+    expect(marks.signature).not.toBeNull();
+    expect(drawn.map((d) => d.text)).not.toContain("Initials");
+  });
+
+  it("an acknowledge or view document draws no boxes and records no marks, even with numbered sections", async () => {
+    for (const response of ["acknowledge", "view"] as const) {
+      vi.restoreAllMocks();
+      const drawn = spyOnDrawText();
+      const { marks } = await renderDocumentPdf(input(numbered, response));
+      expect(marks).toEqual({ initials: [], signature: null });
+      expect(drawn.map((d) => d.text)).not.toContain("Initials");
+      expect(drawn.map((d) => d.text)).not.toContain("Client signature");
+    }
+  });
+
+  it("a numbered heading pushed to the next page takes its box and its mark with it", async () => {
+    let moved = 0;
+    for (let n = 20; n < 70; n++) {
+      vi.restoreAllMocks();
+      const drawn = spyOnDrawText();
+      const { marks } = await renderDocumentPdf(input([...filler(n), { type: "heading", level: 2, inlines: [t("3. Warranty")] },
+        { type: "paragraph", inlines: [t("After the heading.")] }], "sign"));
+      const heading = drawn.find((d) => d.text === "3. Warranty")!;
+      const caption = drawn.find((d) => d.text === "Initials")!;
+      expect(caption.page === heading.page, `n=${n}`).toBe(true);
+      expect(marks.initials[0], `n=${n}`).toEqual({ page: pageIndexOf(drawn, heading.page), x: INITIALS_X, y: heading.y - 3, section: "3" });
+      expect(caption.y, `n=${n}`).toBeGreaterThanOrEqual(54);
+      if (pageIndexOf(drawn, heading.page) > 0 && heading.y === TOP) moved++;
+    }
+    expect(moved).toBeGreaterThan(0);
+  });
+
+  it("keeps the whole signature block on one page, inside the margin, wherever the text ends", async () => {
+    let newPage = 0;
+    for (let n = 20; n < 70; n++) {
+      vi.restoreAllMocks();
+      const drawn = spyOnDrawText();
+      const { marks } = await renderDocumentPdf(input(filler(n), "sign"));
+      const block = ["Client signature", "Printed name", "Date"].map((label) => drawn.find((d) => d.text === label)!);
+      expect(new Set(block.map((d) => d.page)).size, `n=${n}`).toBe(1);
+      for (const d of block) expect(d.y, `n=${n}`).toBeGreaterThanOrEqual(54 + 2);
+      expect(marks.signature!.page, `n=${n}`).toBe(pageIndexOf(drawn, block[0].page));
+      if (drawn.filter((d) => d.page === block[0].page).length === 3) newPage++;
+    }
+    expect(newPage).toBeGreaterThan(0);
+  });
+});
+```
+
+- [ ] **Step 2: Update the tests in `tests/dc/contract.test.ts`**
+
+  1. Change the import on line 4 to:
+     ```ts
+     import { buildContractPdf, buildTermsPdf, renderContractPdf } from "@/lib/dc/contract-pdf";
+     ```
+  2. Append inside `describe("buildContractPdf", ...)`, before its closing `});`:
+
+```ts
+  it("records an initials mark per numbered terms section and ends the terms with the signature block", async () => {
+    const drawn = spyOnDrawText();
+    const { bytes, marks } = await renderContractPdf(input, { text: "## 4. Your Right to Cancel\n\nCancel.\n\n## Notes\n\nx\n\n## 5. Pricing\n\nGood for 30 days." });
+    expect(marks.initials.map((m) => [m.section, m.page, m.x])).toEqual([["4", 1, 502], ["5", 1, 502]]);
+    const texts = drawn.map((d) => d.text);
+    expect(texts.filter((text) => text === "Initials")).toHaveLength(2);
+    // The block follows the terms: nothing of the terms is drawn after it.
+    expect(texts.indexOf("Client signature")).toBeGreaterThan(texts.indexOf("Good for 30 days."));
+    const label = drawn.find((d) => d.text === "Client signature")!;
+    expect(marks.signature).toEqual({ page: (await PDFDocument.load(bytes)).getPageCount() - 1, x: 154, y: label.y - 2 });
+  });
+  it("puts the signature block on a final page of its own after uploaded terms, with no initials", async () => {
+    const terms = await PDFDocument.create();
+    terms.addPage(); terms.addPage();
+    const drawn = spyOnDrawText();
+    const { bytes, marks } = await renderContractPdf(input, { pdf: await terms.save() });
+    const count = (await PDFDocument.load(bytes)).getPageCount();
+    expect(marks.initials).toEqual([]);
+    expect(marks.signature?.page).toBe(count - 1);
+    const heading = drawn.find((d) => d.text === "Signature")!;
+    expect(heading.y).toBe(792 - 54);
+    expect(drawn.find((d) => d.text === "Client signature")!.y).toBeLessThan(heading.y);
+  });
+  it("keeps buildContractPdf's bytes-only answer for its existing callers", async () => {
+    await expect(buildContractPdf(input, { text: "## 1. A\n\nB" })).resolves.toBeInstanceOf(Uint8Array);
+  });
+  it("previews the terms with their initials boxes and the signature block", async () => {
+    const drawn = spyOnDrawText();
+    await buildTermsPdf("## 4. Your Right to Cancel\n\nCancel.");
+    expect(drawn.map((d) => d.text)).toEqual(expect.arrayContaining(["Initials", "Client signature", "Printed name", "Date"]));
+  });
+```
+
+The existing test "previews terms alone exactly as the contract prints them" must still pass unchanged. It proves `buildTermsPdf` draws exactly the contract's terms-and-block tail.
+
+- [ ] **Step 3: Run the tests to see them fail**
+
+Run: `npx vitest run --maxWorkers=2 tests/docs/pdf.test.ts tests/dc/contract.test.ts`
+Expected: FAIL. `renderDocumentPdf`/`renderContractPdf` are not exported, and "Client signature" is never drawn.
+
+- [ ] **Step 4: Implement in `lib/docs/pdf.ts`**
+
+1. Imports. After line 6 (`import { LETTER, MARGIN, wrapRuns, type Seg } from "@/lib/pdf/text";`), add:
+
+```ts
+import {
+  INITIALS_BOX, INITIALS_GUTTER, SIGNATURE_BLOCK, sectionNumber, type InitialsMark, type MarkPoint, type SignMarks,
+} from "@/lib/pdf/sign-marks";
+```
+
+2. Replace lines 10–13 (the `PdfPen` type and `SIGN_CLOSING`) with:
+
+```ts
+/**
+ * Where the next line goes. renderBlocks moves `page` and `y` as it draws. When `initials` is set
+ * (a PDF the client will sign), each numbered heading gets an empty initials box and its mark is
+ * pushed here (spec §3).
+ */
+export type PdfPen = { doc: PDFDocument; page: PDFPage; y: number; regular: PDFFont; bold: PDFFont; initials?: InitialsMark[] };
+
+/** A generated PDF and the places the client's marks belong on it (spec §3). */
+export type RenderedPdf = { bytes: Uint8Array; marks: SignMarks };
+```
+
+3. After `drawLines` (after line 52), add:
+
+```ts
+const plainText = (inlines: Inline[]): string =>
+  inlines.map((inline) => (inline.type === "text" ? inline.text : `{{${inline.key}}}`)).join("");
+
+const pageIndex = (pen: PdfPen): number => pen.doc.getPages().indexOf(pen.page);
+
+/** The empty initials line at the right margin, level with the heading's first baseline (pen.y). Answers its place. */
+function drawInitialsBox(pen: PdfPen): MarkPoint {
+  const x = LETTER[0] - MARGIN - INITIALS_BOX.width;
+  const y = pen.y - INITIALS_BOX.lineDrop;
+  pen.page.drawLine({ start: { x, y }, end: { x: x + INITIALS_BOX.width, y }, thickness: 0.5, color: INK });
+  pen.page.drawText("Initials", { x, y: y - 8, size: 6, font: pen.regular, color: INK });
+  return { page: pageIndex(pen), x, y };
+}
+
+/**
+ * "Client signature", "Printed name" and "Date", each with an empty line, kept together on one
+ * page (a new one if the rest of this one is too short). Answers the signature line's left end (spec §3).
+ */
+export function drawSignatureBlock(pen: PdfPen): MarkPoint {
+  ensure(pen, SIGNATURE_BLOCK.height);
+  const top = pen.y - SIGNATURE_BLOCK.before;
+  const x = MARGIN + SIGNATURE_BLOCK.labelWidth;
+  const rows: [string, number][] = [
+    ["Client signature", SIGNATURE_BLOCK.lineWidth], ["Printed name", SIGNATURE_BLOCK.lineWidth], ["Date", SIGNATURE_BLOCK.dateWidth],
+  ];
+  rows.forEach(([label, width], i) => {
+    const baseline = top - i * SIGNATURE_BLOCK.row;
+    const line = baseline - SIGNATURE_BLOCK.lineDrop;
+    pen.page.drawText(label, { x: MARGIN, y: baseline, size: BODY, font: pen.regular, color: INK });
+    pen.page.drawLine({ start: { x, y: line }, end: { x: x + width, y: line }, thickness: 0.5, color: INK });
+  });
+  pen.y = top - 2 * SIGNATURE_BLOCK.row - LEAD;
+  return { page: pageIndex(pen), x, y: top - SIGNATURE_BLOCK.lineDrop };
+}
+```
+
+4. In `renderBlocks`, replace the heading branch (lines 58–65) with:
+
+```ts
+    if (block.type === "heading") {
+      const style = HEADING[block.level];
+      // Only a PDF the client will sign initials its numbered sections (spec §3).
+      const section = pen.initials ? sectionNumber(plainText(block.inlines)) : null;
+      const lines = wrapRuns(segsOf(block.inlines, true), fonts, style.size, section ? WIDTH - INITIALS_GUTTER : WIDTH);
+      // A heading never sits alone at the foot of a page: it moves with room for a line of text.
+      // The space above it is skipped at the top of a fresh page, where nothing sits above it.
+      const freshPage = ensure(pen, style.before + lines.length * style.lead + LEAD);
+      if (index > 0 && !freshPage) pen.y -= style.before;
+      // After the page decision, so a heading that moved takes its box and its mark with it.
+      if (section && pen.initials) pen.initials.push({ ...drawInitialsBox(pen), section });
+      drawLines(pen, lines, MARGIN, style.size, style.lead);
+    } else if (block.type === "paragraph") {
+```
+
+5. Replace `buildDocumentPdf` (lines 92–123, the doc comment through the closing brace) with the code below. The body is unchanged except the pen's `initials`, and the ending:
+
+```ts
+/** A job document as a PDF (spec §6): company header, title and date, client block, body, and for a sign document the signature block. */
+export async function renderDocumentPdf(input: DocumentPdfInput): Promise<RenderedPdf> {
+  const doc = await PDFDocument.create();
+  const regular = await doc.embedFont(StandardFonts.Helvetica);
+  const bold = await doc.embedFont(StandardFonts.HelveticaBold);
+  const signing = input.response === "sign";
+  const pen: PdfPen = { doc, page: doc.addPage(LETTER), y: LETTER[1] - MARGIN, regular, bold, initials: signing ? [] : undefined };
+  const fonts = { regular, bold };
+
+  drawLines(pen, [[{ text: business.legalName, bold: true }]], MARGIN, 14, 16);
+  drawLines(pen, [[{ text: `${business.phone.display} · ${business.email}`, bold: false }]], MARGIN, 9, 12);
+  pen.y -= 14;
+
+  const date = winAnsiSafe(formatShortDate(input.date));
+  const dateWidth = regular.widthOfTextAtSize(date, 10);
+  pen.page.drawText(date, { x: LETTER[0] - MARGIN - dateWidth, y: pen.y, size: 10, font: regular, color: INK });
+  drawLines(pen, wrapRuns([{ text: input.title, bold: true }], fonts, 16, WIDTH - dateWidth - 16), MARGIN, 16, 19);
+  pen.y -= 6;
+
+  drawLines(pen, wrapRuns([{ text: input.client.name, bold: true }], fonts, 11, WIDTH), MARGIN, 11, 13);
+  const details = [input.client.address, input.client.city, input.client.email, input.projectNo ? `Project ${input.projectNo}` : null];
+  for (const line of details) {
+    if (line) drawLines(pen, wrapRuns([{ text: line, bold: false }], fonts, 10, WIDTH), MARGIN, 10, 12);
+  }
+  pen.y -= 14;
+
+  renderBlocks(pen, input.blocks);
+  let signature: MarkPoint | null = null;
+  if (signing) {
+    pen.y -= GAP;
+    signature = drawSignatureBlock(pen);
+  }
+  return { bytes: await doc.save(), marks: { initials: pen.initials ?? [], signature } };
+}
+
+/** The same PDF as bytes alone: the preview route and anything that never stores marks. */
+export async function buildDocumentPdf(input: DocumentPdfInput): Promise<Uint8Array> {
+  return (await renderDocumentPdf(input)).bytes;
+}
+```
+
+- [ ] **Step 5: Implement in `lib/dc/contract-pdf.ts`** (Edit tool only, which keeps CRLF)
+
+1. Replace line 8 with:
+
+```ts
+import { drawSignatureBlock, renderBlocks, type PdfPen, type RenderedPdf } from "@/lib/docs/pdf";
+import type { InitialsMark, MarkPoint } from "@/lib/pdf/sign-marks";
+```
+
+2. Replace lines 15–28 (`drawTerms` and `buildTermsPdf`) with:
+
+```ts
+/**
+ * The "Terms and Conditions" pages, from a new page. Same fonts and margins as the contract; the
+ * signed PDF then carries the exact terms signed. Numbered sections get initials boxes, their
+ * marks pushed onto `initials`. Answers the pen, so the signature block follows the terms.
+ */
+function drawTerms(doc: PDFDocument, regular: PDFFont, bold: PDFFont, text: string, initials: InitialsMark[]): PdfPen {
+  const pen: PdfPen = { doc, page: doc.addPage(LETTER), y: LETTER[1] - MARGIN, regular, bold, initials };
+  pen.page.drawText("Terms and Conditions", { x: MARGIN, y: pen.y, size: 14, font: bold, color: rgb(0.1, 0.1, 0.1) });
+  pen.y -= 26;
+  renderBlocks(pen, parseDocText(text));
+  return pen;
+}
+
+/** The terms pages alone, drawn exactly as buildContractPdf prints them (initials boxes and signature block included): the terms template's Preview PDF. */
+export async function buildTermsPdf(text: string): Promise<Uint8Array> {
+  const doc = await PDFDocument.create();
+  drawSignatureBlock(drawTerms(doc, await doc.embedFont(StandardFonts.Helvetica), await doc.embedFont(StandardFonts.HelveticaBold), text, []));
+  return doc.save();
+}
+```
+
+3. Rename line 31's function, keeping its doc comment, and change its return type:
+
+```ts
+export async function renderContractPdf(input: ContractInput, terms: ContractTerms): Promise<RenderedPdf> {
+```
+
+4. Replace lines 89–96 (from `if ("text" in terms) {` through `return doc.save();`) with:
+
+```ts
+  const initials: InitialsMark[] = [];
+  let signature: MarkPoint;
+  if ("text" in terms) {
+    signature = drawSignatureBlock(drawTerms(doc, regular, bold, terms.text, initials));
+  } else {
+    const uploaded = await PDFDocument.load(terms.pdf);
+    const copied = await doc.copyPages(uploaded, uploaded.getPageIndices());
+    for (const p of copied) doc.addPage(p);
+    // Uploaded terms have no sections we can find (spec §11): the block gets a final page of its own (spec §3).
+    const pen: PdfPen = { doc, page: doc.addPage(LETTER), y: LETTER[1] - MARGIN, regular, bold };
+    pen.page.drawText("Signature", { x: MARGIN, y: pen.y, size: 14, font: bold, color: rgb(0.1, 0.1, 0.1) });
+    pen.y -= 26;
+    signature = drawSignatureBlock(pen);
+  }
+  return { bytes: await doc.save(), marks: { initials, signature } };
+}
+
+/** The contract as bytes alone, for callers that never store marks (tests, scripts). */
+export async function buildContractPdf(input: ContractInput, terms: ContractTerms): Promise<Uint8Array> {
+  return (await renderContractPdf(input, terms)).bytes;
+}
+```
+
+- [ ] **Step 6: Run the tests, the preview-route test and typecheck**
+
+Run:
+```bash
+npx vitest run --maxWorkers=2 tests/docs/pdf.test.ts tests/dc/contract.test.ts tests/docs/preview-route.test.ts
+npm run typecheck
+git diff --stat
+```
+
+Expected:
+- PASS, and typecheck clean;
+- `git diff --stat` shows `lib/dc/contract-pdf.ts` with about 40 changed lines, not 97+ (a whole-file line-ending rewrite).
+
+If "keeps the whole signature block on one page" finds no run that needed a new page (`newPage` 0), widen the loop to `n < 90`. Do not weaken the assertion.
+
+- [ ] **Step 7: Power checks** (revert after each)
+  1. In `renderBlocks`, delete the `if (section && pen.initials) pen.initials.push(...)` line. "records an initials mark level with each numbered heading" should go red.
+  2. Move that line above `const freshPage = ensure(...)`. "a numbered heading pushed to the next page takes its box and its mark with it" should go red.
+  3. Replace `section ? WIDTH - INITIALS_GUTTER : WIDTH` with `WIDTH`. "wraps a numbered heading 64pt narrower" should go red.
+  4. Delete `ensure(pen, SIGNATURE_BLOCK.height);`. "keeps the whole signature block on one page" should go red.
+  5. Delete the "Signature" final page (draw the block straight after the copied pages). "puts the signature block on a final page of its own" should go red.
+
+- [ ] **Step 8: Commit**
+
+```bash
+git add lib/docs/pdf.ts lib/dc/contract-pdf.ts tests/docs/pdf.test.ts tests/dc/contract.test.ts
+git commit -m "feat: generated PDFs draw initials boxes and a signature block, and record where they are
+
+Power checks: <names>
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01VsZpDCE8YaRq5jxSkaAZGj"
+```
+
+---
+
+## Task 7: `createFile` stores sign marks; job deletion removes signature images
+
+**Files:**
+- Modify: `lib/admin/files.ts` (`createFile` lines 99–143, `listBlobPathnames` lines 80–91)
+- Test: `tests/admin/files.test.ts`, `tests/admin/delete-job.test.ts`
+
+**Interfaces:**
+- Consumes: `type SignMarks` (Task 3); the columns from Task 2.
+- Produces:
+  - `createFile(input: { leadId: string; kind: FileKind; name: string; contentType: string; body: Blob; actor: string; docType?: StoredDocType; signMarks?: SignMarks | null }): Promise<JobFile | null>`. The one new optional field is written in the same insert. Every existing caller compiles unchanged: `app/admin/jobs/[id]/files/route.ts`, `lib/dc/import.ts`, `lib/dc/send.ts`, `lib/docs/workflow.ts`, `lib/portal/service-request.ts`, `scripts/verify-dc-quote-import.ts`, `scripts/verify-documents.ts`, and `tests/admin/files*.test.ts`.
+  - `listBlobPathnames(leadId)` also returns the job's `contract_signatures` image pathnames.
+
+- [ ] **Step 1: Write the failing tests**
+
+Append to the `createFile` describe in `tests/admin/files.test.ts`:
+
+```ts
+  it("writes the sign marks in the same insert as the file, as jsonb", async () => {
+    sql.mockImplementation(async (strings: TemplateStringsArray) =>
+      strings.join("?").includes("select id from leads") ? [{ id: LEAD }] : [row],
+    );
+    const signMarks = { initials: [{ page: 1, x: 502, y: 700, section: "4" }], signature: { page: 2, x: 154, y: 300 } };
+    await files.createFile({
+      leadId: LEAD, kind: "document", name: "Contract.pdf", contentType: "application/pdf",
+      body: new Blob(["x"]), actor: "owner@example.com", docType: "contract", signMarks,
+    });
+    const insert = sql.mock.calls.find((c) => text(c).includes("insert into job_files"))!;
+    expect(text(insert)).toMatch(/doc_type, sign_marks\)/);
+    expect(text(insert)).toContain("?::jsonb");
+    expect(insert.slice(1)).toContain(JSON.stringify(signMarks));
+    // One statement: the marks cannot exist without the file, nor the file without its marks.
+    expect(sql.mock.calls.filter((c) => text(c).includes("insert into job_files"))).toHaveLength(1);
+  });
+
+  it("writes null marks for a file that has none (uploads, and anything not signed)", async () => {
+    sql.mockImplementation(async (strings: TemplateStringsArray) =>
+      strings.join("?").includes("select id from leads") ? [{ id: LEAD }] : [row],
+    );
+    await files.createFile({ leadId: LEAD, kind: "document", name: "Quote.pdf", contentType: "application/pdf", body: new Blob(["x"]), actor: "o" });
+    const insert = sql.mock.calls.find((c) => text(c).includes("insert into job_files"))!;
+    // values: id, lead, actor, kind, name, type, size, pathname, doc_type, sign_marks, then the event's actor and body.
+    expect(insert.slice(1)[9]).toBeNull();
+  });
+```
+
+Append to `describe("listBlobPathnames", …)` in `tests/admin/delete-job.test.ts`:
+
+```ts
+  it("also names the job's drawn signature images, which have no job_files row", async () => {
+    sql.mockResolvedValue([{ blob_pathname: PATH_A }, { blob_pathname: `jobs/${ID}/signatures/u-signature.png` }]);
+    await expect(listBlobPathnames(ID)).resolves.toEqual([PATH_A, `jobs/${ID}/signatures/u-signature.png`]);
+    const statement = text(sql.mock.calls[0]).replace(/\s+/g, " ");
+    expect(statement).toContain("from contract_signatures s");
+    expect(statement).toContain("unnest(array[s.signature_image_pathname, s.initials_image_pathname])");
+    expect(statement).toContain("p is not null");
+    // Both halves are limited to this job.
+    expect(sql.mock.calls[0].slice(1)).toEqual([ID, ID]);
+  });
+```
+
+- [ ] **Step 2: Run them to see them fail**
+
+Run: `npx vitest run --maxWorkers=2 tests/admin/files.test.ts tests/admin/delete-job.test.ts`
+Expected: FAIL on the three new tests.
+
+- [ ] **Step 3: Implement in `lib/admin/files.ts`**
+
+1. Add after line 6:
+
+```ts
+import type { SignMarks } from "@/lib/pdf/sign-marks";
+```
+
+2. Replace `listBlobPathnames`'s query (lines 89–90) with:
+
+```ts
+  // A drawn signature's images live in Blob but have no job_files row: named here too, or deleting
+  // the job would orphan them (contract_signatures cascades away with the job).
+  const rows = await db()`
+    select blob_pathname from job_files where lead_id = ${leadId}
+    union all
+    select p as blob_pathname
+    from contract_signatures s
+    cross join lateral unnest(array[s.signature_image_pathname, s.initials_image_pathname]) as p
+    where s.lead_id = ${leadId} and p is not null`;
+  return rows.map((row) => row.blob_pathname as string);
+```
+
+3. In `createFile`'s doc comment, after the `docType` paragraph, add:
+
+```ts
+ * `signMarks` (spec §3), where the client's initials and signature belong on a generated PDF, is
+ * written in the same insert too, so a PDF that will be signed never exists without them.
+```
+
+4. Add `signMarks?: SignMarks | null;` after `docType?: StoredDocType;` in the input type.
+
+5. Replace the insert's two lines (lines 128–130) with:
+
+```ts
+        insert into job_files (id, lead_id, uploaded_by, kind, name, content_type, size_bytes, blob_pathname, doc_type, sign_marks)
+        values (${id}, ${input.leadId}, ${input.actor}, ${input.kind}, ${input.name},
+                ${input.contentType}, ${input.body.size}, ${pathname}, ${input.docType ?? null},
+                ${input.signMarks ? JSON.stringify(input.signMarks) : null}::jsonb)
+```
+
+- [ ] **Step 4: Run the tests and typecheck**
+
+Run: `npx vitest run --maxWorkers=2 tests/admin/files.test.ts tests/admin/delete-job.test.ts tests/admin/files-dealer-copy.test.ts && npm run typecheck`
+Expected: PASS.
+
+- [ ] **Step 5: Power checks** (revert after each)
+  1. Replace the marks value with `null`. "writes the sign marks in the same insert" should go red.
+  2. Delete the `union all …` half. "also names the job's drawn signature images" should go red.
+  3. Delete `and p is not null`. That test should go red on the statement check.
+
+  The real-DB proof of both statements is Task 13.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add lib/admin/files.ts tests/admin/files.test.ts tests/admin/delete-job.test.ts
+git commit -m "feat: files carry their sign marks from birth; deleting a job removes signature images
+
+Power checks: <names>
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01VsZpDCE8YaRq5jxSkaAZGj"
+```
+
+---
