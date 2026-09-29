@@ -68,6 +68,18 @@ describe("TemplateForm", () => {
     expect(fields).toEqual(["client_name", "project_no", "today", "company_name", "company_phone", "company_email"]);
     expect(screen.getByRole("button", { name: "Create template" })).toBeInTheDocument();
   });
+  it("previews with the kind, so terms render as the contract prints them", () => {
+    const posted: Record<string, string>[] = [];
+    const submit = vi.spyOn(HTMLFormElement.prototype, "submit").mockImplementation(function (this: HTMLFormElement) {
+      posted.push(Object.fromEntries([...new FormData(this).entries()].map(([k, v]) => [k, String(v)])));
+    });
+    render(<TemplateForm template={null} />);
+    fireEvent.change(screen.getByLabelText("Kind"), { target: { value: "terms" } });
+    fireEvent.change(screen.getByLabelText("Text"), { target: { value: "## T" } });
+    fireEvent.click(screen.getByRole("button", { name: "Preview PDF" }));
+    expect(posted).toEqual([expect.objectContaining({ kind: "terms", response: "view", body: "## T" })]);
+    submit.mockRestore();
+  });
   it("offers no field at all for a guide", () => {
     render(<TemplateForm template={null} />);
     fireEvent.change(screen.getByLabelText("Kind"), { target: { value: "guide_care" } });

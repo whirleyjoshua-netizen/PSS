@@ -6,8 +6,7 @@ import { getJob, type Job } from "@/lib/admin/jobs";
 import { listInstallQuotes } from "@/lib/admin/install-quotes";
 import { formatCents } from "@/lib/admin/money";
 import { formatProjectNo } from "@/lib/portal/project-no";
-import { FIELD_KEYS, TERMS_FIELDS } from "@/lib/docs/fields";
-import { fieldValues, fillFields, type FieldValues } from "@/lib/docs/fill";
+import { fillFields, termsFieldValues } from "@/lib/docs/fill";
 import { remainingMarkers } from "@/lib/docs/parse";
 import { STARTER_TERMS } from "@/lib/docs/starter-terms";
 import { liveTemplateOfKind, type DocumentTemplate } from "@/lib/docs/templates";
@@ -45,9 +44,7 @@ function frozenPrice(version: StoredVersion): PricedVersion {
  * marker (a total, a deposit) stays and refuses, so terms never print a figure beside the contract's.
  */
 function fillTerms(template: DocumentTemplate, job: Job, now: Date): { text: string } | { error: string } {
-  const all = fieldValues(job, now);
-  const values = Object.fromEntries(FIELD_KEYS.map((key) => [key, TERMS_FIELDS.includes(key) ? all[key] : null])) as FieldValues;
-  const filled = fillFields(template.body, values);
+  const filled = fillFields(template.body, termsFieldValues(job, now));
   const left = remainingMarkers(filled.text);
   if (left.length > 0) {
     return { error: `Your contract terms have ${left.join(", ")} with no value for this job. Fix the terms on the Documents page.` };

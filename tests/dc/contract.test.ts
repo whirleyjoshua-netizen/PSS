@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { PDFDocument, PDFPage, StandardFonts, type PDFFont } from "pdf-lib";
 import { contractRows, keyDetails, winAnsiSafe, type ContractInput } from "@/lib/dc/contract-layout";
-import { buildContractPdf } from "@/lib/dc/contract-pdf";
+import { buildContractPdf, buildTermsPdf } from "@/lib/dc/contract-pdf";
 
 const input: ContractInput = {
   projectNo: "PSS-1042", version: 1, date: new Date("2026-09-28T12:00:00Z"),
@@ -194,6 +194,19 @@ describe("buildContractPdf", () => {
     expect(heading.y).toBe(792 - 54);
     expect(texts).toContain("4. Your Right to Cancel");
     expect(texts).toContain("3 business days");
+  });
+  it("previews terms alone exactly as the contract prints them: same heading, position and blocks", async () => {
+    const terms = "## 4. Your Right to Cancel\n\nCancel within **3 business days** of signing.";
+    const inContract = spyOnDrawText();
+    await buildContractPdf(input, { text: terms });
+    const start = inContract.findIndex(({ text }) => text === "Terms and Conditions");
+    const contractTerms = inContract.slice(start);
+    vi.restoreAllMocks();
+    const alone = spyOnDrawText();
+    const bytes = await buildTermsPdf(terms);
+    expect((await PDFDocument.load(bytes)).getPageCount()).toBe(1);
+    expect(alone).toEqual(contractTerms);
+    expect(alone.map(({ text }) => text)).not.toContain("The terms and conditions on the following pages are part of this contract.");
   });
   it("spills long text terms onto more pages inside the margins, drawing only encodable text", async () => {
     const drawn = spyOnDrawText();
