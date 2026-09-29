@@ -2,16 +2,43 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { createFile, deleteFile } from "@/lib/admin/files";
 import { formatProjectNo } from "@/lib/portal/project-no";
-import { IMPORT_ACTOR } from "./config";
+import { DC_SUBJECT, IMPORT_ACTOR } from "./config";
 import { htmlAttachments, listCandidateMessages } from "./mailbox";
-import { importEmail, notifyOwners } from "./notify";
+import { importEmail, notifyOwners, staleFailuresEmail } from "./notify";
 import { parseDealerCopy } from "./parse";
 import { findJobByProjectNo, getDcSettings, importVersion, isProcessed, latestSha, recordOutcome, setLastPolledAt } from "./store";
-import type { ImportOutcome } from "./types";
+import type { DcQuote, ImportOutcome } from "./types";
 
 type Result = { outcome: ImportOutcome; leadId: string | null; detail: string | null; version?: number };
 const OVERLAP_MS = 60 * 60 * 1000;
-const FIRST_RUN_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000;
+/**
+ * Only when last_polled_at is null. Migration 024 sets the mark when it creates the table, so the
+ * first production run never reaches back to the Dealer Copies sent while testing; this short
+ * window is the second line of defence if the mark is ever cleared.
+ */
+const FIRST_RUN_LOOKBACK_MS = 60 * 60 * 1000;
+/** A message still failing this long after it arrived is worth a developer's look. */
+const STALE_FAILURE_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * The fingerprint of what DC quoted, not of the email's bytes: every Dealer Copy carries a
+ * per-email tracking-pixel URL, so hashing the raw HTML would make every re-send look new.
+ * Every field is named here in a fixed order, so the hash cannot drift with object key order.
+ */
+export function quoteSha256(q: DcQuote): string {
+  const canonical = {
+    quoteNo: q.quoteNo, poReference: q.poReference, projectNo: q.projectNo, clientName: q.clientName,
+    lines: q.lines.map((l) => ({
+      position: l.position, qty: l.qty, room: l.room, description: l.description, collection: l.collection,
+      baseCents: l.baseCents, promotionCents: l.promotionCents, optionsCents: l.optionsCents,
+      msrpUnitCents: l.msrpUnitCents, costFactor: l.costFactor, costUnitCents: l.costUnitCents,
+      costExtendedCents: l.costExtendedCents, options: l.options.map(([label, value]) => [label, value]),
+    })),
+    subtotalCents: q.subtotalCents, handlingFeeCents: q.handlingFeeCents,
+    oversizedFeeCents: q.oversizedFeeCents, dealerTotalCents: q.dealerTotalCents,
+  };
+  return createHash("sha256").update(JSON.stringify(canonical)).digest("hex");
+}
 
 async function tell(result: Result, dcQuoteNo: string | null, projectNo: number | null) {
   const email = importEmail({ ...result, dcQuoteNo, projectNo: formatProjectNo(projectNo), jobId: result.leadId });
@@ -26,13 +53,16 @@ export async function importDealerCopy(input: { internetMessageId: string; recei
   const parsed = parseDealerCopy(input.html);
   if (!parsed.ok) {
     const result: Result = { outcome: parsed.refusal.outcome, leadId: null, detail: parsed.refusal.detail };
-    await recordOutcome({ ...base, outcome: result.outcome, leadId: null, dcQuoteNo: null, detail: result.detail });
-    await tell(result, null, null);
+    const dcQuoteNo = parsed.refusal.quoteNo ?? null;
+    await recordOutcome({ ...base, outcome: result.outcome, leadId: null, dcQuoteNo, detail: result.detail });
+    await tell(result, dcQuoteNo, null);
     return result;
   }
   const quote = parsed.quote;
   // The release gate: the job is found by the exact PSS number in PO Reference, or not at all.
-  const job = await findJobByProjectNo(quote.projectNo);
+  // "Exact" is the printed text: PSS-01042 names 1042 as a number but is not job 1042's number.
+  const found = await findJobByProjectNo(quote.projectNo);
+  const job = found && formatProjectNo(found.projectNo) === quote.poReference ? found : null;
   if (!job) {
     const result: Result = { outcome: "no-match", leadId: null, detail: quote.poReference };
     await recordOutcome({ ...base, outcome: "no-match", leadId: null, dcQuoteNo: quote.quoteNo, detail: quote.poReference });
@@ -40,7 +70,7 @@ export async function importDealerCopy(input: { internetMessageId: string; recei
     return result;
   }
 
-  const sha256 = createHash("sha256").update(input.html).digest("hex");
+  const sha256 = quoteSha256(quote);
   if ((await latestSha(job.id)) === sha256) {
     await recordOutcome({ ...base, outcome: "unchanged", leadId: job.id, dcQuoteNo: quote.quoteNo, detail: null });
     return { outcome: "unchanged", leadId: job.id, detail: null };
@@ -76,6 +106,7 @@ export async function pollMailbox(now = new Date()): Promise<{ seen: number; res
   const since = new Date((lastPolledAt?.getTime() ?? now.getTime() - FIRST_RUN_LOOKBACK_MS) - OVERLAP_MS);
   const messages = await listCandidateMessages(since);
   const results: { messageId: string; outcome: ImportOutcome }[] = [];
+  const stale: { quoteNo: string | null; receivedAt: Date }[] = [];
   let failed = false;
   for (const message of messages) {
     try {
@@ -96,7 +127,14 @@ export async function pollMailbox(now = new Date()): Promise<{ seen: number; res
       console.error(`DC import failed for ${message.internetMessageId}`, error);
       results.push({ messageId: message.internetMessageId, outcome: "failed" });
       failed = true;
+      if (now.getTime() - message.receivedAt.getTime() > STALE_FAILURE_MS) {
+        stale.push({ quoteNo: DC_SUBJECT.exec(message.subject)?.[1] ?? null, receivedAt: message.receivedAt });
+      }
     }
+  }
+  if (stale.length > 0) {
+    // One email per run, however many are stuck. Still not recorded, so each keeps being retried.
+    await notifyOwners(staleFailuresEmail(stale)).catch((error) => console.error("DC import failure warning email failed", error));
   }
   if (!failed) await setLastPolledAt(now);
   return { seen: messages.length, results };

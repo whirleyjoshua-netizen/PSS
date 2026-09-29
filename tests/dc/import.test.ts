@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 
 const store = {
@@ -8,13 +8,18 @@ const store = {
 vi.mock("@/lib/dc/store", () => store);
 const files = { createFile: vi.fn(), deleteFile: vi.fn() };
 vi.mock("@/lib/admin/files", () => files);
-const notify = { notifyOwners: vi.fn().mockResolvedValue(undefined), importEmail: vi.fn(() => ({ subject: "s", text: "t" })) };
+const notify = {
+  notifyOwners: vi.fn().mockResolvedValue(undefined), importEmail: vi.fn(() => ({ subject: "s", text: "t" })),
+  staleFailuresEmail: vi.fn(() => ({ subject: "stale", text: "t" })),
+};
 vi.mock("@/lib/dc/notify", () => notify);
 const mailbox = { listCandidateMessages: vi.fn(), htmlAttachments: vi.fn() };
 vi.mock("@/lib/dc/mailbox", () => mailbox);
 const { importDealerCopy, pollMailbox } = await import("@/lib/dc/import");
 
 const ONE = readFileSync("tests/fixtures/dc/dealer-copy-1-line.html", "utf8");
+/** The Client: cell's value in the fixture, with the label cell captured as $1. */
+const CLIENT_CELL = /(<b>Client:<\/b><\/td><td>)Test</;
 const JOB_A = { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", name: "A", projectNo: 1042 };
 const input = { internetMessageId: "<m1@x>", receivedAt: new Date("2026-09-27T19:30:00Z"), html: ONE };
 
@@ -43,14 +48,43 @@ describe("importDealerCopy", () => {
     expect(store.importVersion).not.toHaveBeenCalled();
     expect(store.recordOutcome).toHaveBeenCalledWith(expect.objectContaining({ outcome: "no-match", leadId: null }));
   });
-  it("an identical re-send (e.g. after the email moved folders) is 'unchanged', not v2", async () => {
+  /** The hash an import of `html` stores, read from what importDealerCopy passed to importVersion. */
+  const storedSha = async (html: string): Promise<string> => {
     store.findJobByProjectNo.mockResolvedValue(JOB_A);
-    const { createHash } = await import("node:crypto");
-    store.latestSha.mockResolvedValue(createHash("sha256").update(ONE).digest("hex"));
+    await importDealerCopy({ ...input, internetMessageId: "<first@x>", html });
+    const sha = store.importVersion.mock.calls.at(-1)![0].sha256 as string;
+    for (const f of [...Object.values(store), ...Object.values(files)]) f.mockClear();
+    notify.importEmail.mockClear();
+    notify.notifyOwners.mockClear();
+    return sha;
+  };
+
+  it("an identical re-send (e.g. after the email moved folders) is 'unchanged', not v2", async () => {
+    store.latestSha.mockResolvedValue(await storedSha(ONE));
     const result = await importDealerCopy({ ...input, internetMessageId: "<m1-moved@x>" });
     expect(result.outcome).toBe("unchanged");
     expect(files.createFile).not.toHaveBeenCalled();
     expect(store.recordOutcome).toHaveBeenCalledWith(expect.objectContaining({ outcome: "unchanged" }));
+  });
+  it("a re-send whose only difference is DC's per-email tracking pixel is 'unchanged': no version, no email", async () => {
+    const pixel = /awstrack\.me\/I0\/[^"']+/;
+    expect(ONE).toMatch(pixel);
+    const resent = ONE.replace(pixel, "awstrack.me/I0/010001a0ffffffff-00000000-0000-0000-0000-000000000000-000000/other=473");
+    expect(resent).not.toBe(ONE);
+    store.latestSha.mockResolvedValue(await storedSha(ONE));
+    const result = await importDealerCopy({ ...input, internetMessageId: "<m1-resent@x>", html: resent });
+    expect(result.outcome).toBe("unchanged");
+    expect(files.createFile).not.toHaveBeenCalled();
+    expect(store.importVersion).not.toHaveBeenCalled();
+    expect(notify.notifyOwners).not.toHaveBeenCalled();
+    expect(store.recordOutcome).toHaveBeenCalledWith(expect.objectContaining({ outcome: "unchanged", dcQuoteNo: "22250749" }));
+  });
+  it("a copy whose quote content changed is a new version (the hash is of the quote, not a constant)", async () => {
+    store.latestSha.mockResolvedValue(await storedSha(ONE));
+    const changed = ONE.replace(CLIENT_CELL, "$1Test Two<");
+    expect(changed).not.toBe(ONE);
+    const result = await importDealerCopy({ ...input, internetMessageId: "<m2@x>", html: changed });
+    expect(result.outcome).toBe("imported");
   });
   it("an already-processed message does nothing at all", async () => {
     store.isProcessed.mockResolvedValue(true);
@@ -62,6 +96,22 @@ describe("importDealerCopy", () => {
     const result = await importDealerCopy({ ...input, html: ONE.replace("DEALER COSTS", "") });
     expect(result.outcome).toBe("no-costs");
     expect(files.createFile).not.toHaveBeenCalled();
+  });
+  it("a parse refusal keeps the quote number it read: recorded, and named in the owners' email", async () => {
+    notify.importEmail.mockClear();
+    await importDealerCopy({ ...input, html: ONE.replace("DEALER COSTS", "") });
+    expect(store.recordOutcome).toHaveBeenCalledWith(expect.objectContaining({ outcome: "no-costs", dcQuoteNo: "22250749" }));
+    expect(notify.importEmail).toHaveBeenCalledWith(expect.objectContaining({ outcome: "no-costs", dcQuoteNo: "22250749" }));
+  });
+  it("RELEASE GATE: a PO that names the job's number in another spelling (PSS-01042) is no-match", async () => {
+    store.findJobByProjectNo.mockResolvedValue(JOB_A);
+    const html = ONE.replace("<td>PSS-1042</td>", "<td>PSS-01042</td>");
+    expect(html).not.toBe(ONE);
+    const result = await importDealerCopy({ ...input, html });
+    expect(result).toMatchObject({ outcome: "no-match", leadId: null, detail: "PSS-01042" });
+    expect(files.createFile).not.toHaveBeenCalled();
+    expect(store.importVersion).not.toHaveBeenCalled();
+    expect(store.recordOutcome).toHaveBeenCalledWith(expect.objectContaining({ outcome: "no-match", leadId: null }));
   });
   it("if the import statement inserts nothing (a race), the stored copy is removed", async () => {
     store.findJobByProjectNo.mockResolvedValue(JOB_A);
@@ -89,11 +139,7 @@ describe("importDealerCopy", () => {
     spy.mockRestore();
   });
   it("an unchanged re-send emails nobody", async () => {
-    store.findJobByProjectNo.mockResolvedValue(JOB_A);
-    const { createHash } = await import("node:crypto");
-    store.latestSha.mockResolvedValue(createHash("sha256").update(ONE).digest("hex"));
-    notify.notifyOwners.mockClear();
-    notify.importEmail.mockClear();
+    store.latestSha.mockResolvedValue(await storedSha(ONE));
     await importDealerCopy(input);
     expect(notify.importEmail).not.toHaveBeenCalled();
     expect(notify.notifyOwners).not.toHaveBeenCalled();
@@ -165,10 +211,53 @@ describe("pollMailbox", () => {
     expect(store.recordOutcome).not.toHaveBeenCalled();
     expect(store.setLastPolledAt).not.toHaveBeenCalled();
   });
-  it("looks back a week on the very first run", async () => {
+  it("looks back only an hour (plus the overlap) on the very first run", async () => {
     store.getDcSettings.mockResolvedValue({ lastPolledAt: null });
     mailbox.listCandidateMessages.mockResolvedValue([]);
     await pollMailbox(new Date("2026-09-27T19:00:00Z"));
-    expect(mailbox.listCandidateMessages).toHaveBeenCalledWith(new Date("2026-09-20T18:00:00Z"));
+    expect(mailbox.listCandidateMessages).toHaveBeenCalledWith(new Date("2026-09-27T17:00:00Z"));
+  });
+
+  describe("a message that keeps failing", () => {
+    const NOW = new Date("2026-09-28T12:00:00Z");
+    const old = (n: number, hoursAgo: number) => ({
+      ...message, id: `g${n}`, internetMessageId: `<old${n}@x>`, subject: `DEALER COPY #2225074${n}, PO PSS-1042`,
+      receivedAt: new Date(NOW.getTime() - hoursAgo * 3_600_000),
+    });
+    let spy: ReturnType<typeof vi.spyOn>;
+    beforeEach(() => {
+      store.getDcSettings.mockResolvedValue({ lastPolledAt: new Date("2026-09-28T11:45:00Z") });
+      mailbox.htmlAttachments.mockRejectedValue(new Error("Graph GET failed (503)"));
+      notify.notifyOwners.mockReset().mockResolvedValue(undefined);
+      notify.staleFailuresEmail.mockClear();
+      spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    });
+    afterEach(() => spy.mockRestore());
+
+    it("emails the owners once per run, naming each quote failing for over 24 hours, and still does not record it", async () => {
+      mailbox.listCandidateMessages.mockResolvedValue([old(1, 25), old(2, 30), old(3, 2)]);
+      const { results } = await pollMailbox(NOW);
+      expect(results.map((r) => r.outcome)).toEqual(["failed", "failed", "failed"]);
+      expect(notify.staleFailuresEmail).toHaveBeenCalledOnce();
+      expect(notify.staleFailuresEmail).toHaveBeenCalledWith([
+        { quoteNo: "22250741", receivedAt: old(1, 25).receivedAt },
+        { quoteNo: "22250742", receivedAt: old(2, 30).receivedAt },
+      ]);
+      expect(notify.notifyOwners).toHaveBeenCalledOnce();
+      expect(notify.notifyOwners).toHaveBeenCalledWith({ subject: "stale", text: "t" });
+      expect(store.recordOutcome).not.toHaveBeenCalled();
+      expect(store.setLastPolledAt).not.toHaveBeenCalled();
+    });
+    it("says nothing about a failure younger than 24 hours: the next run retries it", async () => {
+      mailbox.listCandidateMessages.mockResolvedValue([old(3, 23)]);
+      await pollMailbox(NOW);
+      expect(notify.notifyOwners).not.toHaveBeenCalled();
+    });
+    it("a failed warning email is logged, not thrown", async () => {
+      mailbox.listCandidateMessages.mockResolvedValue([old(1, 25)]);
+      notify.notifyOwners.mockRejectedValueOnce(new Error("Resend down"));
+      await expect(pollMailbox(NOW)).resolves.toMatchObject({ results: [{ outcome: "failed" }] });
+      expect(spy).toHaveBeenCalledWith("DC import failure warning email failed", expect.any(Error));
+    });
   });
 });

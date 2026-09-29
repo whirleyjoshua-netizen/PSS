@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const send = vi.fn();
 vi.mock("resend", () => ({ Resend: class { emails = { send }; } }));
 vi.mock("@/lib/leads/email", () => ({ ownerRecipients: () => ["owner@example.com"] }));
-const { importEmail, notifyOwners } = await import("@/lib/dc/notify");
+const { importEmail, notifyOwners, staleFailuresEmail } = await import("@/lib/dc/notify");
 
 beforeEach(() => {
   send.mockReset().mockResolvedValue({ error: null });
@@ -21,13 +21,36 @@ describe("importEmail", () => {
   it("a no-match tells the owner how to fix the PO Reference and send again", () => {
     const email = importEmail({ outcome: "no-match", dcQuoteNo: "22250749", projectNo: null, jobId: null, detail: "PSS-9999" });
     expect(email?.subject).toBe("DC quote 22250749 could not be matched to a job");
-    expect(email?.text).toContain("(PSS-9999)");
+    expect(email?.text).toContain("PSS-9999");
     expect(email?.text).toContain("Reports → Dealer Copy → Email");
     expect(email?.text).not.toContain("/admin/jobs/");
+  });
+  it("a no-match says the PSS number matches no job, not that it is invalid", () => {
+    const email = importEmail({ outcome: "no-match", dcQuoteNo: "22250749", projectNo: null, jobId: null, detail: "PSS-9999" });
+    expect(email?.text).toContain("DC quote 22250749 names PSS-9999 but no job has that number.");
+    expect(email?.text).not.toContain("no valid PSS number");
+  });
+  it("a no-po says there is no valid PSS number in PO Reference", () => {
+    const email = importEmail({ outcome: "no-po", dcQuoteNo: "22250749", projectNo: null, jobId: null, detail: 'Quote 22250749 has PO Reference "852"' });
+    expect(email?.subject).toBe("DC quote 22250749 could not be matched to a job");
+    expect(email?.text).toContain("DC quote 22250749 has no valid PSS number in PO Reference");
+    expect(email?.text).not.toContain("no job has that number");
   });
   it("says nothing for unchanged or failed", () => {
     expect(importEmail({ outcome: "unchanged", dcQuoteNo: null, projectNo: null, jobId: null, detail: null })).toBeNull();
     expect(importEmail({ outcome: "failed", dcQuoteNo: null, projectNo: null, jobId: null, detail: null })).toBeNull();
+  });
+});
+
+describe("staleFailuresEmail", () => {
+  it("names each quote and the date it has failed since, and asks for a developer", () => {
+    const email = staleFailuresEmail([
+      { quoteNo: "22250749", receivedAt: new Date("2026-09-26T19:30:00Z") },
+      { quoteNo: null, receivedAt: new Date("2026-09-25T19:30:00Z") },
+    ]);
+    expect(email.subject).toBe("A Dealer Copy has failed to import for over a day");
+    expect(email.text).toContain("A Dealer Copy (quote #22250749) has failed to import since Sep 26, 2026. A developer should look.");
+    expect(email.text).toContain("A Dealer Copy (quote number unknown) has failed to import since Sep 25, 2026. A developer should look.");
   });
 });
 
