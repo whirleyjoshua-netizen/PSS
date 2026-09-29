@@ -74,7 +74,7 @@ Every task's requirements include these.
 6. **`buildTermsPdf` draws exactly what the contract prints after its terms**, initials boxes and signature block included. The existing test "previews terms alone exactly as the contract prints them" pins this.
 7. **Legacy uploaded terms get a final page** headed "Signature" (bold 14pt, like "Terms and Conditions"), holding the signature block. Its marks are `{ initials: [], signature }`.
 8. **Where the file's marks come from at signing:** `signableContracts` reads `sign_marks` in a fourth parallel query and returns `SignableFile.signMarks`. `listSharedDocuments` stays a named-column, customer-facing list and does not gain the column.
-9. **Where the stamp gets the drawn PNGs:** the action passes the validated in-memory buffers (the same bytes `recordSignature` stored) into `after()`. The method and typed initials are re-read from the recorded row through `signatureFor`, as the name already is.
+9. **What the stamp draws from:** the action passes the validated `Adoption` (the exact values `recordSignature` wrote, drawn PNG buffers included) into `after()`, along with the file's marks. The name, email, time and fingerprint are still re-read from the recorded row through `signatureFor`, as today. The stamp never reads the PNGs back from Blob.
 10. **Other-mode fields are ignored, not refused.**
     - In typed mode, image fields are ignored.
     - In drawn mode, `signedInitials` is ignored.
@@ -2306,7 +2306,7 @@ In `tests/portal/stamp.test.ts`, add after `facts`:
 const TYPED = { method: "typed", initials: null } as const;
 ```
 
-Every existing call `stampSignature(x, f)` becomes `stampSignature(x, f, TYPED, null)`: 7 calls, at lines 44, 51, 62, 68, 74 and 78 (two in the forged-name test on line 74: count them with grep). Also rename the first test to `"appends a signature page, and draws nothing on the original's pages when the file has no marks"`, keeping its body.
+Every existing call `stampSignature(x, f)` becomes `stampSignature(x, f, TYPED, null)`: 6 calls, at lines 44, 51, 62, 68, 74 and 78. Also rename the first test to `"appends a signature page, and draws nothing on the original's pages when the file has no marks"`, keeping its body.
 
 - [ ] **Step 2: Write the failing tests** (append to `tests/portal/stamp.test.ts`)
 
@@ -2576,6 +2576,9 @@ export async function stampSignature(
 
 The signed name, the email and the "Signed by" line are still drawn raw in Helvetica, so a name Helvetica cannot draw still answers null. The existing test pins that, and `STAMP_REASONS` in `lib/portal/send-signature-email.ts` names it.
 
+If "answers null … corrupt" fails because pdf-lib's PNG decoder does not throw on `corruptPng`'s data, do not weaken the test. Report it to the controller: the spec §6 validation would then need an IDAT sanity check, and that is the owner's call.
+
+
 - [ ] **Step 5: Run the tests and check types**
 
 Run:
@@ -2603,9 +2606,6 @@ Power checks: <names>
 Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01VsZpDCE8YaRq5jxSkaAZGj"
 ```
-
----
-If "answers null … corrupt" fails because pdf-lib's PNG decoder does not throw on `corruptPng`'s data, do not weaken the test. Report it to the controller: the spec §6 validation would then need an IDAT sanity check, and that is the owner's call.
 
 ---
 
