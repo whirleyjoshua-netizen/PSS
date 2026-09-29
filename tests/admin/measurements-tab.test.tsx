@@ -13,7 +13,7 @@ const PHOTO = "5b4d0e3a-0e74-4c75-9c3e-3f4a5b6c7d8e";
 const m: WindowMeasurement = {
   id: WIN, leadId: JOB, position: 1, room: "Kitchen", label: "Window 1", widthEighths: 35 * 8 + 5,
   heightEighths: 48 * 8, depthEighths: null, mount: "inside", requirements: [], notes: "Over sink",
-  photoFileId: PHOTO, measuredBy: "joshua@example.com", createdAt: new Date(), updatedAt: new Date(),
+  photoFileId: PHOTO, quantity: 1, measuredBy: "joshua@example.com", createdAt: new Date(), updatedAt: new Date(),
 };
 const photo: JobFile = {
   id: PHOTO, leadId: JOB, createdAt: new Date(), uploadedBy: "joshua@example.com", kind: "photo",
@@ -30,6 +30,15 @@ describe("MeasurementsTab", () => {
     expect(within(row).getByText("Over sink")).toBeInTheDocument();
     expect(within(row).getByRole("link", { name: "Edit" })).toHaveAttribute("href", `/admin/jobs/${JOB}/measure/${WIN}`);
     expect(screen.getByRole("link", { name: "Add measurement" })).toHaveAttribute("href", `/admin/jobs/${JOB}/measure`);
+  });
+
+  it("counts windows, not lines, and shows each line's quantity", () => {
+    const second = { ...m, id: "6c5e1f4b-1f85-4d86-8d4f-4a5b6c7d8e9f", room: "Den", label: null, photoFileId: null, quantity: 10 };
+    render(<MeasurementsTab jobId={JOB} measurements={[{ ...m, quantity: 2 }, second]} files={[photo]} />);
+    expect(screen.getByRole("heading", { name: "Measurements · 12" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Qty" })).toBeInTheDocument();
+    expect(within(screen.getByRole("row", { name: /Den/ })).getByRole("cell", { name: "10" })).toBeInTheDocument();
+    expect(within(screen.getByRole("row", { name: /Kitchen/ })).getByRole("cell", { name: "2" })).toBeInTheDocument();
   });
 
   it("names the photo file in its share control", () => {

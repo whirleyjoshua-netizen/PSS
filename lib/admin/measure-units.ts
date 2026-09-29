@@ -19,6 +19,13 @@ export function formatEighths(total: number | null): string {
   return inches ? `${inches} ${GLYPHS[eighth]}″` : `${GLYPHS[eighth]}″`;
 }
 
+/** One saved line can stand for several identical windows, so a job's window count is the sum. */
+export const MAX_QUANTITY = 99;
+export const windowCount = (lines: { quantity: number }[]) => lines.reduce((sum, line) => sum + line.quantity, 0);
+
+/** Tells the customer the window they picked is one of several identical ones, so they say which. */
+export const oneOf = (quantity: number) => (quantity > 1 ? ` (one of ${quantity})` : "");
+
 export const ROOMS = [
   "Living room", "Family room", "Kitchen", "Dining room", "Primary bedroom",
   "Bedroom", "Bathroom", "Office", "Patio",

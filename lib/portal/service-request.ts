@@ -3,6 +3,7 @@ import { after } from "next/server";
 import { createFile } from "@/lib/admin/files";
 import { createJob, getJob } from "@/lib/admin/jobs";
 import { describe as describeWindow, listMeasurements } from "@/lib/admin/measurements";
+import { oneOf } from "@/lib/admin/measure-units";
 import { isInstalled } from "@/lib/admin/stages";
 import { formatProjectNo } from "./project-no";
 import { notifyOwnersOfServiceRequest } from "./send-service-email";
@@ -86,7 +87,7 @@ export async function requestService(
     : undefined;
   const typed = (input.windowText ?? "").trim();
   if (input.windowId && !measured && !typed) return { status: "unknown-window" };
-  const window = measured ? describeWindow(measured) : typed;
+  const window = measured ? describeWindow(measured) + oneOf(measured.quantity) : typed;
   const details = (input.details ?? "").trim();
 
   const notes = [

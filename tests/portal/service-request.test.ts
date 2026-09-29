@@ -167,6 +167,12 @@ describe("what it creates", () => {
     expect(notes).toContain(WINDOW);
   });
 
+  it("records that the window is one of several identical ones", async () => {
+    listMeasurements.mockResolvedValue([{ id: WINDOW, room: "Den", label: null, quantity: 10 }]);
+    await requestService(MINE, form({ windowId: WINDOW, windowText: undefined }));
+    expect(notesOf()).toContain(`Window: Den (one of 10) (window id ${WINDOW})`);
+  });
+
   it("falls back to the customer's own words for a window that was never measured", async () => {
     await requestService(MINE, form({ windowText: "Upstairs landing" }));
     expect(notesOf()).toContain("Upstairs landing");

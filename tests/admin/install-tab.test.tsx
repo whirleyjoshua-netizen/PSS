@@ -73,9 +73,20 @@ describe("InstallCalculator", () => {
 
     rerender(<InstallCalculator jobId={JOB} rates={rates} settings={settings} saved={[]} measurements={[{
       id: "m", room: "Kitchen", label: null, widthEighths: 240, heightEighths: 320,
-      requirements: ["high_ladder"],
+      requirements: ["high_ladder"], quantity: 1,
     }]} />);
     expect(screen.getByRole("button", { name: /fill from measurements/i })).toBeInTheDocument();
+  });
+
+  it("fills a measured line of identical windows as one line with that count", async () => {
+    const user = userEvent.setup();
+    render(<InstallCalculator jobId={JOB} rates={rates} settings={settings} saved={[]} measurements={[
+      { id: "a", room: "Den", label: null, widthEighths: 240, heightEighths: 320, requirements: [], quantity: 10 },
+      { id: "b", room: "Kitchen", label: null, widthEighths: 200, heightEighths: 300, requirements: [], quantity: 1 },
+    ]} />);
+    await user.click(screen.getByRole("button", { name: /fill from measurements/i }));
+    const counts = screen.getAllByLabelText(/^windows$/i).map((input) => (input as HTMLInputElement).value);
+    expect(counts).toEqual(["10", "1"]);
   });
 
   it("notes on a saved price when the minimum applied, and what the lines came to", () => {
@@ -155,8 +166,8 @@ describe("InstallCalculator", () => {
   it("fills one line per measured window, carrying its width and requirements", async () => {
     const user = userEvent.setup();
     render(<InstallCalculator jobId={JOB} rates={footRates} settings={settings} saved={[]} measurements={[
-      { id: "m1", room: "Kitchen", label: null, widthEighths: 240, heightEighths: 320, requirements: ["hard_surface"] },
-      { id: "m2", room: "Den", label: null, widthEighths: 300, heightEighths: 400, requirements: ["high_ladder"] },
+      { id: "m1", room: "Kitchen", label: null, widthEighths: 240, heightEighths: 320, requirements: ["hard_surface"], quantity: 1 },
+      { id: "m2", room: "Den", label: null, widthEighths: 300, heightEighths: 400, requirements: ["high_ladder"], quantity: 1 },
     ]} />);
     await user.selectOptions(screen.getByLabelText("Treatment for measured windows"), "vertical_blinds");
     await user.click(screen.getByRole("button", { name: /fill from measurements/i }));

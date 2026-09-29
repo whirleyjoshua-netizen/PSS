@@ -4,7 +4,7 @@ import { CALL_OUTCOMES, type CallInput } from "./call";
 import { gateCodeField, treatmentTypesField, windowCountExactField } from "@/lib/leads/questionnaire-schema";
 import { BUDGET_TIERS } from "./budget";
 import { WORKING_STAGES } from "./stages";
-import { MAX_EIGHTHS, REQUIREMENTS, toEighths, type Requirement } from "./measure-units";
+import { MAX_EIGHTHS, MAX_QUANTITY, REQUIREMENTS, toEighths, type Requirement } from "./measure-units";
 import { callBackProblem, FOLLOW_UP_NOTE_MAX } from "./follow-up";
 import { CONTACT_METHOD_KEYS, CONTACT_NOTE_MAX, type ContactMethod } from "./contact";
 import { dollarsToCents } from "./money";
@@ -123,6 +123,12 @@ const inches = z.preprocess(
 );
 const eighth = z.coerce.number().int().min(0).max(7).default(0);
 const requirementValues = REQUIREMENTS.map((r) => r.value) as [Requirement, ...Requirement[]];
+const QUANTITY_MESSAGE = `Quantity must be a whole number from 1 to ${MAX_QUANTITY}`;
+const quantity = z.preprocess(
+  blank,
+  z.coerce.number({ error: QUANTITY_MESSAGE }).int(QUANTITY_MESSAGE).min(1, QUANTITY_MESSAGE)
+    .max(MAX_QUANTITY, QUANTITY_MESSAGE).default(1),
+);
 const uuid = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, "Unknown photo");
 
 const dimension = (label: string, required: boolean) =>
@@ -154,6 +160,7 @@ export const measurementSchema = z
     requirements: z.array(z.enum(requirementValues)).default([]),
     notes: z.preprocess(blank, z.string().trim().max(1000).optional()),
     photoFileId: z.preprocess(blank, uuid.optional()),
+    quantity,
   })
   .transform((value, ctx) => {
     const width = dimension("width", true).safeParse({ in: value.widthIn, eighth: value.widthEighth });
@@ -175,6 +182,7 @@ export const measurementSchema = z
       requirements: value.requirements,
       notes: value.notes ?? null,
       photoFileId: value.photoFileId ?? null,
+      quantity: value.quantity,
     };
   });
 

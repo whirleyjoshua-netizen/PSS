@@ -71,6 +71,16 @@ describe("OverviewTab", () => {
     expect(within(order).getByRole("link", { name: "Order paperwork" })).toHaveAttribute("href", "/admin/files/doc-1");
   });
 
+  it("counts measured windows, not saved lines", () => {
+    const line = {
+      id: "w", leadId: ID, position: 1, room: "Den", label: null, widthEighths: 240, heightEighths: 320,
+      depthEighths: null, mount: "inside" as const, requirements: [], notes: null, photoFileId: null,
+      measuredBy: "x", createdAt: now, updatedAt: now,
+    };
+    render(<OverviewTab {...base} measurements={[{ ...line, quantity: 10 }, { ...line, id: "v", quantity: 2 }]} />);
+    expect(screen.getByRole("region", { name: "Measurements" })).toHaveTextContent("12 windows");
+  });
+
   it("keeps Add measurement on the Measurements card", () => {
     render(<OverviewTab {...base} />);
     const measurements = screen.getByRole("region", { name: "Measurements" });

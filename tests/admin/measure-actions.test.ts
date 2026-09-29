@@ -38,6 +38,19 @@ describe("saveMeasurement", () => {
     );
   });
 
+  it("passes the quantity typed on the form through to the save", async () => {
+    measurements.addMeasurement.mockResolvedValue(WIN);
+    await actions.saveMeasurement(LEAD, null, window({ quantity: "10" }));
+    expect(measurements.addMeasurement).toHaveBeenCalledWith(
+      LEAD, expect.objectContaining({ quantity: 10 }), "owner@example.com",
+    );
+  });
+
+  it("keeps a typed quantity when the save is refused", async () => {
+    const state = await actions.saveMeasurement(LEAD, null, window({ quantity: "10", mount: "" }));
+    expect(state.values).toMatchObject({ quantity: "10" });
+  });
+
   it("updates an existing window", async () => {
     measurements.updateMeasurement.mockResolvedValue(true);
     expect(await actions.saveMeasurement(LEAD, WIN, window())).toEqual({ ok: true });
