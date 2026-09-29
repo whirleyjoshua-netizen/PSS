@@ -58,11 +58,12 @@ export async function acknowledgementFor(fileId: string): Promise<Acknowledgemen
  * Records one acknowledgement (spec §7). Does NOT check ownership: every caller first re-derives
  * the customer's jobs from the session and the document from acknowledgeableDocuments.
  *
- * The fingerprint is of the bytes actually served. One statement writes the record, completes
- * the document and logs the event; the insert happens only while the document is still a sent,
- * shared acknowledge document of this job (a void that won the race leaves nothing to write), and
- * `on conflict do nothing` makes a second submission a no-op. The timeline names the document,
- * never the typed name.
+ * The fingerprint is of the bytes actually served. One statement, and the document's move from
+ * 'sent' to 'completed' comes FIRST: the record and the event are inserted only from the row that
+ * update returned. Postgres re-checks an update's where clause against a row a concurrent
+ * transaction just changed, so a void (or a second submission) that commits first leaves the
+ * update matching nothing, and nothing at all is written. `on conflict (file_id) do nothing` still
+ * guards the record itself. The timeline names the document, never the typed name.
  */
 export async function recordAcknowledgement(input: {
   jobId: string; document: AcknowledgeableDocument; name: string; email: string; ip: string | null; userAgent: string | null;
@@ -76,21 +77,20 @@ export async function recordAcknowledgement(input: {
   const fileId = input.document.file.id;
 
   const rows = await db()`
-    with acked as (
+    with completed as (
+      update job_documents d set status = 'completed', completed_at = now(), updated_at = now()
+      from job_files f
+      where d.id = ${input.document.id} and d.lead_id = ${input.jobId} and d.file_id = ${fileId}
+        and f.id = d.file_id and f.lead_id = ${input.jobId}
+        and d.response = 'acknowledge' and d.status = 'sent' and f.shared_at is not null
+      returning d.lead_id, d.file_id
+    ),
+    acked as (
       insert into document_acknowledgements (id, lead_id, file_id, acknowledged_name, acknowledged_email, ip, user_agent, doc_sha256)
-      select ${randomUUID()}, ${input.jobId}, ${fileId}, ${name}, ${input.email}, ${input.ip}, ${input.userAgent}, ${sha256}
-      where exists (
-        select 1 from job_documents d join job_files f on f.id = d.file_id
-        where d.id = ${input.document.id} and d.lead_id = ${input.jobId} and d.file_id = ${fileId}
-          and d.response = 'acknowledge' and d.status = 'sent' and f.shared_at is not null
-      )
+      select ${randomUUID()}, lead_id, file_id, ${name}, ${input.email}, ${input.ip}, ${input.userAgent}, ${sha256}
+      from completed
       on conflict (file_id) do nothing
       returning lead_id, file_id
-    ),
-    completed as (
-      update job_documents set status = 'completed', completed_at = now(), updated_at = now()
-      where id = ${input.document.id} and file_id = (select file_id from acked) and status = 'sent'
-      returning id
     ),
     logged as (
       insert into job_events (lead_id, actor, kind, body)

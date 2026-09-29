@@ -53,13 +53,23 @@ describe("recordAcknowledgement", () => {
     const s = text(query.mock.calls[0]);
     for (const part of [
       "insert into document_acknowledgements",
+      "d.id = ? and d.lead_id = ? and d.file_id = ? and f.id = d.file_id and f.lead_id = ?",
       "d.response = 'acknowledge' and d.status = 'sent' and f.shared_at is not null",
       "on conflict (file_id) do nothing",
-      "update job_documents set status = 'completed', completed_at = now()",
+      "update job_documents d set status = 'completed', completed_at = now()",
       "insert into job_events", "'document'",
     ]) expect(s).toContain(part);
+    // The completion runs FIRST and the record is inserted only from the row it returned: a void
+    // that commits first leaves the update matching nothing, so nothing at all is written.
+    expect(s).toMatch(/^ ?with completed as \( update job_documents/);
+    expect(s.indexOf("update job_documents")).toBeLessThan(s.indexOf("insert into document_acknowledgements"));
+    expect(s).toContain("select ?, lead_id, file_id, ?, ?, ?, ?, ? from completed on conflict (file_id) do nothing");
+    expect(s).toContain("from acked ) select file_id from acked");
     const values = query.mock.calls[0].slice(1);
-    expect(values.slice(1, 8)).toEqual([JOB, FILE, "Jane Doe", "jane@example.com", "1.2.3.4", "UA", PDF_BYTES_SHA256]);
+    // The update's guard binds the document, this job, the file and this job again (the file's owner).
+    expect(values.slice(0, 4)).toEqual([DOC, JOB, FILE, JOB]);
+    expect(values[4]).toMatch(/^[0-9a-f-]{36}$/);
+    expect(values.slice(5, 10)).toEqual(["Jane Doe", "jane@example.com", "1.2.3.4", "UA", PDF_BYTES_SHA256]);
     expect(values.at(-1)).toBe('Acknowledged "Service agreement — PSS-1048" from their project page');
     // The typed name is data only: never in the permanent timeline sentence.
     expect(values.filter((v) => String(v).includes("Jane Doe"))).toEqual(["Jane Doe"]);
