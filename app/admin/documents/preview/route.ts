@@ -11,7 +11,7 @@ import { formatProjectNo } from "@/lib/portal/project-no";
 const SAMPLE_CLIENT = { name: "Client name", address: "Street address", city: "City", email: "client@example.com" };
 /** Terms are filled per contract; the preview fills them for a sample client and project. */
 const SAMPLE_JOB: FillJob = {
-  name: SAMPLE_CLIENT.name, email: SAMPLE_CLIENT.email, phone: null, address: SAMPLE_CLIENT.address, city: SAMPLE_CLIENT.city,
+  name: SAMPLE_CLIENT.name, email: SAMPLE_CLIENT.email, phone: "", address: SAMPLE_CLIENT.address, city: SAMPLE_CLIENT.city,
   projectNo: 0, soldCents: null, quoteCents: null, depositCents: null, installOn: null,
 };
 
