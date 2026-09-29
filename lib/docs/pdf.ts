@@ -24,11 +24,12 @@ const WIDTH = LETTER[0] - 2 * MARGIN;
 const segsOf = (inlines: Inline[], forceBold = false): Seg[] =>
   inlines.map((inline) => ({ text: inline.type === "text" ? inline.text : `{{${inline.key}}}`, bold: forceBold || inline.bold }));
 
-function ensure(pen: PdfPen, height: number): void {
-  if (pen.y - height < MARGIN) {
-    pen.page = pen.doc.addPage(LETTER);
-    pen.y = LETTER[1] - MARGIN;
-  }
+/** Starts a new page when `height` would not fit above the margin. Answers whether it did. */
+function ensure(pen: PdfPen, height: number): boolean {
+  if (pen.y - height >= MARGIN) return false;
+  pen.page = pen.doc.addPage(LETTER);
+  pen.y = LETTER[1] - MARGIN;
+  return true;
 }
 
 /** Every string drawn passes through winAnsiSafe: the standard fonts throw on anything they cannot encode. */
@@ -58,8 +59,9 @@ export function renderBlocks(pen: PdfPen, blocks: Block[]): void {
       const style = HEADING[block.level];
       const lines = wrapRuns(segsOf(block.inlines, true), fonts, style.size, WIDTH);
       // A heading never sits alone at the foot of a page: it moves with room for a line of text.
-      ensure(pen, style.before + lines.length * style.lead + LEAD);
-      if (index > 0) pen.y -= style.before;
+      // The space above it is skipped at the top of a fresh page, where nothing sits above it.
+      const freshPage = ensure(pen, style.before + lines.length * style.lead + LEAD);
+      if (index > 0 && !freshPage) pen.y -= style.before;
       drawLines(pen, lines, MARGIN, style.size, style.lead);
     } else if (block.type === "paragraph") {
       drawLines(pen, wrapRuns(segsOf(block.inlines), fonts, BODY, WIDTH), MARGIN, BODY, LEAD);

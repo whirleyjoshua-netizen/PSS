@@ -6,10 +6,10 @@ import type { Block, Inline } from "@/lib/docs/types";
 
 /** Every string drawn, with where and in which font, captured before pdf-lib encodes it. */
 function spyOnDrawText() {
-  const drawn: { text: string; x: number; y: number; font: string }[] = [];
+  const drawn: { text: string; x: number; y: number; font: string; page: PDFPage }[] = [];
   const original = PDFPage.prototype.drawText;
   vi.spyOn(PDFPage.prototype, "drawText").mockImplementation(function (this: PDFPage, text, options) {
-    drawn.push({ text, x: options?.x ?? 0, y: options?.y ?? 0, font: options?.font?.name ?? "" });
+    drawn.push({ text, x: options?.x ?? 0, y: options?.y ?? 0, font: options?.font?.name ?? "", page: this });
     return original.call(this, text, options);
   });
   return drawn;
@@ -78,5 +78,72 @@ describe("buildDocumentPdf", () => {
     drawn = spyOnDrawText();
     await buildDocumentPdf(input([{ type: "paragraph", inlines: [t("Body")] }], "acknowledge"));
     expect(drawn.map((d) => d.text)).not.toContain(SIGN_CLOSING);
+  });
+});
+
+/** The drawn strings grouped by page, in drawing order. */
+const byPage = (drawn: ReturnType<typeof spyOnDrawText>) => {
+  const pages = new Map<PDFPage, typeof drawn>();
+  for (const d of drawn) pages.set(d.page, [...(pages.get(d.page) ?? []), d]);
+  return [...pages.values()];
+};
+const TOP = 792 - 54;
+const filler = (n: number): Block[] =>
+  Array.from({ length: n }, (_, i) => ({ type: "paragraph", inlines: [t(`Filler paragraph ${i}.`)] }));
+
+describe("page breaks with headings and bullets", () => {
+  it("never leaves a heading last on a page, and starts a moved heading at the top of the new page", async () => {
+    let moved = 0;
+    // Each extra filler paragraph shifts the heading 19pt down the page, so some run lands it at the foot.
+    for (let n = 20; n < 70; n++) {
+      vi.restoreAllMocks();
+      const drawn = spyOnDrawText();
+      await buildDocumentPdf(input([...filler(n), { type: "heading", level: 2, inlines: [t("Warranty")] },
+        { type: "paragraph", inlines: [t("After the heading.")] }]));
+      const pages = byPage(drawn);
+      for (const page of pages) expect(page[page.length - 1].text, `n=${n}`).not.toBe("Warranty");
+      pages.slice(1).forEach((page) => {
+        if (page[0].text !== "Warranty") return;
+        moved++;
+        expect(page[0].y, `n=${n}`).toBe(TOP);
+      });
+    }
+    expect(moved).toBeGreaterThan(0);
+  });
+  it("carries a bullet list across a page break intact", async () => {
+    const drawn = spyOnDrawText();
+    const items = Array.from({ length: 80 }, (_, i) => [t(`Bullet item ${i}`)]);
+    await buildDocumentPdf(input([{ type: "bullets", items }]));
+    const pages = byPage(drawn).filter((page) => page.some((d) => d.text === "•"));
+    expect(pages.length).toBeGreaterThan(1);
+    const bullets = drawn.filter((d) => d.text === "•");
+    expect(bullets).toHaveLength(80);
+    items.forEach(([item], i) => {
+      const line = drawn.filter((d) => d.text === (item as { text: string }).text);
+      expect(line, `item ${i}`).toHaveLength(1);
+      // Its bullet sits on the same page and baseline, and nothing is drawn below the margin.
+      expect(bullets[i].page === line[0].page, `item ${i} page`).toBe(true);
+      expect(bullets[i].y).toBe(line[0].y);
+      expect(line[0].y).toBeGreaterThanOrEqual(54);
+    });
+  });
+});
+
+describe("text drawn outside the wrapper", () => {
+  it("maps a company name WinAnsi cannot encode instead of throwing", async () => {
+    vi.resetModules();
+    vi.doMock("@/content/business", async (importOriginal) => {
+      const actual = await importOriginal<typeof import("@/content/business")>();
+      return { business: { ...actual.business, legalName: "Premier → Shade 日" } };
+    });
+    try {
+      const drawn = spyOnDrawText();
+      const { buildDocumentPdf: build } = await import("@/lib/docs/pdf");
+      await expect(build(input([{ type: "paragraph", inlines: [t("Body")] }]))).resolves.toBeInstanceOf(Uint8Array);
+      expect(drawn.map((d) => d.text)).toContain("Premier ? Shade ?");
+    } finally {
+      vi.doUnmock("@/content/business");
+      vi.resetModules();
+    }
   });
 });
