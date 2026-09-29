@@ -171,7 +171,11 @@ Everything else still compiles, because the old builder names are kept (Decision
 1. Add `adoption: { method: "typed", initials: null },` to the `recordSignature({...})` call.
 2. Change the stamp call to `stampSignature(original, {...facts unchanged...}, { method: "typed", initials: null }, null)`.
 
-Also update the one `stampSignature` expectation in `tests/portal/sign-action.test.ts` ("stamps, stores and emails the copy after answering") to expect those two extra arguments. Task 11 replaces all of this.
+Also update two expectations in `tests/portal/sign-action.test.ts`, and nothing else in it:
+- "stamps, stores and emails the copy after answering": the `stampSignature` expectation gains the two extra arguments.
+- "records the session's email and the listed file": the `recordSignature` expectation gains `adoption: { method: "typed", initials: null }`.
+
+Task 11 replaces all of this.
 
 ## Review Focus
 
