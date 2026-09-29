@@ -31,6 +31,12 @@ export type JobFile = {
    * offers no type, share or delete control on it (setDocType, setShared and deleteFile refuse).
    */
   quoteContract?: boolean;
+  /**
+   * True when a job document (lib/docs/job-documents.ts) names this file as its PDF. Only
+   * listFiles computes it. Such a file is managed from the Documents tab: sharing is Send's,
+   * unsharing is Void's, and setShared, setDocType and deleteFile refuse it.
+   */
+  jobDocument?: boolean;
 };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -51,6 +57,7 @@ export function toFile(row: Record<string, unknown>): JobFile {
     // Absent, not false, when the query never computed it: false would claim "not signed".
     signed: "signed" in row ? row.signed === true : undefined,
     quoteContract: "quote_contract" in row ? row.quote_contract === true : undefined,
+    jobDocument: "job_document" in row ? row.job_document === true : undefined,
   };
 }
 
@@ -63,7 +70,9 @@ export async function listFiles(leadId: string): Promise<JobFile[]> {
       where s.file_id = job_files.id or s.signed_file_id = job_files.id
     ) as signed, exists (
       select 1 from dc_quote_versions v where v.contract_file_id = job_files.id
-    ) as quote_contract
+    ) as quote_contract, exists (
+      select 1 from job_documents d where d.file_id = job_files.id
+    ) as job_document
     from job_files where lead_id = ${leadId} order by created_at desc`;
   return rows.map(toFile);
 }
@@ -143,6 +152,10 @@ export async function createFile(input: {
  * A file a Direct Connect quote version names — its Dealer Copy (source_file_id) or its
  * contract (contract_file_id) — is refused the same way. Those foreign keys have no on-delete
  * action, so without the second `not exists` the delete would raise instead of returning false.
+ *
+ * A file a job document names, and an acknowledged file, are refused the same way (spec §4
+ * Freezing): job_documents.file_id has no on-delete action, so without the clause a delete would
+ * raise instead of returning false.
  */
 export async function deleteFile(fileId: string, actor: string): Promise<boolean> {
   if (!UUID.test(fileId)) return false;
@@ -157,6 +170,12 @@ export async function deleteFile(fileId: string, actor: string): Promise<boolean
         and not exists (
           select 1 from dc_quote_versions v
           where v.source_file_id = job_files.id or v.contract_file_id = job_files.id
+        )
+        and not exists (
+          select 1 from job_documents d where d.file_id = job_files.id
+        )
+        and not exists (
+          select 1 from document_acknowledgements a where a.file_id = job_files.id
         )
       returning lead_id, name, blob_pathname
     ),
@@ -202,6 +221,10 @@ export async function readFile(file: JobFile) {
  *
  * A contract a superseded quote version names cannot be shared again: the client could sign it,
  * but signing a superseded version never moves the job. Unsharing it stays allowed.
+ *
+ * A file a job document names is managed from the Documents tab (spec §4 Freezing): Send shares
+ * it and Void unshares it, so this refuses it in both directions. An acknowledged file can be
+ * shared again but never unshared, as for a signed contract.
  */
 export async function setShared(jobId: string, fileId: string, shared: boolean, actor: string): Promise<boolean> {
   if (!UUID.test(jobId) || !UUID.test(fileId)) return false;
@@ -217,6 +240,12 @@ export async function setShared(jobId: string, fileId: string, shared: boolean, 
         ))
         and (not ${shared} or not exists (
           select 1 from dc_quote_versions v where v.contract_file_id = job_files.id and v.status = 'superseded'
+        ))
+        and not exists (
+          select 1 from job_documents d where d.file_id = job_files.id
+        )
+        and (${shared} or not exists (
+          select 1 from document_acknowledgements a where a.file_id = job_files.id
         ))
       returning lead_id, name
     )
@@ -243,6 +272,9 @@ export async function setShared(jobId: string, fileId: string, shared: boolean, 
  * form through a Server Action and its type is not enforced at runtime.
  *
  * A contract any quote version names keeps its label too: it is managed from the Quote tab.
+ *
+ * A file a job document names, and an acknowledged file, keep their label as well (spec §4
+ * Freezing): they are managed from the Documents tab.
  */
 export async function setDocType(
   jobId: string, fileId: string, type: DocType | null, actor: string,
@@ -260,6 +292,12 @@ export async function setDocType(
         )
         and not exists (
           select 1 from dc_quote_versions v where v.contract_file_id = job_files.id
+        )
+        and not exists (
+          select 1 from job_documents d where d.file_id = job_files.id
+        )
+        and not exists (
+          select 1 from document_acknowledgements a where a.file_id = job_files.id
         )
       returning lead_id, name
     )

@@ -36,6 +36,14 @@ function QuoteContractLabel() {
   return <span className="text-sm text-ink-soft">Contract · managed from the Quote tab</span>;
 }
 
+/**
+ * Shown in place of the type, share and delete controls on a job document's PDF. Sending shares
+ * it and Void unshares it, both on the Documents tab; the server refuses the Files-tab controls.
+ */
+function JobDocumentLabel() {
+  return <span className="text-sm text-ink-soft">Document · managed from the Documents tab</span>;
+}
+
 /** Measurements are shown on their own tab; they are taken here only to keep window photos out of Photos. */
 export function JobFiles({ jobId, measurements, files }: {
   jobId: string;
@@ -97,7 +105,7 @@ export function JobFiles({ jobId, measurements, files }: {
                     {file.sharedAt ? <> · <span className="text-xs uppercase tracking-wide text-charcoal">Shared</span></> : null}
                   </p>
                 </div>
-                {file.docType === "dealer_copy" ? <DealerCopyLabel /> : file.signed ? <SignedLabel /> : file.quoteContract ? <QuoteContractLabel /> : (
+                {file.docType === "dealer_copy" ? <DealerCopyLabel /> : file.signed ? <SignedLabel /> : file.quoteContract ? <QuoteContractLabel /> : file.jobDocument ? <JobDocumentLabel /> : (
                   <>
                     <DocTypeSelect key={file.docType ?? ""} jobId={jobId} fileId={file.id} fileName={file.name} docType={file.docType ?? null} />
                     <ShareSwitch jobId={jobId} fileId={file.id} fileName={file.name} shared={Boolean(file.sharedAt)} />
