@@ -3556,3 +3556,581 @@ Claude-Session: https://claude.ai/code/session_01VsZpDCE8YaRq5jxSkaAZGj"
 ```
 
 ---
+
+## Task 13: Real-database proof — `scripts/verify-signatures.ts`
+
+This follows the safety pattern of `scripts/verify-documents.ts`. The script is in no suite, and CI never runs it. **The implementer writes it and runs only typecheck. The controller runs it** against the test branch named by `E2E_TEST_ENDPOINT`, or `ep-lingering-fog` by default.
+
+**Files:**
+- Create: `scripts/verify-signatures.ts`, `scripts/verify-signatures.config.mts`
+
+**Interfaces:**
+- Consumes:
+  - `createTemplate` (from `lib/docs/templates`);
+  - `createDocumentFromTemplate` and `sendJobDocument` (from `lib/docs/workflow`);
+  - `createFile`, `getFile` and `listBlobPathnames` (from `lib/admin/files`);
+  - `recordSignature` and `signableContracts` (from `lib/portal/sign`);
+  - `parseSignMarks`;
+  - `pngBytes` (from `tests/fixtures/png`).
+
+- [ ] **Step 1: Write** `scripts/verify-signatures.config.mts`
+
+```ts
+import { defineConfig } from "vitest/config";
+import path from "node:path";
+
+const root = path.resolve(import.meta.dirname, "..");
+
+/**
+ * Runs scripts/verify-signatures.ts and nothing else. Deliberately NOT reachable from
+ * vitest.config.mts (whose include is tests/**): this script must never be swept into npm test
+ * and counted as coverage. It is run by hand against a Neon test branch.
+ */
+export default defineConfig({
+  root,
+  test: {
+    environment: "node",
+    include: ["scripts/verify-signatures.ts"],
+    testTimeout: 120_000,
+    hookTimeout: 60_000,
+  },
+  resolve: {
+    alias: {
+      "@": root,
+      "server-only": path.resolve(root, "tests/server-only-stub.ts"),
+    },
+  },
+});
+```
+
+- [ ] **Step 2: Write** `scripts/verify-signatures.ts`
+
+```ts
+/**
+ * Behavioural proof of the visible-signatures SQL:
+ * - migration 029;
+ * - createFile's sign_marks;
+ * - sendJobDocument storing marks;
+ * - signableContracts reading them;
+ * - recordSignature's adoption columns and its Blob cleanup;
+ * - listBlobPathnames' signature images;
+ * - the three new CHECK constraints.
+ *
+ * THIS IS NOT AUTOMATED COVERAGE. It is run by hand, is in no suite, and CI does not run it. If
+ * you change any statement above, run it, and if you cannot, call that SQL unverified.
+ *
+ * Mocks: @vercel/blob, in memory. No blob store of any kind is written, and both blob tokens are
+ * removed from the environment. lib/docs/emails is mocked too (no network). Every statement
+ * reaches the database for real, and every PDF is really built.
+ *
+ * IT WRITES TO THE DATABASE IT IS GIVEN. It takes its connection from E2E_POSTGRES_URL alone. It
+ * refuses a URL that looks like production (cold-term), and refuses any host but the test-branch
+ * endpoint named by E2E_TEST_ENDPOINT (an ep-… id), or ep-lingering-fog by default. Cleanup
+ * deletes only the ids this run created.
+ *
+ * Usage (PowerShell, from the worktree root; loads the URL without printing it):
+ *   Get-Content .env.test.local | ForEach-Object { if ($_ -match '^\s*E2E_POSTGRES_URL\s*=\s*(.*)$') { $env:E2E_POSTGRES_URL = $matches[1].Trim().Trim('"').Trim("'") } }
+ *   npx vitest run --config scripts/verify-signatures.config.mts
+ *
+ * To watch it fail (the only way to know it works), make one change at a time, re-run, restore:
+ *  - createFile: write `null` for sign_marks. Step 1's "the sign document's file carries its marks" fails.
+ *  - lib/docs/workflow.ts: pass signMarks for every response. Step 2's "an acknowledge document's file has none" fails.
+ *  - recordSignature: bind `null` for signature_image_pathname. The insert itself fails on contract_signatures_adoption_check (step 5).
+ *  - recordSignature: delete the already-signed cleanup. Step 6's "the repeat's images are removed" fails.
+ *  - listBlobPathnames: delete the union. Step 8 fails.
+ */
+import { randomUUID } from "node:crypto";
+import { neon } from "@neondatabase/serverless";
+import { test, vi } from "vitest";
+
+const blobs = vi.hoisted(() => new Map<string, Buffer>());
+vi.mock("@vercel/blob", () => ({
+  put: async (pathname: string, body: Blob | Buffer) => {
+    blobs.set(pathname, body instanceof Blob ? Buffer.from(await body.arrayBuffer()) : Buffer.from(body));
+    return { pathname };
+  },
+  del: async (pathname: string) => {
+    blobs.delete(pathname);
+  },
+  get: async (pathname: string) => {
+    const bytes = blobs.get(pathname);
+    if (!bytes) return null;
+    return { statusCode: 200, stream: new Blob([new Uint8Array(bytes)]).stream(), blob: { contentType: "application/pdf" } };
+  },
+}));
+vi.mock("../lib/docs/emails", () => ({
+  sendDocumentEmail: async () => {},
+  notifyOwnersOfDocumentAcknowledgement: async () => {},
+}));
+
+import { createFile, getFile, listBlobPathnames } from "../lib/admin/files";
+import { createTemplate } from "../lib/docs/templates";
+import { createDocumentFromTemplate, sendJobDocument } from "../lib/docs/workflow";
+import { parseSignMarks } from "../lib/pdf/sign-marks";
+import { recordSignature, signableContracts } from "../lib/portal/sign";
+import { pngBytes } from "../tests/fixtures/png";
+
+const BANNER = "\n================ verify-signatures REFUSED TO RUN ================\n";
+function refuse(reason: string): never {
+  console.error(`${BANNER}${reason}\n`);
+  throw new Error(`verify-signatures refused to run: ${reason}`);
+}
+
+const url = process.env.E2E_POSTGRES_URL;
+if (!url) {
+  refuse("E2E_POSTGRES_URL is not set. This script WRITES rows, so it never falls back to POSTGRES_URL, DATABASE_URL or .env.local. It does not skip: no result means it did not run.");
+}
+// The same rule as playwright.config.ts: an optional named test endpoint, never production.
+const endpoint = process.env.E2E_TEST_ENDPOINT ?? "ep-lingering-fog";
+if (!endpoint.startsWith("ep-") || endpoint.includes("cold-term")) refuse("E2E_TEST_ENDPOINT must be a Neon test-branch endpoint (ep-…), never production.");
+const host = (() => {
+  try {
+    return new URL(url).host;
+  } catch {
+    return refuse("E2E_POSTGRES_URL is not a valid URL, so its host cannot be checked.");
+  }
+})();
+// The messages name the pattern that failed, never the host: the host is part of a secret.
+if (host.includes("cold-term")) refuse('E2E_POSTGRES_URL matches the production endpoint pattern "cold-term". Use a Neon test branch.');
+if (!host.includes(endpoint)) refuse(`E2E_POSTGRES_URL does not match the test branch endpoint "${endpoint}".`);
+
+process.env.POSTGRES_URL = url;
+process.env.DATABASE_URL = url;
+delete process.env.RESEND_API_KEY;
+delete process.env.BLOB_READ_WRITE_TOKEN;
+delete process.env.E2E_BLOB_READ_WRITE_TOKEN;
+
+const sql = neon(url);
+const ACTOR = "verify-signatures@example.com";
+const STAMP = Date.now();
+const NAME_PREFIX = "VERIFY Signatures";
+const BODY = "## 1. Scope\n\nTwo shades for {{client_name}}.\n\n## Notes\n\nNone.\n\n## 2. Payment\n\nOn install.";
+
+function check(condition: unknown, description: string, detail: string): void {
+  if (!condition) throw new Error(`FAILED: ${description}\n  ${detail}`);
+  console.log(`  ok  ${description}`);
+}
+const idOf = (result: { id: string } | { error: string }, what: string): string => {
+  if (!("id" in result)) throw new Error(`setup: ${what}: ${result.error}`);
+  return result.id;
+};
+/** The database's own words for a refused statement: its message, never its connection. */
+const refusal = async (work: () => Promise<unknown>): Promise<string> => {
+  try {
+    await work();
+    return "";
+  } catch (error) {
+    return (error as Error).message;
+  }
+};
+
+test("visible signatures: marks, adoption and cleanup against a real database", async () => {
+  console.log("\nverify-signatures: writing to a test branch\n");
+  const leadIds: string[] = [];
+  const templateIds: string[] = [];
+  try {
+    const newLead = async (suffix: string) => {
+      const [row] = await sql`insert into leads (name, phone, email, city, source, status)
+        values (${`${NAME_PREFIX} ${STAMP} ${suffix}`}, '7025550198', ${`verify-sig-${STAMP}-${suffix}@example.com`}, 'Henderson', 'phone', 'sold')
+        returning id`;
+      leadIds.push(row.id as string);
+      return row.id as string;
+    };
+    const A = await newLead("A");
+    const B = await newLead("B");
+    const sendNew = async (templateId: string) => {
+      const documentId = idOf(await createDocumentFromTemplate({ jobId: A, templateId, actor: ACTOR }), "create");
+      const sent = await sendJobDocument({ jobId: A, documentId, actor: ACTOR });
+      if (!("ok" in sent)) throw new Error(`setup: send: ${sent.error}`);
+      return (await sql`select file_id from job_documents where id = ${documentId}`)[0].file_id as string;
+    };
+    const signTemplate = idOf(await createTemplate({ name: `VERIFY SA ${STAMP}`, kind: "service_agreement", response: "sign", body: BODY, actor: ACTOR }), "sign template");
+    templateIds.push(signTemplate);
+    const ackTemplate = idOf(await createTemplate({ name: `VERIFY ACK ${STAMP}`, kind: "service_agreement", response: "acknowledge", body: BODY, actor: ACTOR }), "ack template");
+    templateIds.push(ackTemplate);
+
+    console.log("step 1: a sign document's file is born with its marks");
+    const signed1 = await sendNew(signTemplate);
+    const [row1] = await sql`select sign_marks, jsonb_typeof(sign_marks) as type from job_files where id = ${signed1}`;
+    const marks1 = parseSignMarks(row1.sign_marks);
+    check(row1.type === "object" && marks1 !== null, "the sign document's file carries its marks", JSON.stringify(row1));
+    check(JSON.stringify(marks1!.initials.map((m) => m.section)) === '["1","2"]', "one initials mark per numbered section, in order", JSON.stringify(marks1));
+    check(marks1!.signature !== null, "and the signature block's mark", JSON.stringify(marks1));
+
+    console.log("step 2: an acknowledge document's file has none");
+    const ack = await sendNew(ackTemplate);
+    check((await sql`select sign_marks from job_files where id = ${ack}`)[0].sign_marks === null, "an acknowledge document's file has none", "not null");
+
+    console.log("step 3: signableContracts reads the marks from the database");
+    const offered = (await signableContracts(A)).find((file) => file.id === signed1);
+    check(JSON.stringify(offered?.signMarks) === JSON.stringify(marks1), "the signable file carries exactly the stored marks", JSON.stringify(offered?.signMarks));
+    check((await signableContracts(B)).every((file) => file.id !== signed1), "another job is never offered it", "offered to B");
+
+    console.log("step 4: a typed adoption is recorded in the one statement");
+    const typed = await recordSignature({ jobId: A, file: (await getFile(signed1))!, name: "Pat Client", email: "pat@example.com", ip: null, userAgent: null,
+      adoption: { method: "typed", initials: "PC" } });
+    const [sig1] = await sql`select signature_method, signed_initials, signature_image_pathname, initials_image_pathname from contract_signatures where file_id = ${signed1}`;
+    check(typed === "signed" && sig1.signature_method === "typed" && sig1.signed_initials === "PC"
+      && sig1.signature_image_pathname === null && sig1.initials_image_pathname === null, "typed: method and initials stored, no images", JSON.stringify(sig1));
+
+    console.log("step 5: a drawn adoption's PNGs are stored and named");
+    const signed2 = await sendNew(signTemplate);
+    const SIG = pngBytes(600, 200);
+    const INI = pngBytes(200, 100);
+    const before = blobs.size;
+    const drawn = await recordSignature({ jobId: A, file: (await getFile(signed2))!, name: "Pat Client", email: "pat@example.com", ip: null, userAgent: null,
+      adoption: { method: "drawn", signaturePng: SIG, initialsPng: INI } });
+    const [sig2] = await sql`select signature_method, signed_initials, signature_image_pathname, initials_image_pathname from contract_signatures where file_id = ${signed2}`;
+    check(drawn === "signed" && sig2.signature_method === "drawn" && sig2.signed_initials === null, "drawn: method stored, no typed initials", JSON.stringify(sig2));
+    check(new RegExp(`^jobs/${A}/signatures/[0-9a-f-]{36}-signature\\.png$`).test(sig2.signature_image_pathname as string)
+      && (sig2.initials_image_pathname as string).endsWith("-initials.png"), "both pathnames are under the job's signatures folder", JSON.stringify(sig2));
+    check(blobs.get(sig2.signature_image_pathname as string)?.equals(SIG) === true && blobs.get(sig2.initials_image_pathname as string)?.equals(INI) === true,
+      "the stored bytes are the drawn PNGs", String(blobs.size - before));
+
+    console.log("step 6: a repeat post writes nothing and leaves no images behind");
+    const count = blobs.size;
+    const again = await recordSignature({ jobId: A, file: (await getFile(signed2))!, name: "Pat Client", email: "pat@example.com", ip: null, userAgent: null,
+      adoption: { method: "drawn", signaturePng: SIG, initialsPng: INI } });
+    check(again === "already-signed", "the repeat answers already-signed", again);
+    check(blobs.size === count, "the repeat's images are removed", `${blobs.size} vs ${count}`);
+    const [sig2b] = await sql`select signature_image_pathname from contract_signatures where file_id = ${signed2}`;
+    check(sig2b.signature_image_pathname === sig2.signature_image_pathname, "and the first signature's images are untouched", "changed");
+
+    console.log("step 7: the database refuses an adoption that does not match its method");
+    const scratch = async () => (await createFile({ leadId: A, kind: "document", name: "scratch.pdf", contentType: "application/pdf",
+      body: new Blob(["%PDF-1.4"]), actor: ACTOR }))!.id;
+    const insert = (fileId: string, method: string | null, initials: string | null, image: string | null) => () => sql`
+      insert into contract_signatures (id, lead_id, file_id, signed_name, signed_email, doc_sha256, signature_method, signed_initials, signature_image_pathname)
+      values (${randomUUID()}, ${A}, ${fileId}, 'x', 'x@example.com', 'verify', ${method}, ${initials}, ${image})`;
+    check((await refusal(insert(await scratch(), "scribbled", null, null))).includes("contract_signatures_signature_method_check"), "an unknown method is refused", "accepted");
+    check((await refusal(insert(await scratch(), "drawn", null, null))).includes("contract_signatures_adoption_check"), "drawn without an image is refused", "accepted");
+    check((await refusal(insert(await scratch(), "typed", "PC", "jobs/x.png"))).includes("contract_signatures_adoption_check"), "typed with an image is refused", "accepted");
+    check((await refusal(insert(await scratch(), null, null, null))) === "", "a pre-adoption row (all null) is still accepted", "refused");
+    check((await refusal(() => sql`update job_files set sign_marks = '[]'::jsonb where id = ${ack}`)).includes("job_files_sign_marks_check"),
+      "sign marks that are not an object are refused", "accepted");
+
+    console.log("step 8: deleting the job would remove the drawn images too");
+    const pathnames = await listBlobPathnames(A);
+    check(pathnames.includes(sig2.signature_image_pathname as string) && pathnames.includes(sig2.initials_image_pathname as string),
+      "listBlobPathnames names both images", JSON.stringify(pathnames.filter((p) => p.includes("/signatures/"))));
+    check((await listBlobPathnames(B)).every((p) => !p.includes(A)), "and never another job's", "leak");
+
+    console.log("step 9: createFile stores marks it is given, and null otherwise");
+    const given = { initials: [{ page: 0, x: 502, y: 700, section: "7" }], signature: { page: 0, x: 154, y: 300 } };
+    const withMarks = (await createFile({ leadId: A, kind: "document", name: "marked.pdf", contentType: "application/pdf",
+      body: new Blob(["%PDF-1.4"]), actor: ACTOR, signMarks: given }))!.id;
+    check(JSON.stringify(parseSignMarks((await sql`select sign_marks from job_files where id = ${withMarks}`)[0].sign_marks)) === JSON.stringify(given),
+      "createFile stores the marks it is given", "differs");
+
+    console.log("\nPASSED: the visible-signatures SQL holds against a real database. Manual run, not coverage.\n");
+  } finally {
+    const attempt = async (label: string, work: () => Promise<unknown>) => {
+      try {
+        await work();
+      } catch (error) {
+        console.error(`cleanup could not ${label}:`, (error as Error).message);
+      }
+    };
+    await attempt("delete signatures", () => sql`delete from contract_signatures where lead_id = any(${leadIds})`);
+    await attempt("delete documents", () => sql`delete from job_documents where lead_id = any(${leadIds})`);
+    await attempt("delete events", () => sql`delete from job_events where lead_id = any(${leadIds})`);
+    await attempt("delete files", () => sql`delete from job_files where lead_id = any(${leadIds})`);
+    await attempt("delete leads", () => sql`delete from leads where id = any(${leadIds})`);
+    await attempt("delete templates", () => sql`delete from document_templates where id = any(${templateIds})`);
+    await attempt("report", async () => {
+      const [left] = await sql`select (select count(*)::int from leads where id = any(${leadIds})) as leads,
+        (select count(*)::int from document_templates where id = any(${templateIds})) as templates`;
+      console.log(`cleanup: ${left.leads} of ${leadIds.length} leads and ${left.templates} of ${templateIds.length} templates left`);
+    });
+  }
+});
+```
+
+Before writing, check `createTemplate`'s input type in `lib/docs/templates.ts` against the call above (`{ name, kind, response, body, actor }`, as `scripts/verify-documents.ts` line ~180 uses it). If it differs, match the real one.
+
+- [ ] **Step 3: Typecheck only** (implementer)
+
+Run: `npm run typecheck`
+Expected: clean. Do NOT run the script: it writes to a database.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add scripts/verify-signatures.ts scripts/verify-signatures.config.mts
+git commit -m "test: real-database proof of sign marks, adoption columns, checks and image cleanup
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01VsZpDCE8YaRq5jxSkaAZGj"
+```
+
+- [ ] **Step 5 (controller): run it on the test branch, then prove it can fail**
+
+Migration 029 must already be applied there (Task 2, Step 6). Run the usage lines from the header. Expected: every step prints `ok`, then `PASSED`, then `cleanup: 0 of 2 leads and 0 of 2 templates left`.
+
+Then make one of the header's "watch it fail" changes, re-run, see `FAILED`, and restore. Record which change and which step in the Wave 4 merge commit.
+
+---
+
+## Task 14: End to end — a typed DC contract and a drawn service agreement
+
+**Files:**
+- Modify: `e2e/dc-quote.spec.ts` (the sign test at about lines 245–291)
+- Modify: `e2e/documents.spec.ts` (constants at 19–20; `beforeAll` at 98–114; `afterAll` at 116–135; a new test after the sign test ending at about line 294)
+
+**Interfaces:**
+- Consumes:
+  - `pdfPages` (Task 5) and `pdfText`;
+  - the form's accessible names (Task 12);
+  - the columns (Task 2).
+
+  In e2e, recognise the handwriting font as "any font whose name does not start with Helvetica". Do not import `lib/pdf/handwriting.ts`: it imports `server-only`, which throws outside a server build.
+
+- [ ] **Step 1: The typed DC contract** (`e2e/dc-quote.spec.ts`)
+
+1. Add imports:
+   ```ts
+   import { pdfPages } from "./fixtures/pdf-pages";
+   ```
+2. Add below `download()`:
+
+```ts
+/** A file's bytes, fetched with the page's own session (the cookie is Secure, see download()). */
+async function fetchBytes(page: Page, target: string): Promise<Buffer> {
+  const base64 = await page.evaluate(async (href) => {
+    const buffer = new Uint8Array(await (await fetch(href)).arrayBuffer());
+    let binary = "";
+    for (const byte of buffer) binary += String.fromCharCode(byte);
+    return btoa(binary);
+  }, target);
+  return Buffer.from(base64, "base64");
+}
+const isHand = (font: string) => !font.startsWith("Helvetica");
+```
+
+3. In the test "the customer signs the contract, the owner sees Sold, …", replace the two lines that fill the name and tick the box with:
+
+```ts
+    // Before signing: the contract the client reads shows an empty initials box beside every
+    // numbered section, and an empty signature block (spec §3).
+    const [sent] = await sql()`select contract_file_id from dc_quote_versions where id = ${versionId}`;
+    const unsigned = pdfText(await fetchBytes(customer, `/project/files/${sent.contract_file_id}`));
+    const sections = unsigned.filter((text) => /^\d+\. /.test(text)).length;
+    expect(sections).toBeGreaterThan(0);
+    expect(unsigned.filter((text) => text === "Initials")).toHaveLength(sections);
+    expect(unsigned).toContain("Client signature");
+    await form.getByLabel("Your full name").fill("Pat Buyer");
+    await form.getByLabel("Your initials").fill("PB");
+    await form.getByLabel("I agree to sign this contract electronically and to initial every numbered section").check();
+```
+
+4. After the existing `expect.poll(… signed_file_id …)` block, add:
+
+```ts
+    const [adopted] = await sql()`select signature_method, signed_initials, signed_file_id from contract_signatures where lead_id = ${job.id}`;
+    expect(adopted).toMatchObject({ signature_method: "typed", signed_initials: "PB" });
+    const pages = await pdfPages(await fetchBytes(customer, `/project/files/${adopted.signed_file_id}`));
+    const body = pages.slice(0, -1);
+    const hand = body.flatMap((page) => page.runs.filter((run) => isHand(run.font)).map((run) => run.text));
+    // The initials once per numbered section, and the signature once, in the handwriting font (spec §10).
+    expect(hand.filter((text) => text === "PB")).toHaveLength(sections);
+    expect(hand.filter((text) => text === "Pat Buyer")).toHaveLength(1);
+    const blockPage = body.find((page) => page.runs.some((run) => run.text === "Client signature"))!;
+    const typedRuns = blockPage.runs.filter((run) => !isHand(run.font)).map((run) => run.text);
+    expect(typedRuns).toContain("Pat Buyer");
+    expect(typedRuns.some((text) => /^[A-Z][a-z]{2} \d{1,2}, \d{4}$/.test(text))).toBe(true);
+    const record = pages.at(-1)!.runs.map((run) => run.text).join("\n");
+    expect(record).toContain("ELECTRONIC SIGNATURE");
+    expect(record).toContain("Method:     typed");
+    expect(record).toMatch(/Initialed sections: 1, 2, 3/);
+```
+
+- [ ] **Step 2: The drawn service agreement** (`e2e/documents.spec.ts`)
+
+1. Imports:
+   - add `type Locator` to the `@playwright/test` import;
+   - add:
+     ```ts
+     import { pdfPages } from "./fixtures/pdf-pages";
+     ```
+2. Constants (after `SIGN_TEMPLATE`):
+
+```ts
+const DRAW_TEMPLATE = `E2E Service Agreement ${STAMP}`;
+```
+
+   and, after `signTitle`:
+
+```ts
+const drawTitle = () => `${DRAW_TEMPLATE} — ${formatProjectNo(job.projectNo)}`;
+```
+
+3. In `beforeAll`, after the `SIGN_TEMPLATE` insert:
+
+```ts
+  await sql()`insert into document_templates (id, name, kind, response, body, created_by, updated_by)
+    values (gen_random_uuid(), ${DRAW_TEMPLATE}, 'service_agreement', 'sign',
+      ${"## 1. Scope\n\nTwo shades for {{client_name}}.\n\n## 2. Payment\n\nPaid on install."}, ${OWNER}, ${OWNER})`;
+```
+
+4. In `afterAll`, inside `if (token) { … }`, change `const paths = …` so that the drawn signature images are removed too:
+
+```ts
+    const files = await sql()`select blob_pathname from job_files where lead_id in (select id from leads where name like 'E2E Docs %')`;
+    const images = await sql()`select signature_image_pathname, initials_image_pathname from contract_signatures
+      where lead_id in (select id from leads where name like 'E2E Docs %')`;
+    const paths = [
+      ...files.map((f) => f.blob_pathname as string),
+      ...images.flatMap((r) => [r.signature_image_pathname, r.initials_image_pathname]).filter((p): p is string => typeof p === "string"),
+    ];
+```
+
+5. Add the helper below `createDocument`:
+
+```ts
+/** Draws a stroke across a pad with the mouse: Chromium turns it into pointer events. */
+async function scribble(page: Page, pad: Locator) {
+  await pad.scrollIntoViewIfNeeded();
+  const box = (await pad.boundingBox())!;
+  await page.mouse.move(box.x + box.width * 0.2, box.y + box.height * 0.6);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width * 0.5, box.y + box.height * 0.3, { steps: 8 });
+  await page.mouse.move(box.x + box.width * 0.8, box.y + box.height * 0.6, { steps: 8 });
+  await page.mouse.up();
+}
+```
+
+6. Add the test right after "a sign document is signed through the contract path, and the owner sees Signed":
+
+```ts
+test("a service agreement with numbered sections is signed by drawing, with initials on every section", async ({ page, browser }) => {
+  await signInOwner(page);
+  const panel = await createDocument(page, job.id, `${DRAW_TEMPLATE} (Service agreement)`, drawTitle());
+  await panel.getByRole("button", { name: "Send to client" }).click();
+  await expect(page).toHaveURL(/tab=documents&sent=email-failed/);
+
+  const customer = await customerPage(browser, CUSTOMER);
+  const [sent] = await sql()`select file_id from job_documents where lead_id = ${job.id} and title = ${drawTitle()}`;
+  const unsigned = pdfText((await fetchFile(customer, `/project/files/${sent.file_id}`)).bytes);
+  expect(unsigned.filter((text) => text === "Initials")).toHaveLength(2);
+  expect(unsigned).toContain("Client signature");
+
+  const details = customer.locator("details", { hasText: `${drawTitle()}.pdf` });
+  await details.locator("summary").click();
+  const form = details.locator("form");
+  await form.getByRole("button", { name: "Draw" }).click();
+  await form.getByLabel("Your full name").fill("Pat Client");
+  await scribble(customer, form.getByLabel("Signature pad"));
+  await scribble(customer, form.getByLabel("Initials pad"));
+  await form.getByLabel("I agree to sign this document electronically and to initial every numbered section").check();
+  await form.getByRole("button", { name: "Sign this document" }).click();
+  await expect(customer.getByRole("status")).toContainText(`Thank you — you signed “${drawTitle()}” on`);
+
+  const [signature] = await sql()`select signature_method, signed_initials, signature_image_pathname, initials_image_pathname
+    from contract_signatures where file_id = ${sent.file_id}`;
+  expect(signature).toMatchObject({ signature_method: "drawn", signed_initials: null });
+  expect(signature.signature_image_pathname).toMatch(new RegExp(`^jobs/${job.id}/signatures/[0-9a-f-]{36}-signature\\.png$`));
+  expect(signature.initials_image_pathname).toMatch(/-initials\.png$/);
+
+  // The stamped copy is written in after(): wait for it.
+  let signedFileId: string | null = null;
+  await expect.poll(async () => {
+    const [row] = await sql()`select signed_file_id from contract_signatures where file_id = ${sent.file_id}`;
+    signedFileId = (row?.signed_file_id as string | null) ?? null;
+    return signedFileId;
+  }, { timeout: 20_000 }).not.toBeNull();
+  const pages = await pdfPages((await fetchFile(customer, `/project/files/${signedFileId}`)).bytes);
+  const body = pages.slice(0, -1);
+  // One drawn image per numbered section plus the signature, on the document's own pages (spec §10).
+  expect(body.reduce((sum, p) => sum + p.images, 0)).toBe(2 + 1);
+  // The signature page shows both adopted images.
+  expect(pages.at(-1)!.images).toBe(2);
+  const blockPage = body.find((p) => p.runs.some((run) => run.text === "Client signature"))!;
+  expect(blockPage.runs.map((run) => run.text)).toContain("Pat Client");
+  const record = pages.at(-1)!.runs.map((run) => run.text).join("\n");
+  expect(record).toContain("Method:     drawn");
+  expect(record).toContain("Initialed sections: 1, 2");
+});
+```
+
+The existing test "a sign document is signed through the contract path" (template `## Change`, no numbered section) stays unchanged. It is the e2e proof that a document with zero numbered sections still signs, with no initials field.
+
+- [ ] **Step 3: Typecheck and list the tests** (implementer; no database)
+
+Run:
+```bash
+npm run typecheck
+npx playwright test e2e/documents.spec.ts e2e/dc-quote.spec.ts --list
+```
+
+Expected: typecheck is clean, and the list shows the new test. Do NOT run the specs: they need the test database and the test blob store.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add e2e/dc-quote.spec.ts e2e/documents.spec.ts
+git commit -m "test: e2e — a typed DC contract and a drawn service agreement carry initials per section and a filled block
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01VsZpDCE8YaRq5jxSkaAZGj"
+```
+
+- [ ] **Step 5 (controller): run the e2e against the test branch**
+
+Load `E2E_POSTGRES_URL` and `E2E_BLOB_READ_WRITE_TOKEN` from `.env.test.local` without printing them, set `E2E_TEST_ENDPOINT` if the branch is not `ep-lingering-fog`, then:
+
+```bash
+npx playwright test e2e/documents.spec.ts e2e/dc-quote.spec.ts e2e/portal.spec.ts --project=desktop
+```
+
+Expected: all pass. `portal.spec.ts` is included because its hand-uploaded contracts have no marks: it proves the legacy path (today's stamp plus the adoption) still signs and stamps in a real build.
+
+- [ ] **Step 6 (controller): manual checks for the two Review Focus items no automated test fully covers**
+  1. **Mobile canvas.**
+     - Serve the build as in Step 5 (`npx next start --port 3100` against the test branch), and open a customer page in Chrome DevTools device mode at 390×844 with touch emulation.
+     - Open a document with numbered sections, choose Draw, and draw on both pads.
+     - Expected: the page does not scroll while drawing, both pads fit without a horizontal scrollbar, and the signing succeeds.
+  2. **JS off.**
+     - In DevTools, disable JavaScript and reload the same page.
+     - Expected: there is no Type/Draw switch and no pad. Type the name and initials, tick, and sign. The status confirms, and the stamped copy shows the typed initials.
+
+---
+
+## Self-review (done while writing; kept for the reviewer)
+
+**Spec coverage:**
+
+| Spec § | Task |
+|---|---|
+| §1 scope: DC contracts and sign job documents; zero sections means block only | 6, 10 |
+| §2 terms: numbered section; marks; adoption | 3, 4 |
+| §3 initials boxes, 64pt narrower | 6 |
+| §3 block after text terms / final page for uploaded terms / replaces SIGN_CLOSING | 6 |
+| §3 ack and view unchanged | 6 (test), 10 |
+| §3 marks returned with bytes | 6 |
+| §3 `sign_marks` in `createFile`'s statement | 2, 7, 10 |
+| §4 Type/Draw, preview, pads, pointer events, sizes, Clear | 12 |
+| §4 checkbox wording | 12 |
+| §4 initials required only with marks | 11, 12 |
+| §4 typed works JS-off; Draw hidden without JS | 11, 12, 14 (manual) |
+| §5 stamp at marks, block filled, signature page with adoption, method, sections | 9 |
+| §5 original untouched | 8 (sha of served bytes unchanged), 9 |
+| §5 legacy files | 9, 14 (`portal.spec`) |
+| §6 columns and checks | 2 |
+| §6 adoption in the one statement | 8 |
+| §6 PNGs stored before, deleted if nothing written | 8, 13 |
+| §6 validation rules | 4, 11 |
+| §7 OFL font, `@pdf-lib/fontkit`, `next/font/local`, Helvetica Oblique fallback | 0, 1, 12 |
+| §8 emails and screens unchanged | nothing to do; `STAMP_REASONS` still true |
+| §9 marks from the DB, private Blob, header-only | 8, 11, 4 |
+| §10 unit, real DB, e2e | every task; 13; 14 |
+| §11 out of scope | not built |
+
+**Types checked across tasks:**
+- `SignMarks`, `InitialsMark` and `MarkPoint` (Task 3) are used unchanged by Tasks 6–13.
+- `Adoption` (Task 4) is the type of `recordSignature`'s `adoption` (8), `stampSignature`'s third parameter (9) and the action's validated value (11).
+- `RenderedPdf` (6) is consumed by Task 10.
+- `SignableFile.signMarks` (8) is read by Tasks 11 and 12.
+- The form field names (12) match what `signContractFormAction` reads (11).
+- The accessible names (12) match Task 14's locators.
+
+**Placeholders:** none. The one soft instruction is Task 1, Step 6's fallback test string, which names its exact replacement.
