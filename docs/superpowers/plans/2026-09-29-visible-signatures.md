@@ -2608,3 +2608,416 @@ Claude-Session: https://claude.ai/code/session_01VsZpDCE8YaRq5jxSkaAZGj"
 If "answers null … corrupt" fails because pdf-lib's PNG decoder does not throw on `corruptPng`'s data, do not weaken the test. Report it to the controller: the spec §6 validation would then need an IDAT sanity check, and that is the owner's call.
 
 ---
+
+## Task 10: The senders store the marks with the file
+
+**Files:**
+- Modify: `lib/dc/send.ts` (the import on line 13; `buildContractPdf` call at 138–147; `createFile` call at 149–150)
+- Modify: `lib/docs/workflow.ts` (the import on line 10; `buildDocumentPdf` call at 70–74; `createFile` call at 75–79)
+- Modify: `scripts/verify-dc-quote-import.ts` (the `vi.mock("../lib/dc/contract-pdf", …)` factory at lines 97–102)
+- Test: `tests/dc/send.test.ts`, `tests/docs/workflow.test.ts`
+
+**Interfaces:**
+- Consumes: `renderContractPdf` and `renderDocumentPdf` → `Promise<RenderedPdf>` (Task 6); `createFile({ …, signMarks })` (Task 7).
+- Produces: every DC contract file, and every job-document file with response `sign`, is created with its marks. Acknowledge and view documents get `signMarks: null`.
+
+- [ ] **Step 1: Update the mocks and write the failing tests**
+
+In `tests/dc/send.test.ts`:
+1. Replace line 20 with:
+   ```ts
+   const pdf = { renderContractPdf: vi.fn() };
+   ```
+2. Replace line 65 with:
+   ```ts
+   pdf.renderContractPdf.mockResolvedValue({ bytes: new Uint8Array([1]), marks: MARKS });
+   ```
+3. Add near the other constants:
+   ```ts
+   const MARKS = { initials: [{ page: 1, x: 502, y: 700, section: "4" }], signature: { page: 2, x: 154, y: 300 } };
+   ```
+4. Replace every other `pdf.buildContractPdf` with `pdf.renderContractPdf`, at lines 194, 284, 301, 318 and 352. Check with `grep -n buildContractPdf tests/dc/send.test.ts`: the expected output is nothing.
+5. Next to the test at line 181 (`toHaveBeenCalledWith(expect.objectContaining({ docType: "contract", … }))`), add:
+
+```ts
+  it("creates the contract file with the marks the renderer recorded, in the same call", async () => {
+    const review = await loadReview(JOB);
+    await sendContract({ jobId: JOB, versionId: V1, fingerprint: review!.fingerprint, actor: OWNER });
+    expect(createFile).toHaveBeenCalledWith(expect.objectContaining({ docType: "contract", signMarks: MARKS }));
+    const body = (createFile.mock.calls[0][0] as { body: Blob }).body;
+    expect(new Uint8Array(await body.arrayBuffer())).toEqual(new Uint8Array([1]));
+  });
+```
+
+In `tests/docs/workflow.test.ts`:
+1. Replace line 11 with:
+   ```ts
+   const pdf = { renderDocumentPdf: vi.fn() };
+   ```
+2. Replace line 37 with:
+   ```ts
+   pdf.renderDocumentPdf.mockResolvedValue({ bytes: new Uint8Array([37, 80, 68, 70]), marks: MARKS });
+   ```
+   and define `MARKS` as in send.test.
+3. Replace `pdf.buildDocumentPdf` at lines 44 and 106 with `pdf.renderDocumentPdf`.
+4. Append beside the tests at lines 117–124:
+
+```ts
+  it("stores the marks with a sign document's file", async () => {
+    store.getJobDocument.mockResolvedValue({ ...draft, response: "sign" });
+    await sendJobDocument({ jobId: JOB, documentId: DOC, actor: "o@x.com", now: NOW });
+    expect(files.createFile.mock.calls[0][0]).toMatchObject({ docType: "contract", signMarks: MARKS });
+  });
+  it("stores no marks for an acknowledge or view document", async () => {
+    for (const response of ["acknowledge", "view"]) {
+      files.createFile.mockClear();
+      store.getJobDocument.mockResolvedValue({ ...draft, response });
+      await sendJobDocument({ jobId: JOB, documentId: DOC, actor: "o@x.com", now: NOW });
+      expect(files.createFile.mock.calls[0][0].signMarks).toBeNull();
+    }
+  });
+```
+
+Match the `sendJobDocument(...)` arguments to the existing tests at lines 117–124, and copy them if they differ.
+
+- [ ] **Step 2: Run the tests to see them fail**
+
+Run: `npx vitest run --maxWorkers=2 tests/dc/send.test.ts tests/docs/workflow.test.ts`
+Expected: FAIL. `send.ts` still calls `buildContractPdf`, which the mock no longer provides, and `signMarks` is missing.
+
+- [ ] **Step 3: Implement**
+
+`lib/dc/send.ts`:
+- line 13 becomes:
+  ```ts
+  import { renderContractPdf, type ContractTerms } from "./contract-pdf";
+  ```
+- `const pdf = await buildContractPdf({` becomes `const rendered = await renderContractPdf({`, with the argument object unchanged;
+- the `createFile` call becomes:
+
+```ts
+  // The marks go in with the file, in createFile's one statement (spec §3).
+  const file = await createFile({ leadId: job.id, kind: "document", name, contentType: "application/pdf",
+    body: new Blob([new Uint8Array(rendered.bytes)], { type: "application/pdf" }), actor: input.actor, docType: "contract",
+    signMarks: rendered.marks });
+```
+
+`lib/docs/workflow.ts`:
+- line 10 becomes:
+  ```ts
+  import { renderDocumentPdf } from "./pdf";
+  ```
+- lines 70–79 become:
+
+```ts
+  const rendered = await renderDocumentPdf({
+    title: doc.title, projectNo: formatProjectNo(job.projectNo), date: input.now ?? new Date(),
+    client: { name: job.name, address: job.address, city: job.city, email: job.email },
+    blocks: parseDocText(doc.body), response: doc.response,
+  });
+  const file = await createFile({
+    leadId: job.id, kind: "document", name: `${doc.title}.pdf`, contentType: "application/pdf",
+    body: new Blob([new Uint8Array(rendered.bytes)], { type: "application/pdf" }), actor: input.actor,
+    docType: doc.response === "sign" ? "contract" : "other",
+    // Only a document the client signs has places for their marks (spec §3).
+    signMarks: doc.response === "sign" ? rendered.marks : null,
+  });
+```
+
+`scripts/verify-dc-quote-import.ts`: replace the mock factory at lines 97–102 with:
+
+```ts
+vi.mock("../lib/dc/contract-pdf", () => ({
+  renderContractPdf: async (input: { projectNo: string; version: number }) => {
+    if (hooks.duringBuild) await hooks.duringBuild();
+    return {
+      bytes: new Uint8Array(Buffer.from(`%PDF-1.4 verify contract ${input.projectNo} v${input.version}`)),
+      marks: { initials: [], signature: { page: 0, x: 154, y: 300 } },
+    };
+  },
+}));
+```
+
+- [ ] **Step 4: Run the tests and typecheck**
+
+Run: `npx vitest run --maxWorkers=2 tests/dc/send.test.ts tests/docs/workflow.test.ts && npm run typecheck`
+Expected: PASS. After Wave 2's interim edit to `actions.ts`, typecheck is clean.
+
+- [ ] **Step 5: Power checks** (revert after each)
+  1. Delete `signMarks: rendered.marks` in `send.ts`. "creates the contract file with the marks" should go red.
+  2. In `workflow.ts`, write `signMarks: rendered.marks` unconditionally. "stores no marks for an acknowledge or view document" should go red.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add lib/dc/send.ts lib/docs/workflow.ts tests/dc/send.test.ts tests/docs/workflow.test.ts scripts/verify-dc-quote-import.ts
+git commit -m "feat: sending a contract or a sign document stores its sign marks with the file
+
+Power checks: <names>
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01VsZpDCE8YaRq5jxSkaAZGj"
+```
+
+---
+
+## Task 11: The sign action validates the adoption and stamps with the file's marks
+
+**Files:**
+- Modify: `app/(site)/project/actions.ts` (imports at lines 18–21; `signContractAction` at 240–330; `signContractFormAction` at 332–350). This replaces the Wave 2 interim edit.
+- Test: `tests/portal/sign-action.test.ts`
+
+**Interfaces:**
+- Consumes:
+  - `parseAdoption`, `requireInitials` and `type AdoptionForm` (Task 4);
+  - `hasInitialMarks` (Task 3);
+  - `SignableFile.signMarks` and `recordSignature({ adoption })` (Task 8);
+  - `stampSignature(original, facts, adoption, marks)` (Task 9).
+- Produces:
+  - `signContractAction(jobId: string, fileId: string, name: string, agreed: boolean, adoption: AdoptionForm): Promise<SignResult>`;
+  - `signContractFormAction(formData)` reads the fields `signatureMethod`, `signedInitials`, `signatureImage` and `initialsImage` (Task 12 renders them).
+
+Order of checks:
+1. ownership;
+2. the box;
+3. the name cap;
+4. **the adoption's own shape** (`parseAdoption`, before anything is read);
+5. the file (unchanged);
+6. **initials exactly when the file's database marks have initials** (`requireInitials`);
+7. `recordSignature`.
+
+- [ ] **Step 1: Update the existing tests for the new parameter**
+
+In `tests/portal/sign-action.test.ts`:
+- Add, after line 68:
+  ```ts
+  const TYPED_FORM = { method: "typed", initials: "", signatureImage: "", initialsImage: "" };
+  ```
+- Every `signContractAction(a, b, c, d)` call gains a fifth argument `TYPED_FORM`. There are 17 calls. Find them with `grep -n "signContractAction(" tests/portal/sign-action.test.ts`, and edit each by hand: several have nested parentheses.
+- Every `new FormData()` built in the file gets `form.set("signatureMethod", "typed");` after `form.set("fileId", FILE);`. There are 4 forms, at lines 172, 187, 198 and 207.
+- The `recordSignature` expectation at line 179 gains `adoption: { method: "typed", initials: null }`.
+- The `stampSignature` expectation at line 227 becomes:
+
+```ts
+    expect(stampSignature).toHaveBeenCalledWith(Buffer.from("pdf bytes"), {
+      signedName: "Jane Doe", signedEmail: EMAIL, signedAt: SIGNED_AT, sha256: "abc", projectNo: "PSS-1048",
+    }, { method: "typed", initials: null }, null);
+```
+
+- [ ] **Step 2: Write the failing tests** (append)
+
+```ts
+import { PNG_DATA_URL_MAX, PNG_DATA_URL_PREFIX } from "@/lib/portal/adoption-limits";
+import { corruptPng, pngBytes, pngDataUrl } from "../fixtures/png";
+
+const MARKS = { initials: [{ page: 1, x: 502, y: 700, section: "4" }], signature: { page: 2, x: 154, y: 300 } };
+const marked = { ...contract, signMarks: MARKS };
+const SIG = pngBytes(600, 200);
+const INI = pngBytes(200, 100);
+
+describe("signContractAction adoption (spec §6)", () => {
+  it("requires typed initials when the file has numbered sections, and passes them on", async () => {
+    signableContracts.mockResolvedValue([marked]);
+    expect(await signContractAction(MINE, FILE, "Jane Doe", true, TYPED_FORM)).toBe("invalid");
+    expect(recordSignature).not.toHaveBeenCalled();
+    expect(await signContractAction(MINE, FILE, "Jane Doe", true, { ...TYPED_FORM, initials: " JD " })).toBe("signed");
+    expect(recordSignature).toHaveBeenCalledWith(expect.objectContaining({ adoption: { method: "typed", initials: "JD" } }));
+    await runAfter();
+    expect(stampSignature).toHaveBeenCalledWith(Buffer.from("pdf bytes"), expect.anything(), { method: "typed", initials: "JD" }, MARKS);
+  });
+
+  it("refuses initials for a file with no numbered sections (a document with zero sections)", async () => {
+    signableContracts.mockResolvedValue([{ ...contract, signMarks: { initials: [], signature: MARKS.signature } }]);
+    expect(await signContractAction(MINE, FILE, "Jane Doe", true, { ...TYPED_FORM, initials: "JD" })).toBe("invalid");
+    expect(await signContractAction(MINE, FILE, "Jane Doe", true, TYPED_FORM)).toBe("signed");
+  });
+
+  it("takes a drawn signature and initials as the exact PNG bytes, and stamps with those bytes", async () => {
+    signableContracts.mockResolvedValue([marked]);
+    const form = { method: "drawn", initials: "", signatureImage: pngDataUrl(SIG), initialsImage: pngDataUrl(INI) };
+    expect(await signContractAction(MINE, FILE, "Jane Doe", true, form)).toBe("signed");
+    const { adoption } = recordSignature.mock.calls[0][0];
+    expect(adoption.method).toBe("drawn");
+    expect(adoption.signaturePng.equals(SIG)).toBe(true);
+    expect(adoption.initialsPng.equals(INI)).toBe(true);
+    await runAfter();
+    expect(stampSignature.mock.calls[0][2]).toBe(adoption);
+  });
+
+  it.each([
+    ["an oversized PNG", pngDataUrl(pngBytes(1201, 10))],
+    ["a JPEG", `data:image/jpeg;base64,${SIG.toString("base64")}`],
+    ["bytes that are not a PNG", `${PNG_DATA_URL_PREFIX}${Buffer.from("not a png, just some text!!").toString("base64")}`],
+    ["a data URL past the cap", PNG_DATA_URL_PREFIX + "A".repeat(PNG_DATA_URL_MAX)],
+  ])("refuses %s before reading anything, and stores nothing", async (_label, signatureImage) => {
+    const form = { method: "drawn", initials: "", signatureImage, initialsImage: pngDataUrl(INI) };
+    expect(await signContractAction(MINE, FILE, "Jane Doe", true, form)).toBe("invalid");
+    expect(signableContracts).not.toHaveBeenCalled();
+    expect(recordSignature).not.toHaveBeenCalled();
+  });
+
+  it("signs with a header-valid PNG whose data is corrupt: the signature stands even if the copy cannot be made", async () => {
+    signableContracts.mockResolvedValue([marked]);
+    const form = { method: "drawn", initials: "", signatureImage: pngDataUrl(corruptPng(600, 200)), initialsImage: pngDataUrl(INI) };
+    expect(await signContractAction(MINE, FILE, "Jane Doe", true, form)).toBe("signed");
+  });
+
+  it("refuses a missing or unknown method, reading nothing", async () => {
+    for (const method of ["", "scribble"]) {
+      expect(await signContractAction(MINE, FILE, "Jane Doe", true, { ...TYPED_FORM, method })).toBe("invalid");
+    }
+    expect(signableContracts).not.toHaveBeenCalled();
+  });
+
+  it("with JavaScript off, a plain typed form post signs a document with numbered sections", async () => {
+    signableContracts.mockResolvedValue([marked]);
+    const form = new FormData();
+    form.set("jobId", MINE);
+    form.set("fileId", FILE);
+    form.set("signatureMethod", "typed");
+    form.set("signedName", "Jane Doe");
+    form.set("signedInitials", "JD");
+    form.set("agreed", "on");
+    await expect(signContractFormAction(form)).rejects.toThrow(`NEXT_REDIRECT /project/${MINE}?signed=1&file=${FILE}`);
+    expect(recordSignature).toHaveBeenCalledWith(expect.objectContaining({ adoption: { method: "typed", initials: "JD" } }));
+  });
+
+  it("reads the drawn fields from the form", async () => {
+    signableContracts.mockResolvedValue([marked]);
+    const form = new FormData();
+    form.set("jobId", MINE);
+    form.set("fileId", FILE);
+    form.set("signatureMethod", "drawn");
+    form.set("signedName", "Jane Doe");
+    form.set("signatureImage", pngDataUrl(SIG));
+    form.set("initialsImage", pngDataUrl(INI));
+    form.set("agreed", "on");
+    await expect(signContractFormAction(form)).rejects.toThrow("signed=1");
+    expect(recordSignature.mock.calls[0][0].adoption.method).toBe("drawn");
+  });
+
+  it("never takes the marks from the form: a forged marks field changes nothing", async () => {
+    // The file has no numbered sections. A form claiming it does must not make initials required.
+    const form = new FormData();
+    form.set("jobId", MINE);
+    form.set("fileId", FILE);
+    form.set("signatureMethod", "typed");
+    form.set("signedName", "Jane Doe");
+    form.set("signMarks", JSON.stringify(MARKS));
+    form.set("agreed", "on");
+    await expect(signContractFormAction(form)).rejects.toThrow("signed=1");
+    await runAfter();
+    expect(stampSignature.mock.calls[0][3]).toBeNull();
+  });
+});
+```
+
+Put the new imports at the top, after the existing dynamic imports' static neighbours. Static imports are hoisted, so their position only affects readability.
+
+- [ ] **Step 3: Run the tests to see them fail**
+
+Run: `npx vitest run --maxWorkers=2 tests/portal/sign-action.test.ts`
+Expected: FAIL. The action ignores the fifth argument, so the initials rules and the drawn adoption tests fail.
+
+- [ ] **Step 4: Implement in `app/(site)/project/actions.ts`**
+
+1. Imports. After line 18, add:
+
+```ts
+import { hasInitialMarks } from "@/lib/pdf/sign-marks";
+import { parseAdoption, requireInitials, type AdoptionForm } from "@/lib/portal/adoption";
+```
+
+   (`actions.ts` is `"use server"`: importing a type and functions is fine. It still exports only async functions.)
+
+2. In the doc comment of `signContractAction`, after item 3, add:
+
+```ts
+ * 4. The adoption (spec §6). Its own shape (method, typed initials, drawn PNGs by header only) is
+ *    checked before anything is read. Whether initials are required is then settled by the file's
+ *    sign marks, read from the database with the file and never from the form (spec §9).
+```
+
+3. The function signature gains the parameter:
+
+```ts
+export async function signContractAction(
+  jobId: string,
+  fileId: string,
+  name: string,
+  agreed: boolean,
+  adoptionForm: AdoptionForm,
+): Promise<SignResult> {
+```
+
+4. After the name-cap line (`if (isTypedNameTooLong(name)) return "invalid";`), add:
+
+```ts
+  // Drawn images are bounded and checked by their header here, before any file is read.
+  const posted = parseAdoption(adoptionForm);
+  if (!posted) return "invalid";
+```
+
+5. After the `if (!file) { … }` block, add:
+
+```ts
+  // Initials exactly when the file has numbered sections: its own marks, from the database.
+  const adoption = requireInitials(posted, hasInitialMarks(file.signMarks));
+  if (!adoption) return "invalid";
+```
+
+6. In the `recordSignature({...})` call, set `adoption,` (replacing the interim `adoption: { method: "typed", initials: null },`).
+
+7. The stamp call becomes:
+
+```ts
+        pdf = await stampSignature(original, {
+          signedName: signature.signedName,
+          signedEmail: signature.signedEmail,
+          signedAt: signature.signedAt,
+          sha256: signature.docSha256,
+          projectNo: formatProjectNo(job.projectNo),
+        }, adoption, file.signMarks ?? null);
+```
+
+8. In `signContractFormAction`, the call becomes:
+
+```ts
+  const result = await signContractAction(
+    jobId,
+    fileId,
+    text(formData.get("signedName")),
+    formData.get("agreed") === "on",
+    {
+      method: text(formData.get("signatureMethod")),
+      initials: text(formData.get("signedInitials")),
+      signatureImage: text(formData.get("signatureImage")),
+      initialsImage: text(formData.get("initialsImage")),
+    },
+  );
+```
+
+- [ ] **Step 5: Run the tests and typecheck**
+
+Run: `npx vitest run --maxWorkers=2 tests/portal/sign-action.test.ts tests/portal/sign.test.ts && npm run typecheck`
+Expected: PASS, and typecheck is clean across the repo.
+
+- [ ] **Step 6: Power checks** (revert after each)
+  1. Delete `if (!posted) return "invalid";` and use `posted!` below. The "refuses an oversized PNG …" cases should go red.
+  2. Replace `hasInitialMarks(file.signMarks)` with `false`. "requires typed initials when the file has numbered sections" should go red.
+  3. Move the `parseAdoption` check below `signableContracts`. "refuses … before reading anything" should go red on `signableContracts` not being called.
+  4. Pass `{ method: "typed", initials: null }` to `stampSignature` instead of `adoption`. "stamps with those bytes" should go red.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add "app/(site)/project/actions.ts" tests/portal/sign-action.test.ts
+git commit -m "feat: the sign action validates the adoption and requires initials exactly when the file has sections
+
+Power checks: <names>
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01VsZpDCE8YaRq5jxSkaAZGj"
+```
+
+---
