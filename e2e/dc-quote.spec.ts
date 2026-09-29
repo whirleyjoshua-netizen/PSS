@@ -408,7 +408,7 @@ test.describe("send, sign and the release gate", () => {
     await expect(review.getByText("Signed", { exact: true })).toBeVisible();
     // Spec §9: just signed, the three-business-day cancellation window is still open, so the owner is
     // told when it ends and is not yet offered the order link.
-    await expect(review.getByText(/^Signed [A-Z][a-z]{2} \d{1,2}, \d{4}\. Cancellation window ends .+ — place the Direct Connect order after that\.$/))
+    await expect(review.getByText(/^Signed [A-Z][a-z]{2} \d{1,2}, \d{4}\. Cancellation window ends at the end of .+ — place the Direct Connect order after that\.$/))
       .toBeVisible();
     await expect(review.getByRole("link", { name: /^Signed — ready to order/ })).toHaveCount(0);
     await expect(figure(review, "Client total")).toHaveText(formatCents(waivedTotal()));

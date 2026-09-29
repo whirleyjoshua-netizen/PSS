@@ -242,12 +242,12 @@ test("a sign document is signed through the contract path, and the owner sees Si
   await expect(details).toHaveCount(1);
   await details.locator("summary").click();
   await details.getByLabel("Your full name").fill("Pat Client");
-  // The job-document sign wording is being reworded to name the document (the final-review fix
-  // round), so these steps find the controls by role and the notice by its date, not by wording.
-  // TODO(after the fix round merges): assert the new wording, which must name signTitle().
-  await details.getByRole("checkbox").check();
-  await details.locator("form").getByRole("button").click();
-  await expect(customer.getByRole("status")).toContainText(/signed on [A-Z][a-z]{2} \d{1,2}, \d{4}/);
+  // A job document signs through the contract path, but the customer reads "document" and its title.
+  await expect(attention.getByText(signTitle(), { exact: true })).toBeVisible();
+  await expect(details.locator("summary")).toHaveText("Sign this document");
+  await details.getByLabel("I agree to sign this document electronically").check();
+  await details.locator("form").getByRole("button", { name: "Sign this document" }).click();
+  await expect(customer.getByRole("status")).toContainText(`Thank you — you signed “${signTitle()}” on`);
 
   const [doc] = await sql()`select status, file_id from job_documents where lead_id = ${job.id} and title = ${signTitle()}`;
   expect(doc.status).toBe("completed");
