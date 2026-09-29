@@ -41,7 +41,8 @@ export async function createDocumentFromTemplate(input: {
   }
   const projectNo = formatProjectNo(job.projectNo);
   const title = (projectNo ? `${template.name} — ${projectNo}` : template.name).slice(0, TITLE_MAX);
-  // The store throws on a blank title (a CHECK), so refuse it here in words instead.
+  // A title JS reads as blank (e.g. only a non-breaking space, which the database's btrim CHECK
+  // keeps) would make a draft that documentSendBlockers can never let send. Refuse it now instead.
   if (!title.trim()) return { error: "Give the template a name on the Documents page." };
   // Null: the job, or the template, was removed between the reads above and the insert.
   const id = await insertDraft({
@@ -86,7 +87,11 @@ export async function sendJobDocument(input: {
     throw error;
   }
   if (!sent) {
-    if (!(await deleteFile(file.id, input.actor))) console.error(`Could not remove the unsent document ${file.id}`);
+    const removed = await deleteFile(file.id, input.actor).catch((cleanup) => {
+      console.error("Could not remove the unsent document", cleanup);
+      return true;
+    });
+    if (!removed) console.error(`Could not remove the unsent document ${file.id}`);
     return { error: SEND_RACE };
   }
   try {

@@ -40,6 +40,13 @@ beforeEach(() => {
   emails.sendDocumentEmail.mockResolvedValue(undefined);
 });
 
+function expectNothingWritten() {
+  expect(pdf.buildDocumentPdf).not.toHaveBeenCalled();
+  expect(files.createFile).not.toHaveBeenCalled();
+  expect(store.markSent).not.toHaveBeenCalled();
+  expect(emails.sendDocumentEmail).not.toHaveBeenCalled();
+}
+
 describe("documentSendBlockers", () => {
   const ok = { status: "draft" as const, title: "T", body: "Text" };
   const client = { email: "a@b.c", status: "sold" as const };
@@ -81,7 +88,7 @@ describe("createDocumentFromTemplate", () => {
   });
   it("never hands the store a blank title", async () => {
     jobs.getJob.mockResolvedValueOnce({ ...job, projectNo: null });
-    templates.getTemplate.mockResolvedValueOnce({ ...template, name: " " });
+    templates.getTemplate.mockResolvedValueOnce({ ...template, name: "\u00a0" });
     expect(await createDocumentFromTemplate({ jobId: JOB, templateId: TEMPLATE, actor: "o" }))
       .toEqual({ error: "Give the template a name on the Documents page." });
     expect(store.insertDraft).not.toHaveBeenCalled();
@@ -104,22 +111,50 @@ describe("sendJobDocument", () => {
       contentType: "application/pdf", actor: "o@x.com", docType: "other" }));
     expect(store.markSent).toHaveBeenCalledWith({ leadId: JOB, documentId: DOC, fileId: FILE, title: draft.title, body: draft.body, actor: "o@x.com" });
     expect(emails.sendDocumentEmail).toHaveBeenCalledWith(job, draft.title, "acknowledge");
+    expect(files.deleteFile).not.toHaveBeenCalled();
   });
   it("stores a sign document as a contract, so the signing path offers it", async () => {
     store.getJobDocument.mockResolvedValue({ ...draft, response: "sign" });
     await sendJobDocument({ jobId: JOB, documentId: DOC, actor: "o" });
     expect(files.createFile.mock.calls[0][0].docType).toBe("contract");
   });
+  it("stores a view document as other", async () => {
+    store.getJobDocument.mockResolvedValue({ ...draft, response: "view" });
+    await sendJobDocument({ jobId: JOB, documentId: DOC, actor: "o" });
+    expect(files.createFile.mock.calls[0][0].docType).toBe("other");
+  });
   it("refuses with the first blocker and stores nothing", async () => {
     store.getJobDocument.mockResolvedValue({ ...draft, body: "Deposit {{deposit}}" });
     expect(await sendJobDocument({ jobId: JOB, documentId: DOC, actor: "o" })).toEqual({ error: "Fill in {{deposit}} first." });
-    expect(files.createFile).not.toHaveBeenCalled();
+    expectNothingWritten();
+  });
+  it("refuses a Lost job, a job with no email, and an already-sent document, writing nothing", async () => {
+    jobs.getJob.mockResolvedValueOnce({ ...job, status: "lost" });
+    expect(await sendJobDocument({ jobId: JOB, documentId: DOC, actor: "o" })).toEqual({ error: "This job is marked Lost." });
+    jobs.getJob.mockResolvedValueOnce({ ...job, email: null });
+    expect(await sendJobDocument({ jobId: JOB, documentId: DOC, actor: "o" })).toEqual({ error: "Add the client's email to the job first." });
+    store.getJobDocument.mockResolvedValueOnce({ ...draft, status: "sent" });
+    expect(await sendJobDocument({ jobId: JOB, documentId: DOC, actor: "o" })).toEqual({ error: "This document has already been sent." });
+    expectNothingWritten();
   });
   it("removes the PDF and answers the race when the statement matched nothing", async () => {
     store.markSent.mockResolvedValue(false);
     expect(await sendJobDocument({ jobId: JOB, documentId: DOC, actor: "o" })).toEqual({ error: SEND_RACE });
     expect(files.deleteFile).toHaveBeenCalledWith(FILE, "o");
     expect(emails.sendDocumentEmail).not.toHaveBeenCalled();
+  });
+  it("still answers the race when removing the PDF throws, and logs it", async () => {
+    store.markSent.mockResolvedValue(false);
+    const cleanup = new Error("blob down");
+    files.deleteFile.mockRejectedValue(cleanup);
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      expect(await sendJobDocument({ jobId: JOB, documentId: DOC, actor: "o" })).toEqual({ error: SEND_RACE });
+      expect(log).toHaveBeenCalledWith("Could not remove the unsent document", cleanup);
+      expect(emails.sendDocumentEmail).not.toHaveBeenCalled();
+    } finally {
+      log.mockRestore();
+    }
   });
   it("removes the PDF when the statement throws, and the error still propagates", async () => {
     store.markSent.mockRejectedValue(new Error("db down"));
