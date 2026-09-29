@@ -141,6 +141,31 @@ describe("JobFiles on a signed contract", () => {
   });
 });
 
+describe("JobFiles on a contract generated from a quote version", () => {
+  const files = [
+    { ...file("gen", "document", new Date(), "Contract PSS-1042 v2.pdf", null), docType: "contract" as const, quoteContract: true },
+    file("plain", "document", null, "Plain.pdf", "quote"),
+  ];
+  const row = (name: string) => screen.getByRole("link", { name }).closest("li")!;
+
+  it("shows its label and sends the owner to the Quote tab, with no type, share or delete control", () => {
+    render(<JobFiles jobId={JOB} measurements={[]} files={files} />);
+    const li = within(row("Contract PSS-1042 v2.pdf"));
+    expect(li.getByText("Contract · managed from the Quote tab")).toBeInTheDocument();
+    expect(li.queryByRole("combobox")).toBeNull();
+    expect(li.queryByRole("switch")).toBeNull();
+    expect(li.queryByRole("button", { name: "Delete" })).toBeNull();
+    expect(li.getByText("Shared")).toBeInTheDocument();
+  });
+
+  it("leaves every control on an ordinary document", () => {
+    render(<JobFiles jobId={JOB} measurements={[]} files={files} />);
+    const li = within(row("Plain.pdf"));
+    expect(li.queryByText("Contract · managed from the Quote tab")).toBeNull();
+    expect(li.getByRole("switch", { name: "Share Plain.pdf with customer" })).toBeInTheDocument();
+  });
+});
+
 describe("JobFiles on a Dealer Copy", () => {
   const files = [
     file("dealer", "document", null, "DEALER COPY 1.html", "dealer_copy"),

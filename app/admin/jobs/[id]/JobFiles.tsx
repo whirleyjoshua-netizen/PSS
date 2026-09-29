@@ -27,6 +27,15 @@ function DealerCopyLabel() {
   return <span className="text-sm text-ink-soft">Dealer copy · internal, never shared</span>;
 }
 
+/**
+ * Shown in place of the type, share and delete controls on a contract generated from a Direct
+ * Connect quote version. Sending, superseding and signing it happen on the Quote tab; the server
+ * refuses relabelling it, deleting it, and re-sharing a superseded one.
+ */
+function QuoteContractLabel() {
+  return <span className="text-sm text-ink-soft">Contract · managed from the Quote tab</span>;
+}
+
 /** Measurements are shown on their own tab; they are taken here only to keep window photos out of Photos. */
 export function JobFiles({ jobId, measurements, files }: {
   jobId: string;
@@ -88,7 +97,7 @@ export function JobFiles({ jobId, measurements, files }: {
                     {file.sharedAt ? <> · <span className="text-xs uppercase tracking-wide text-charcoal">Shared</span></> : null}
                   </p>
                 </div>
-                {file.docType === "dealer_copy" ? <DealerCopyLabel /> : file.signed ? <SignedLabel /> : (
+                {file.docType === "dealer_copy" ? <DealerCopyLabel /> : file.signed ? <SignedLabel /> : file.quoteContract ? <QuoteContractLabel /> : (
                   <>
                     <DocTypeSelect key={file.docType ?? ""} jobId={jobId} fileId={file.id} fileName={file.name} docType={file.docType ?? null} />
                     <ShareSwitch jobId={jobId} fileId={file.id} fileName={file.name} shared={Boolean(file.sharedAt)} />

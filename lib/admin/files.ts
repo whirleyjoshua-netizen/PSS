@@ -25,6 +25,12 @@ export type JobFile = {
    * database would refuse anyway (setShared false, setDocType, deleteFile).
    */
   signed?: boolean;
+  /**
+   * True when a Direct Connect quote version names this file as its contract. Only listFiles
+   * computes it, as for `signed`. Such a contract is managed from the Quote tab: the admin list
+   * offers no type, share or delete control on it (setDocType, setShared and deleteFile refuse).
+   */
+  quoteContract?: boolean;
 };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -44,6 +50,7 @@ export function toFile(row: Record<string, unknown>): JobFile {
     docType: (row.doc_type as StoredDocType | null) ?? null,
     // Absent, not false, when the query never computed it: false would claim "not signed".
     signed: "signed" in row ? row.signed === true : undefined,
+    quoteContract: "quote_contract" in row ? row.quote_contract === true : undefined,
   };
 }
 
@@ -54,7 +61,9 @@ export async function listFiles(leadId: string): Promise<JobFile[]> {
     select job_files.*, exists (
       select 1 from contract_signatures s
       where s.file_id = job_files.id or s.signed_file_id = job_files.id
-    ) as signed
+    ) as signed, exists (
+      select 1 from dc_quote_versions v where v.contract_file_id = job_files.id
+    ) as quote_contract
     from job_files where lead_id = ${leadId} order by created_at desc`;
   return rows.map(toFile);
 }
@@ -190,6 +199,9 @@ export async function readFile(file: JobFile) {
  * A Dealer Copy (doc_type 'dealer_copy') shows dealer cost and is never matched, so sharing
  * one returns false. The database refuses it too (job_files_dealer_copy_never_shared); this
  * clause only turns that check violation into a plain refusal.
+ *
+ * A contract a superseded quote version names cannot be shared again: the client could sign it,
+ * but signing a superseded version never moves the job. Unsharing it stays allowed.
  */
 export async function setShared(jobId: string, fileId: string, shared: boolean, actor: string): Promise<boolean> {
   if (!UUID.test(jobId) || !UUID.test(fileId)) return false;
@@ -202,6 +214,9 @@ export async function setShared(jobId: string, fileId: string, shared: boolean, 
         and (${shared} or not exists (
           select 1 from contract_signatures s
           where s.file_id = job_files.id or s.signed_file_id = job_files.id
+        ))
+        and (not ${shared} or not exists (
+          select 1 from dc_quote_versions v where v.contract_file_id = job_files.id and v.status = 'superseded'
         ))
       returning lead_id, name
     )
@@ -226,6 +241,8 @@ export async function setShared(jobId: string, fileId: string, shared: boolean, 
  * 'dealer_copy' is never matched (relabelling it would free it to be shared), and
  * 'dealer_copy' is refused as a new label before any query, since the value arrives from a
  * form through a Server Action and its type is not enforced at runtime.
+ *
+ * A contract any quote version names keeps its label too: it is managed from the Quote tab.
  */
 export async function setDocType(
   jobId: string, fileId: string, type: DocType | null, actor: string,
@@ -240,6 +257,9 @@ export async function setDocType(
         and not exists (
           select 1 from contract_signatures s
           where s.file_id = job_files.id or s.signed_file_id = job_files.id
+        )
+        and not exists (
+          select 1 from dc_quote_versions v where v.contract_file_id = job_files.id
         )
       returning lead_id, name
     )

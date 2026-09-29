@@ -40,6 +40,18 @@ describe("setShared", () => {
   });
 });
 
+describe("setShared on a generated contract", () => {
+  it("refuses sharing a contract a superseded quote version names, but still lets it be unshared", async () => {
+    sql.mockResolvedValue([]);
+    expect(await files.setShared(JOB, FILE, true, "o@x.com")).toBe(false);
+    const statement = text(sql.mock.calls[0]);
+    const update = statement.slice(statement.indexOf("update job_files"), statement.indexOf("returning"));
+    expect(update).toContain(
+      "and (not ? or not exists ( select 1 from dc_quote_versions v where v.contract_file_id = job_files.id and v.status = 'superseded' ))",
+    );
+  });
+});
+
 describe("setDocType", () => {
   it("never relabels a Dealer Copy", async () => {
     sql.mockResolvedValue([]);
@@ -55,6 +67,14 @@ describe("setDocType", () => {
     const statement = text(sql.mock.calls[0]);
     const update = statement.slice(statement.indexOf("update job_files"), statement.indexOf("returning"));
     expect(update).toContain("and doc_type is distinct from 'dealer_copy'");
+  });
+
+  it("never relabels a contract a quote version names, whatever that version's status", async () => {
+    sql.mockResolvedValue([]);
+    expect(await files.setDocType(JOB, FILE, "other", "o@x.com")).toBe(false);
+    const statement = text(sql.mock.calls[0]);
+    const update = statement.slice(statement.indexOf("update job_files"), statement.indexOf("returning"));
+    expect(update).toContain("and not exists ( select 1 from dc_quote_versions v where v.contract_file_id = job_files.id )");
   });
 
   it("refuses dealer_copy as a new label without querying, whatever the form sends", async () => {
