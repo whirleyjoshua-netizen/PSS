@@ -91,6 +91,21 @@ describe("parseDealerCopy — refusals", () => {
     expect(result).toMatchObject({ ok: false, refusal: { outcome: "incomplete" } });
     if (!result.ok) expect(result.refusal.detail).toBe("Line 1: L-Frame Cover Strip - is required");
   });
+  it("an *** Error line with no closing *** → incomplete, naming the line and the message to the end", () => {
+    const html = ONE.replace(
+      "<tr><td>Mount Type:</td><td>Inside Mount</td></tr>",
+      "<tr><td>Mount Type:</td><td>Inside Mount</td></tr><tr><td colspan=2>*** Error: L-Frame Cover Strip - is required</td></tr>",
+    );
+    expect(html).not.toBe(ONE);
+    const result = parseDealerCopy(html);
+    expect(result).toMatchObject({ ok: false, refusal: { outcome: "incomplete" } });
+    if (!result.ok) expect(result.refusal.detail).toBe("Line 1: L-Frame Cover Strip - is required");
+  });
+  it("an *** Error: outside every line's options row, even unclosed → incomplete (whole-page rule)", () => {
+    const html = ONE.replace("</body>", "<p>*** Error: Order could not be priced</p></body>");
+    expect(html).not.toBe(ONE);
+    expect(parseDealerCopy(html)).toMatchObject({ ok: false, refusal: { outcome: "incomplete" } });
+  });
   it("totals that do not reconcile → unreadable (never import a figure that may be wrong)", () => {
     const html = ONE.replace(">369.67<", ">369.68<");
     expect(html).not.toBe(ONE);
@@ -121,5 +136,16 @@ describe("parseDealerCopy — refusals", () => {
     const result = parseDealerCopy(html);
     expect(result).toMatchObject({ ok: false, refusal: { outcome: "unreadable" } });
     if (!result.ok) expect(result.refusal.detail).toContain("Line 1");
+  });
+  it("a refusal after the header was read carries the quote number and PO, so it can be named", () => {
+    const html = ONE.replace("DEALER COSTS", "");
+    expect(parseDealerCopy(html)).toMatchObject({ ok: false, refusal: { outcome: "no-costs", quoteNo: "22250749", poReference: "PSS-1042" } });
+    const noPo = ONE.replace("<td>PSS-1042</td>", "<td>852</td>");
+    expect(parseDealerCopy(noPo)).toMatchObject({ ok: false, refusal: { outcome: "no-po", quoteNo: "22250749", poReference: "852" } });
+  });
+  it("a page with no quote number carries none", () => {
+    const result = parseDealerCopy("<html><body>hello</body></html>");
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.refusal.quoteNo).toBeUndefined();
   });
 });

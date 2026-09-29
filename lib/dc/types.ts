@@ -36,6 +36,10 @@ export type DcQuote = {
 export type ParseRefusal = {
   outcome: "no-costs" | "incomplete" | "unreadable" | "no-po";
   detail: string;
+  /** Set whenever the parser read a well-formed quote number before refusing. */
+  quoteNo?: string;
+  /** Set whenever the parser read the PO Reference cell before refusing, as printed. */
+  poReference?: string;
 };
 
 export type ParseResult = { ok: true; quote: DcQuote } | { ok: false; refusal: ParseRefusal };
