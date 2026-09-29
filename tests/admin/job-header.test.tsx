@@ -29,6 +29,16 @@ const job: Job = {
 const team = [{ id: "b", name: "Shade", role: "designer" as const }];
 
 describe("JobHeader", () => {
+  it("shows the job's PSS number next to the name, for Direct Connect's PO Reference", () => {
+    render(<JobHeader job={{ ...job, projectNo: 1042 }} now={now} team={team} defaultMinutes={MINUTES} />);
+    expect(screen.getByText("PSS-1042")).toBeInTheDocument();
+  });
+
+  it("shows no number for a job that has none", () => {
+    render(<JobHeader job={{ ...job, projectNo: null }} now={now} team={team} defaultMinutes={MINUTES} />);
+    expect(screen.queryByText(/^PSS-/)).toBeNull();
+  });
+
   it("offers the Assigned to control", () => {
     render(<JobHeader job={job} now={now} team={team} defaultMinutes={MINUTES} />);
     expect(screen.getByLabelText("Assigned to")).toBeInTheDocument();

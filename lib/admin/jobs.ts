@@ -150,6 +150,16 @@ export const SEARCH_MAX = 100;
 /** `%`, `_` and `\` are LIKE wildcards; escape them so a search is literal. */
 const likePattern = (term: string) => `%${term.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
 
+/**
+ * "PSS-1042", "pss 1042" or "1042" → 1042, so an owner can find a job by the number Direct Connect
+ * shows in its PO column. Four or more digits only: project numbers start at 1001, and a shorter
+ * number is far more likely part of a phone or an address.
+ */
+export function projectNoFromSearch(term: string): number | null {
+  const match = /^(?:pss[\s-]*)?(\d{4,9})$/i.exec(term.trim());
+  return match ? Number(match[1]) : null;
+}
+
 export async function listJobs({ search }: { search?: string }): Promise<Job[]> {
   const term = (search ?? "").trim().slice(0, SEARCH_MAX);
   if (!term) {
@@ -163,9 +173,10 @@ export async function listJobs({ search }: { search?: string }): Promise<Job[]> 
   const rows = await db().query(
     `select ${JOB_COLUMNS} from leads
      where (name ilike $1 or email ilike $1 or city ilike $1 or address ilike $1
-            or ($2 <> '' and phone like '%' || $2 || '%'))
+            or ($2 <> '' and phone like '%' || $2 || '%')
+            or ($3::int is not null and project_no = $3))
      order by stage_changed_at desc`,
-    [likePattern(term), phoneDigits],
+    [likePattern(term), phoneDigits, projectNoFromSearch(term)],
   );
   return rows.map(toJob);
 }
