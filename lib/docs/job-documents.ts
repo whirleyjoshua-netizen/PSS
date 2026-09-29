@@ -141,7 +141,8 @@ export async function markSent(input: {
  * is settled on the job_documents row itself: the sign and acknowledge statements also update it
  * (sent -> completed), so whichever statement locks the row first wins, and the other re-checks
  * `status` after the lock and skips. The one edge the plan accepts: void wins, and the client's
- * signature or acknowledgement row is still written for a document that is now void.
+ * signature row is still written for a document that is now void (an acknowledgement is written
+ * only from its own sent -> completed update, so a void that wins leaves none).
  */
 export async function voidDocument(leadId: string, documentId: string, actor: string): Promise<boolean> {
   if (!isUuid(leadId) || !isUuid(documentId)) return false;
