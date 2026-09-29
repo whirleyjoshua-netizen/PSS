@@ -8,7 +8,7 @@ const refresh = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
 
 const { InstallCalculator } = await import("@/app/admin/jobs/[id]/InstallCalculator");
-const { priceQuote, priceFingerprint } = await import("@/lib/admin/install-pricing");
+const { priceQuote, priceFingerprint, NO_EXTRAS } = await import("@/lib/admin/install-pricing");
 
 const JOB = "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c";
 const settings = { minimumCents: 15_000, hardSurfaceCents: 1000, highLadderCents: 5000, motorizedCents: 1500, measureCents: 7500, takedownCents: 0, shutterTakedownCents: 0, appSetupSmallCents: 0, appSetupLargeCents: 0 };
@@ -143,7 +143,7 @@ describe("InstallCalculator", () => {
 
     const [, , sentLines, sentCharge, sentFingerprint] = saveInstallQuoteAction.mock.calls[0];
     expect(sentCharge).toBe(true);
-    expect(sentFingerprint).toBe(priceFingerprint(priceQuote(sentLines, rates, settings, true), settings.minimumCents));
+    expect(sentFingerprint).toBe(priceFingerprint(priceQuote(sentLines, rates, settings, NO_EXTRAS, true), settings.minimumCents));
     expect(JSON.parse(sentFingerprint)).toMatchObject({ measureCents: 7500, totalCents: 22_500 });
   });
 
@@ -216,7 +216,7 @@ describe("InstallCalculator", () => {
     expect(sentCharge).toBe(false);
     expect(sentLines).toEqual([expect.objectContaining({ count: 10 })]);
     // Exactly what the page priced and displayed: these rates, this minimum, these lines.
-    expect(sentFingerprint).toBe(priceFingerprint(priceQuote(sentLines, rates, settings, false), settings.minimumCents));
+    expect(sentFingerprint).toBe(priceFingerprint(priceQuote(sentLines, rates, settings, NO_EXTRAS, false), settings.minimumCents));
     expect(JSON.parse(sentFingerprint)).toMatchObject({ totalCents: 25_000, minimumCents: 15_000 });
   });
 

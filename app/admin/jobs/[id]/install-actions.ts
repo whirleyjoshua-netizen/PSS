@@ -5,7 +5,7 @@ import { z } from "zod";
 import { requireAdmin } from "@/lib/admin/session";
 import { getInstallSettings, listInstallRates } from "@/lib/admin/install-rates";
 import { saveInstallQuote, type InstallQuoteKind } from "@/lib/admin/install-quotes";
-import { priceFingerprint, priceQuote, type LineInput, type PricedQuote } from "@/lib/admin/install-pricing";
+import { NO_EXTRAS, priceFingerprint, priceQuote, type LineInput, type PricedQuote } from "@/lib/admin/install-pricing";
 import { installKindSchema, installLinesSchema } from "@/lib/admin/schema";
 
 const UNCHECKABLE = "Could not check this price. Reload the page and try again.";
@@ -52,7 +52,7 @@ export async function saveInstallQuoteAction(
 
   let priced: PricedQuote;
   try {
-    priced = priceQuote(parsedLines.data, rates, settings, parsedCharge.data);
+    priced = priceQuote(parsedLines.data, rates, settings, NO_EXTRAS, parsedCharge.data);
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Could not price this job." };
   }

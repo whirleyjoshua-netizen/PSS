@@ -17,6 +17,7 @@ const priced = {
   }],
   // A distinct $75 measuring fee, so a column swap between subtotal, fee and total cannot pass.
   subtotalCents: 30_000, measureCents: 7500, totalCents: 37_500, minimumApplied: false,
+  extras: [], extrasCents: 0,
 };
 
 beforeEach(() => {

@@ -11,7 +11,7 @@ const revalidatePath = vi.fn();
 vi.mock("next/cache", () => ({ revalidatePath }));
 
 const { saveInstallQuoteAction } = await import("@/app/admin/jobs/[id]/install-actions");
-const { priceQuote, priceFingerprint } = await import("@/lib/admin/install-pricing");
+const { priceQuote, priceFingerprint, NO_EXTRAS } = await import("@/lib/admin/install-pricing");
 
 const JOB = "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c";
 const settings = { minimumCents: 15_000, hardSurfaceCents: 1000, highLadderCents: 5000, motorizedCents: 1500, measureCents: 7500, takedownCents: 0, shutterTakedownCents: 0, appSetupSmallCents: 0, appSetupLargeCents: 0 };
@@ -23,7 +23,7 @@ const line = {
 /** What the owner's page would send: the fingerprint of the price it showed. */
 const shown = (lines: typeof line[], rateCents = 10_000, shownSettings = settings, chargeMeasure = false) =>
   priceFingerprint(
-    priceQuote(lines, [{ treatment: "roller_shades", basis: "window", rateCents }], shownSettings, chargeMeasure),
+    priceQuote(lines, [{ treatment: "roller_shades", basis: "window", rateCents }], shownSettings, NO_EXTRAS, chargeMeasure),
     shownSettings.minimumCents,
   );
 const MATCHING = () => shown([line]);

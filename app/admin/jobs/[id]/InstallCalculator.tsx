@@ -4,7 +4,7 @@ import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { TREATMENT_TYPES, type TreatmentType } from "@/lib/leads/treatment-types";
 import {
-  INSTALLABLE_TREATMENTS, priceFingerprint, priceQuote,
+  INSTALLABLE_TREATMENTS, NO_EXTRAS, priceFingerprint, priceQuote,
   type InstallRate, type InstallSettings, type LineInput, type PricedQuote,
 } from "@/lib/admin/install-pricing";
 import type { InstallQuoteKind, SavedInstallQuote } from "@/lib/admin/install-quotes";
@@ -65,7 +65,7 @@ function preview(lines: LineInput[], rates: InstallRate[], settings: InstallSett
   const checked = installLinesSchema.safeParse(lines);
   if (!checked.success) return { priced: null, error: checked.error.issues[0].message };
   try {
-    return { priced: priceQuote(lines, rates, settings, chargeMeasure), error: null };
+    return { priced: priceQuote(lines, rates, settings, NO_EXTRAS, chargeMeasure), error: null };
   } catch (error) {
     return { priced: null, error: error instanceof Error ? error.message : "Could not price this job." };
   }
