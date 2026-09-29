@@ -57,6 +57,12 @@ describe("document actions", () => {
     expect(await actions.saveDocumentAction({}, form({ jobId: JOB, documentId: DOC, title: "T", body: "b" })))
       .toEqual({ error: "This document has been sent and can no longer be changed." });
   });
+  it("saveDocumentAction stores LF and counts the limit on what is stored", async () => {
+    expect(await actions.saveDocumentAction({}, form({ jobId: JOB, documentId: DOC, title: "T", body: "a\r\nb" }))).toEqual({ saved: true });
+    expect(store.updateDraft).toHaveBeenLastCalledWith({ leadId: JOB, documentId: DOC, title: "T", body: "a\nb" });
+    // 100,000 characters as typed, 150,000 once multipart has made each LF a CRLF.
+    expect(await actions.saveDocumentAction({}, form({ jobId: JOB, documentId: DOC, title: "T", body: "x\r\n".repeat(50_000) }))).toEqual({ saved: true });
+  });
   it("sendDocumentAction checks the admin first and turns a throw into a plain answer", async () => {
     expect(await actions.sendDocumentAction(JOB, DOC)).toEqual({ ok: true, emailed: true });
     expect(order).toEqual(["auth", "send"]);

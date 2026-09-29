@@ -4,6 +4,7 @@ import { useActionState, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { DocEditor } from "@/app/admin/documents/DocEditor";
 import type { DocResponse } from "@/lib/docs/kinds";
+import { TITLE_MAX } from "@/lib/docs/validate";
 import { discardDocumentAction, saveDocumentAction, sendDocumentAction, type DocumentFormState } from "./document-actions";
 import { CARD } from "./ui";
 
@@ -20,6 +21,8 @@ export function DocumentPanel({ jobId, doc, blockers }: {
   const [state, save, saving] = useActionState<DocumentFormState, FormData>(saveDocumentAction, {});
   const [title, setTitle] = useState(doc.title);
   const [body, setBody] = useState(doc.body);
+  // A save error answers the text that was posted; once the owner edits again it no longer applies.
+  const [editedSinceSave, setEditedSinceSave] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, startBusy] = useTransition();
   const dirty = title !== doc.title || body !== doc.body;
@@ -41,20 +44,20 @@ export function DocumentPanel({ jobId, doc, blockers }: {
   return (
     <section aria-labelledby="draft-heading" className={CARD}>
       <h3 id="draft-heading" className="text-base font-semibold">Draft: {doc.title}</h3>
-      <form action={save} className="flex flex-col gap-3">
+      <form action={save} onSubmit={() => setEditedSinceSave(false)} className="flex flex-col gap-3">
         <input type="hidden" name="jobId" value={jobId} />
         <input type="hidden" name="documentId" value={doc.id} />
         <label className="flex flex-col gap-1 text-sm">
           Title
-          <input name="title" value={title} onChange={(event) => setTitle(event.target.value)} required maxLength={200}
+          <input name="title" value={title} onChange={(event) => { setTitle(event.target.value); setEditedSinceSave(true); }} required maxLength={TITLE_MAX}
             className="min-h-11 border border-rule bg-ivory px-3" />
         </label>
         <DocEditor name="body" label="Text" defaultValue={doc.body} mode="document" titleField="title"
-          previewExtras={{ jobId, response: doc.response }} onChange={setBody} />
+          previewExtras={{ jobId, response: doc.response }} onChange={(value) => { setBody(value); setEditedSinceSave(true); }} />
         <div className="flex items-center gap-3">
           <button type="submit" disabled={saving} className="min-h-11 border border-charcoal px-4 text-sm">Save draft</button>
           {state.saved && !dirty ? <p role="status" className="text-sm">Saved.</p> : null}
-          {state.error ? <p role="alert" className="text-sm text-overdue">{state.error}</p> : null}
+          {state.error && !editedSinceSave ? <p role="alert" className="text-sm text-overdue">{state.error}</p> : null}
         </div>
       </form>
       {blockers.length > 0 ? (

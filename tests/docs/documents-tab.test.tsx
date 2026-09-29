@@ -1,17 +1,21 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const listJobDocuments = vi.fn();
 vi.mock("@/lib/docs/job-documents", () => ({ listJobDocuments }));
 const listTemplates = vi.fn();
 vi.mock("@/lib/docs/templates", () => ({ listTemplates }));
-const sendDocumentAction = vi.fn(async (): Promise<Record<string, unknown>> => ({}));
+type Answer = Record<string, unknown>;
+const sendDocumentAction = vi.fn(async (): Promise<Answer> => ({}));
+const createDocumentAction = vi.fn(async (_previous: unknown, _data: FormData): Promise<Answer> => ({}));
+const saveDocumentAction = vi.fn(async (_previous: unknown, _data: FormData): Promise<Answer> => ({}));
+const voidDocumentAction = vi.fn(async (): Promise<Answer> => ({}));
 vi.mock("@/app/admin/jobs/[id]/document-actions", () => ({
-  createDocumentAction: vi.fn(async () => ({})), saveDocumentAction: vi.fn(async () => ({})),
-  sendDocumentAction, voidDocumentAction: vi.fn(async () => ({})), discardDocumentAction: vi.fn(async () => ({})),
+  createDocumentAction, saveDocumentAction, sendDocumentAction, voidDocumentAction, discardDocumentAction: vi.fn(async () => ({})),
 }));
 const replace = vi.fn();
-vi.mock("next/navigation", () => ({ useRouter: () => ({ replace, refresh: vi.fn() }) }));
+const refresh = vi.fn();
+vi.mock("next/navigation", () => ({ useRouter: () => ({ replace, refresh }) }));
 
 const { DocumentsTab, documentStatusLabel, parseSentNotice } = await import("@/app/admin/jobs/[id]/DocumentsTab");
 
@@ -104,5 +108,44 @@ describe("DocumentsTab", () => {
     listTemplates.mockResolvedValue([]);
     render(await DocumentsTab({ job, selectedId: null, sentNotice: null }));
     expect(screen.getByRole("link", { name: "Write one on the Documents page" })).toHaveAttribute("href", "/admin/documents/new");
+  });
+  it("keeps the owner's template choice after a refused create, and posts it again", async () => {
+    createDocumentAction.mockReset().mockResolvedValue({ error: "That template is no longer available. Reload the page." });
+    listTemplates.mockResolvedValue([
+      { id: "t1", name: "Service agreement", kind: "service_agreement" }, { id: "t3", name: "Change", kind: "change_order" },
+    ]);
+    render(await DocumentsTab({ job, selectedId: null, sentNotice: null }));
+    const select = screen.getByLabelText("Template") as HTMLSelectElement;
+    fireEvent.change(select, { target: { value: "t3" } });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Create document" })); });
+    await screen.findByRole("alert");
+    expect(select.value).toBe("t3");
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Create document" })); });
+    await vi.waitFor(() => expect(createDocumentAction).toHaveBeenCalledTimes(2));
+    expect(createDocumentAction.mock.calls.map(([, data]) => data.get("templateId"))).toEqual(["t3", "t3"]);
+  });
+  it("refreshes the list when a void is refused, so the row shows the real state", async () => {
+    refresh.mockReset();
+    voidDocumentAction.mockResolvedValueOnce({ error: "Only a sent document that hasn't been signed or acknowledged can be voided." });
+    listJobDocuments.mockResolvedValue([doc({ status: "sent", fileId: "f1", sentAt: new Date(), title: "A" })]);
+    render(await DocumentsTab({ job, selectedId: null, sentNotice: null }));
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Void A" })); });
+    expect(await screen.findByRole("alert")).toHaveTextContent("Only a sent document");
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+  it("clears a save error once the owner edits again", async () => {
+    saveDocumentAction.mockReset().mockResolvedValue({ error: "The document is too long." });
+    listJobDocuments.mockResolvedValue([doc({ body: "Deposit $500" })]);
+    render(await DocumentsTab({ job, selectedId: "d1", sentNotice: null }));
+    const panel = screen.getByRole("region", { name: "Draft: Service agreement — PSS-1048" });
+    await act(async () => { fireEvent.click(within(panel).getByRole("button", { name: "Save draft" })); });
+    expect(await within(panel).findByRole("alert")).toHaveTextContent("The document is too long.");
+    fireEvent.change(within(panel).getByLabelText("Text"), { target: { value: "Deposit $5" } });
+    expect(within(panel).queryByRole("alert")).toBeNull();
+    fireEvent.change(within(panel).getByLabelText("Title"), { target: { value: "New title" } });
+    await act(async () => { fireEvent.click(within(panel).getByRole("button", { name: "Save draft" })); });
+    expect(await within(panel).findByRole("alert")).toHaveTextContent("The document is too long.");
+    fireEvent.change(within(panel).getByLabelText("Title"), { target: { value: "Newer title" } });
+    expect(within(panel).queryByRole("alert")).toBeNull();
   });
 });

@@ -59,6 +59,19 @@ describe("insertDraft", () => {
   });
 });
 
+describe("line endings", () => {
+  // A server action posts FormData as multipart, which turns every LF into CRLF. The store keeps LF,
+  // so what the editor holds (LF) equals what is saved, and a save doesn't leave the draft "dirty".
+  it("insertDraft and updateDraft store a CRLF or CR body as LF", async () => {
+    sql.mockResolvedValueOnce([{ id: "new" }]).mockResolvedValueOnce([{ id: DOC }]);
+    await store.insertDraft({ leadId: JOB, templateId: null, title: "t", kind: "other", response: "view", body: "a\r\nb\rc\n", actor: "o" });
+    await store.updateDraft({ leadId: JOB, documentId: DOC, title: "T", body: "a\r\n\r\nb" });
+    expect(sql.mock.calls[0]).toContain("a\nb\nc\n");
+    expect(sql.mock.calls[0].some((bind) => typeof bind === "string" && bind.includes("\r"))).toBe(false);
+    expect(sql.mock.calls[1].slice(1)).toEqual(["T", "a\n\nb", DOC, JOB]);
+  });
+});
+
 describe("drafts only", () => {
   it("updateDraft touches a draft of this job and nothing else", async () => {
     sql.mockResolvedValueOnce([{ id: DOC }]).mockResolvedValueOnce([]);

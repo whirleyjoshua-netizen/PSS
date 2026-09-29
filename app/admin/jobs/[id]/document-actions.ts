@@ -5,8 +5,8 @@ import { redirect } from "next/navigation";
 import { isUuid } from "@/lib/admin/jobs";
 import { requireAdmin } from "@/lib/admin/session";
 import { discardDraft, updateDraft, voidDocument } from "@/lib/docs/job-documents";
-import { BODY_MAX } from "@/lib/docs/validate";
-import { TITLE_MAX, createDocumentFromTemplate, sendJobDocument } from "@/lib/docs/workflow";
+import { BODY_MAX, TITLE_MAX, normalizeNewlines } from "@/lib/docs/validate";
+import { createDocumentFromTemplate, sendJobDocument } from "@/lib/docs/workflow";
 
 const str = (value: FormDataEntryValue | null): string => (typeof value === "string" ? value : "");
 const refresh = (jobId: string) => revalidatePath(`/admin/jobs/${jobId}`);
@@ -31,7 +31,8 @@ export async function saveDocumentAction(_previous: DocumentFormState, formData:
   const jobId = str(formData.get("jobId"));
   const documentId = str(formData.get("documentId"));
   const title = str(formData.get("title"));
-  const body = str(formData.get("body"));
+  // Multipart posts each LF as CRLF: check and store what the editor held.
+  const body = normalizeNewlines(str(formData.get("body")));
   if (!title.trim()) return { error: "Give the document a title." };
   if (title.length > TITLE_MAX) return { error: `The title must be ${TITLE_MAX} characters or fewer.` };
   if (body.length > BODY_MAX) return { error: "The document is too long." };

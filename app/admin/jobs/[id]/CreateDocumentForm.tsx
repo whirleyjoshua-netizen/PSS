@@ -1,13 +1,20 @@
 "use client";
 
-import { useActionState } from "react";
+import { startTransition, useActionState, type FormEvent } from "react";
 import { createDocumentAction } from "./document-actions";
 import { ACTION_LINK } from "./ui";
 
 export function CreateDocumentForm({ jobId, templates }: { jobId: string; templates: { id: string; name: string; kindLabel: string }[] }) {
   const [state, action, pending] = useActionState<{ error?: string }, FormData>(createDocumentAction, {});
+  // Not <form action>: React resets a form after its action runs, which would put the select back
+  // on the first template after a refusal, and the next click would create that one instead.
+  const submit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    startTransition(() => action(data));
+  };
   return (
-    <form action={action} className="flex flex-wrap items-end gap-3">
+    <form onSubmit={submit} className="flex flex-wrap items-end gap-3">
       <input type="hidden" name="jobId" value={jobId} />
       <label className="flex flex-col gap-1 text-sm">
         Template

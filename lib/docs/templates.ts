@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { isUuid } from "@/lib/admin/ids";
 import { db } from "@/lib/db";
 import { isSingletonKind, templateKindLabel, type DocResponse, type SingletonKind, type TemplateKind } from "./kinds";
+import { normalizeNewlines } from "./validate";
 
 export type DocumentTemplate = {
   id: string; name: string; kind: TemplateKind; response: DocResponse; body: string;
@@ -55,7 +56,7 @@ export async function createTemplate(input: {
   try {
     await db()`
       insert into document_templates (id, name, kind, response, body, created_by, updated_by)
-      values (${id}, ${input.name.trim()}, ${input.kind}, ${response}, ${input.body}, ${input.actor}, ${input.actor})`;
+      values (${id}, ${input.name.trim()}, ${input.kind}, ${response}, ${normalizeNewlines(input.body)}, ${input.actor}, ${input.actor})`;
   } catch (error) {
     if ((error as { code?: string }).code === UNIQUE_VIOLATION) {
       return { error: `There is already a live ${templateKindLabel(input.kind)} template. Edit that one instead.` };
@@ -74,7 +75,7 @@ export async function updateTemplate(input: {
     update document_templates
     set name = ${input.name.trim()},
       response = case when kind in ('terms','guide_install','guide_care') then 'view' else ${input.response} end,
-      body = ${input.body}, updated_by = ${input.actor}, updated_at = now()
+      body = ${normalizeNewlines(input.body)}, updated_by = ${input.actor}, updated_at = now()
     where id = ${input.id} and archived_at is null
     returning id`;
   return rows.length > 0;
