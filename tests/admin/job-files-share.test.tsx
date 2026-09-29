@@ -164,6 +164,15 @@ describe("JobFiles on a contract generated from a quote version", () => {
     expect(li.queryByText("Contract · managed from the Quote tab")).toBeNull();
     expect(li.getByRole("switch", { name: "Share Plain.pdf with customer" })).toBeInTheDocument();
   });
+
+  it("offers no type, share or delete control on a job document's PDF", () => {
+    render(<JobFiles jobId={JOB} measurements={[]} files={[{ ...file("docpdf", "document", new Date(), "Service agreement — PSS-1048.pdf", null), jobDocument: true }]} />);
+    const row = screen.getByText("Service agreement — PSS-1048.pdf").closest("li")!;
+    expect(within(row).getByText("Document · managed from the Documents tab")).toBeInTheDocument();
+    expect(within(row).queryByRole("button")).toBeNull();
+    expect(within(row).queryByRole("switch")).toBeNull();
+    expect(within(row).queryByRole("combobox")).toBeNull();
+  });
 });
 
 describe("JobFiles on a Dealer Copy", () => {
