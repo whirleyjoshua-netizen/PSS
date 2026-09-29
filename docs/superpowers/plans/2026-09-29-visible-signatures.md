@@ -1902,3 +1902,709 @@ Claude-Session: https://claude.ai/code/session_01VsZpDCE8YaRq5jxSkaAZGj"
 ```
 
 ---
+
+## Task 8: `sign.ts` — marks on signable files, adoption recorded in the one statement
+
+**Files:**
+- Modify: `lib/portal/sign.ts` (types at lines 18–41, `signableContracts` lines 54–84, `recordSignature` lines 86–170)
+- Modify (the `recordSignature` calls only): `scripts/verify-contract-signing.ts` (5 calls, at about lines 212, 233, 318, 334 and 344), `scripts/verify-dc-quote-import.ts` (line 487), `scripts/verify-documents.ts` (line 389)
+- Test: `tests/portal/sign.test.ts`
+
+**Interfaces:**
+- Consumes: `type Adoption` from `@/lib/portal/adoption` (Task 4); `parseSignMarks` and `type SignMarks` (Task 3); the columns from Task 2.
+- Produces (used by Tasks 11, 12 and 13):
+  - `Signature` gains `signatureMethod: "typed" | "drawn" | null; signedInitials: string | null; signatureImagePathname: string | null; initialsImagePathname: string | null` (and so `ListedSignature` does too);
+  - `type SignableFile = JobFile & { document: { title: string; kind: ClientDocKind } | null; signMarks: SignMarks | null }`;
+  - `recordSignature(input: { jobId: string; file: JobFile; name: string; email: string; ip: string | null; userAgent: string | null; adoption: Adoption }): Promise<RecordResult>`. `adoption` is required.
+- Unchanged: `storeSignedCopy`, `signatureFor(fileId)`, `listSignatures(leadId)` and `RecordResult`.
+
+- [ ] **Step 1: Update the existing tests for the new required field**
+
+In `tests/portal/sign.test.ts`:
+- After line 22 add:
+  ```ts
+  const TYPED = { method: "typed", initials: null } as const;
+  ```
+- Add `adoption: TYPED` to every `recordSignature({...})` call: 6 calls, at lines 116, 148, 163, 172, 184 and 194.
+- In "maps the stored row" (`signatureFor`), add to the row
+  ```ts
+  signature_method: null, signed_initials: null, signature_image_pathname: null, initials_image_pathname: null
+  ```
+  and to the expected object
+  ```ts
+  signatureMethod: null, signedInitials: null, signatureImagePathname: null, initialsImagePathname: null
+  ```
+
+In `scripts/verify-contract-signing.ts`, `scripts/verify-dc-quote-import.ts` and `scripts/verify-documents.ts`, add `adoption: { method: "typed", initials: null }` to every `recordSignature({...})` call. Find them with:
+
+```bash
+grep -n "recordSignature({" scripts/verify-contract-signing.ts scripts/verify-dc-quote-import.ts scripts/verify-documents.ts
+```
+
+- [ ] **Step 2: Write the failing tests** (append to `tests/portal/sign.test.ts`)
+
+```ts
+import { pngBytes } from "../fixtures/png";
+
+describe("signableContracts carries each file's sign marks, read from the database", () => {
+  const marks = { initials: [{ page: 1, x: 502, y: 700, section: "4" }], signature: { page: 2, x: 154, y: 300 } };
+  it("attaches a file's stored marks, and null for a file without", async () => {
+    const OTHER = "55555555-5555-4555-8555-555555555555";
+    vi.mocked(listSharedDocuments).mockResolvedValue([doc(FILE, "Contract.pdf", "contract"), doc(OTHER, "Upload.pdf", "contract")]);
+    query.mockImplementation(async (strings: TemplateStringsArray) =>
+      strings.join("?").includes("sign_marks") ? [{ id: FILE, sign_marks: marks }] : []);
+    const offered = await signableContracts(JOB);
+    expect(offered.map((file) => [file.id, file.signMarks])).toEqual([[FILE, marks], [OTHER, null]]);
+    const call = query.mock.calls.find(([strings]) => (strings as TemplateStringsArray).join("?").includes("sign_marks"))!;
+    expect((call[0] as TemplateStringsArray).join("?")).toContain("from job_files");
+    expect(call.slice(1)).toEqual([JOB]);
+  });
+  it("treats malformed stored marks as none", async () => {
+    vi.mocked(listSharedDocuments).mockResolvedValue([doc(FILE, "Contract.pdf", "contract")]);
+    query.mockImplementation(async (strings: TemplateStringsArray) =>
+      strings.join("?").includes("sign_marks") ? [{ id: FILE, sign_marks: { initials: "nope" } }] : []);
+    expect((await signableContracts(JOB))[0].signMarks).toBeNull();
+  });
+});
+
+describe("recordSignature stores the adoption (spec §6)", () => {
+  const file = doc(FILE, "Contract.pdf", "contract");
+  const SIG = pngBytes(600, 200);
+  const INI = pngBytes(200, 100);
+  const served = () => vi.mocked(readFile).mockResolvedValue({ stream: new Response("pdf bytes").body!, contentType: "application/pdf" });
+  const base = { jobId: JOB, file, name: "Jane Doe", email: "jane@example.com", ip: null, userAgent: null };
+  // values: id, lead, file, name, email, ip, ua, sha256, then method, initials, signature path, initials path.
+  const adoptionValues = () => query.mock.calls[0].slice(1).slice(8, 12);
+
+  it("writes a typed adoption in the same insert, and stores nothing in Blob", async () => {
+    served();
+    query.mockResolvedValue([{ id: "sig" }]);
+    expect(await recordSignature({ ...base, adoption: { method: "typed", initials: "JD" } })).toBe("signed");
+    expect(adoptionValues()).toEqual(["typed", "JD", null, null]);
+    const sql = (query.mock.calls[0][0] as TemplateStringsArray).join("?").replace(/\s+/g, " ");
+    expect(sql).toContain("doc_sha256, signature_method, signed_initials, signature_image_pathname, initials_image_pathname)");
+    expect(put).not.toHaveBeenCalled();
+    expect(query).toHaveBeenCalledTimes(1);
+  });
+
+  it("stores drawn PNGs privately under the job BEFORE the statement, and records their pathnames", async () => {
+    served();
+    query.mockResolvedValue([{ id: "sig" }]);
+    vi.mocked(put).mockResolvedValue(undefined as never);
+    expect(await recordSignature({ ...base, adoption: { method: "drawn", signaturePng: SIG, initialsPng: INI } })).toBe("signed");
+    expect(put).toHaveBeenCalledTimes(2);
+    const [[sigPath, sigBody, sigOptions], [iniPath, iniBody]] = vi.mocked(put).mock.calls;
+    expect(sigPath).toMatch(new RegExp(`^jobs/${JOB}/signatures/[0-9a-f-]{36}-signature\\.png$`));
+    expect(iniPath).toBe((sigPath as string).replace("-signature.png", "-initials.png"));
+    expect(sigBody).toBe(SIG);
+    expect(iniBody).toBe(INI);
+    expect(sigOptions).toEqual({ access: "private", contentType: "image/png", addRandomSuffix: false });
+    expect(vi.mocked(put).mock.invocationCallOrder[1]).toBeLessThan(query.mock.invocationCallOrder[0]);
+    expect(adoptionValues()).toEqual(["drawn", null, sigPath, iniPath]);
+    expect(del).not.toHaveBeenCalled();
+  });
+
+  it("stores only the signature when the drawn adoption has no initials", async () => {
+    served();
+    query.mockResolvedValue([{ id: "sig" }]);
+    vi.mocked(put).mockResolvedValue(undefined as never);
+    await recordSignature({ ...base, adoption: { method: "drawn", signaturePng: SIG, initialsPng: null } });
+    expect(put).toHaveBeenCalledTimes(1);
+    expect(adoptionValues()[3]).toBeNull();
+  });
+
+  it("removes the stored PNGs when the statement wrote nothing (already signed)", async () => {
+    served();
+    query.mockResolvedValue([]);
+    vi.mocked(put).mockResolvedValue(undefined as never);
+    expect(await recordSignature({ ...base, adoption: { method: "drawn", signaturePng: SIG, initialsPng: INI } })).toBe("already-signed");
+    expect(vi.mocked(del).mock.calls.map(([path]) => path)).toEqual(vi.mocked(put).mock.calls.map(([path]) => path));
+  });
+
+  it("removes the stored PNGs and rethrows when the statement fails", async () => {
+    served();
+    query.mockRejectedValue(new Error("db down"));
+    vi.mocked(put).mockResolvedValue(undefined as never);
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    await expect(recordSignature({ ...base, adoption: { method: "drawn", signaturePng: SIG, initialsPng: INI } })).rejects.toThrow("db down");
+    expect(del).toHaveBeenCalledTimes(2);
+  });
+
+  it("answers not-found, writes no row, and leaves nothing behind when a PNG cannot be stored", async () => {
+    served();
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(put).mockResolvedValueOnce(undefined as never).mockRejectedValueOnce(new Error("blob down"));
+    expect(await recordSignature({ ...base, adoption: { method: "drawn", signaturePng: SIG, initialsPng: INI } })).toBe("not-found");
+    expect(query).not.toHaveBeenCalled();
+    expect(del).toHaveBeenCalledWith(vi.mocked(put).mock.calls[0][0]);
+  });
+
+  it("stores nothing for an empty name or unreadable bytes", async () => {
+    expect(await recordSignature({ ...base, name: "  ", adoption: { method: "drawn", signaturePng: SIG, initialsPng: null } })).toBe("invalid");
+    vi.mocked(readFile).mockResolvedValue(null);
+    expect(await recordSignature({ ...base, adoption: { method: "drawn", signaturePng: SIG, initialsPng: null } })).toBe("not-found");
+    expect(put).not.toHaveBeenCalled();
+  });
+});
+
+describe("signatureFor maps the adoption", () => {
+  it("reads a drawn adoption's pathnames", async () => {
+    query.mockResolvedValue([{
+      id: "sig", lead_id: JOB, file_id: FILE, signed_name: "Jane Doe", signed_email: "jane@example.com", signed_at: new Date(),
+      doc_sha256: "h", signed_file_id: null, signature_method: "drawn", signed_initials: null,
+      signature_image_pathname: "jobs/x/signatures/a-signature.png", initials_image_pathname: "jobs/x/signatures/a-initials.png",
+    }]);
+    expect(await signatureFor(FILE)).toMatchObject({
+      signatureMethod: "drawn", signedInitials: null,
+      signatureImagePathname: "jobs/x/signatures/a-signature.png", initialsImagePathname: "jobs/x/signatures/a-initials.png",
+    });
+  });
+});
+```
+
+Put the `pngBytes` import at the top of the file, with the other imports.
+
+- [ ] **Step 3: Run the tests to see them fail**
+
+Run: `npx vitest run --maxWorkers=2 tests/portal/sign.test.ts`
+Expected: the new tests FAIL (no `signMarks`, no adoption values, no `put`).
+
+- [ ] **Step 4: Implement in `lib/portal/sign.ts`**
+
+1. Imports. After line 6 add:
+
+```ts
+import { parseSignMarks, type SignMarks } from "@/lib/pdf/sign-marks";
+import type { Adoption } from "./adoption";
+```
+
+2. `Signature` (lines 18–27): add four fields after `signedFileId`:
+
+```ts
+  /** Null for a signature made before adoption existed (spec §6). */
+  signatureMethod: "typed" | "drawn" | null;
+  signedInitials: string | null;
+  signatureImagePathname: string | null;
+  initialsImagePathname: string | null;
+```
+
+   In `toSignature` (lines 29–38) add:
+
+```ts
+  signatureMethod: (row.signature_method as "typed" | "drawn" | null) ?? null,
+  signedInitials: (row.signed_initials as string | null) ?? null,
+  signatureImagePathname: (row.signature_image_pathname as string | null) ?? null,
+  initialsImagePathname: (row.initials_image_pathname as string | null) ?? null,
+```
+
+3. Replace the `SignableFile` type (line 55) with:
+
+```ts
+/**
+ * A contract-typed file the customer can sign. `document` is set when it is a job document's PDF.
+ * `signMarks` is where initials and the signature block belong (spec §3), null for a file without.
+ */
+export type SignableFile = JobFile & { document: { title: string; kind: ClientDocKind } | null; signMarks: SignMarks | null };
+```
+
+4. In `signableContracts`, change the destructuring to `const [documents, rows, jobDocuments, markRows] = await Promise.all([`, and add a fourth entry after the `job_documents` query:
+
+```ts
+    // The file's sign marks, from the database and never from the form (spec §9).
+    db()`select id, sign_marks from job_files where lead_id = ${leadId} and sign_marks is not null`,
+```
+
+   Before `return documents`, add:
+
+```ts
+  const marks = new Map((markRows as Record<string, unknown>[]).map((row) => [row.id as string, parseSignMarks(row.sign_marks)]));
+```
+
+   and make the final `.map` read:
+
+```ts
+    .map((file) => ({ ...file, document: byFile.get(file.id) ?? null, signMarks: marks.get(file.id) ?? null }));
+```
+
+5. Above `recordSignature`, add:
+
+```ts
+const discardBlobs = (pathnames: (string | null)[]) =>
+  Promise.all(pathnames.filter((pathname): pathname is string => pathname !== null)
+    .map((pathname) => del(pathname).catch((cleanup) => console.error("Could not remove orphaned blob", cleanup))));
+
+/**
+ * Spec §6: a drawn adoption's PNGs are stored in private Blob BEFORE the signature statement, so the
+ * row can name them. Answers their pathnames (both null for a typed adoption), or null when storing
+ * failed. Anything already stored is then removed.
+ */
+async function storeAdoptionImages(jobId: string, adoption: Adoption): Promise<{ signature: string | null; initials: string | null } | null> {
+  if (adoption.method === "typed") return { signature: null, initials: null };
+  const id = randomUUID();
+  const signature = `jobs/${jobId}/signatures/${id}-signature.png`;
+  const initials = adoption.initialsPng ? `jobs/${jobId}/signatures/${id}-initials.png` : null;
+  const options = { access: "private", contentType: "image/png", addRandomSuffix: false } as const;
+  const stored: string[] = [];
+  try {
+    await put(signature, adoption.signaturePng, options);
+    stored.push(signature);
+    if (initials && adoption.initialsPng) {
+      await put(initials, adoption.initialsPng, options);
+      stored.push(initials);
+    }
+    return { signature, initials };
+  } catch (error) {
+    console.error("Could not store the drawn signature", error);
+    await discardBlobs(stored);
+    return null;
+  }
+}
+```
+
+6. In `recordSignature`'s doc comment, add a paragraph:
+
+```ts
+ * The adoption (spec §6), already validated by the caller, is written in the same insert. A drawn
+ * adoption's PNGs are stored first. If the statement then writes nothing (already signed) or fails,
+ * they are removed. If they cannot be stored, nothing is written and the answer is "not-found",
+ * which the customer reads as "could not record, please call".
+```
+
+   Add `adoption: Adoption;` to the input type after `userAgent`.
+
+7. Replace lines 124–169 (from the `// One statement…` comment to `return inserted.length > 0 ? …`) with the code below. The CTEs after `signed` are byte-for-byte unchanged:
+
+```ts
+  const images = await storeAdoptionImages(input.jobId, input.adoption);
+  if (!images) return "not-found";
+  const initials = input.adoption.method === "typed" ? input.adoption.initials : null;
+
+  // One statement, so the signature, its adoption, its timeline row and the sale cannot come apart.
+  // `on conflict do nothing` is what makes a second submission a no-op rather than a second
+  // signature, and with `signed` empty nothing below it moves either.
+  let inserted: Record<string, unknown>[];
+  try {
+    inserted = await db()`
+      with signed as (
+        insert into contract_signatures
+          (id, lead_id, file_id, signed_name, signed_email, ip, user_agent, doc_sha256,
+           signature_method, signed_initials, signature_image_pathname, initials_image_pathname)
+        values (${randomUUID()}, ${input.jobId}, ${input.file.id}, ${name}, ${input.email},
+                ${input.ip}, ${input.userAgent}, ${sha256},
+                ${input.adoption.method}, ${initials}, ${images.signature}, ${images.initials})
+        on conflict (file_id) do nothing
+        returning *
+      ),
+      version as (
+        update dc_quote_versions set status = 'signed', signed_at = now()
+        where contract_file_id = (select file_id from signed) and lead_id = (select lead_id from signed) and status = 'sent'
+        returning lead_id, version, client_total_cents
+      ),
+      prev as (select l.status from leads l join version v on l.id = v.lead_id),
+      -- ('new','visit_booked','quoted') mirrors the pre-Sold stages in lib/admin/stages.ts.
+      sold as (
+        update leads set sold_cents = (select client_total_cents from version),
+          status = case when status in ('new','visit_booked','quoted') then 'sold' else status end,
+          stage_changed_at = case when status in ('new','visit_booked','quoted') then now() else stage_changed_at end,
+          updated_at = now()
+        where id = (select lead_id from version)
+        returning id
+      ),
+      stage_logged as (
+        insert into job_events (lead_id, actor, kind, from_status, to_status, body)
+        select sold.id, ${input.email}, 'stage', prev.status, 'sold', 'Signed contract version ' || version.version
+        from sold, prev, version
+        where prev.status in ('new','visit_booked','quoted')
+      ),
+      document as (
+        update job_documents set status = 'completed', completed_at = now(), updated_at = now()
+        where file_id = (select file_id from signed) and lead_id = (select lead_id from signed)
+          and status = 'sent' and response = 'sign'
+        returning id
+      ),
+      logged as (
+        insert into job_events (lead_id, actor, kind, body)
+        select lead_id, ${input.email}, 'signature',
+               ${`Signed "${input.file.name}" from their project page`} from signed
+      )
+      select * from signed`;
+  } catch (error) {
+    await discardBlobs([images.signature, images.initials]);
+    throw error;
+  }
+  if (inserted.length === 0) {
+    // Already signed: this post's images belong to nothing.
+    await discardBlobs([images.signature, images.initials]);
+    return "already-signed";
+  }
+  return "signed";
+```
+
+- [ ] **Step 5: Run the tests and typecheck**
+
+Run:
+```bash
+npx vitest run --maxWorkers=2 tests/portal/sign.test.ts
+npx tsc --noEmit 2>&1 | grep -v "app/(site)/project/actions.ts" | grep "error" || echo "only actions.ts"
+```
+
+Expected: tests PASS. The only type errors left are in `app/(site)/project/actions.ts` (the missing `adoption`), which the Wave 2 merge commit patches and Task 11 replaces (see "Compile-order note").
+
+- [ ] **Step 6: Power checks** (revert after each)
+  1. Delete the `if (inserted.length === 0) { await discardBlobs(…) … }` cleanup, keeping the return. "removes the stored PNGs when the statement wrote nothing" should go red.
+  2. Delete the `catch` cleanup. "removes the stored PNGs and rethrows" should go red.
+  3. In `storeAdoptionImages`'s catch, delete `await discardBlobs(stored);`. "answers not-found … leaves nothing behind" should go red.
+  4. Replace `${images.signature}` with `${null}`. The drawn pathnames test should go red.
+  5. Delete the `sign_marks` query entry (and `markRows`). "attaches a file's stored marks" should go red.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add lib/portal/sign.ts tests/portal/sign.test.ts scripts/verify-contract-signing.ts scripts/verify-dc-quote-import.ts scripts/verify-documents.ts
+git commit -m "feat: signatures record the adoption in their one statement; drawn PNGs stored first, removed if unused
+
+Power checks: <names>
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01VsZpDCE8YaRq5jxSkaAZGj"
+```
+
+---
+
+## Task 9: `stampSignature` writes the adoption at every mark and on the signature page
+
+**Files:**
+- Modify: `lib/portal/stamp.ts` (the whole file, 52 lines)
+- Test: `tests/portal/stamp.test.ts`
+
+**Interfaces:**
+- Consumes:
+  - `embedHandwriting` and `drawHandwriting` (Task 1);
+  - `INITIALS_BOX`, `SIGNATURE_BLOCK`, `initialedSections` and `type SignMarks` (Task 3);
+  - `type Adoption` (Task 4);
+  - `wrap` from `@/lib/pdf/text`;
+  - `winAnsiSafe`.
+- Produces: `stampSignature(original: Buffer, facts: StampFacts, adoption: Adoption, marks: SignMarks | null): Promise<Buffer | null>`. `StampFacts` is unchanged. It still never throws: it answers null.
+
+What it draws (spec §5), in points:
+
+| Where | What |
+|---|---|
+| Each initials mark `m` | box `{ x: m.x, y: m.y + 1, width: 56, height: 16 }`. Drawn PNG: scaled to fit (proportions kept), at the box's bottom-left. Typed initials: handwriting at `(m.x + 2, m.y + 4)`, max width 52, max size 14. |
+| Signature mark `s` | box `{ x: s.x, y: s.y + 1, width: 240, height: 26 }`. Drawn: the PNG. Typed: the signed name in handwriting at `(s.x + 2, s.y + 5)`, max width 236, max size 24. |
+| Printed name | Helvetica 11 `facts.signedName` at `(s.x + 4, s.y - 30 + 4)`. |
+| Date | Helvetica 11 `formatShortDate(signedAt)` at `(s.x + 4, s.y - 60 + 4)`. |
+| Signature page | Today's lines, plus `Method:     typed` or `Method:     drawn` after the project line, and `Initialed sections: 4, 5` (wrapped at 500pt) or `No numbered sections`. Then `Adopted signature:` with the signature in a 240×40 box at x 200, and, when there are initials, `Adopted initials:` with them in an 80×30 box. |
+
+A mark on a page the PDF does not have is skipped and logged: the stamp is still produced.
+
+- [ ] **Step 1: Update the existing tests**
+
+In `tests/portal/stamp.test.ts`, add after `facts`:
+
+```ts
+const TYPED = { method: "typed", initials: null } as const;
+```
+
+Every existing call `stampSignature(x, f)` becomes `stampSignature(x, f, TYPED, null)`: 7 calls, at lines 44, 51, 62, 68, 74 and 78 (two in the forged-name test on line 74: count them with grep). Also rename the first test to `"appends a signature page, and draws nothing on the original's pages when the file has no marks"`, keeping its body.
+
+- [ ] **Step 2: Write the failing tests** (append to `tests/portal/stamp.test.ts`)
+
+```ts
+import { PDFPage } from "pdf-lib";
+import { afterEach } from "vitest";
+import { embedHandwriting } from "@/lib/pdf/handwriting";
+import type { SignMarks } from "@/lib/pdf/sign-marks";
+import { corruptPng, pngBytes } from "../fixtures/png";
+
+afterEach(() => vi.restoreAllMocks());
+
+const threePages = async () => {
+  const pdf = await PDFDocument.create();
+  pdf.addPage(); pdf.addPage(); pdf.addPage();
+  return Buffer.from(await pdf.save());
+};
+const pageRefs = async (bytes: Buffer) => (await PDFDocument.load(bytes)).getPages().map((page) => page.ref.toString());
+const handName = async () => (await embedHandwriting(await PDFDocument.create())).hand.name;
+
+/** Every text and image drawn, with the page it went on (by object reference, stable across load and save). */
+function spyOnDrawing() {
+  const texts: { text: string; x: number; y: number; size: number; font: string; page: string }[] = [];
+  const images: { x: number; y: number; width: number; height: number; page: string }[] = [];
+  const drawText = PDFPage.prototype.drawText;
+  const drawImage = PDFPage.prototype.drawImage;
+  vi.spyOn(PDFPage.prototype, "drawText").mockImplementation(function (this: PDFPage, text, options) {
+    texts.push({ text, x: options?.x ?? 0, y: options?.y ?? 0, size: options?.size ?? 0, font: options?.font?.name ?? "", page: this.ref.toString() });
+    return drawText.call(this, text, options);
+  });
+  vi.spyOn(PDFPage.prototype, "drawImage").mockImplementation(function (this: PDFPage, image, options) {
+    images.push({ x: options?.x ?? 0, y: options?.y ?? 0, width: options?.width ?? 0, height: options?.height ?? 0, page: this.ref.toString() });
+    return drawImage.call(this, image, options);
+  });
+  return { texts, images };
+}
+
+const MARKS: SignMarks = {
+  initials: [{ page: 0, x: 502, y: 700, section: "4" }, { page: 1, x: 502, y: 640, section: "5" }],
+  signature: { page: 2, x: 154, y: 300 },
+};
+
+describe("stampSignature with sign marks (spec §5)", () => {
+  it("types the initials in handwriting at every initials mark, and fills the signature block", async () => {
+    const original = await threePages();
+    const [p0, p1, p2] = await pageRefs(original);
+    const hand = await handName();
+    const { texts } = spyOnDrawing();
+    const stamped = await stampSignature(original, facts, { method: "typed", initials: "JD" }, MARKS);
+    expect(stamped).not.toBeNull();
+    expect((await PDFDocument.load(stamped!)).getPageCount()).toBe(4);
+    const initials = texts.filter((t) => t.text === "JD" && t.font === hand);
+    expect(initials.filter((t) => t.page === p0 || t.page === p1).map((t) => [t.page, t.x, t.y])).toEqual([[p0, 504, 704], [p1, 504, 644]]);
+    for (const t of initials) expect(t.size).toBeLessThanOrEqual(14);
+    expect(texts.find((t) => t.page === p2 && t.font === hand)).toMatchObject({ text: "Jane Doe", x: 156, y: 305 });
+    expect(texts.find((t) => t.page === p2 && t.font === "Helvetica" && t.text === "Jane Doe")).toMatchObject({ x: 158, y: 274, size: 11 });
+    expect(texts.find((t) => t.page === p2 && t.text === "Sep 18, 2026")).toMatchObject({ x: 158, y: 244, font: "Helvetica" });
+    // Nothing else is drawn on the original's pages.
+    expect(texts.filter((t) => [p0, p1, p2].includes(t.page))).toHaveLength(2 + 3);
+  });
+
+  it("draws the PNGs scaled into the boxes when the adoption is drawn", async () => {
+    const original = await threePages();
+    const [p0, p1, p2] = await pageRefs(original);
+    const { texts, images } = spyOnDrawing();
+    const stamped = await stampSignature(original, facts,
+      { method: "drawn", signaturePng: pngBytes(600, 200), initialsPng: pngBytes(200, 100) }, MARKS);
+    expect(stamped).not.toBeNull();
+    const onOriginal = images.filter((i) => [p0, p1, p2].includes(i.page));
+    expect(onOriginal.map((i) => [i.page, i.x, i.y])).toEqual([[p0, 502, 701], [p1, 502, 641], [p2, 154, 301]]);
+    // Proportions kept, inside the box: 200x100 into 56x16 is 32x16. 600x200 into 240x26 is 78x26.
+    expect(onOriginal.map((i) => [Math.round(i.width), Math.round(i.height)])).toEqual([[32, 16], [32, 16], [78, 26]]);
+    // The printed name and date are still typed, and no handwriting is drawn on the original's pages.
+    expect(texts.filter((t) => [p0, p1, p2].includes(t.page)).map((t) => t.text)).toEqual(["Jane Doe", "Sep 18, 2026"]);
+    // The signature page shows both adopted images.
+    expect(images.filter((i) => ![p0, p1, p2].includes(i.page))).toHaveLength(2);
+  });
+
+  it("records the method and the initialed sections on the signature page", async () => {
+    const stamped = await stampSignature(await threePages(), facts, { method: "typed", initials: "JD" }, MARKS);
+    const lines = await drawnLines(stamped!);
+    expect(lines).toContain("Method:     typed");
+    expect(lines).toContain("Initialed sections: 4, 5");
+    expect(lines).toContain("Adopted signature:");
+    expect(lines).toContain("Adopted initials:");
+  });
+
+  it("says there were no numbered sections when the marks have none, and adopts no initials", async () => {
+    const stamped = await stampSignature(await threePages(), facts, TYPED, { initials: [], signature: MARKS.signature });
+    const lines = await drawnLines(stamped!);
+    expect(lines).toContain("No numbered sections");
+    expect(lines).not.toContain("Adopted initials:");
+  });
+
+  it("stamps a file with no marks exactly as before, plus the adoption on the signature page", async () => {
+    const original = await threePages();
+    const refs = await pageRefs(original);
+    const { texts, images } = spyOnDrawing();
+    const stamped = await stampSignature(original, facts, { method: "drawn", signaturePng: pngBytes(600, 200), initialsPng: null }, null);
+    expect((await PDFDocument.load(stamped!)).getPageCount()).toBe(4);
+    expect(texts.filter((t) => refs.includes(t.page))).toEqual([]);
+    expect(images.filter((i) => refs.includes(i.page))).toEqual([]);
+    const lines = await drawnLines(stamped!);
+    expect(lines).toContain("Method:     drawn");
+    expect(lines).toContain("No numbered sections");
+    expect(images).toHaveLength(1);
+  });
+
+  it("wraps a long list of initialed sections inside the page", async () => {
+    const many: SignMarks = { initials: Array.from({ length: 60 }, (_, i) => ({ page: 0, x: 502, y: 700, section: String(i + 1) })), signature: null };
+    const { texts } = spyOnDrawing();
+    await stampSignature(await threePages(), facts, { method: "typed", initials: "JD" }, many);
+    const sectionLines = texts.filter((t) => /^(Initialed sections: )?\d+(, \d+)*,?$/.test(t.text));
+    expect(sectionLines.length).toBeGreaterThan(1);
+    const helvetica = await (await PDFDocument.create()).embedFont(StandardFonts.Helvetica);
+    for (const t of sectionLines) expect(t.x + helvetica.widthOfTextAtSize(t.text, 11)).toBeLessThanOrEqual(612 - 56);
+  });
+
+  it("skips a mark on a page the PDF does not have, and still stamps", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const stray: SignMarks = { initials: [{ page: 9, x: 502, y: 700, section: "4" }], signature: { page: 9, x: 154, y: 300 } };
+    expect(await stampSignature(await threePages(), facts, { method: "typed", initials: "JD" }, stray)).not.toBeNull();
+    expect(error).toHaveBeenCalled();
+  });
+
+  it("answers null, never throws, for a drawn PNG whose header is valid but whose data is corrupt", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    await expect(stampSignature(await threePages(), facts, { method: "drawn", signaturePng: corruptPng(600, 200), initialsPng: null }, MARKS))
+      .resolves.toBeNull();
+  });
+});
+```
+
+The file already imports `PDFDocument`, `vi`, `describe`, `expect` and `it`. Add `StandardFonts` to the `pdf-lib` import and `afterEach` to the vitest import. Put the new imports with the existing ones at the top.
+
+- [ ] **Step 3: Run the tests to see them fail**
+
+Run: `npx vitest run --maxWorkers=2 tests/portal/stamp.test.ts`
+Expected: the new tests FAIL. Nothing is drawn at the marks, and there is no "Method:" line.
+
+- [ ] **Step 4: Implement** `lib/portal/stamp.ts` (replace the file)
+
+```ts
+import "server-only";
+import { PDFDocument, StandardFonts, type PDFImage, type PDFPage } from "pdf-lib";
+import { formatShortDate, formatTime } from "@/lib/admin/time";
+import { winAnsiSafe } from "@/lib/dc/contract-layout";
+import { drawHandwriting, embedHandwriting } from "@/lib/pdf/handwriting";
+import { INITIALS_BOX, SIGNATURE_BLOCK, initialedSections, type SignMarks } from "@/lib/pdf/sign-marks";
+import { wrap } from "@/lib/pdf/text";
+import type { Adoption } from "./adoption";
+
+export type StampFacts = {
+  signedName: string;
+  signedEmail: string;
+  signedAt: Date;
+  sha256: string;
+  projectNo: string | null;
+};
+
+type Box = { x: number; y: number; width: number; height: number };
+
+/** An image scaled to fit the box, proportions kept, sitting on the box's bottom-left corner. */
+function drawImageIn(page: PDFPage, image: PDFImage, box: Box): void {
+  const { width, height } = image.scaleToFit(box.width, box.height);
+  page.drawImage(image, { x: box.x, y: box.y, width, height });
+}
+
+/**
+ * Makes the signed copy (spec §5).
+ *
+ * With sign marks (a PDF we generated), a copy of the original gets the client's initials at every
+ * initials mark and their signature, printed name and date in the signature block: only into the
+ * empty places the unsigned PDF drew for them. Nothing else on those pages changes. Every copy then
+ * gains the ELECTRONIC SIGNATURE page, which also shows the adoption. A file with no marks (a
+ * hand-uploaded contract, or one generated before marks existed) gets only that page, as before.
+ *
+ * The original and its fingerprint are untouched: the client signed the original bytes, and this
+ * copy is a convenience. The record is what carries the weight.
+ *
+ * Returns null instead of throwing. Some PDFs cannot be opened (encrypted ones especially), and a
+ * drawn PNG with a valid header can still fail to decode. The signature is already recorded by the
+ * time this runs.
+ */
+export async function stampSignature(
+  original: Buffer, facts: StampFacts, adoption: Adoption, marks: SignMarks | null,
+): Promise<Buffer | null> {
+  try {
+    const pdf = await PDFDocument.load(original);
+    const font = await pdf.embedFont(StandardFonts.Helvetica);
+    const hand = await embedHandwriting(pdf);
+    const signatureImage = adoption.method === "drawn" ? await pdf.embedPng(adoption.signaturePng) : null;
+    const initialsImage = adoption.method === "drawn" && adoption.initialsPng ? await pdf.embedPng(adoption.initialsPng) : null;
+    const typedInitials = adoption.method === "typed" ? adoption.initials : null;
+    const hasInitials = initialsImage !== null || typedInitials !== null;
+    // Taken before the signature page is added: marks index the original's pages.
+    const pages = pdf.getPages();
+
+    const drawInitials = (page: PDFPage, box: Box) => {
+      if (initialsImage) drawImageIn(page, initialsImage, box);
+      else if (typedInitials) drawHandwriting(page, hand, typedInitials, { x: box.x + 2, y: box.y + 3, maxWidth: box.width - 4, maxSize: box.height - 2 });
+    };
+    const drawSignature = (page: PDFPage, box: Box) => {
+      if (signatureImage) drawImageIn(page, signatureImage, box);
+      else drawHandwriting(page, hand, facts.signedName, { x: box.x + 2, y: box.y + 4, maxWidth: box.width - 4, maxSize: Math.min(24, box.height - 2) });
+    };
+
+    if (marks) {
+      for (const mark of marks.initials) {
+        const page = pages[mark.page];
+        if (!page) {
+          console.error(`Initials mark on page ${mark.page} of a ${pages.length}-page PDF: skipped`);
+          continue;
+        }
+        drawInitials(page, { x: mark.x, y: mark.y + 1, width: INITIALS_BOX.width, height: INITIALS_BOX.height });
+      }
+      const at = marks.signature;
+      const page = at ? pages[at.page] : undefined;
+      if (at && page) {
+        drawSignature(page, { x: at.x, y: at.y + 1, width: SIGNATURE_BLOCK.lineWidth, height: SIGNATURE_BLOCK.signatureHeight });
+        page.drawText(facts.signedName, { x: at.x + 4, y: at.y - SIGNATURE_BLOCK.row + 4, size: 11, font });
+        page.drawText(winAnsiSafe(formatShortDate(facts.signedAt)), { x: at.x + 4, y: at.y - 2 * SIGNATURE_BLOCK.row + 4, size: 11, font });
+      } else if (at) {
+        console.error(`Signature mark on page ${at.page} of a ${pages.length}-page PDF: skipped`);
+      }
+    }
+
+    const page = pdf.addPage();
+    const { height } = page.getSize();
+    // Some Node/ICU builds put U+202F (or U+00A0) before AM/PM. The standard font cannot
+    // encode either, so without this every stamp in that runtime would come back null.
+    const when = `${formatShortDate(facts.signedAt)} at ${formatTime(facts.signedAt)}`.replace(/[  ]/g, " ");
+    const sections = initialedSections(marks);
+    const lines = [
+      "ELECTRONIC SIGNATURE",
+      "",
+      `Signed by:  ${facts.signedName}`,
+      `Account:    ${facts.signedEmail}`,
+      `When:       ${when}`,
+      facts.projectNo ? `Project:    ${facts.projectNo}` : null,
+      `Method:     ${adoption.method}`,
+      ...(sections.length > 0 ? wrap(`Initialed sections: ${sections.join(", ")}`, font, 11, 500) : ["No numbered sections"]),
+      "",
+      "Document fingerprint (SHA-256):",
+      facts.sha256,
+    ].filter((line): line is string => line !== null);
+
+    lines.forEach((line, index) => {
+      page.drawText(line, { x: 56, y: height - 80 - index * 18, size: 11, font });
+    });
+
+    let y = height - 80 - lines.length * 18 - 24;
+    page.drawText("Adopted signature:", { x: 56, y, size: 11, font });
+    drawSignature(page, { x: 200, y: y - 4, width: 240, height: 40 });
+    if (hasInitials) {
+      y -= 56;
+      page.drawText("Adopted initials:", { x: 56, y, size: 11, font });
+      drawInitials(page, { x: 200, y: y - 4, width: 80, height: 30 });
+    }
+    return Buffer.from(await pdf.save());
+  } catch (error) {
+    console.error("Could not stamp the signed contract", error);
+    return null;
+  }
+}
+```
+
+The signed name, the email and the "Signed by" line are still drawn raw in Helvetica, so a name Helvetica cannot draw still answers null. The existing test pins that, and `STAMP_REASONS` in `lib/portal/send-signature-email.ts` names it.
+
+- [ ] **Step 5: Run the tests and check types**
+
+Run:
+```bash
+npx vitest run --maxWorkers=2 tests/portal/stamp.test.ts
+npx tsc --noEmit 2>&1 | grep "error" | grep -v "app/(site)/project/actions.ts" || echo "only actions.ts"
+```
+
+Expected: PASS. The only type errors are in `actions.ts` (see "Compile-order note").
+
+- [ ] **Step 6: Power checks** (revert after each)
+  1. Delete the `for (const mark of marks.initials)` loop. "types the initials in handwriting at every initials mark" should go red.
+  2. Replace `drawImageIn`'s `image.scaleToFit(...)` with `{ width: box.width, height: box.height }`. "draws the PNGs scaled into the boxes" should go red on the sizes.
+  3. Replace `if (!page) { … continue; }` with nothing. "skips a mark on a page the PDF does not have" should go red (null).
+  4. Replace the sections line with a constant `"No numbered sections"`. "records … the initialed sections" should go red.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add lib/portal/stamp.ts tests/portal/stamp.test.ts
+git commit -m "feat: the signed copy carries the client's initials, signature, name and date where the PDF asked
+
+Power checks: <names>
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01VsZpDCE8YaRq5jxSkaAZGj"
+```
+
+---
+If "answers null … corrupt" fails because pdf-lib's PNG decoder does not throw on `corruptPng`'s data, do not weaken the test. Report it to the controller: the spec §6 validation would then need an IDAT sanity check, and that is the owner's call.
+
+---
