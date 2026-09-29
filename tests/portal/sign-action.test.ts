@@ -51,6 +51,7 @@ const redirect = vi.fn((path: string) => {
 vi.mock("next/navigation", () => ({ redirect }));
 
 const { signContractAction, signContractFormAction } = await import("@/app/(site)/project/actions");
+const { TYPED_NAME_MAX } = await import("@/lib/portal/typed-name");
 
 const MINE = "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c";
 const THEIRS = "9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d";
@@ -118,6 +119,15 @@ describe("signContractAction ownership", () => {
   it("refuses when the box is not ticked", async () => {
     expect(await signContractAction(MINE, FILE, "Jane Doe", false)).toBe("invalid");
     expect(recordSignature).not.toHaveBeenCalled();
+  });
+
+  it("refuses a typed name longer than the cap, reading nothing, and takes one at the cap", async () => {
+    expect(await signContractAction(MINE, FILE, "a".repeat(TYPED_NAME_MAX + 1), true)).toBe("invalid");
+    expect(signableContracts).not.toHaveBeenCalled();
+    expect(recordSignature).not.toHaveBeenCalled();
+    // Surrounding spaces are not the name: the cap counts what would be recorded.
+    expect(await signContractAction(MINE, FILE, ` ${"a".repeat(TYPED_NAME_MAX)} `, true)).toBe("signed");
+    expect(recordSignature).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -218,9 +228,17 @@ describe("signContractAction recording", () => {
       signedName: "Jane Doe", signedEmail: EMAIL, signedAt: SIGNED_AT, sha256: "abc", projectNo: "PSS-1048",
     });
     expect(storeSignedCopy).toHaveBeenCalledWith({ jobId: MINE, original: contract, bytes: STAMPED, actor: EMAIL });
-    expect(notifyOwnersOfSignature).toHaveBeenCalledWith(job, contract.name, EMAIL, true, SIGNED_AT);
+    expect(notifyOwnersOfSignature).toHaveBeenCalledWith(job, contract.name, EMAIL, true, SIGNED_AT, null);
     expect(sendCustomerSignedCopy).toHaveBeenCalledWith(EMAIL, job, contract.name, STAMPED);
     expect(revalidatePath).toHaveBeenCalledWith(`/project/${MINE}`);
+  });
+
+  it("tells the owners the job document's title when the signed file is one", async () => {
+    const changeOrder = { ...contract, name: "Change order — PSS-1048.pdf", document: { title: "Change order — PSS-1048", kind: "change_order" } };
+    signableContracts.mockResolvedValue([changeOrder]);
+    expect(await signContractAction(MINE, FILE, "Jane Doe", true)).toBe("signed");
+    await runAfter();
+    expect(notifyOwnersOfSignature).toHaveBeenCalledWith(job, changeOrder.name, EMAIL, true, SIGNED_AT, "Change order — PSS-1048");
   });
 
   it("still succeeds when stamping fails, and tells the owners so", async () => {
@@ -228,7 +246,7 @@ describe("signContractAction recording", () => {
     expect(await signContractAction(MINE, FILE, "Jane Doe", true)).toBe("signed");
     await runAfter();
     expect(storeSignedCopy).not.toHaveBeenCalled();
-    expect(notifyOwnersOfSignature).toHaveBeenCalledWith(job, contract.name, EMAIL, false, SIGNED_AT);
+    expect(notifyOwnersOfSignature).toHaveBeenCalledWith(job, contract.name, EMAIL, false, SIGNED_AT, null);
     expect(sendCustomerSignedCopy).toHaveBeenCalledWith(EMAIL, job, contract.name, null);
   });
 
@@ -240,7 +258,7 @@ describe("signContractAction recording", () => {
     expect(await signContractAction(MINE, FILE, "Jane Doe", true)).toBe("signed");
     await expect(runAfter()).resolves.toBeUndefined();
     // The owners still hear about it, told the stamped copy is missing.
-    expect(notifyOwnersOfSignature).toHaveBeenCalledWith(job, contract.name, EMAIL, false, SIGNED_AT);
+    expect(notifyOwnersOfSignature).toHaveBeenCalledWith(job, contract.name, EMAIL, false, SIGNED_AT, null);
     expect(error).toHaveBeenCalledTimes(3);
     error.mockRestore();
   });

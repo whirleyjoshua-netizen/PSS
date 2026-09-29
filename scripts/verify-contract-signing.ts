@@ -23,7 +23,13 @@
  *      succeed on the plain document (the positive control); re-sharing is still allowed;
  *   8. listFiles(A) marks exactly the original and the copy signed;
  *   9. deleteJob(A) succeeds and takes its signatures and files with it;
- *  10. deletes everything it wrote, even on failure.
+ *  10. a generated contract (a 'sent' dc_quote_versions row whose contract_file_id is the shared
+ *      contract) on a 'quoted' lead C: signing marks the version signed with signed_at, moves C
+ *      to 'sold' with sold_cents = the version's client_total_cents, and logs exactly one
+ *      quoted -> sold 'stage' event. A signed change order on a lead D already at 'ordered'
+ *      updates sold_cents but leaves the status alone and logs no stage event. (Step 3 is the
+ *      hand-uploaded case: lead A stays 'quoted', sold_cents unset, no stage event.)
+ *  11. deletes everything it wrote, even on failure.
  *
  * IT WRITES TO THE DATABASE IT IS GIVEN. Point it only at a Neon test branch. It takes its
  * connection from E2E_POSTGRES_URL alone — never POSTGRES_URL, DATABASE_URL or .env.local —
@@ -39,7 +45,9 @@
  *
  * To watch it fail (which is the only way to know it works): delete the `and not exists (...)`
  * clause from deleteFile in lib/admin/files.ts and run it again. Step 7 must fail (the foreign key
- * then throws instead of the function returning false). Put it back.
+ * then throws instead of the function returning false). Put it back. For step 10, remove the
+ * `status = 'sent'` guard from the `version` CTE in recordSignature (a draft version is then
+ * signed) or the `sold` update (the lead stays quoted): step 10 must fail. Put it back.
  */
 import { randomUUID } from "node:crypto";
 import { neon } from "@neondatabase/serverless";
@@ -126,11 +134,11 @@ function check(condition: boolean, description: string, detail: string): void {
   console.log(`  ok  ${description}`);
 }
 
-const newLead = async (suffix: string): Promise<string> => {
+const newLead = async (suffix: string, status = "quoted"): Promise<string> => {
   const rows = await sql`
     insert into leads (name, phone, email, city, source, status)
     values (${`${LEAD_NAME} ${suffix}`}, '7025550199', ${`verify-${STAMP}-${suffix}@example.com`},
-            'Henderson', 'phone', 'quoted')
+            'Henderson', 'phone', ${status})
     returning id`;
   return rows[0].id as string;
 };
@@ -148,6 +156,29 @@ const newDocument = async (leadId: string, name: string, docType: string | null)
   return id;
 };
 
+/** A Direct Connect version on the lead whose contract is `contractId`, as Task 8's send leaves it. */
+const newVersion = async (
+  leadId: string, version: number, status: string, contractId: string | null, clientTotalCents: number,
+): Promise<string> => {
+  const id = randomUUID();
+  const sourceId = await newDocument(leadId, `verify-dc-source-${STAMP}-${version}.pdf`, null);
+  await sql`
+    insert into dc_quote_versions
+      (id, lead_id, version, dc_quote_no, po_reference, source_file_id, source_sha256, status,
+       dealer_subtotal_cents, handling_fee_cents, oversized_fee_cents, dealer_total_cents,
+       client_total_cents, contract_file_id, sent_at, sent_by)
+    values (${id}, ${leadId}, ${version}, ${`VERIFY-${STAMP}`}, ${`PSS-VERIFY-${STAMP}`}, ${sourceId},
+            ${"0".repeat(64)}, ${status}, 50000, 0, 0, 50000, ${clientTotalCents}, ${contractId},
+            now(), ${ACTOR})`;
+  return id;
+};
+
+const leadRow = async (id: string) =>
+  (await sql`select status, sold_cents from leads where id = ${id}`)[0];
+
+const stageEvents = async (id: string) =>
+  await sql`select from_status, to_status, body from job_events where lead_id = ${id} and kind = 'stage'`;
+
 const fileRow = async (id: string) =>
   (await sql`select id, lead_id, name, shared_at, doc_type from job_files where id = ${id}`)[0] ?? null;
 
@@ -162,7 +193,9 @@ test("contract signing: record, stamp, freeze and cascade against a real databas
 
   const leadA = await newLead("A");
   const leadB = await newLead("B");
-  const leads = [leadA, leadB];
+  const leadC = await newLead("C");
+  const leadD = await newLead("D", "ordered");
+  const leads = [leadA, leadB, leadC, leadD];
 
   try {
     console.log("step 1: setup");
@@ -189,6 +222,12 @@ test("contract signing: record, stamp, freeze and cascade against a real databas
     const body = events[0].body as string;
     check(body.includes(contract.name) && !body.includes("Jane Doe"),
       "the event names the document, not the typed name", `body: ${body}`);
+    // A hand-uploaded contract: no dc_quote_versions row points at it, so the job does not move.
+    const handA = await leadRow(leadA);
+    check(handA.status === "quoted" && handA.sold_cents === null,
+      "a hand-uploaded contract leaves the lead quoted, sold_cents unset", `row ${JSON.stringify(handA)}`);
+    const handStages = await stageEvents(leadA);
+    check(handStages.length === 0, "a hand-uploaded contract logs no stage event", `got ${handStages.length}`);
 
     console.log("step 4");
     const second = await recordSignature({
@@ -266,14 +305,60 @@ test("contract signing: record, stamp, freeze and cascade against a real databas
     check(leftSigs[0].n === 0 && leftFiles[0].n === 0, "its signatures and files are gone",
       `signatures ${leftSigs[0].n}, files ${leftFiles[0].n}`);
 
+    console.log("step 10: a generated contract");
+    const contractC = await mustGet(await newDocument(leadC, `verify-generated-${STAMP}.pdf`, "contract"));
+    // A draft on the same lead pointing at the same file must NOT be signed: only 'sent' is.
+    const draftC = await newVersion(leadC, 1, "draft", contractC.id, 99);
+    const versionC = await newVersion(leadC, 2, "sent", contractC.id, 123456);
+    // Migration 024's partial unique index: a second 'sent' version on the same contract is refused.
+    const duplicate = await newVersion(leadC, 3, "sent", contractC.id, 1)
+      .then(() => "inserted", (error: { code?: string }) => error.code ?? "no code");
+    check(duplicate === "23505", "a second sent version on the same contract is a unique violation",
+      `got ${duplicate}`);
+    const signedC = await recordSignature({
+      jobId: leadC, file: contractC, name: "Jane Doe", email: ACTOR, ip: null, userAgent: null,
+    });
+    check(signedC === "signed", "recordSignature answers signed on a generated contract", `got ${signedC}`);
+    const vC = (await sql`select status, signed_at from dc_quote_versions where id = ${versionC}`)[0];
+    check(vC.status === "signed" && vC.signed_at !== null, "the sent version is signed with signed_at set",
+      `row ${JSON.stringify(vC)}`);
+    const dC = (await sql`select status, signed_at from dc_quote_versions where id = ${draftC}`)[0];
+    check(dC.status === "draft" && dC.signed_at === null, "a draft version is left alone",
+      `row ${JSON.stringify(dC)}`);
+    const lC = await leadRow(leadC);
+    check(lC.status === "sold" && lC.sold_cents === 123456, "lead C is sold with sold_cents 123456",
+      `row ${JSON.stringify(lC)}`);
+    const stC = await stageEvents(leadC);
+    check(stC.length === 1 && stC[0].from_status === "quoted" && stC[0].to_status === "sold",
+      "exactly one stage event, quoted -> sold", `got ${JSON.stringify(stC)}`);
+    const againC = await recordSignature({
+      jobId: leadC, file: contractC, name: "Jane Doe", email: ACTOR, ip: null, userAgent: null,
+    });
+    const stC2 = await stageEvents(leadC);
+    check(againC === "already-signed" && stC2.length === 1, "signing again moves nothing more",
+      `got ${againC}, ${stC2.length} stage events`);
+
+    console.log("step 10: a signed change order past Sold");
+    const contractD = await mustGet(await newDocument(leadD, `verify-change-${STAMP}.pdf`, "contract"));
+    await newVersion(leadD, 1, "sent", contractD.id, 222222);
+    const signedD = await recordSignature({
+      jobId: leadD, file: contractD, name: "Jane Doe", email: ACTOR, ip: null, userAgent: null,
+    });
+    const lD = await leadRow(leadD);
+    check(signedD === "signed" && lD.status === "ordered" && lD.sold_cents === 222222,
+      "lead D stays ordered and its sold_cents becomes 222222", `got ${signedD}, row ${JSON.stringify(lD)}`);
+    const stD = await stageEvents(leadD);
+    check(stD.length === 0, "no stage event past Sold", `got ${JSON.stringify(stD)}`);
+
     console.log("\nPASSED: contract signing holds against a real database. Manual run, not coverage.\n");
   } finally {
-    // Step 10. Runs even on failure. Signatures first: their file FKs are NO ACTION.
+    // Step 11. Runs even on failure. Signatures and versions first: their file FKs are NO ACTION.
     await sql`delete from contract_signatures where lead_id = any(${leads})`;
+    await sql`delete from dc_quote_versions where lead_id = any(${leads})`;
     await sql`delete from job_events where lead_id = any(${leads})`;
     await sql`delete from job_files where lead_id = any(${leads})`;
     await sql`delete from leads where id = any(${leads})`;
     const residue = await sql`select count(*)::int as n from leads where id = any(${leads})`;
-    console.log(`step 10: cleanup, ${residue[0].n} leads left`);
+    console.log(`step 11: cleanup, ${residue[0].n} leads left`);
   }
 });

@@ -12,7 +12,7 @@ vi.mock("@vercel/blob", () => ({ put: vi.fn(), get: vi.fn(), del: vi.fn() }));
 import { del, put } from "@vercel/blob";
 import { listSharedDocuments, readFile } from "@/lib/admin/files";
 import {
-  recordSignature, signableContracts, signatureFor, storeSignedCopy,
+  listSignatures, recordSignature, signableContracts, signatureFor, storeSignedCopy,
 } from "@/lib/portal/sign";
 
 const JOB = "11111111-1111-4111-8111-111111111111";
@@ -67,6 +67,40 @@ describe("signableContracts", () => {
     query.mockResolvedValue([{ file_id: FILE, signed_file_id: STAMPED }]);
     expect(await signableContracts(JOB)).toEqual([]);
   });
+
+  // A sign job document's PDF is a contract-typed file too; the portal words it as a document.
+  it("carries the job document's title and kind for its PDF, and none for a quote contract", async () => {
+    const DOCUMENT_FILE = "44444444-4444-4444-8444-444444444444";
+    vi.mocked(listSharedDocuments).mockResolvedValue([
+      doc(FILE, "Contract PSS-1048 v1.pdf", "contract"),
+      doc(DOCUMENT_FILE, "Change order — PSS-1048.pdf", "contract"),
+    ]);
+    query.mockImplementation(async (strings: TemplateStringsArray) =>
+      strings.join("?").includes("from job_documents")
+        ? [{ file_id: DOCUMENT_FILE, title: "Change order — PSS-1048", kind: "change_order" }]
+        : []);
+    const offered = await signableContracts(JOB);
+    expect(offered.map((file) => [file.id, file.document])).toEqual([
+      [FILE, null],
+      [DOCUMENT_FILE, { title: "Change order — PSS-1048", kind: "change_order" }],
+    ]);
+    const documents = query.mock.calls.find(([strings]) => (strings as TemplateStringsArray).join("?").includes("from job_documents"))!;
+    expect(documents.slice(1)).toEqual([JOB]);
+  });
+});
+
+describe("listSignatures", () => {
+  it("names the job document each signature was on, if any", async () => {
+    query.mockResolvedValue([
+      { id: "s1", lead_id: JOB, file_id: FILE, signed_name: "Jane", signed_email: "j@x.com", signed_at: new Date(), doc_sha256: "h", signed_file_id: null, document_title: null },
+      { id: "s2", lead_id: JOB, file_id: STAMPED, signed_name: "Jane", signed_email: "j@x.com", signed_at: new Date(), doc_sha256: "h", signed_file_id: null, document_title: "Change order — PSS-1048" },
+    ]);
+    const signatures = await listSignatures(JOB);
+    expect(signatures.map((s) => s.documentTitle)).toEqual([null, "Change order — PSS-1048"]);
+    const statement = (query.mock.calls[0][0] as TemplateStringsArray).join("?").replace(/\s+/g, " ");
+    expect(statement).toContain("left join job_documents d on d.file_id = s.file_id");
+    expect(query.mock.calls[0].slice(1)).toEqual([JOB]);
+  });
 });
 
 describe("recordSignature", () => {
@@ -106,6 +140,33 @@ describe("recordSignature", () => {
     expect(query.mock.calls[0]).toContainEqual(expect.stringContaining("Contract.pdf"));
     expect(values.filter((value) => String(value).includes("Jane Doe"))).toEqual(["Jane Doe"]);
     expect(query.mock.calls[0][0].join("")).not.toContain("Jane Doe");
+  });
+
+  it("in the SAME statement, marks a generated contract's version signed and moves the job to Sold", async () => {
+    vi.mocked(readFile).mockResolvedValue({ stream: new Response("pdf bytes").body!, contentType: "application/pdf" });
+    query.mockResolvedValue([{ id: "s1", lead_id: JOB, file_id: FILE, signed_name: "A", signed_email: "a@x", signed_at: new Date(), doc_sha256: "x", signed_file_id: null }]);
+    await recordSignature({ jobId: JOB, file: doc(FILE, "Contract PSS-1042 v1.pdf", "contract"), name: "A", email: "a@x", ip: null, userAgent: null });
+    expect(query).toHaveBeenCalledTimes(1);
+    const s = (query.mock.calls[0][0] as TemplateStringsArray).join("?").replace(/\s+/g, " ");
+    expect(s).toContain("update dc_quote_versions set status = 'signed'");
+    expect(s).toContain("contract_file_id = (select file_id from signed)");
+    expect(s).toContain("sold_cents");
+    expect(s).toContain("status in ('new','visit_booked','quoted')");
+    // The stage event is attributed to the signer, bound once more before the timeline body.
+    expect(query.mock.calls[0].slice(1).slice(-3)).toEqual([
+      "a@x", "a@x", 'Signed "Contract PSS-1042 v1.pdf" from their project page',
+    ]);
+  });
+
+  it("in the SAME statement, completes a sent sign document whose PDF this is", async () => {
+    vi.mocked(readFile).mockResolvedValue({ stream: new Response("pdf bytes").body!, contentType: "application/pdf" });
+    query.mockResolvedValue([{ id: "sig" }]);
+    await recordSignature({ jobId: JOB, file: doc(FILE, "Change order.pdf", "contract"), name: "Jane Doe", email: "jane@example.com", ip: null, userAgent: null });
+    const s = (query.mock.calls[0][0] as TemplateStringsArray).join("?").replace(/\s+/g, " ");
+    expect(s).toContain("update job_documents set status = 'completed', completed_at = now(), updated_at = now()");
+    expect(s).toContain("where file_id = (select file_id from signed) and lead_id = (select lead_id from signed) and status = 'sent' and response = 'sign'");
+    // The event body is still the statement's last value: the new CTE binds nothing.
+    expect(query.mock.calls[0].slice(1).at(-1)).toBe('Signed "Change order.pdf" from their project page');
   });
 
   it("refuses an empty name without touching the database", async () => {

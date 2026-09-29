@@ -1,7 +1,7 @@
 # Filing a Hunter Douglas Quote From Email — Design
 
 **Date:** 2026-09-17
-**Status:** Approved in conversation, pending the owner's review. **Build waits on the Direct Connect account existing**, so the parsing can be written against real emails rather than a guess.
+**Status:** **Superseded by `2026-09-27-dc-quote-import-design.md`.** It was never built. Its safety rules (exact PSS-#### key, DC sender only, read-only mailbox, idempotent message log, nothing auto-shared) carry forward. Its core step does not: the DC document shows dealer cost and must never be shared with a customer.
 **Scope:** A quote emailed from Direct Connect to `support@premiershadesolutions.com` is filed automatically against the right job as an unshared document. The owner decides when the customer sees it.
 
 ## 1. Purpose

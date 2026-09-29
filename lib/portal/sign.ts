@@ -3,6 +3,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { del, put } from "@vercel/blob";
 import { listSharedDocuments, readFile, type JobFile } from "@/lib/admin/files";
 import { db } from "@/lib/db";
+import type { ClientDocKind } from "@/lib/docs/kinds";
 
 /** What signing can answer. Every refusal is a plain outcome, never an exception. */
 export type SignResult = "signed" | "not-found" | "invalid";
@@ -36,11 +37,22 @@ const toSignature = (row: Record<string, unknown>): Signature => ({
   signedFileId: (row.signed_file_id as string | null) ?? null,
 });
 
-export async function listSignatures(leadId: string): Promise<Signature[]> {
+/** A recorded signature plus the title of the job document it was on, null for a quote contract. */
+export type ListedSignature = Signature & { documentTitle: string | null };
+
+export async function listSignatures(leadId: string): Promise<ListedSignature[]> {
   const rows = await db()`
-    select * from contract_signatures where lead_id = ${leadId} order by signed_at`;
-  return rows.map((row) => toSignature(row as Record<string, unknown>));
+    select s.*, d.title as document_title
+    from contract_signatures s left join job_documents d on d.file_id = s.file_id
+    where s.lead_id = ${leadId} order by s.signed_at`;
+  return rows.map((row) => ({
+    ...toSignature(row as Record<string, unknown>),
+    documentTitle: ((row as Record<string, unknown>).document_title as string | null) ?? null,
+  }));
 }
+
+/** A contract-typed file the customer can sign; `document` is set when it is a job document's PDF. */
+export type SignableFile = JobFile & { document: { title: string; kind: ClientDocKind } | null };
 
 /**
  * The contracts this job can still be asked to sign.
@@ -52,16 +64,23 @@ export async function listSignatures(leadId: string): Promise<Signature[]> {
  * A signature output is excluded because it is itself a shared file with doc_type 'contract':
  * without this the page would offer to sign the signed copy, and then its copy, forever.
  */
-export async function signableContracts(leadId: string): Promise<JobFile[]> {
-  const documents = await listSharedDocuments(leadId);
-  const rows = await db()`
-    select file_id, signed_file_id from contract_signatures where lead_id = ${leadId}`;
+export async function signableContracts(leadId: string): Promise<SignableFile[]> {
+  const [documents, rows, jobDocuments] = await Promise.all([
+    listSharedDocuments(leadId),
+    db()`select file_id, signed_file_id from contract_signatures where lead_id = ${leadId}`,
+    // So the portal can word a job document as a document, not a contract.
+    db()`select file_id, title, kind from job_documents where lead_id = ${leadId} and file_id is not null`,
+  ]);
   const spoken = new Set<string>();
   for (const row of rows as Record<string, unknown>[]) {
     spoken.add(row.file_id as string);
     if (row.signed_file_id) spoken.add(row.signed_file_id as string);
   }
-  return documents.filter((file) => file.docType === "contract" && !spoken.has(file.id));
+  const byFile = new Map((jobDocuments as Record<string, unknown>[]).map((row) =>
+    [row.file_id as string, { title: row.title as string, kind: row.kind as ClientDocKind }]));
+  return documents
+    .filter((file) => file.docType === "contract" && !spoken.has(file.id))
+    .map((file) => ({ ...file, document: byFile.get(file.id) ?? null }));
 }
 
 /**
@@ -75,6 +94,16 @@ export async function signableContracts(leadId: string): Promise<JobFile[]> {
  *
  * The timeline body names the DOCUMENT, never the typed name. `signed_name` is stored as data
  * and nothing a customer typed reaches the owners' permanent record.
+ *
+ * A generated contract (a `dc_quote_versions` row in 'sent' points at this file through
+ * contract_file_id) is also closed in the same statement: the version becomes 'signed', the job's
+ * sold_cents becomes that version's client_total_cents (even past Sold, so a signed change order
+ * updates the sold amount), and a job still at new/visit_booked/quoted moves to Sold with one
+ * 'stage' event. A hand-uploaded contract matches no version, so `version` is empty and nothing
+ * but the signature and its event is written, exactly as before.
+ *
+ * A sign job document (lib/docs/job-documents.ts) whose PDF is this file, still 'sent', becomes
+ * 'completed' in the same statement. A contract or a hand-uploaded file matches no document.
  */
 export async function recordSignature(input: {
   jobId: string;
@@ -92,8 +121,9 @@ export async function recordSignature(input: {
   const bytes = Buffer.from(await new Response(stored.stream).arrayBuffer());
   const sha256 = createHash("sha256").update(bytes).digest("hex");
 
-  // One statement, so the signature and its timeline row cannot come apart. `on conflict do
-  // nothing` is what makes a second submission a no-op rather than a second signature.
+  // One statement, so the signature, its timeline row and the sale cannot come apart. `on
+  // conflict do nothing` is what makes a second submission a no-op rather than a second
+  // signature, and with `signed` empty nothing below it moves either.
   const inserted = await db()`
     with signed as (
       insert into contract_signatures
@@ -102,6 +132,33 @@ export async function recordSignature(input: {
               ${input.ip}, ${input.userAgent}, ${sha256})
       on conflict (file_id) do nothing
       returning *
+    ),
+    version as (
+      update dc_quote_versions set status = 'signed', signed_at = now()
+      where contract_file_id = (select file_id from signed) and lead_id = (select lead_id from signed) and status = 'sent'
+      returning lead_id, version, client_total_cents
+    ),
+    prev as (select l.status from leads l join version v on l.id = v.lead_id),
+    -- ('new','visit_booked','quoted') mirrors the pre-Sold stages in lib/admin/stages.ts.
+    sold as (
+      update leads set sold_cents = (select client_total_cents from version),
+        status = case when status in ('new','visit_booked','quoted') then 'sold' else status end,
+        stage_changed_at = case when status in ('new','visit_booked','quoted') then now() else stage_changed_at end,
+        updated_at = now()
+      where id = (select lead_id from version)
+      returning id
+    ),
+    stage_logged as (
+      insert into job_events (lead_id, actor, kind, from_status, to_status, body)
+      select sold.id, ${input.email}, 'stage', prev.status, 'sold', 'Signed contract version ' || version.version
+      from sold, prev, version
+      where prev.status in ('new','visit_booked','quoted')
+    ),
+    document as (
+      update job_documents set status = 'completed', completed_at = now(), updated_at = now()
+      where file_id = (select file_id from signed) and lead_id = (select lead_id from signed)
+        and status = 'sent' and response = 'sign'
+      returning id
     ),
     logged as (
       insert into job_events (lead_id, actor, kind, body)

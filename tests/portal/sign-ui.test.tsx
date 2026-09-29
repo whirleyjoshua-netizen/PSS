@@ -7,6 +7,7 @@ import { business } from "@/content/business";
 vi.mock("@/app/(site)/project/actions", () => ({ signContractFormAction: vi.fn() }));
 
 const { SignContract, SignatureNotice } = await import("@/app/(site)/project/SignContract");
+const { TYPED_NAME_MAX } = await import("@/lib/portal/typed-name");
 
 const JOB = "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c";
 const FILE = { id: "22222222-2222-4222-8222-222222222222", name: "Contract - Living room.pdf" };
@@ -20,6 +21,8 @@ describe("SignContract", () => {
     const name = screen.getByLabelText("Your full name");
     expect(name).toHaveAttribute("name", "signedName");
     expect(name).toBeRequired();
+    // The same cap the action enforces, so the browser stops a name the server would refuse.
+    expect(name).toHaveAttribute("maxLength", String(TYPED_NAME_MAX));
     // A name of only spaces satisfies `required`; the pattern is what refuses it in the browser.
     expect(name).toHaveAttribute("pattern", String.raw`.*\S.*`);
     const pattern = new RegExp(`^(?:${name.getAttribute("pattern")})$`);
@@ -30,6 +33,22 @@ describe("SignContract", () => {
     expect(agree).toHaveAttribute("name", "agreed");
     expect(agree).toBeRequired();
     expect(screen.getByRole("button", { name: "Sign this contract" })).toHaveAttribute("type", "submit");
+  });
+
+  it("keeps the contract wording, and shows no document title, for a quote contract", () => {
+    render(<SignContract jobId={JOB} file={{ ...FILE, document: null }} />);
+    expect(screen.getByText("Sign this contract", { selector: "summary" })).toBeInTheDocument();
+    expect(screen.getByLabelText("I agree to sign this contract electronically")).toBeInTheDocument();
+    expect(screen.queryByText(/document/)).toBeNull();
+  });
+
+  it("words a job document as a document and names it", () => {
+    render(<SignContract jobId={JOB} file={{ id: FILE.id, name: "Change order — PSS-1048.pdf", document: { title: "Change order — PSS-1048", kind: "change_order" } }} />);
+    expect(screen.getByText("Sign this document", { selector: "summary" })).toBeInTheDocument();
+    expect(screen.getByText("Change order — PSS-1048", { selector: "p" })).toBeInTheDocument();
+    expect(screen.getByLabelText("I agree to sign this document electronically")).toBeRequired();
+    expect(screen.getByRole("button", { name: "Sign this document" })).toHaveAttribute("type", "submit");
+    expect(screen.queryByText(/contract/i)).toBeNull();
   });
 
   it("posts the job and the file, and never an email", () => {
@@ -48,6 +67,17 @@ describe("SignatureNotice", () => {
     expect(html).toContain("Thank you — your contract was signed on");
     expect(html).toContain("2026");
     expect(html).not.toContain("<form");
+  });
+
+  it("names the job document that was signed, never calling it a contract", () => {
+    const html = renderToStaticMarkup(<SignatureNotice signed="1" signature={{ ...SIGNED, documentTitle: "Change order — PSS-1048" }} />);
+    expect(html).toContain("Thank you — you signed “Change order — PSS-1048” on Sep 18, 2026. A copy is on its way to your email.");
+    expect(html).not.toContain("contract");
+  });
+
+  it("keeps the contract wording when the signature is on no job document", () => {
+    const html = renderToStaticMarkup(<SignatureNotice signed="1" signature={{ ...SIGNED, documentTitle: null }} />);
+    expect(html).toContain("Thank you — your contract was signed on Sep 18, 2026. A copy is on its way to your email.");
   });
 
   it("says nothing for a forged ?signed=1 with no signature on record", () => {

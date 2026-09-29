@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { setFileDocType } from "@/app/admin/jobs/measure-actions";
-import { DOC_TYPES, isDocType, type DocType } from "@/lib/admin/doc-types";
+import { DOC_TYPES, isDocType, type StoredDocType } from "@/lib/admin/doc-types";
 
 /**
  * The type label on one document. Saves as soon as the choice changes, and puts
@@ -16,10 +16,10 @@ export function DocTypeSelect({ jobId, fileId, fileName, docType }: {
   jobId: string;
   fileId: string;
   fileName: string;
-  docType: DocType | null;
+  docType: StoredDocType | null;
 }) {
   const [pending, startTransition] = useTransition();
-  const [value, setValue] = useState<DocType | "">(docType ?? "");
+  const [value, setValue] = useState<StoredDocType | "">(docType ?? "");
   const [error, setError] = useState<string | null>(null);
 
   return (

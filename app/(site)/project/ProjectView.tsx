@@ -1,10 +1,16 @@
 import { business } from "@/content/business";
-import { docTypeLabel } from "@/lib/admin/doc-types";
+import { DocText } from "@/components/docs/DocText";
+import { storedDocTypeLabel } from "@/lib/admin/doc-types";
 import type { Job } from "@/lib/admin/jobs";
 import { listSharedDocuments, listSharedPhotos } from "@/lib/admin/files";
+import { isUuid } from "@/lib/admin/ids";
 import { isInstalled } from "@/lib/admin/stages";
 import { formatDateOnly, formatMonthDay, formatShortDate, formatTime, lasVegasDate } from "@/lib/admin/time";
+import { parseDocText } from "@/lib/docs/parse";
+import { liveTemplateOfKind } from "@/lib/docs/templates";
+import { acknowledgeableDocuments, acknowledgementFor } from "@/lib/portal/acknowledge-document";
 import { toProject } from "@/lib/portal/access";
+import { guidesToShow } from "@/lib/portal/guides";
 import { currentStep } from "@/lib/portal/progress";
 import { countReferred, listServiceRequests } from "@/lib/portal/project";
 import { formatProjectNo } from "@/lib/portal/project-no";
@@ -15,6 +21,7 @@ import { installAppointmentAt, lastMeasuredAt, stageDates } from "@/lib/portal/t
 import { ensureReferralCode } from "@/lib/referrals/db";
 import { referralUrl } from "@/lib/referrals/codes";
 import { signOutCustomer } from "./actions";
+import { AcknowledgeDocument, DocumentAcknowledgedNotice } from "./AcknowledgeDocument";
 import { AcknowledgeInstall, AcknowledgeNotice } from "./AcknowledgeInstall";
 import { AfterWork } from "./AfterWork";
 import { ApprovalNotice, ApproveQuote } from "./ApproveQuote";
@@ -42,6 +49,7 @@ export async function ProjectView({
   justAcknowledged,
   justSigned,
   justSignedFile,
+  justDocAck,
 }: {
   job: Job;
   /** Set only on the hop back from a service request, to name its new project number. */
@@ -63,10 +71,12 @@ export async function ProjectView({
   justSigned?: string | null;
   /** The `?file=` the signing redirect names. Unvalidated: only a lookup key into this job's signatures. */
   justSignedFile?: string | null;
+  /** The `?docAck=` flag from the hop back after acknowledging. Unvalidated: DocumentAcknowledgedNotice checks it. */
+  justDocAck?: string | null;
 }) {
   // Request-cached, so this costs no extra round trip: the page's own guard already ran it.
   const { email } = await requireCustomer();
-  const [photos, documents, code, referred, dates, measuredAt, installAt, messages, serviceAt, contracts, signatures] = await Promise.all([
+  const [photos, documents, code, referred, dates, measuredAt, installAt, messages, serviceAt, contracts, signatures, acknowledgeable] = await Promise.all([
     listSharedPhotos(job.id),
     listSharedDocuments(job.id),
     ensureReferralCode(job.id),
@@ -80,7 +90,18 @@ export async function ProjectView({
     // The same helper the sign action re-derives from, so the page and the guard cannot drift.
     signableContracts(job.id),
     listSignatures(job.id),
+    // The same helper the acknowledge action re-derives from.
+    acknowledgeableDocuments(job.id),
   ]);
+  // Only the guides this stage shows are loaded; the acknowledgement is looked up only on the
+  // hop back, and only believed when it is this job's.
+  const guides = guidesToShow(job, installAt);
+  const [installGuide, careGuide, justAcknowledgement] = await Promise.all([
+    guides.install ? liveTemplateOfKind("guide_install") : Promise.resolve(null),
+    guides.care ? liveTemplateOfKind("guide_care") : Promise.resolve(null),
+    justDocAck && justSignedFile && isUuid(justSignedFile) ? acknowledgementFor(justSignedFile) : Promise.resolve(null),
+  ]);
+  const acknowledgement = justAcknowledgement?.leadId === job.id ? justAcknowledgement : null;
   const project = toProject(job, {
     stageDates: dates,
     lastMeasuredAt: measuredAt,
@@ -109,6 +130,26 @@ export async function ProjectView({
         </form>
       </header>
 
+      {/* Spec §7: everything waiting on the customer, at the top. The two lists come from the same
+          helpers the sign and acknowledge actions re-derive from, so the page and the guards agree. */}
+      {contracts.length > 0 || acknowledgeable.length > 0 ? (
+        <section className="flex flex-col gap-4" aria-labelledby="attention-heading">
+          <h2 id="attention-heading" className={heading}>Needs your attention</h2>
+          {contracts.length > 0 ? (
+            <div className="flex flex-col gap-3">
+              <h3 className="font-semibold">Documents to sign</h3>
+              {contracts.map((file) => <SignContract key={file.id} jobId={job.id} file={file} />)}
+            </div>
+          ) : null}
+          {acknowledgeable.length > 0 ? (
+            <div className="flex flex-col gap-3">
+              <h3 className="font-semibold">Documents to acknowledge</h3>
+              {acknowledgeable.map((doc) => <AcknowledgeDocument key={doc.id} jobId={job.id} document={doc} />)}
+            </div>
+          ) : null}
+        </section>
+      ) : null}
+
       {/* The quote is already loaded above, so the approve control costs no extra query. It
           appears only when there is a quote to read and the job is still waiting on it; the
           action re-checks both regardless. */}
@@ -133,6 +174,7 @@ export async function ProjectView({
         signed={justSigned ?? null}
         signature={signatures.find((signature) => signature.fileId === justSignedFile) ?? null}
       />
+      <DocumentAcknowledgedNotice flag={justDocAck ?? null} acknowledgement={acknowledgement} />
       {/* A lasting record, not the one-time notice: only a recorded signature produces a line, and
           it still reads Signed when no stamped copy exists — the link appears only when one does. */}
       {signatures.length > 0 ? (
@@ -144,7 +186,7 @@ export async function ProjectView({
                 <p>
                   Signed on {formatShortDate(signature.signedAt)} at {formatTime(signature.signedAt)}:{" "}
                   <span className="break-all">
-                    {documents.find((file) => file.id === signature.fileId)?.name ?? "your contract"}
+                    {signature.documentTitle ?? documents.find((file) => file.id === signature.fileId)?.name ?? "your contract"}
                   </span>
                 </p>
                 {signature.signedFileId ? (
@@ -160,14 +202,6 @@ export async function ProjectView({
               </li>
             ))}
           </ul>
-        </section>
-      ) : null}
-      {contracts.length > 0 ? (
-        <section className="flex flex-col gap-3" aria-labelledby="sign-heading">
-          <h2 id="sign-heading" className={heading}>Your contract</h2>
-          {contracts.map((file) => (
-            <SignContract key={file.id} jobId={job.id} file={file} />
-          ))}
         </section>
       ) : null}
 
@@ -207,6 +241,18 @@ export async function ProjectView({
           </p>
         )}
       </section>
+      {installGuide ? (
+        <section className="flex flex-col gap-3" aria-labelledby="guide-install-heading">
+          <h2 id="guide-install-heading" className={heading}>Getting ready for your install</h2>
+          <DocText blocks={parseDocText(installGuide.body)} />
+        </section>
+      ) : null}
+      {careGuide ? (
+        <section className="flex flex-col gap-3" aria-labelledby="guide-care-heading">
+          <h2 id="guide-care-heading" className={heading}>Caring for your shades</h2>
+          <DocText blocks={parseDocText(careGuide.body)} />
+        </section>
+      ) : null}
 
       <UpdatesList steps={project.steps} />
 
@@ -244,7 +290,7 @@ export async function ProjectView({
                     >
                       {file.name}
                     </a>
-                    <span className={heading}>{file.docType ? docTypeLabel(file.docType) : "Document"}</span>
+                    <span className={heading}>{file.docType ? storedDocTypeLabel(file.docType) : "Document"}</span>
                   </li>
                 ))}
               </ul>

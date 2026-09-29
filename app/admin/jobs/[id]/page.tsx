@@ -8,18 +8,22 @@ import { listTeam } from "@/lib/admin/team";
 import { listReferrals } from "@/lib/referrals/db";
 import { getRouteSettings } from "@/lib/routes/settings";
 import { ActivityTab } from "./ActivityTab";
+import { DocumentsTab, parseSentNotice } from "./DocumentsTab";
 import { JobFiles } from "./JobFiles";
 import { InstallTab } from "./InstallTab";
 import { JobHeader } from "./JobHeader";
 import { JobTabs } from "./JobTabs";
 import { MeasurementsTab } from "./MeasurementsTab";
 import { OverviewTab } from "./OverviewTab";
+import { QuoteTab } from "./QuoteTab";
 import { firstParam, isDeleteBlocked, parseJobTab } from "./tabs";
 import { HEADING } from "./ui";
 
 export default async function JobPage({ params, searchParams }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ tab?: string | string[]; edit?: string | string[]; delete?: string | string[] }>;
+  searchParams: Promise<{
+    tab?: string | string[]; edit?: string | string[]; delete?: string | string[]; doc?: string | string[]; sent?: string | string[];
+  }>;
 }) {
   await requireAdmin();
   const { id } = await params;
@@ -58,6 +62,10 @@ export default async function JobPage({ params, searchParams }: {
           <JobFiles jobId={job.id} measurements={measurements} files={files} />
         </div>
       ) : null}
+      {tab === "documents" ? (
+        <DocumentsTab job={job} selectedId={firstParam(query.doc) ?? null} sentNotice={parseSentNotice(query.sent)} />
+      ) : null}
+      {tab === "quote" ? <QuoteTab job={job} /> : null}
       {tab === "install" ? <InstallTab jobId={job.id} measurements={measurements} /> : null}
       {tab === "activity" ? <ActivityTab jobId={job.id} events={events} now={now} /> : null}
     </div>

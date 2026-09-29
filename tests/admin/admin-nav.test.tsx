@@ -15,7 +15,7 @@ beforeEach(() => {
 });
 
 describe("AdminNav", () => {
-  it("links to Jobs, Schedule, and Settings, with no New job link", () => {
+  it("links to Jobs, Schedule, Documents and Settings, with no New job link", () => {
     pathname.mockReturnValue("/admin");
     render(<AdminNav email="owner@example.com" />);
 
@@ -24,6 +24,7 @@ describe("AdminNav", () => {
     expect(nav.queryByRole("link", { name: /new job/i })).toBeNull();
     expect(nav.getByRole("link", { name: "Settings" })).toHaveAttribute("href", "/admin/settings");
     expect(nav.getByRole("link", { name: "Schedule" })).toHaveAttribute("href", "/admin/schedule");
+    expect(nav.getByRole("link", { name: "Documents" })).toHaveAttribute("href", "/admin/documents");
   });
 
   it("marks the Schedule page as active and Jobs as not", () => {
@@ -50,6 +51,23 @@ describe("AdminNav", () => {
 
     expect(screen.getAllByText("owner@example.com").length).toBeGreaterThan(0);
     expect(screen.getAllByRole("button", { name: "Sign out" }).length).toBeGreaterThan(0);
+  });
+
+  it("marks the Documents page and every template page as Documents", () => {
+    for (const path of ["/admin/documents", "/admin/documents/new", "/admin/documents/3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c"]) {
+      pathname.mockReturnValue(path);
+      const { unmount } = render(<AdminNav email="owner@example.com" />);
+      expect(within(column()).getByRole("link", { name: "Documents" })).toHaveAttribute("aria-current", "page");
+      for (const other of ["Jobs", "Schedule", "Settings"]) {
+        expect(within(column()).getByRole("link", { name: other })).not.toHaveAttribute("aria-current");
+      }
+      unmount();
+    }
+  });
+  it("lists the four sections in order", () => {
+    pathname.mockReturnValue("/admin");
+    render(<AdminNav email="owner@example.com" />);
+    expect(within(column()).getAllByRole("link").map((l) => l.textContent)).toEqual(["Jobs", "Schedule", "Documents", "Settings"]);
   });
 });
 

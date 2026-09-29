@@ -3,6 +3,21 @@ import { defineConfig, devices } from "@playwright/test";
 const PORT = 3100;
 const baseURL = `http://127.0.0.1:${PORT}`;
 
+// The e2e specs write to and delete from whatever database this names, so it must be the Neon test
+// branch. Checked here, before any spec or the web server runs. The message names the pattern only:
+// never print the URL, which carries the password.
+const e2eDatabase = process.env.E2E_POSTGRES_URL;
+if (e2eDatabase) {
+  let host = "";
+  try {
+    host = new URL(e2eDatabase).hostname;
+  } catch {
+    throw new Error("E2E_POSTGRES_URL is not a valid URL. It must point at the Neon test branch (ep-lingering-fog).");
+  }
+  if (host.includes("cold-term")) throw new Error("E2E_POSTGRES_URL points at production (cold-term). Refusing to run e2e against it.");
+  if (!host.includes("ep-lingering-fog")) throw new Error("E2E_POSTGRES_URL must point at the Neon test branch (ep-lingering-fog).");
+}
+
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: true,
@@ -19,7 +34,7 @@ export default defineConfig({
     // admin-mobile.spec.ts is the mirror image: phone-width only, so desktop skips it.
     { name: "desktop", use: { ...devices["Desktop Chrome"] }, testIgnore: /admin-mobile\.spec\.ts/ },
     // admin.spec.ts, portal.spec.ts, and call.spec.ts run serially, desktop-only
-    { name: "mobile", use: { ...devices["Pixel 7"] }, testIgnore: /(admin|admin-access|portal|call|follow-ups|questionnaire|stages|team|appointments|install|routes)\.spec\.ts/ },
+    { name: "mobile", use: { ...devices["Pixel 7"] }, testIgnore: /(admin|admin-access|portal|call|follow-ups|questionnaire|stages|team|appointments|install|routes|dc-quote|documents)\.spec\.ts/ },
   ],
 
   // Tests run against a production build, so what is verified is what ships.
@@ -34,7 +49,7 @@ export default defineConfig({
       ? {
           POSTGRES_URL: process.env.E2E_POSTGRES_URL,
           // Each spec signs in as its own owner so their cleanups can't collide
-          ADMIN_EMAILS: "e2e-owner@example.com,e2e-mobile@example.com,e2e-portal-owner@example.com,e2e-call-owner@example.com,e2e-followup-owner@example.com,e2e-questionnaire-owner@example.com,e2e-stages-owner@example.com,e2e-team-owner@example.com,e2e-appt-owner@example.com,e2e-install@example.com,e2e-routes-owner@example.com,e2e-access-owner@example.com",
+          ADMIN_EMAILS: "e2e-owner@example.com,e2e-mobile@example.com,e2e-portal-owner@example.com,e2e-call-owner@example.com,e2e-followup-owner@example.com,e2e-questionnaire-owner@example.com,e2e-stages-owner@example.com,e2e-team-owner@example.com,e2e-appt-owner@example.com,e2e-install@example.com,e2e-routes-owner@example.com,e2e-access-owner@example.com,e2e-dc-owner@example.com,e2e-docs-owner@example.com",
           ADMIN_BASE_URL: baseURL,
           // The e2e run posts real leads to the consultation API; this must
           // never send real email through Resend.

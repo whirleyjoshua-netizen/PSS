@@ -37,7 +37,7 @@ describe("migration 016", () => {
 
   it("drops then re-adds the doc_type check, allowing null or the full current set of labels", () => {
     expect(all).toContain("alter table job_files drop constraint if exists job_files_doc_type_check");
-    expect(all).toContain("check ( doc_type is null or doc_type in ('quote','po','invoice','other','contract') )");
+    expect(all).toContain("check ( doc_type is null or doc_type in ('quote','po','invoice','other','contract','dealer_copy') )");
     const dropAt = statements.findIndex((s) => s.includes("drop constraint if exists job_files_doc_type_check"));
     const addAt = statements.findIndex((s) => s.includes("add constraint job_files_doc_type_check"));
     expect(dropAt).toBeGreaterThanOrEqual(0);

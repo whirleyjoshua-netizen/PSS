@@ -1,7 +1,7 @@
 import { business } from "@/content/business";
-import type { JobFile } from "@/lib/admin/files";
 import { formatShortDate } from "@/lib/admin/time";
-import type { Signature } from "@/lib/portal/sign";
+import type { ListedSignature, SignableFile } from "@/lib/portal/sign";
+import { TYPED_NAME_MAX } from "@/lib/portal/typed-name";
 import { signContractFormAction } from "./actions";
 
 /**
@@ -9,11 +9,13 @@ import { signContractFormAction } from "./actions";
  * what they are agreeing to before the button is reachable. Plain HTML throughout: the reveal is
  * the browser's and the submit is a form post, so it works with JavaScript off.
  */
-export function SignContract({ jobId, file }: { jobId: string; file: Pick<JobFile, "id" | "name"> }) {
-  return (
+export function SignContract({ jobId, file }: { jobId: string; file: Pick<SignableFile, "id" | "name"> & { document?: SignableFile["document"] } }) {
+  // A job document's PDF is signed through this same path; the customer reads "document" and its title.
+  const noun = file.document ? "document" : "contract";
+  const form = (
     <details className="w-full max-w-sm">
       <summary className="inline-flex min-h-11 cursor-pointer items-center border border-charcoal px-5 py-3 font-display text-xs uppercase tracking-[0.2em] text-charcoal hover:bg-charcoal hover:text-ivory">
-        Sign this contract
+        Sign this {noun}
       </summary>
       <form
         action={signContractFormAction}
@@ -33,6 +35,7 @@ export function SignContract({ jobId, file }: { jobId: string; file: Pick<JobFil
             type="text"
             name="signedName"
             required
+            maxLength={TYPED_NAME_MAX}
             // `required` alone lets a name of only spaces through, which the action then refuses.
             pattern=".*\S.*"
             title="Type your full name"
@@ -42,16 +45,23 @@ export function SignContract({ jobId, file }: { jobId: string; file: Pick<JobFil
         </label>
         <label className="flex items-start gap-2 text-sm">
           <input type="checkbox" name="agreed" required className="mt-1 size-4" />
-          I agree to sign this contract electronically
+          I agree to sign this {noun} electronically
         </label>
         <button
           type="submit"
           className="min-h-11 bg-charcoal px-5 py-3 font-display text-xs uppercase tracking-[0.2em] text-ivory"
         >
-          Sign this contract
+          Sign this {noun}
         </button>
       </form>
     </details>
+  );
+  if (!file.document) return form;
+  return (
+    <div className="flex w-full max-w-sm flex-col gap-2">
+      <p className="font-semibold">{file.document.title}</p>
+      {form}
+    </div>
   );
 }
 
@@ -67,7 +77,7 @@ export function SignatureNotice({
   /** The `?signed=` flag, straight off the URL and unvalidated: "1", "no", or "missing" (a field left empty). */
   signed?: string | null;
   /** The job's most recent recorded signature, re-derived server-side. The only thing believed. */
-  signature: Pick<Signature, "signedAt"> | null;
+  signature: (Pick<ListedSignature, "signedAt"> & { documentTitle?: string | null }) | null;
 }) {
   if (!signed) return null;
   const confirmed = signed === "1" && signature !== null;
@@ -77,7 +87,9 @@ export function SignatureNotice({
   return (
     <p role="status" className="border border-champagne bg-sand/60 p-4 text-sm">
       {confirmed && signature
-        ? `Thank you — your contract was signed on ${formatShortDate(signature.signedAt)}. A copy is on its way to your email.`
+        ? signature.documentTitle
+          ? `Thank you — you signed “${signature.documentTitle}” on ${formatShortDate(signature.signedAt)}. A copy is on its way to your email.`
+          : `Thank you — your contract was signed on ${formatShortDate(signature.signedAt)}. A copy is on its way to your email.`
         : signed === "missing"
           ? "We could not record that signature: please type your full name and tick the box to agree, then sign again."
           : `We could not record that signature just now. Please call us on ${business.phone.display} and we will sort it out.`}

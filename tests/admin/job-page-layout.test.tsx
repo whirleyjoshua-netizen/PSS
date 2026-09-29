@@ -38,6 +38,9 @@ vi.mock("@/app/admin/jobs/appointment-actions", () => ({
 }));
 vi.mock("@/app/admin/jobs/measure-actions", () => ({ removeMeasurement: vi.fn(), removeFile: vi.fn(), setFileShared: vi.fn() }));
 
+// QuoteTab is an async server component, which the DOM renderer can't await; tests/dc/quote-review covers it.
+vi.mock("@/app/admin/jobs/[id]/QuoteTab", () => ({ QuoteTab: ({ job }: { job: Job }) => <p>Quote tab for {job.id}</p> }));
+
 const { default: JobPage } = await import("@/app/admin/jobs/[id]/page");
 const open = async (query: { tab?: string; edit?: string }) =>
   render(await JobPage({ params: Promise.resolve({ id: ID }), searchParams: Promise.resolve(query) }));
@@ -71,8 +74,15 @@ describe("job page layout", () => {
   });
 
   it("falls back to the Overview for an unknown tab", async () => {
-    await open({ tab: "quote" });
+    await open({ tab: "bogus" });
     expect(screen.getByRole("region", { name: "Customer" })).toBeInTheDocument();
+  });
+
+  it("shows the Quote tab", async () => {
+    await open({ tab: "quote" });
+    expect(screen.getByRole("link", { current: "page" })).toHaveTextContent("Quote");
+    expect(screen.getByText(`Quote tab for ${ID}`)).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Customer" })).toBeNull();
   });
 
   it("opens the details form with ?edit=details", async () => {

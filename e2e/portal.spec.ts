@@ -916,11 +916,13 @@ async function shareContract(page: Page, jobId: string, fileName: string): Promi
 }
 
 /**
- * The one form that signs `fileName`. Scoped by the contract's own link, so a page carrying
+ * The one form that signs `fileName`. Scoped by the contract's own file name, so a page carrying
  * several contracts (and several hidden jobId/fileId fields) never aims at the wrong one.
  */
 function signForm(page: Page, fileName: string) {
-  const details = page.locator("details", { has: page.getByRole("link", { name: fileName }) });
+  // By text, not role: the link sits inside a CLOSED <details>, and role locators skip what is
+  // hidden from the accessibility tree, so a role-based `has:` matches nothing (as in dc-quote.spec.ts).
+  const details = page.locator("details", { hasText: fileName });
   return { details, form: details.locator("form", { has: page.getByLabel("Your full name") }) };
 }
 
@@ -962,7 +964,7 @@ test("a customer signs a shared contract and keeps a stamped copy", async ({ pag
 
   const customer = await customerPage(browser, SIGNER_CUSTOMER);
   await customer.goto(`/project/${id}`);
-  await expect(customer.getByRole("heading", { name: "Your contract" })).toBeVisible();
+  await expect(customer.getByRole("heading", { name: "Documents to sign" })).toBeVisible();
   const form = await fillAndSign(customer, fileName, "Pat Signer");
   await form.getByRole("button", { name: "Sign this contract" }).click();
 
@@ -970,7 +972,7 @@ test("a customer signs a shared contract and keeps a stamped copy", async ({ pag
   await expect(customer.getByRole("status")).toContainText("Thank you — your contract was signed on");
   // Nothing left to sign: the form is gone, and so is its section.
   await expect(customer.getByLabel("Your full name")).toHaveCount(0);
-  await expect(customer.getByRole("heading", { name: "Your contract" })).toHaveCount(0);
+  await expect(customer.getByRole("heading", { name: "Documents to sign" })).toHaveCount(0);
 
   // The record: one row, the session's email (never anything the form sent), a fingerprint of
   // the served bytes, and the stamped copy linked to it.

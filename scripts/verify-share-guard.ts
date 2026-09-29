@@ -22,6 +22,20 @@
  *   4. deletes its leads, job_files and the job_events setShared wrote, so
  *      repeated runs leave no residue.
  *
+ * A second case proves a Dealer Copy (doc_type 'dealer_copy', which shows dealer
+ * cost) can never reach a customer, and that the DATABASE is the guard:
+ *   1. setShared(lead, dealerCopy, true) returns false and shared_at stays NULL;
+ *   2. a raw `update job_files set shared_at = now()` on it THROWS the
+ *      job_files_dealer_copy_never_shared check violation — our code is not
+ *      the only thing standing in the way;
+ *   3. setDocType(lead, dealerCopy, 'other') returns false and the row keeps
+ *      'dealer_copy', so it cannot be relabelled and then shared. A plain
+ *      document still relabels, as the control;
+ *   4. with a dc_quote_versions row naming the Dealer Copy as its source and a
+ *      plain document as its contract, deleteFile refuses both (false, no
+ *      exception); once that row is gone, deleteFile removes the plain one —
+ *      the positive control.
+ *
  * IT WRITES TO THE DATABASE IT IS GIVEN. Point it only at a Neon test branch.
  * It takes its connection from E2E_POSTGRES_URL alone — never POSTGRES_URL,
  * DATABASE_URL or .env.local, all of which may hold production credentials —
@@ -37,12 +51,16 @@
  *
  * To watch it fail (which is the only way to know it works): delete
  * ` and lead_id = ${jobId}` from setShared in lib/admin/files.ts and run it
- * again. Step 2 must fail. Put the clause back.
+ * again. Step 2 must fail. Put the clause back. For the Dealer Copy case, delete
+ * `and doc_type is distinct from 'dealer_copy'` from setShared (step 1 then
+ * throws the check violation) or from setDocType (step 3 then relabels), or the
+ * dc_quote_versions `not exists` from deleteFile (step 4 then throws the foreign
+ * key violation). Put each back.
  */
 import { randomUUID } from "node:crypto";
 import { neon } from "@neondatabase/serverless";
-import { test } from "vitest";
-import { setShared } from "../lib/admin/files";
+import { test, vi } from "vitest";
+import { deleteFile, setDocType, setShared } from "../lib/admin/files";
 
 /** Endpoints this script must never write to. Production is the whole point of the list. */
 const FORBIDDEN_HOSTS = ["ep-cold-term"];
@@ -163,5 +181,95 @@ test("setShared refuses a file belonging to another job, and shares the right on
     await sql`delete from job_events where lead_id in (${leadA}, ${leadB})`;
     await sql`delete from job_files where lead_id in (${leadA}, ${leadB})`;
     await sql`delete from leads where id in (${leadA}, ${leadB})`;
+  }
+});
+
+const docTypeOf = async (fileId: string): Promise<string | null> => {
+  const rows = await sql`select doc_type from job_files where id = ${fileId}`;
+  return (rows[0]?.doc_type as string | null) ?? null;
+};
+
+const fileExists = async (fileId: string): Promise<boolean> =>
+  (await sql`select 1 from job_files where id = ${fileId}`).length > 0;
+
+test("a Dealer Copy is never shared, never relabelled, and never deleted while a quote version names it", async () => {
+  console.log(`\nverify-share-guard (Dealer Copy): writing to ${host}\n`);
+
+  const lead = await newLead("DC");
+  const dealerCopy = randomUUID();
+  const plain = randomUUID();
+  const versionId = randomUUID();
+
+  // Inserted directly rather than through createFile, which would upload a blob.
+  await sql`
+    insert into job_files (id, lead_id, uploaded_by, kind, name, content_type, size_bytes, blob_pathname, doc_type)
+    values (${dealerCopy}, ${lead}, ${ACTOR}, 'document', ${`DEALER COPY verify-${STAMP}.html`},
+            'text/html', 1024, ${`verify/${dealerCopy}.html`}, 'dealer_copy'),
+           (${plain}, ${lead}, ${ACTOR}, 'document', ${`verify-${STAMP}-contract.pdf`},
+            'application/pdf', 1024, ${`verify/${plain}.pdf`}, null)`;
+
+  try {
+    // 1. Our code refuses to share it, without raising.
+    const shared = await setShared(lead, dealerCopy, true, ACTOR);
+    check(shared === false, "setShared refuses a Dealer Copy", `setShared returned ${shared}, wanted false`);
+    const afterShare = await sharedAtOf(dealerCopy);
+    check(afterShare === null, "the Dealer Copy is still private", `shared_at is ${afterShare} — A DEALER COPY WAS SHARED`);
+
+    // 2. The database refuses it even when our code is bypassed.
+    let rawError: unknown = null;
+    try {
+      await sql`update job_files set shared_at = now() where id = ${dealerCopy}`;
+    } catch (error) {
+      rawError = error;
+    }
+    const rawMessage = rawError instanceof Error ? rawError.message : String(rawError);
+    check(
+      rawError !== null && rawMessage.includes("job_files_dealer_copy_never_shared"),
+      "a raw UPDATE sharing it throws the job_files_dealer_copy_never_shared check violation",
+      rawError === null ? "the raw UPDATE succeeded — THE DATABASE DOES NOT GUARD IT" : `it threw something else: ${rawMessage}`,
+    );
+    const afterRaw = await sharedAtOf(dealerCopy);
+    check(afterRaw === null, "the Dealer Copy is still private after the raw UPDATE", `shared_at is ${afterRaw}`);
+
+    // 3. It cannot be relabelled into something shareable; a plain document still can.
+    const relabelled = await setDocType(lead, dealerCopy, "other", ACTOR);
+    check(relabelled === false, "setDocType refuses to relabel a Dealer Copy", `setDocType returned ${relabelled}, wanted false`);
+    const typeAfter = await docTypeOf(dealerCopy);
+    check(typeAfter === "dealer_copy", "the Dealer Copy keeps doc_type 'dealer_copy'", `doc_type is ${typeAfter}`);
+    const control = await setDocType(lead, plain, "contract", ACTOR);
+    check(control === true, "setDocType still labels a plain document (control)", `setDocType returned ${control}, wanted true`);
+
+    // 4. A quote version naming the Dealer Copy (source) and the plain file (contract) keeps both.
+    await sql`
+      insert into dc_quote_versions (id, lead_id, version, dc_quote_no, po_reference, source_file_id, source_sha256,
+                                     status, dealer_subtotal_cents, handling_fee_cents, oversized_fee_cents,
+                                     dealer_total_cents, contract_file_id)
+      values (${versionId}, ${lead}, 1, ${`VERIFY-${STAMP}`}, ${`VERIFY-${STAMP}`}, ${dealerCopy}, 'verify',
+              'draft', 0, 0, 0, 0, ${plain})`;
+    const sourceDeleted = await deleteFile(dealerCopy, ACTOR);
+    check(sourceDeleted === false, "deleteFile refuses a version's Dealer Copy (source_file_id)", `deleteFile returned ${sourceDeleted}`);
+    check(await fileExists(dealerCopy), "the Dealer Copy row is still there", "the row is gone");
+    const contractDeleted = await deleteFile(plain, ACTOR);
+    check(contractDeleted === false, "deleteFile refuses a version's contract (contract_file_id)", `deleteFile returned ${contractDeleted}`);
+    check(await fileExists(plain), "the contract row is still there", "the row is gone");
+
+    // Positive control: with no version naming it, the same file deletes. Its blob does not
+    // exist and no token is set, so deleteFile's logged blob error is expected and silenced.
+    await sql`delete from dc_quote_versions where id = ${versionId}`;
+    const quiet = vi.spyOn(console, "error").mockImplementation(() => {});
+    const freed = await deleteFile(plain, ACTOR).finally(() => quiet.mockRestore());
+    check(freed === true, "deleteFile removes the file once no version names it (control)", `deleteFile returned ${freed}`);
+    check(!(await fileExists(plain)), "the freed file's row is gone", "the row is still there");
+
+    console.log(
+      "\nPASSED: a Dealer Copy cannot be shared (the database refuses it too), relabelled, or deleted\n" +
+        "while a quote version names it. This was a manual run, not ongoing coverage.\n",
+    );
+  } finally {
+    // Versions first: their foreign keys to job_files have no on-delete action.
+    await sql`delete from dc_quote_versions where lead_id = ${lead}`;
+    await sql`delete from job_events where lead_id = ${lead}`;
+    await sql`delete from job_files where lead_id = ${lead}`;
+    await sql`delete from leads where id = ${lead}`;
   }
 });

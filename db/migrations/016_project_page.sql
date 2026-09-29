@@ -19,5 +19,5 @@ alter table job_files add column if not exists doc_type text;
 alter table job_files drop constraint if exists job_files_doc_type_check;
 
 alter table job_files add constraint job_files_doc_type_check check (
-  doc_type is null or doc_type in ('quote','po','invoice','other','contract')
+  doc_type is null or doc_type in ('quote','po','invoice','other','contract','dealer_copy')
 );

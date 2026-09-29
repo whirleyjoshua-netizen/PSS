@@ -4,6 +4,7 @@ import type { Job } from "@/lib/admin/jobs";
 import { stageLabel, type Stage } from "@/lib/admin/stages";
 import { roleLabel } from "@/lib/admin/team-roles";
 import { isOverdue } from "@/lib/admin/overdue";
+import { formatProjectNo } from "@/lib/portal/project-no";
 import { DaysInStage } from "./DaysInStage";
 
 export function groupByStage(jobs: Job[], stages: readonly Stage[]) {
@@ -31,6 +32,9 @@ export function JobCard({ job, now }: { job: Job; now: Date }) {
           {job.name}
         </Link>
       </span>
+      {formatProjectNo(job.projectNo) ? (
+        <span className="font-mono text-xs text-ink-soft">{formatProjectNo(job.projectNo)}</span>
+      ) : null}
       {job.referredBy ? (
         <span className="w-fit rounded border border-champagne-ink px-1.5 text-[0.65rem] uppercase tracking-[0.12em] text-champagne-ink">
           Referral

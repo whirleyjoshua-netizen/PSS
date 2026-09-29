@@ -81,6 +81,17 @@ describe("reading and deleting", () => {
     expect(file).toMatchObject({ id: FILE, kind: "document", sizeBytes: 1200 });
   });
 
+  it("marks a file that a Direct Connect quote version holds as its contract, in the same statement", async () => {
+    sql.mockResolvedValue([{ ...row, quote_contract: true }, { ...row, id: "other", quote_contract: false }]);
+    const [contract, other] = await files.listFiles(LEAD);
+    expect(sql).toHaveBeenCalledTimes(1);
+    expect(text(sql.mock.calls[0]).replace(/\s+/g, " ")).toContain(
+      "exists ( select 1 from dc_quote_versions v where v.contract_file_id = job_files.id ) as quote_contract",
+    );
+    expect(contract.quoteContract).toBe(true);
+    expect(other.quoteContract).toBe(false);
+  });
+
   it("returns null for a non-uuid file id without querying", async () => {
     expect(await files.getFile("../x")).toBeNull();
     expect(sql).not.toHaveBeenCalled();

@@ -31,7 +31,17 @@ vi.mock("@/app/admin/settings/actions", () => ({
   saveLeadDefaultsAction: vi.fn(async () => ({})),
   giveAccess: vi.fn(async () => ({})),
   removeAccess: vi.fn(),
+  saveMarkupAction: vi.fn(async () => ({})),
 }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
+const dcStore = {
+  listMarkupRules: vi.fn(async (): Promise<Record<string, number>> => ({})),
+  listSeenCollections: vi.fn(async (): Promise<string[]> => []),
+  getDcSettings: vi.fn(async () => ({ termsPathname: null as string | null, termsUpdatedAt: null as Date | null, lastPolledAt: null })),
+};
+vi.mock("@/lib/dc/store", () => dcStore);
+const liveTemplateOfKind = vi.fn(async () => null as { updatedAt: Date } | null);
+vi.mock("@/lib/docs/templates", () => ({ liveTemplateOfKind }));
 const getDefaultAssignee = vi.fn(async (): Promise<string | null> => null);
 vi.mock("@/lib/admin/lead-settings", () => ({ getDefaultAssignee }));
 
@@ -45,6 +55,7 @@ beforeEach(() => {
   calendarEnabled.mockReset();
   getSyncState.mockReset();
   listTeam.mockReset().mockResolvedValue([]);
+  liveTemplateOfKind.mockReset().mockResolvedValue(null);
   vi.stubEnv("ADMIN_EMAILS", "owner@example.com");
 });
 
@@ -201,5 +212,40 @@ describe("installation rates section", () => {
     calendarEnabled.mockReturnValue(false);
     render(await SettingsPage());
     expect(screen.getByRole("region", { name: "Installation rates" })).toBeInTheDocument();
+  });
+});
+
+describe("Direct Connect sections", () => {
+  it("shows markup per product line and the contract terms after installation rates", async () => {
+    calendarEnabled.mockReturnValue(false);
+    dcStore.listSeenCollections.mockResolvedValueOnce(["Duette", "Pirouette"]);
+    dcStore.listMarkupRules.mockResolvedValueOnce({ Duette: 60 });
+    dcStore.getDcSettings.mockResolvedValueOnce({
+      termsPathname: "settings/contract-terms/a.pdf", termsUpdatedAt: new Date("2026-09-20T18:00:00Z"), lastPolledAt: null,
+    });
+    render(await SettingsPage());
+    expect(screen.getByLabelText("Duette % of MSRP")).toHaveValue("60");
+    expect(screen.getByLabelText("Pirouette % of MSRP")).toHaveValue("");
+    expect(screen.getByRole("region", { name: "Contract terms" })).toHaveTextContent("Using the uploaded PDF until you create terms on the Documents page.");
+    const headings = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
+    const at = (name: string) => headings.indexOf(name);
+    expect(at("Installation rates")).toBeGreaterThanOrEqual(0);
+    expect(at("Markup by product line")).toBe(at("Installation rates") + 1);
+    expect(at("Contract terms")).toBe(at("Markup by product line") + 1);
+    expect(at("Google Ads")).toBe(headings.length - 1);
+  });
+
+  it("says contracts can't be sent until terms are added", async () => {
+    calendarEnabled.mockReturnValue(false);
+    render(await SettingsPage());
+    expect(screen.getByText("No contract terms yet. Contracts can't be sent until you add them on the Documents page.")).toBeInTheDocument();
+  });
+
+  it("says contracts use the terms template once one exists", async () => {
+    calendarEnabled.mockReturnValue(false);
+    liveTemplateOfKind.mockResolvedValueOnce({ updatedAt: new Date("2026-09-28T18:00:00Z") });
+    render(await SettingsPage());
+    expect(liveTemplateOfKind).toHaveBeenCalledWith("terms");
+    expect(screen.getByRole("region", { name: "Contract terms" })).toHaveTextContent("Contracts print the terms from the Documents page");
   });
 });

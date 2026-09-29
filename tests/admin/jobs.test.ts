@@ -559,25 +559,44 @@ describe("searching jobs", () => {
     expect(statement).toContain("address ilike $1");
     expect(statement).toContain("phone like");
     // "Reyes 702" contains letters, so it doesn't look like a phone number: $2 is "".
-    expect(params).toEqual(["%Reyes 702%", ""]);
+    expect(params).toEqual(["%Reyes 702%", "", null]);
+  });
+
+  it("finds a job by its PSS number, typed with or without the prefix", async () => {
+    for (const term of ["PSS-1042", "pss 1042", " 1042 ", "Pss1042", "PSS–1042", "PSS#1042"]) {
+      sql.query.mockClear();
+      await jobs.listJobs({ search: term });
+      const [statement, params] = sql.query.mock.calls[0];
+      expect(statement).toContain("project_no = $3");
+      expect(params?.[2]).toBe(1042);
+    }
+  });
+
+  it("does not treat a short number or a word as a PSS number", async () => {
+    // "7025550134": a bare ten-digit phone must never become a number, or it would overflow the integer column.
+    for (const term of ["104", "PSS-", "Reyes", "PSS-10x2", "7025550134"]) {
+      sql.query.mockClear();
+      await jobs.listJobs({ search: term });
+      expect(sql.query.mock.calls[0][1]?.[2]).toBeNull();
+    }
   });
 
   it("does not treat digits inside an address-like term as a phone search", async () => {
     await jobs.listJobs({ search: "4521 Elm" });
     const [, params] = sql.query.mock.calls[0];
-    expect(params).toEqual(["%4521 Elm%", ""]);
+    expect(params).toEqual(["%4521 Elm%", "", null]);
   });
 
   it("treats a phone-shaped term as a phone search", async () => {
     await jobs.listJobs({ search: "(702) 555-0134" });
     const [, params] = sql.query.mock.calls[0];
-    expect(params).toEqual(["%(702) 555-0134%", "7025550134"]);
+    expect(params).toEqual(["%(702) 555-0134%", "7025550134", null]);
   });
 
   it("does not search by phone when there are fewer than 3 digits", async () => {
     await jobs.listJobs({ search: "55" });
     const [, params] = sql.query.mock.calls[0];
-    expect(params).toEqual(["%55%", ""]);
+    expect(params).toEqual(["%55%", "", null]);
   });
 
   it("escapes LIKE wildcards and caps the length", async () => {

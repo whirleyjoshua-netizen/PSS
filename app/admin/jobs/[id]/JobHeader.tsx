@@ -41,6 +41,12 @@ export function JobHeader({ job, now, team, defaultMinutes, parent = null, delet
         <div className="flex min-w-0 flex-col gap-1">
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="font-display text-3xl font-light">{job.name}</h1>
+            {/* The number that goes in Direct Connect's PO Reference, and that its PO column shows. */}
+            {formatProjectNo(job.projectNo) ? (
+              <span className="border border-rule px-2 py-1 font-mono text-xs tracking-wide text-ink-soft">
+                {formatProjectNo(job.projectNo)}
+              </span>
+            ) : null}
             <span className="inline-flex items-center gap-1.5 border border-rule bg-ivory px-2 py-1 text-xs uppercase tracking-wide">
               <Icon name={style.icon} className={`size-3.5 ${style.tint}`} />
               {stageLabel(job.status)}
