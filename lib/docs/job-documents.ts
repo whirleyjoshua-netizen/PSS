@@ -44,16 +44,20 @@ export async function getJobDocument(leadId: string, documentId: string): Promis
   return rows[0] ? toDocument(rows[0] as Record<string, unknown>) : null;
 }
 
-/** The draft and its timeline row together; nothing is written for a job that does not exist. */
+/**
+ * The draft and its timeline row together. Nothing is written for a job that does not exist, or
+ * for a template id that does not exist (an archived template still counts: the text is a copy).
+ */
 export async function insertDraft(input: {
   leadId: string; templateId: string | null; title: string; kind: ClientDocKind; response: DocResponse; body: string; actor: string;
 }): Promise<string | null> {
-  if (!isUuid(input.leadId)) return null;
+  if (!isUuid(input.leadId) || (input.templateId !== null && !isUuid(input.templateId))) return null;
   const rows = await db()`
     with created as (
       insert into job_documents (id, lead_id, template_id, title, kind, response, body, status, created_by)
       select ${randomUUID()}, id, ${input.templateId}, ${input.title}, ${input.kind}, ${input.response}, ${input.body}, 'draft', ${input.actor}
       from leads where id = ${input.leadId}
+        and (${input.templateId}::uuid is null or exists (select 1 from document_templates where id = ${input.templateId}::uuid))
       returning id, lead_id, title
     ),
     logged as (
@@ -129,9 +133,15 @@ export async function markSent(input: {
 }
 
 /**
- * Spec §6: withdraws a sent document before it is answered. Refused once completed, and refused
- * while any signature or acknowledgement names its file, so a void racing the client's answer
- * can never unshare an answered document.
+ * Spec §6: withdraws a sent document before it is answered. Refused unless the row is still
+ * `sent`, and refused when a signature or acknowledgement row naming its file is already
+ * committed when this statement starts.
+ *
+ * Those `not exists` checks do not see an answer committed after this statement begins. The race
+ * is settled on the job_documents row itself: the sign and acknowledge statements also update it
+ * (sent -> completed), so whichever statement locks the row first wins, and the other re-checks
+ * `status` after the lock and skips. The one edge the plan accepts: void wins, and the client's
+ * signature or acknowledgement row is still written for a document that is now void.
  */
 export async function voidDocument(leadId: string, documentId: string, actor: string): Promise<boolean> {
   if (!isUuid(leadId) || !isUuid(documentId)) return false;

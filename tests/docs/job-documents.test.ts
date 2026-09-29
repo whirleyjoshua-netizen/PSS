@@ -43,6 +43,16 @@ describe("insertDraft", () => {
       expect(s).toContain(part);
     }
   });
+  it("never queries for a malformed template id", async () => {
+    expect(await store.insertDraft({ leadId: JOB, templateId: "nope", title: "t", kind: "other", response: "view", body: "b", actor: "o" })).toBeNull();
+    expect(sql).not.toHaveBeenCalled();
+  });
+  it("writes nothing for a template id that does not exist, and allows no template at all", async () => {
+    sql.mockResolvedValueOnce([]);
+    expect(await store.insertDraft({ leadId: JOB, templateId: TEMPLATE, title: "t", kind: "other", response: "view", body: "b", actor: "o" })).toBeNull();
+    expect(text(sql.mock.calls[0])).toContain("and (?::uuid is null or exists (select 1 from document_templates where id = ?::uuid))");
+    expect(sql.mock.calls[0].filter((bind) => bind === TEMPLATE)).toHaveLength(3);
+  });
   it("answers null when the job does not exist", async () => {
     sql.mockResolvedValueOnce([]);
     expect(await store.insertDraft({ leadId: JOB, templateId: null, title: "t", kind: "other", response: "view", body: "b", actor: "o" })).toBeNull();
