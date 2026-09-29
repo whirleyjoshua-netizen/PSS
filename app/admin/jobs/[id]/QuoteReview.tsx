@@ -2,11 +2,11 @@
 
 import { useState, useTransition, type ReactNode } from "react";
 import { formatCents } from "@/lib/admin/money";
-import { formatShortDate, formatWhen } from "@/lib/admin/time";
+import { formatDateOnly, formatShortDate } from "@/lib/admin/time";
 import { keyDetails } from "@/lib/dc/contract-layout";
 import { diffLines, type LineChange } from "@/lib/dc/diff";
 import { dcQuoteUrl } from "@/lib/dc/links";
-import { cancellationWindowEnd, inCancellationWindow } from "@/lib/docs/business-days";
+import { cancellationWindowLastDay, inCancellationWindow } from "@/lib/docs/business-days";
 import { ruleFor, type PricedLine } from "@/lib/dc/pricing";
 import type { Review } from "@/lib/dc/send";
 import type { StoredLine, StoredVersion } from "@/lib/dc/store";
@@ -113,8 +113,9 @@ export function QuoteReview({ jobId, review, now }: { jobId: string; review: Rev
   const changes = previous ? diffLines(previous.lines, version.lines) : [];
   const signedEarlier = olderVersions.find((v) => v.status === "signed");
   // Spec §9: the order is not placed until the 3-business-day cancellation window has passed.
-  const windowEnd = version.status === "signed" && version.signedAt ? cancellationWindowEnd(version.signedAt) : null;
-  const inWindow = windowEnd !== null && version.signedAt !== null && inCancellationWindow(version.signedAt, now ?? new Date());
+  // Named as the last day the client may cancel, not the midnight after it (which reads as "12:00 AM" the next day).
+  const lastCancellableDay = version.status === "signed" && version.signedAt ? cancellationWindowLastDay(version.signedAt) : null;
+  const inWindow = lastCancellableDay !== null && version.signedAt !== null && inCancellationWindow(version.signedAt, now ?? new Date());
 
   const choose = (choices: { waiveHandling?: boolean; noInstall?: boolean }) =>
     startChoice(async () => {
@@ -151,9 +152,9 @@ export function QuoteReview({ jobId, review, now }: { jobId: string; review: Rev
       {version.sentAt ? <p className="text-sm">Sent {formatShortDate(version.sentAt)} for {formatCents(priced.clientTotalCents)}</p> : null}
       {version.status === "signed" ? (
         <div className="flex flex-col gap-1">
-          {inWindow && version.signedAt && windowEnd ? (
+          {inWindow && version.signedAt && lastCancellableDay ? (
             <p className="text-sm font-semibold">
-              Signed {formatShortDate(version.signedAt)}. Cancellation window ends {formatWhen(windowEnd)} — place the Direct Connect order after that.
+              Signed {formatShortDate(version.signedAt)}. Cancellation window ends at the end of {formatDateOnly(lastCancellableDay)} — place the Direct Connect order after that.
             </p>
           ) : (
             <>

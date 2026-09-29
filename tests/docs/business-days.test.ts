@@ -34,6 +34,12 @@ describe("cancellation window", () => {
     expect(cancellationWindowLastDay(new Date("2026-09-28T17:00:00Z"))).toBe("2026-10-01");
     expect(end("2026-09-28T17:00:00Z")).toBe("2026-10-02T07:00:00.000Z");
   });
+  it("names the last cancellable day, the day before the window's end", () => {
+    // What the owner reads: "ends at the end of" this day.
+    expect(cancellationWindowLastDay(new Date("2026-10-01T17:00:00Z"))).toBe("2026-10-05"); // skips Sunday
+    expect(cancellationWindowLastDay(new Date("2026-10-09T17:00:00Z"))).toBe("2026-10-14"); // skips Columbus Day
+    expect(cancellationWindowLastDay(new Date("2026-11-25T18:00:00Z"))).toBe("2026-11-30"); // skips Thanksgiving
+  });
   it("skips Sunday", () => expect(end("2026-10-01T17:00:00Z")).toBe("2026-10-06T07:00:00.000Z"));
   it("skips a Monday holiday", () => expect(end("2026-10-09T17:00:00Z")).toBe("2026-10-15T07:00:00.000Z"));
   it("counts from a Saturday signing", () => expect(end("2026-10-03T17:00:00Z")).toBe("2026-10-08T07:00:00.000Z"));
