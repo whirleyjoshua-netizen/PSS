@@ -1,35 +1,11 @@
 import "server-only";
-import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
+import { PDFDocument, StandardFonts, rgb, type PDFPage } from "pdf-lib";
 import { business } from "@/content/business";
 import { formatShortDate } from "@/lib/admin/time";
 import { contractRows, winAnsiSafe, type ContractInput } from "./contract-layout";
+import { LETTER, MARGIN, wrap } from "@/lib/pdf/text";
 
-const LETTER: [number, number] = [612, 792];
-const MARGIN = 54;
 const COLS = { room: MARGIN, product: MARGIN + 95, qty: 430, unit: 470, total: 540 };
-
-/** Splits one word wider than `width` into pieces that fit, so it cannot run into the next column. */
-function breakWord(word: string, font: PDFFont, size: number, width: number): string[] {
-  const pieces: string[] = [];
-  let piece = "";
-  for (const ch of word) {
-    if (piece && font.widthOfTextAtSize(piece + ch, size) > width) { pieces.push(piece); piece = ch; } else piece += ch;
-  }
-  if (piece) pieces.push(piece);
-  return pieces;
-}
-
-function wrap(text: string, font: PDFFont, size: number, width: number): string[] {
-  const words = winAnsiSafe(text).split(/\s+/).filter(Boolean).flatMap((word) => breakWord(word, font, size, width));
-  const lines: string[] = [];
-  let current = "";
-  for (const word of words) {
-    const next = current ? `${current} ${word}` : word;
-    if (font.widthOfTextAtSize(next, size) > width && current) { lines.push(current); current = word; } else current = next;
-  }
-  if (current) lines.push(current);
-  return lines.length ? lines : [""];
-}
 
 /** Page 1+: the priced contract. Then the owner's terms PDF, page for page. Signing stamps it later. */
 export async function buildContractPdf(input: ContractInput, termsPdf: Uint8Array): Promise<Uint8Array> {
