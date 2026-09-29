@@ -7,6 +7,8 @@ import { after } from "next/server";
 import { listSharedDocuments, readFile } from "@/lib/admin/files";
 import { isUuid, setStage } from "@/lib/admin/jobs";
 import { isInstalled } from "@/lib/admin/stages";
+import { notifyOwnersOfDocumentAcknowledgement } from "@/lib/docs/emails";
+import { acknowledgeableDocuments, acknowledgementFor, recordAcknowledgement } from "@/lib/portal/acknowledge-document";
 import { approveQuote, type ApproveResult } from "@/lib/portal/approve";
 import { sendMessage, type MessageResult } from "@/lib/portal/messages";
 import { notifyOwnersOfAcknowledgement } from "@/lib/portal/send-acknowledgement-email";
@@ -341,6 +343,71 @@ export async function signContractFormAction(formData: FormData): Promise<void> 
   // The file rides along so the notice can look up THAT contract's signature, not the job's latest.
   redirect(
     `/project/${encodeURIComponent(jobId)}?signed=${result === "signed" ? "1" : result === "invalid" ? "missing" : "no"}&file=${encodeURIComponent(fileId)}`,
+  );
+}
+
+/** What acknowledging a document can answer. Every refusal is a plain outcome, never an exception. */
+export type DocAckResult = "acknowledged" | "not-found" | "invalid";
+
+/**
+ * Records that a customer read one of their job's documents (spec §7). The signing action's
+ * rules, in its order, none of it taken from the request:
+ *
+ * 1. Ownership: a jobId not among the session's own jobs is refused as a missing one is.
+ * 2. The file: re-derived from acknowledgeableDocuments, the same list the page renders from.
+ *    The posted id is only a key into that list.
+ * 3. The identity: the session's email, never anything the form sent.
+ *
+ * recordAcknowledgement fingerprints the bytes served and writes the record, the completion and
+ * the event in one statement; a repeat is a no-op. The owners' email runs inside after().
+ */
+export async function acknowledgeDocumentAction(jobId: string, fileId: string, name: string, read: boolean): Promise<DocAckResult> {
+  const { email, jobs } = await requireCustomer();
+  const job = jobs.find((candidate) => candidate.id === jobId);
+  if (!job) return "not-found";
+  if (!read) return "invalid";
+
+  const documents = await acknowledgeableDocuments(job.id);
+  const doc = documents.find((candidate) => candidate.file.id === fileId);
+  if (!doc) {
+    // A repeat post: the document has left the list, but the honest answer is still yes. The
+    // record's lead_id must be this job's. file_id is a uuid column: a forged id would throw.
+    if (!isUuid(fileId)) return "not-found";
+    const existing = await acknowledgementFor(fileId);
+    return existing && existing.leadId === job.id ? "acknowledged" : "not-found";
+  }
+
+  const headerList = await headers();
+  const result = await recordAcknowledgement({
+    jobId: job.id,
+    document: doc,
+    name,
+    email,
+    ip: headerList.get("x-forwarded-for")?.split(",")[0]?.trim() || null,
+    userAgent: headerList.get("user-agent"),
+  });
+  if (result === "already-acknowledged") return "acknowledged";
+  if (result !== "acknowledged") return result;
+
+  after(async () => {
+    const saved = await acknowledgementFor(doc.file.id).catch(() => null);
+    await notifyOwnersOfDocumentAcknowledgement(job, doc.title, email, saved?.acknowledgedAt ?? new Date()).catch(console.error);
+  });
+
+  // Both paths render the same view, as for every other action here.
+  revalidatePath("/project");
+  revalidatePath(`/project/${job.id}`);
+  return "acknowledged";
+}
+
+/** The form's wrapper. The outcome rides back on the URL as a hint; the notice re-derives what to say. */
+export async function acknowledgeDocumentFormAction(formData: FormData): Promise<void> {
+  const jobId = text(formData.get("jobId"));
+  const fileId = text(formData.get("fileId"));
+  const result = await acknowledgeDocumentAction(jobId, fileId, text(formData.get("acknowledgedName")), formData.get("read") === "on");
+  // Outside any try/catch: redirect() works by throwing.
+  redirect(
+    `/project/${encodeURIComponent(jobId)}?docAck=${result === "acknowledged" ? "1" : result === "invalid" ? "missing" : "no"}&file=${encodeURIComponent(fileId)}`,
   );
 }
 

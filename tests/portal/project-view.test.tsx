@@ -22,6 +22,7 @@ vi.mock("@/app/(site)/project/actions", () => ({
   sendMessageAction: vi.fn(),
   acknowledgeInstallFormAction: vi.fn(),
   signContractFormAction: vi.fn(),
+  acknowledgeDocumentFormAction: vi.fn(),
 }));
 const listMessages = vi.fn();
 vi.mock("@/lib/portal/messages", () => ({ listMessages }));
@@ -31,6 +32,12 @@ vi.mock("@/lib/portal/session", () => ({ requireCustomer }));
 const signableContracts = vi.fn(async () => [] as { id: string; name: string }[]);
 const listSignatures = vi.fn(async () => [] as { signedAt: Date; fileId: string; signedFileId?: string | null }[]);
 vi.mock("@/lib/portal/sign", () => ({ signableContracts, listSignatures }));
+// Nothing to acknowledge and no guides unless a test says otherwise.
+const acknowledgeableDocuments = vi.fn(async () => [] as { id: string; title: string; file: { id: string; name: string } }[]);
+const acknowledgementFor = vi.fn(async () => null as { leadId: string; acknowledgedAt: Date } | null);
+vi.mock("@/lib/portal/acknowledge-document", () => ({ acknowledgeableDocuments, acknowledgementFor }));
+const liveTemplateOfKind = vi.fn(async (_kind: string) => null as { body: string } | null);
+vi.mock("@/lib/docs/templates", () => ({ liveTemplateOfKind }));
 
 const { ProjectView } = await import("@/app/(site)/project/ProjectView");
 const { FilesTabs } = await import("@/app/(site)/project/FilesTabs");
@@ -60,6 +67,10 @@ beforeEach(() => {
   installAppointmentAt.mockReset().mockResolvedValue(null);
   listMessages.mockReset().mockResolvedValue([]);
   requireCustomer.mockReset().mockResolvedValue({ email: "maria@example.com", jobs: [job] });
+  signableContracts.mockReset().mockResolvedValue([]);
+  acknowledgeableDocuments.mockReset().mockResolvedValue([]);
+  acknowledgementFor.mockReset().mockResolvedValue(null);
+  liveTemplateOfKind.mockReset().mockResolvedValue(null);
 });
 
 describe("ProjectView header and tracker", () => {
@@ -450,5 +461,58 @@ describe("ProjectView referral and contact", () => {
   it("lets the customer contact us", async () => {
     render(await ProjectView({ job }));
     expect(screen.getByRole("link", { name: "(702) 859-8294" })).toHaveAttribute("href", "tel:+17028598294");
+  });
+});
+
+describe("Needs your attention", () => {
+  it("lists documents to sign and to acknowledge at the top", async () => {
+    signableContracts.mockResolvedValue([{ id: "c1", name: "Change order — PSS-1048.pdf" }]);
+    acknowledgeableDocuments.mockResolvedValue([{ id: "d1", title: "Service agreement — PSS-1048", file: { id: "f1", name: "SA.pdf" } }]);
+    render(await ProjectView({ job }));
+    const region = screen.getByRole("region", { name: "Needs your attention" });
+    expect(within(region).getByRole("heading", { name: "Documents to sign" })).toBeInTheDocument();
+    expect(within(region).getByRole("heading", { name: "Documents to acknowledge" })).toBeInTheDocument();
+    expect(within(region).getByText("I have read Service agreement — PSS-1048")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Your contract" })).toBeNull();
+    // At the top: before the tracker.
+    const regions = screen.getAllByRole("region").map((r) => r.getAttribute("aria-labelledby"));
+    expect(regions.indexOf("attention-heading")).toBeLessThan(regions.indexOf("progress-heading"));
+  });
+  it("is absent when nothing waits", async () => {
+    render(await ProjectView({ job }));
+    expect(screen.queryByRole("region", { name: "Needs your attention" })).toBeNull();
+  });
+  it("confirms an acknowledgement only when it is this job's", async () => {
+    acknowledgementFor.mockResolvedValue({ leadId: JOB, acknowledgedAt: new Date("2026-09-28T19:00:00Z") });
+    const { unmount } = render(await ProjectView({ job, justDocAck: "1", justSignedFile: "22222222-2222-4222-8222-222222222222" }));
+    expect(screen.getByRole("status")).toHaveTextContent("Thank you — your acknowledgement was recorded on Sep 28, 2026.");
+    unmount();
+    acknowledgementFor.mockResolvedValue({ leadId: "another-job", acknowledgedAt: new Date() });
+    render(await ProjectView({ job, justDocAck: "1", justSignedFile: "22222222-2222-4222-8222-222222222222" }));
+    expect(screen.queryByText(/your acknowledgement was recorded/)).toBeNull();
+  });
+});
+
+describe("portal guides", () => {
+  const guides = async (kind: string) =>
+    kind === "guide_install" ? { body: "## Before we arrive\n\n- Clear the sills" } : { body: "Dust weekly with a **soft** cloth." };
+  it("shows the install guide on an ordered job, rendered from the template", async () => {
+    liveTemplateOfKind.mockImplementation(guides);
+    render(await ProjectView({ job }));
+    const region = screen.getByRole("region", { name: "Getting ready for your install" });
+    expect(within(region).getByRole("heading", { name: "Before we arrive" })).toBeInTheDocument();
+    expect(within(region).getByText("Clear the sills")).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Caring for your shades" })).toBeNull();
+    expect(liveTemplateOfKind).toHaveBeenCalledWith("guide_install");
+    expect(liveTemplateOfKind).not.toHaveBeenCalledWith("guide_care");
+  });
+  it("adds the care guide once installed", async () => {
+    liveTemplateOfKind.mockImplementation(guides);
+    render(await ProjectView({ job: { ...job, status: "installed" as const } }));
+    expect(within(screen.getByRole("region", { name: "Caring for your shades" })).getByText("soft")).toBeInTheDocument();
+  });
+  it("loads no guide a sold job with nothing booked cannot show", async () => {
+    render(await ProjectView({ job: { ...job, status: "sold" as const } }));
+    expect(liveTemplateOfKind).not.toHaveBeenCalled();
   });
 });

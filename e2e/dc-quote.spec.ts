@@ -352,7 +352,7 @@ test.describe("send, sign and the release gate", () => {
 
   test("the customer signs the contract, and the owner sees Sold and ready to order", async ({ page, browser }) => {
     const customer = await customerPage(browser, CUSTOMER);
-    await expect(customer.getByRole("heading", { name: "Your contract" })).toBeVisible();
+    await expect(customer.getByRole("heading", { name: "Documents to sign" })).toBeVisible();
     // By text, not by role: the contract's link sits inside a CLOSED <details>, and role locators
     // skip elements hidden from the accessibility tree, so a role-based `has:` would match nothing.
     const details = customer.locator("details", { hasText: contractName() });
@@ -363,7 +363,7 @@ test.describe("send, sign and the release gate", () => {
     await form.getByLabel("I agree to sign this contract electronically").check();
     await form.getByRole("button", { name: "Sign this contract" }).click();
     await expect(customer.getByRole("status")).toContainText("Thank you — your contract was signed on");
-    await expect(customer.getByRole("heading", { name: "Your contract" })).toHaveCount(0);
+    await expect(customer.getByRole("heading", { name: "Documents to sign" })).toHaveCount(0);
 
     const [version] = await sql()`select status from dc_quote_versions where id = ${versionId}`;
     expect(version.status).toBe("signed");
@@ -389,7 +389,7 @@ test.describe("send, sign and the release gate", () => {
     const [version] = await sql()`select contract_file_id from dc_quote_versions where id = ${versionId}`;
     const other = await customerPage(browser, BYSTANDER);
     await expect(other.getByRole("heading", { level: 1 })).toBeVisible();
-    await expect(other.getByRole("heading", { name: "Your contract" })).toHaveCount(0);
+    await expect(other.getByRole("heading", { name: "Documents to sign" })).toHaveCount(0);
     await expect(other.locator("main")).not.toContainText(contractName());
     // Not a bounce to sign-in: the file route itself refuses a file that is not this customer's.
     const fetched = await download(other, `/project/files/${version.contract_file_id}`);
