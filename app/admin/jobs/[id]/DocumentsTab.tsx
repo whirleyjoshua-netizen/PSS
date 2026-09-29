@@ -65,7 +65,8 @@ export async function DocumentsTab({ job, selectedId, sentNotice }: {
               <span className="min-w-0 flex-1 basis-full font-semibold sm:basis-auto">{doc.title}</span>
               <span className="text-ink-soft">{docResponseLabel(doc.response)}</span>
               <span>{documentStatusLabel(doc)}</span>
-              {doc.fileId ? <a href={`/admin/files/${doc.fileId}`} target="_blank" rel="noreferrer" className={TEXT_LINK}>PDF</a> : null}
+              {/* A signed document opens its stamped copy; until one exists, the PDF that was sent. */}
+              {doc.fileId ? <a href={`/admin/files/${doc.signedFileId ?? doc.fileId}`} target="_blank" rel="noreferrer" className={TEXT_LINK}>PDF</a> : null}
               {doc.status === "draft" ? <Link href={`/admin/jobs/${job.id}?tab=documents&doc=${doc.id}`} className={TEXT_LINK}>Edit</Link> : null}
               {canVoid(doc) ? <VoidDocumentButton jobId={job.id} documentId={doc.id} title={doc.title} /> : null}
             </li>

@@ -33,10 +33,19 @@ const toDocument = (row: Record<string, unknown>): JobDocument => ({
   updatedAt: new Date(row.updated_at as string),
 });
 
-export async function listJobDocuments(leadId: string): Promise<JobDocument[]> {
+/** A listed document, with the stamped copy a signature on its PDF produced (null until one exists). */
+export type ListedJobDocument = JobDocument & { signedFileId: string | null };
+
+export async function listJobDocuments(leadId: string): Promise<ListedJobDocument[]> {
   if (!isUuid(leadId)) return [];
-  const rows = await db()`select * from job_documents where lead_id = ${leadId} order by created_at desc`;
-  return rows.map((row) => toDocument(row as Record<string, unknown>));
+  // contract_signatures.file_id is unique, so the join never repeats a document.
+  const rows = await db()`
+    select d.*, s.signed_file_id from job_documents d left join contract_signatures s on s.file_id = d.file_id
+    where d.lead_id = ${leadId} order by d.created_at desc`;
+  return rows.map((row) => ({
+    ...toDocument(row as Record<string, unknown>),
+    signedFileId: ((row as Record<string, unknown>).signed_file_id as string | null) ?? null,
+  }));
 }
 
 export async function getJobDocument(leadId: string, documentId: string): Promise<JobDocument | null> {

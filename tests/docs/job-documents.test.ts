@@ -19,8 +19,17 @@ describe("reading", () => {
       body: "b", status: "sent", file_id: FILE, sent_at: "2026-09-28T18:00:00Z", sent_by: "o", completed_at: null, voided_at: null,
       created_by: "o", created_at: "2026-09-28T17:00:00Z", updated_at: "2026-09-28T18:00:00Z" }]);
     const [doc] = await store.listJobDocuments(JOB);
-    expect(text(sql.mock.calls[0])).toContain("where lead_id = ? order by created_at desc");
-    expect(doc).toMatchObject({ id: DOC, leadId: JOB, templateId: null, status: "sent", fileId: FILE, sentAt: new Date("2026-09-28T18:00:00Z"), completedAt: null });
+    expect(text(sql.mock.calls[0])).toContain("where d.lead_id = ? order by d.created_at desc");
+    expect(doc).toMatchObject({ id: DOC, leadId: JOB, templateId: null, status: "sent", fileId: FILE, sentAt: new Date("2026-09-28T18:00:00Z"), completedAt: null, signedFileId: null });
+  });
+  it("carries the signed copy a signature on the document's PDF produced", async () => {
+    const SIGNED = "55555555-5555-4555-8555-555555555555";
+    sql.mockResolvedValueOnce([{ id: DOC, lead_id: JOB, template_id: null, title: "SA", kind: "service_agreement", response: "sign",
+      body: "b", status: "completed", file_id: FILE, sent_at: "2026-09-28T18:00:00Z", sent_by: "o", completed_at: "2026-09-29T18:00:00Z", voided_at: null,
+      created_by: "o", created_at: "2026-09-28T17:00:00Z", updated_at: "2026-09-29T18:00:00Z", signed_file_id: SIGNED }]);
+    const [doc] = await store.listJobDocuments(JOB);
+    expect(doc).toMatchObject({ fileId: FILE, signedFileId: SIGNED });
+    expect(text(sql.mock.calls[0])).toContain("select d.*, s.signed_file_id from job_documents d left join contract_signatures s on s.file_id = d.file_id");
   });
   it("reads one document only within its job", async () => {
     sql.mockResolvedValueOnce([]);

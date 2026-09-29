@@ -71,6 +71,16 @@ describe("DocumentsTab", () => {
     expect(within(rows[2]).getByRole("button", { name: "Void C" })).toBeInTheDocument();
     expect(within(rows[3]).queryByRole("button")).toBeNull();
   });
+  it("links a signed document's PDF to its signed copy, and to the original until one exists", async () => {
+    listJobDocuments.mockResolvedValue([
+      doc({ id: "d1", status: "completed", response: "sign", fileId: "f1", signedFileId: "s1", sentAt: new Date(), completedAt: new Date(), title: "A" }),
+      doc({ id: "d2", status: "completed", response: "sign", fileId: "f2", signedFileId: null, sentAt: new Date(), completedAt: new Date(), title: "B" }),
+    ]);
+    render(await DocumentsTab({ job, selectedId: null, sentNotice: null }));
+    const rows = within(screen.getByRole("list", { name: "Documents on this job" })).getAllByRole("listitem");
+    expect(within(rows[0]).getByRole("link", { name: "PDF" })).toHaveAttribute("href", "/admin/files/s1");
+    expect(within(rows[1]).getByRole("link", { name: "PDF" })).toHaveAttribute("href", "/admin/files/f2");
+  });
   it("opens a selected draft with its blockers, Send disabled", async () => {
     listJobDocuments.mockResolvedValue([doc({})]);
     render(await DocumentsTab({ job, selectedId: "d1", sentNotice: null }));
