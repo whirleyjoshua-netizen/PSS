@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { PricedExtra } from "@/lib/admin/install-pricing";
 
 const saveInstallQuoteAction = vi.fn();
 vi.mock("@/app/admin/jobs/[id]/install-actions", () => ({ saveInstallQuoteAction }));
@@ -11,7 +12,7 @@ const { InstallCalculator } = await import("@/app/admin/jobs/[id]/InstallCalcula
 const { priceQuote, priceFingerprint, NO_EXTRAS } = await import("@/lib/admin/install-pricing");
 
 const JOB = "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c";
-const settings = { minimumCents: 15_000, hardSurfaceCents: 1000, highLadderCents: 5000, motorizedCents: 1500, measureCents: 7500, takedownCents: 0, shutterTakedownCents: 0, appSetupSmallCents: 0, appSetupLargeCents: 0 };
+const settings = { minimumCents: 15_000, hardSurfaceCents: 1000, highLadderCents: 5000, motorizedCents: 1500, measureCents: 7500, takedownCents: 1860, shutterTakedownCents: 233, appSetupSmallCents: 6975, appSetupLargeCents: 15_113 };
 const rates = [{ treatment: "roller_shades" as const, basis: "window" as const, rateCents: 2500 }];
 /** Priced by the foot first, so an added line shows a width box. */
 const footRates = [
@@ -19,7 +20,10 @@ const footRates = [
   { treatment: "shutters" as const, basis: "sq_ft" as const, rateCents: 300 },
   { treatment: "roller_shades" as const, basis: "window" as const, rateCents: 2500 },
 ];
-const snapshot = (over: { id: string; subtotalCents: number; totalCents: number; measureCents?: number }) => ({
+const snapshot = (over: {
+  id: string; subtotalCents: number; totalCents: number; measureCents?: number;
+  extrasCents?: number; extras?: PricedExtra[];
+}) => ({
   kind: "estimate" as const, minimumCents: 15_000, measureCents: 0, createdBy: "owner@example.com",
   createdAt: new Date("2026-09-16T10:00:00Z"), lines: [], extrasCents: 0, extras: [], ...over,
 });
@@ -295,5 +299,89 @@ describe("InstallCalculator", () => {
     await user.click(screen.getByRole("button", { name: /save as estimate/i }));
     await waitFor(() => expect(saveInstallQuoteAction).toHaveBeenCalledTimes(1));
     expect(saveInstallQuoteAction.mock.calls[0][2][0]).toMatchObject({ widthEighths: null, heightEighths: null });
+  });
+
+  const addRollerLine = async (user: ReturnType<typeof userEvent.setup>, windows: string, motorizedLine = false) => {
+    await user.click(screen.getByRole("button", { name: /add line/i }));
+    const count = screen.getAllByLabelText("Windows").at(-1)!;
+    await user.clear(count);
+    await user.type(count, windows);
+    if (motorizedLine) await user.click(screen.getAllByRole("checkbox", { name: "Motorized" }).at(-1)!);
+  };
+
+  it("has exactly one control labelled Windows per line, so takedown never collides with it", async () => {
+    const user = userEvent.setup();
+    render(<InstallCalculator jobId={JOB} rates={rates} settings={settings} saved={[]} measurements={[]} />);
+    await addRollerLine(user, "2");
+    expect(screen.getAllByLabelText(/windows/i)).toHaveLength(1);
+  });
+
+  it("adds takedown to the total", async () => {
+    const user = userEvent.setup();
+    render(<InstallCalculator jobId={JOB} rates={rates} settings={{ ...settings, minimumCents: 0 }} saved={[]} measurements={[]} />);
+    await addRollerLine(user, "2"); // $50
+    await user.clear(screen.getByLabelText("Blinds/drapery takedown (count)"));
+    await user.type(screen.getByLabelText("Blinds/drapery takedown (count)"), "3"); // $55.80
+    await user.clear(screen.getByLabelText("Shutter takedown (sq ft)"));
+    await user.type(screen.getByLabelText("Shutter takedown (sq ft)"), "10"); // $23.30
+    expect(screen.getByTestId("install-extra-takedown")).toHaveTextContent("$55.80");
+    expect(screen.getByTestId("install-extra-shutter_takedown")).toHaveTextContent("$23.30");
+    expect(screen.getByTestId("install-total")).toHaveTextContent("$129.10");
+  });
+
+  it("adds app set-up from the motorized lines, and switches to a typed price at 10 motors", async () => {
+    const user = userEvent.setup();
+    render(<InstallCalculator jobId={JOB} rates={rates} settings={{ ...settings, minimumCents: 0, motorizedCents: 0 }} saved={[]} measurements={[]} />);
+    await addRollerLine(user, "5", true);
+    expect(screen.getByTestId("install-extra-app_setup_large")).toHaveTextContent("App set-up, 5 motors");
+    expect(screen.getByTestId("install-extra-app_setup_large")).toHaveTextContent("$151.13");
+    expect(screen.queryByLabelText("Set-up price")).toBeNull();
+
+    const count = screen.getByLabelText("Windows");
+    await user.clear(count);
+    await user.type(count, "10");
+    expect(screen.getByRole("button", { name: /save as estimate/i })).toBeDisabled();
+    await user.type(screen.getByLabelText("Set-up price"), "250");
+    expect(screen.getByTestId("install-total")).toHaveTextContent("$500"); // 10 x $25 + $250
+    expect(screen.getByRole("button", { name: /save as estimate/i })).toBeEnabled();
+
+    // Back under 10: the typed price is dropped, the flat rate returns.
+    await user.clear(count);
+    await user.type(count, "4");
+    expect(screen.queryByLabelText("Set-up price")).toBeNull();
+    expect(screen.getByTestId("install-total")).toHaveTextContent("$251.13"); // 4 x $25 + $151.13
+  });
+
+  it("sends the extras it showed, and allows a takedown-only save", async () => {
+    const user = userEvent.setup();
+    render(<InstallCalculator jobId={JOB} rates={rates} settings={settings} saved={[]} measurements={[]} />);
+    await user.clear(screen.getByLabelText("Blinds/drapery takedown (count)"));
+    await user.type(screen.getByLabelText("Blinds/drapery takedown (count)"), "2");
+    await user.click(screen.getByRole("button", { name: /save as estimate/i }));
+    await waitFor(() => expect(saveInstallQuoteAction).toHaveBeenCalled());
+    const [, kind, lines, extras, charge, fingerprint] = saveInstallQuoteAction.mock.calls[0];
+    expect([kind, lines, extras, charge]).toEqual(["estimate", [], { takedownWindows: 2, shutterTakedownSqFt: 0, customSetupCents: null }, false]);
+    expect(fingerprint).toBe(priceFingerprint(
+      priceQuote([], rates, settings, { takedownWindows: 2, shutterTakedownSqFt: 0, customSetupCents: null }, false),
+      settings.minimumCents,
+    ));
+  });
+
+  it("lists the extras a saved price charged, and compares the minimum against lines plus extras", () => {
+    render(<InstallCalculator jobId={JOB} rates={rates} settings={settings} measurements={[]} saved={[snapshot({
+      id: "a", subtotalCents: 5000, totalCents: 15_000,
+      extrasCents: 5580, extras: [{ kind: "takedown", quantity: 3, rateCents: 1860, amountCents: 5580 }],
+    })]} />);
+    const item = screen.getByRole("listitem");
+    expect(item).toHaveTextContent("Includes Takedown, 3 windows ($55.80)");
+    expect(item).toHaveTextContent("Minimum applied (lines and extras came to $105.80)");
+  });
+
+  it("does not claim a minimum when extras made up the difference", () => {
+    render(<InstallCalculator jobId={JOB} rates={rates} settings={settings} measurements={[]} saved={[snapshot({
+      id: "a", subtotalCents: 10_000, totalCents: 15_580,
+      extrasCents: 5580, extras: [{ kind: "takedown", quantity: 3, rateCents: 1860, amountCents: 5580 }],
+    })]} />);
+    expect(screen.getByRole("listitem")).not.toHaveTextContent(/minimum applied/i);
   });
 });

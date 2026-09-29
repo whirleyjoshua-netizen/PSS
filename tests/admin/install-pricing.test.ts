@@ -408,5 +408,6 @@ describe("extraLabel", () => {
     expect(extraLabel({ kind: "shutter_takedown", quantity: 24 })).toBe("Shutter takedown, 24 sq ft");
     expect(extraLabel({ kind: "app_setup_large", quantity: 5 })).toBe("App set-up, 5 motors");
     expect(extraLabel({ kind: "app_setup_small", quantity: 1 })).toBe("App set-up, 1 motor");
+    expect(extraLabel({ kind: "app_setup_custom", quantity: 12 })).toBe("App set-up, 12 motors");
   });
 });

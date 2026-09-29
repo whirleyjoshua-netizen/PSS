@@ -4,14 +4,14 @@ import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { TREATMENT_TYPES, type TreatmentType } from "@/lib/leads/treatment-types";
 import {
-  INSTALLABLE_TREATMENTS, NO_EXTRAS, priceFingerprint, priceQuote,
-  type InstallRate, type InstallSettings, type LineInput, type PricedQuote,
+  CUSTOM_SETUP_MOTORS, INSTALLABLE_TREATMENTS, extraLabel, motorCount, priceFingerprint, priceQuote,
+  type ExtrasInput, type InstallRate, type InstallSettings, type LineInput, type PricedQuote,
 } from "@/lib/admin/install-pricing";
 import type { InstallQuoteKind, SavedInstallQuote } from "@/lib/admin/install-quotes";
 import type { WindowMeasurement } from "@/lib/admin/measurements";
-import { formatCents } from "@/lib/admin/money";
+import { dollarsToCents, formatCents } from "@/lib/admin/money";
 import { formatWhen } from "@/lib/admin/time";
-import { installLinesSchema } from "@/lib/admin/schema";
+import { installExtrasSchema, installLinesSchema } from "@/lib/admin/schema";
 import { saveInstallQuoteAction } from "./install-actions";
 
 /** Only what filling from measurements reads, so callers and tests need not build whole rows. */
@@ -60,16 +60,21 @@ const RATES_CHANGED = "Rates changed since this page loaded.";
  * would refuse (a width under 1/8 inch, say) get the server's own message and no
  * price. The server prices again and saves only if it reaches this same price.
  */
-function preview(lines: LineInput[], rates: InstallRate[], settings: InstallSettings, chargeMeasure: boolean):
+function preview(lines: LineInput[], extras: ExtrasInput, rates: InstallRate[], settings: InstallSettings, chargeMeasure: boolean):
   { priced: PricedQuote; error: null } | { priced: null; error: string } {
   const checked = installLinesSchema.safeParse(lines);
   if (!checked.success) return { priced: null, error: checked.error.issues[0].message };
+  const checkedExtras = installExtrasSchema.safeParse(extras);
+  if (!checkedExtras.success) return { priced: null, error: checkedExtras.error.issues[0].message };
   try {
-    return { priced: priceQuote(lines, rates, settings, NO_EXTRAS, chargeMeasure), error: null };
+    return { priced: priceQuote(lines, rates, settings, extras, chargeMeasure), error: null };
   } catch (error) {
     return { priced: null, error: error instanceof Error ? error.message : "Could not price this job." };
   }
 }
+
+/** A count box: whole, never negative, and anything that is not a number reads as 0. */
+const wholeNumber = (value: string) => Math.max(0, Math.floor(Number(value) || 0));
 
 const FLAG_LABEL = { hardSurface: "Hard surface", highLadder: "High ladder", motorized: "Motorized" } as const;
 
@@ -86,6 +91,10 @@ export function InstallCalculator({ jobId, rates, settings, saved, measurements 
   const [message, setMessage] = useState<string | null>(null);
   // Unticked until the owner chooses: a forgotten box must not bill a measure nobody meant to charge.
   const [chargeMeasure, setChargeMeasure] = useState(false);
+  const [takedownWindows, setTakedownWindows] = useState(0);
+  const [shutterTakedownSqFt, setShutterTakedownSqFt] = useState(0);
+  // Dollars as typed; only read at 10 or more motors.
+  const [customSetup, setCustomSetup] = useState("");
   const [pending, startTransition] = useTransition();
   const router = useRouter();
 
@@ -99,7 +108,22 @@ export function InstallCalculator({ jobId, rates, settings, saved, measurements 
 
   const basisOf = new Map(rates.map((rate) => [rate.treatment, rate.basis]));
   const unkeyed = lines.map(({ key: _key, ...line }) => line);
-  const { priced, error } = preview(unkeyed, rates, settings, chargeMeasure);
+  const motors = motorCount(unkeyed);
+  const customNeeded = motors >= CUSTOM_SETUP_MOTORS;
+  // Below 10 motors the typed price is not sent at all, so what is saved matches what is shown.
+  let customSetupCents: number | null = null;
+  let customError: string | null = null;
+  if (customNeeded) {
+    try {
+      customSetupCents = dollarsToCents(customSetup);
+    } catch (e) {
+      customError = e instanceof Error ? e.message : "Enter a set-up price of $0 or more";
+    }
+  }
+  const extras: ExtrasInput = { takedownWindows, shutterTakedownSqFt, customSetupCents };
+  const result = preview(unkeyed, extras, rates, settings, chargeMeasure);
+  const priced = result.priced;
+  const error = customError ?? result.error;
 
   const update = (key: number, patch: Partial<LineInput>) =>
     setLines((current) => current.map((line) => (line.key === key ? { ...line, ...patch } : line)));
@@ -136,7 +160,7 @@ export function InstallCalculator({ jobId, rates, settings, saved, measurements 
     // only if its own pricing produces the same fingerprint.
     const shown = priceFingerprint(priced, settings.minimumCents);
     startTransition(async () => {
-      const result = await saveInstallQuoteAction(jobId, kind, unkeyed, NO_EXTRAS, chargeMeasure, shown);
+      const result = await saveInstallQuoteAction(jobId, kind, unkeyed, extras, chargeMeasure, shown);
       if (result.error) {
         setMessage(result.error);
         // Load the current rates so the preview shows the total a second save would store.
@@ -144,12 +168,16 @@ export function InstallCalculator({ jobId, rates, settings, saved, measurements 
       } else {
         setMessage(null);
         setLines([]);
+        setTakedownWindows(0);
+        setShutterTakedownSqFt(0);
+        setCustomSetup("");
       }
     });
   };
 
-  // Nothing to save until there is a line to install or a measuring visit to charge.
-  const blocked = pending || (lines.length === 0 && !chargeMeasure) || error !== null;
+  // Nothing to save until there is a line to install, a takedown, or a measuring visit to charge.
+  const nothing = lines.length === 0 && takedownWindows === 0 && shutterTakedownSqFt === 0 && !chargeMeasure;
+  const blocked = pending || nothing || error !== null;
 
   return (
     <div className="flex flex-col gap-6">
@@ -181,7 +209,7 @@ export function InstallCalculator({ jobId, rates, settings, saved, measurements 
               <label className="flex flex-col gap-1 text-sm">
                 Windows
                 <input inputMode="numeric" value={String(line.count)}
-                  onChange={(e) => update(line.key, { count: Math.max(0, Math.floor(Number(e.target.value) || 0)) })}
+                  onChange={(e) => update(line.key, { count: wholeNumber(e.target.value) })}
                   className={`${field} w-20`} />
               </label>
               {basis === "linear_ft" || basis === "sq_ft" ? (
@@ -224,6 +252,29 @@ export function InstallCalculator({ jobId, rates, settings, saved, measurements 
         Add line
       </button>
 
+      <fieldset className="flex flex-col gap-3">
+        <legend className="text-sm font-semibold">Extras</legend>
+        <div className="flex flex-wrap gap-3">
+          <label className="flex flex-col gap-1 text-sm">
+            Blinds/drapery takedown (count)
+            <input inputMode="numeric" value={String(takedownWindows)}
+              onChange={(e) => setTakedownWindows(wholeNumber(e.target.value))} className={`${field} w-24`} />
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            Shutter takedown (sq ft)
+            <input inputMode="numeric" value={String(shutterTakedownSqFt)}
+              onChange={(e) => setShutterTakedownSqFt(wholeNumber(e.target.value))} className={`${field} w-24`} />
+          </label>
+          {customNeeded ? (
+            <label className="flex flex-col gap-1 text-sm">
+              Set-up price
+              <input inputMode="decimal" value={customSetup} placeholder={`${motors} motors`}
+                onChange={(e) => setCustomSetup(e.target.value)} className={`${field} w-28`} />
+            </label>
+          ) : null}
+        </div>
+      </fieldset>
+
       <label className="flex min-h-11 items-center gap-2 self-start text-sm">
         <input type="checkbox" checked={chargeMeasure} onChange={(e) => setChargeMeasure(e.target.checked)} />
         Charge for measuring
@@ -231,9 +282,16 @@ export function InstallCalculator({ jobId, rates, settings, saved, measurements 
 
       <div className="flex flex-col gap-1">
         {error ? <p role="alert" className="text-sm text-overdue">{error}</p> : null}
+        {priced ? priced.extras.map((extra) => (
+          <p key={extra.kind} data-testid={`install-extra-${extra.kind}`} className="text-sm text-ink-soft">
+            {extraLabel(extra)} — {formatCents(extra.amountCents)}
+          </p>
+        )) : null}
         {priced && priced.minimumApplied ? (
           <p className="text-sm text-ink-soft">
-            Lines come to {formatCents(priced.subtotalCents)}. Minimum job cost applied.
+            {priced.extrasCents > 0
+              ? `Lines and extras come to ${formatCents(priced.subtotalCents + priced.extrasCents)}.`
+              : `Lines come to ${formatCents(priced.subtotalCents)}.`} Minimum job cost applied.
           </p>
         ) : null}
         {priced && priced.measureCents > 0 ? (
@@ -267,10 +325,17 @@ export function InstallCalculator({ jobId, rates, settings, saved, measurements 
                 <span className="font-semibold">{quote.kind === "estimate" ? "Estimate" : "Final"}</span>
                 <span>{formatCents(quote.totalCents)}</span>
                 <span className="text-ink-soft">{quote.createdBy} · {formatWhen(quote.createdAt)}</span>
-                {/* The measuring fee also lifts the total above the lines, so compare without it. */}
-                {quote.subtotalCents < quote.totalCents - quote.measureCents ? (
+                {/* The measuring fee also lifts the total above the lines, so compare without it.
+                    Extras count toward the minimum like the lines, so compare with them. */}
+                {quote.subtotalCents + quote.extrasCents < quote.totalCents - quote.measureCents ? (
                   <span className="w-full text-ink-soft">
-                    Minimum applied (lines came to {formatCents(quote.subtotalCents)})
+                    Minimum applied ({quote.extrasCents > 0 ? "lines and extras" : "lines"} came to{" "}
+                    {formatCents(quote.subtotalCents + quote.extrasCents)})
+                  </span>
+                ) : null}
+                {quote.extras.length > 0 ? (
+                  <span className="w-full text-ink-soft">
+                    Includes {quote.extras.map((e) => `${extraLabel(e)} (${formatCents(e.amountCents)})`).join("; ")}
                   </span>
                 ) : null}
                 {quote.measureCents > 0 ? (
