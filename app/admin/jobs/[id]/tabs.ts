@@ -2,6 +2,7 @@ export const JOB_TABS = [
   { value: "overview", label: "Overview" },
   { value: "measurements", label: "Measurements" },
   { value: "files", label: "Files" },
+  { value: "documents", label: "Documents" },
   { value: "quote", label: "Quote" },
   { value: "install", label: "Install" },
   { value: "activity", label: "Activity" },

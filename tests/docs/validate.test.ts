@@ -18,6 +18,9 @@ describe("templateErrors", () => {
   it("refuses an empty or oversized body", () => {
     expect(templateErrors({ ...ok, body: " \n " })).toEqual(["The template is empty."]);
     expect(templateErrors({ ...ok, body: "x".repeat(BODY_MAX + 1) })).toEqual(["The template is too long."]);
+    // Multipart posts every LF as CRLF; the store keeps LF, so the limit counts what is stored.
+    expect(templateErrors({ ...ok, body: "x\r\n".repeat(BODY_MAX / 2) })).toEqual([]);
+    expect(templateErrors({ ...ok, body: "xx\r\n".repeat(33_334) })).toEqual(["The template is too long."]);
   });
   it("names every unknown field", () =>
     expect(templateErrors({ ...ok, body: "{{nope}} and {{client name}} and {{deposit}}" }))

@@ -38,6 +38,14 @@ describe("template store", () => {
     expect(text(sql.mock.calls[0])).toContain("insert into document_templates (id, name, kind, response, body, created_by, updated_by)");
     expect(sql.mock.calls[0].slice(1, 6)).toEqual([(created as { id: string }).id, "Terms", "terms", "view", "x"]);
   });
+  it("stores a CRLF or CR body as LF on create and update", async () => {
+    sql.mockResolvedValueOnce([]).mockResolvedValueOnce([{ id: ID }]);
+    const created = await store.createTemplate({ name: "SA", kind: "other", response: "view", body: "a\r\nb\rc", actor: "o" });
+    expect(sql.mock.calls[0].slice(1, 6)).toEqual([(created as { id: string }).id, "SA", "other", "view", "a\nb\nc"]);
+    await store.updateTemplate({ id: ID, name: "SA", response: "view", body: "x\r\n\r\ny", actor: "o" });
+    expect(sql.mock.calls[1]).toContain("x\n\ny");
+    expect(sql.mock.calls[1].some((bind) => typeof bind === "string" && bind.includes("\r"))).toBe(false);
+  });
   it("keeps the chosen response for client documents", async () => {
     sql.mockResolvedValueOnce([]);
     await store.createTemplate({ name: "SA", kind: "service_agreement", response: "acknowledge", body: "x", actor: "o" });

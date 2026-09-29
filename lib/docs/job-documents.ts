@@ -4,6 +4,7 @@ import { isUuid } from "@/lib/admin/ids";
 import { db } from "@/lib/db";
 import { MARKER_SOURCE } from "./fields";
 import type { ClientDocKind, DocResponse, DocStatus } from "./kinds";
+import { normalizeNewlines } from "./validate";
 
 export type JobDocument = {
   id: string; leadId: string; templateId: string | null; title: string; kind: ClientDocKind; response: DocResponse;
@@ -55,7 +56,7 @@ export async function insertDraft(input: {
   const rows = await db()`
     with created as (
       insert into job_documents (id, lead_id, template_id, title, kind, response, body, status, created_by)
-      select ${randomUUID()}, id, ${input.templateId}, ${input.title}, ${input.kind}, ${input.response}, ${input.body}, 'draft', ${input.actor}
+      select ${randomUUID()}, id, ${input.templateId}, ${input.title}, ${input.kind}, ${input.response}, ${normalizeNewlines(input.body)}, 'draft', ${input.actor}
       from leads where id = ${input.leadId}
         and (${input.templateId}::uuid is null or exists (select 1 from document_templates where id = ${input.templateId}::uuid))
       returning id, lead_id, title
@@ -72,7 +73,7 @@ export async function insertDraft(input: {
 export async function updateDraft(input: { leadId: string; documentId: string; title: string; body: string }): Promise<boolean> {
   if (!isUuid(input.leadId) || !isUuid(input.documentId)) return false;
   const rows = await db()`
-    update job_documents set title = ${input.title}, body = ${input.body}, updated_at = now()
+    update job_documents set title = ${input.title}, body = ${normalizeNewlines(input.body)}, updated_at = now()
     where id = ${input.documentId} and lead_id = ${input.leadId} and status = 'draft'
     returning id`;
   return rows.length > 0;

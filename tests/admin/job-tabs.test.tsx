@@ -7,7 +7,7 @@ const ID = "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c";
 
 describe("parseJobTab", () => {
   it("accepts each tab", () => {
-    for (const tab of ["overview", "measurements", "files", "quote", "install", "activity"]) expect(parseJobTab(tab)).toBe(tab);
+    for (const tab of ["overview", "measurements", "files", "documents", "quote", "install", "activity"]) expect(parseJobTab(tab)).toBe(tab);
   });
   it("falls back to overview for missing or unknown values", () => {
     expect(parseJobTab(undefined)).toBe("overview");

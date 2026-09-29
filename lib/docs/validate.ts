@@ -3,6 +3,15 @@ import { allowedFields, isDocResponse, isSingletonKind, isTemplateKind, template
 
 export const NAME_MAX = 120;
 export const BODY_MAX = 100_000;
+/** A job document's title. Here, not in workflow.ts (server-only), so the browser can use it too. */
+export const TITLE_MAX = 200;
+
+/**
+ * Doc text is stored with LF line endings only. A server action posts FormData as multipart, which
+ * turns every LF the editor holds into CRLF; storing it as posted would make the saved text differ
+ * from the screen (and count every line break twice against BODY_MAX).
+ */
+export const normalizeNewlines = (text: string): string => text.replace(/\r\n?/g, "\n");
 
 /** Raw form values: every field is a string, and none is trusted. */
 export type TemplateInput = { name: string; kind: string; response: string; body: string };
@@ -17,7 +26,7 @@ export function templateErrors(input: TemplateInput): string[] {
   if (!isDocResponse(input.response)) errors.push("Choose how the client responds: sign, acknowledge or view.");
   else if (isSingletonKind(input.kind) && input.response !== "view") errors.push("Contract terms and portal guides are view only.");
   if (!input.body.trim()) errors.push("The template is empty.");
-  else if (input.body.length > BODY_MAX) errors.push("The template is too long.");
+  else if (normalizeNewlines(input.body).length > BODY_MAX) errors.push("The template is too long.");
   if (isTemplateKind(input.kind)) errors.push(...fieldErrors(input.body, input.kind));
   return [...new Set(errors)];
 }
