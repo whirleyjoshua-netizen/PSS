@@ -47,7 +47,7 @@ export function parseSignMarks(value: unknown): SignMarks | null {
   if (typeof parsed !== "object" || parsed === null) return null;
   const record = parsed as Record<string, unknown>;
   if (!Array.isArray(record.initials) || !record.initials.every(isInitials)) return null;
-  if (!("signature" in record) || (record.signature !== null && !isPoint(record.signature))) return null;
+  if (record.signature !== null && !isPoint(record.signature)) return null;
   const signature = record.signature as MarkPoint | null;
   return {
     initials: (record.initials as InitialsMark[]).map(({ page, x, y, section }) => ({ page, x, y, section })),
