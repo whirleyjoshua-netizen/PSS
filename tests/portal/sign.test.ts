@@ -12,7 +12,7 @@ vi.mock("@vercel/blob", () => ({ put: vi.fn(), get: vi.fn(), del: vi.fn() }));
 import { del, put } from "@vercel/blob";
 import { listSharedDocuments, readFile } from "@/lib/admin/files";
 import {
-  recordSignature, signableContracts, signatureFor, storeSignedCopy,
+  listSignatures, recordSignature, signableContracts, signatureFor, storeSignedCopy,
 } from "@/lib/portal/sign";
 
 const JOB = "11111111-1111-4111-8111-111111111111";
@@ -66,6 +66,40 @@ describe("signableContracts", () => {
     ]);
     query.mockResolvedValue([{ file_id: FILE, signed_file_id: STAMPED }]);
     expect(await signableContracts(JOB)).toEqual([]);
+  });
+
+  // A sign job document's PDF is a contract-typed file too; the portal words it as a document.
+  it("carries the job document's title and kind for its PDF, and none for a quote contract", async () => {
+    const DOCUMENT_FILE = "44444444-4444-4444-8444-444444444444";
+    vi.mocked(listSharedDocuments).mockResolvedValue([
+      doc(FILE, "Contract PSS-1048 v1.pdf", "contract"),
+      doc(DOCUMENT_FILE, "Change order — PSS-1048.pdf", "contract"),
+    ]);
+    query.mockImplementation(async (strings: TemplateStringsArray) =>
+      strings.join("?").includes("from job_documents")
+        ? [{ file_id: DOCUMENT_FILE, title: "Change order — PSS-1048", kind: "change_order" }]
+        : []);
+    const offered = await signableContracts(JOB);
+    expect(offered.map((file) => [file.id, file.document])).toEqual([
+      [FILE, null],
+      [DOCUMENT_FILE, { title: "Change order — PSS-1048", kind: "change_order" }],
+    ]);
+    const documents = query.mock.calls.find(([strings]) => (strings as TemplateStringsArray).join("?").includes("from job_documents"))!;
+    expect(documents.slice(1)).toEqual([JOB]);
+  });
+});
+
+describe("listSignatures", () => {
+  it("names the job document each signature was on, if any", async () => {
+    query.mockResolvedValue([
+      { id: "s1", lead_id: JOB, file_id: FILE, signed_name: "Jane", signed_email: "j@x.com", signed_at: new Date(), doc_sha256: "h", signed_file_id: null, document_title: null },
+      { id: "s2", lead_id: JOB, file_id: STAMPED, signed_name: "Jane", signed_email: "j@x.com", signed_at: new Date(), doc_sha256: "h", signed_file_id: null, document_title: "Change order — PSS-1048" },
+    ]);
+    const signatures = await listSignatures(JOB);
+    expect(signatures.map((s) => s.documentTitle)).toEqual([null, "Change order — PSS-1048"]);
+    const statement = (query.mock.calls[0][0] as TemplateStringsArray).join("?").replace(/\s+/g, " ");
+    expect(statement).toContain("left join job_documents d on d.file_id = s.file_id");
+    expect(query.mock.calls[0].slice(1)).toEqual([JOB]);
   });
 });
 

@@ -24,6 +24,23 @@ describe("notifyOwnersOfSignature", () => {
     expect(text).not.toContain(STAMP_REASONS);
   });
 
+  it("keeps the contract wording for a quote contract", async () => {
+    await notifyOwnersOfSignature(job, "Contract PSS-1012 v1.pdf", "jane@example.com", true, AT, null);
+    const email = send.mock.calls[0][0];
+    expect(email.subject).toBe("Contract signed: Contract PSS-1012 v1.pdf — PSS-1012");
+    expect(email.text).toContain("Jane Doe signed their contract from their project page.");
+    expect(email.text).toContain("Document:    Contract PSS-1012 v1.pdf");
+  });
+
+  it("words a job document as a document and names it by its title", async () => {
+    await notifyOwnersOfSignature(job, "Change order — PSS-1012.pdf", "jane@example.com", true, AT, "Change order — PSS-1012");
+    const email = send.mock.calls[0][0];
+    expect(email.subject).toBe("Document signed: Change order — PSS-1012");
+    expect(email.text).toContain("Jane Doe signed a document from their project page.");
+    expect(email.text).toMatch(/^Document: {4}Change order — PSS-1012$/m);
+    expect(email.text).not.toMatch(/contract/i);
+  });
+
   // The owners must not believe a stamped copy exists when it does not.
   it("says plainly when the stamped copy could not be produced", async () => {
     await notifyOwnersOfSignature(job, "Contract.pdf", "jane@example.com", false, AT);

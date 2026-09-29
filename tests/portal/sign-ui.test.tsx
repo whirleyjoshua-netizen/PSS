@@ -35,6 +35,22 @@ describe("SignContract", () => {
     expect(screen.getByRole("button", { name: "Sign this contract" })).toHaveAttribute("type", "submit");
   });
 
+  it("keeps the contract wording, and shows no document title, for a quote contract", () => {
+    render(<SignContract jobId={JOB} file={{ ...FILE, document: null }} />);
+    expect(screen.getByText("Sign this contract", { selector: "summary" })).toBeInTheDocument();
+    expect(screen.getByLabelText("I agree to sign this contract electronically")).toBeInTheDocument();
+    expect(screen.queryByText(/document/)).toBeNull();
+  });
+
+  it("words a job document as a document and names it", () => {
+    render(<SignContract jobId={JOB} file={{ id: FILE.id, name: "Change order — PSS-1048.pdf", document: { title: "Change order — PSS-1048", kind: "change_order" } }} />);
+    expect(screen.getByText("Sign this document", { selector: "summary" })).toBeInTheDocument();
+    expect(screen.getByText("Change order — PSS-1048", { selector: "p" })).toBeInTheDocument();
+    expect(screen.getByLabelText("I agree to sign this document electronically")).toBeRequired();
+    expect(screen.getByRole("button", { name: "Sign this document" })).toHaveAttribute("type", "submit");
+    expect(screen.queryByText(/contract/i)).toBeNull();
+  });
+
   it("posts the job and the file, and never an email", () => {
     const { container } = render(<SignContract jobId={JOB} file={FILE} />);
     const form = container.querySelector("form")!;
@@ -51,6 +67,17 @@ describe("SignatureNotice", () => {
     expect(html).toContain("Thank you — your contract was signed on");
     expect(html).toContain("2026");
     expect(html).not.toContain("<form");
+  });
+
+  it("names the job document that was signed, never calling it a contract", () => {
+    const html = renderToStaticMarkup(<SignatureNotice signed="1" signature={{ ...SIGNED, documentTitle: "Change order — PSS-1048" }} />);
+    expect(html).toContain("Thank you — you signed “Change order — PSS-1048” on Sep 18, 2026. A copy is on its way to your email.");
+    expect(html).not.toContain("contract");
+  });
+
+  it("keeps the contract wording when the signature is on no job document", () => {
+    const html = renderToStaticMarkup(<SignatureNotice signed="1" signature={{ ...SIGNED, documentTitle: null }} />);
+    expect(html).toContain("Thank you — your contract was signed on Sep 18, 2026. A copy is on its way to your email.");
   });
 
   it("says nothing for a forged ?signed=1 with no signature on record", () => {

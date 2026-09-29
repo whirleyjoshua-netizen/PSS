@@ -317,7 +317,7 @@ export async function signContractAction(
       pdf = null;
     }
     await Promise.all([
-      notifyOwnersOfSignature(job, file.name, email, pdf !== null, signedAt ?? new Date()).catch(console.error),
+      notifyOwnersOfSignature(job, file.name, email, pdf !== null, signedAt ?? new Date(), file.document?.title ?? null).catch(console.error),
       sendCustomerSignedCopy(email, job, file.name, pdf).catch(console.error),
     ]);
   });

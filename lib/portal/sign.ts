@@ -3,6 +3,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { del, put } from "@vercel/blob";
 import { listSharedDocuments, readFile, type JobFile } from "@/lib/admin/files";
 import { db } from "@/lib/db";
+import type { ClientDocKind } from "@/lib/docs/kinds";
 
 /** What signing can answer. Every refusal is a plain outcome, never an exception. */
 export type SignResult = "signed" | "not-found" | "invalid";
@@ -36,11 +37,22 @@ const toSignature = (row: Record<string, unknown>): Signature => ({
   signedFileId: (row.signed_file_id as string | null) ?? null,
 });
 
-export async function listSignatures(leadId: string): Promise<Signature[]> {
+/** A recorded signature plus the title of the job document it was on, null for a quote contract. */
+export type ListedSignature = Signature & { documentTitle: string | null };
+
+export async function listSignatures(leadId: string): Promise<ListedSignature[]> {
   const rows = await db()`
-    select * from contract_signatures where lead_id = ${leadId} order by signed_at`;
-  return rows.map((row) => toSignature(row as Record<string, unknown>));
+    select s.*, d.title as document_title
+    from contract_signatures s left join job_documents d on d.file_id = s.file_id
+    where s.lead_id = ${leadId} order by s.signed_at`;
+  return rows.map((row) => ({
+    ...toSignature(row as Record<string, unknown>),
+    documentTitle: ((row as Record<string, unknown>).document_title as string | null) ?? null,
+  }));
 }
+
+/** A contract-typed file the customer can sign; `document` is set when it is a job document's PDF. */
+export type SignableFile = JobFile & { document: { title: string; kind: ClientDocKind } | null };
 
 /**
  * The contracts this job can still be asked to sign.
@@ -52,16 +64,23 @@ export async function listSignatures(leadId: string): Promise<Signature[]> {
  * A signature output is excluded because it is itself a shared file with doc_type 'contract':
  * without this the page would offer to sign the signed copy, and then its copy, forever.
  */
-export async function signableContracts(leadId: string): Promise<JobFile[]> {
-  const documents = await listSharedDocuments(leadId);
-  const rows = await db()`
-    select file_id, signed_file_id from contract_signatures where lead_id = ${leadId}`;
+export async function signableContracts(leadId: string): Promise<SignableFile[]> {
+  const [documents, rows, jobDocuments] = await Promise.all([
+    listSharedDocuments(leadId),
+    db()`select file_id, signed_file_id from contract_signatures where lead_id = ${leadId}`,
+    // So the portal can word a job document as a document, not a contract.
+    db()`select file_id, title, kind from job_documents where lead_id = ${leadId} and file_id is not null`,
+  ]);
   const spoken = new Set<string>();
   for (const row of rows as Record<string, unknown>[]) {
     spoken.add(row.file_id as string);
     if (row.signed_file_id) spoken.add(row.signed_file_id as string);
   }
-  return documents.filter((file) => file.docType === "contract" && !spoken.has(file.id));
+  const byFile = new Map((jobDocuments as Record<string, unknown>[]).map((row) =>
+    [row.file_id as string, { title: row.title as string, kind: row.kind as ClientDocKind }]));
+  return documents
+    .filter((file) => file.docType === "contract" && !spoken.has(file.id))
+    .map((file) => ({ ...file, document: byFile.get(file.id) ?? null }));
 }
 
 /**
