@@ -15,9 +15,15 @@ const priced = {
     hardSurface: false, highLadder: true, motorized: false,
     basis: "window" as const, rateCents: 2500, quantity: 4, amountCents: 30_000,
   }],
-  // A distinct $75 measuring fee, so a column swap between subtotal, fee and total cannot pass.
-  subtotalCents: 30_000, measureCents: 7500, totalCents: 37_500, minimumApplied: false,
-  extras: [], extrasCents: 0,
+  subtotalCents: 30_000,
+  // Distinct extras and a distinct $75 measuring fee, so a column swap between subtotal,
+  // extras, fee and total — or between two extra columns — cannot pass.
+  extras: [
+    { kind: "takedown" as const, quantity: 3, rateCents: 1860, amountCents: 5580 },
+    { kind: "app_setup_large" as const, quantity: 5, rateCents: 15_113, amountCents: 15_113 },
+  ],
+  extrasCents: 20_693,
+  measureCents: 7500, totalCents: 58_193, minimumApplied: false,
 };
 
 beforeEach(() => {
@@ -34,15 +40,17 @@ describe("saveInstallQuote", () => {
     expect(statement).toContain("insert into install_quotes");
     expect(statement).toContain("insert into install_quote_lines");
     expect(statement).toContain("unnest(");
+    expect(statement).toContain("insert into install_quote_extras");
     expect(statement).toContain("insert into job_events");
   });
 
-  it("binds the quote and each line column in exact order", async () => {
+  it("binds the quote, each line column and each extra column in exact order", async () => {
     await quotes.saveInstallQuote(JOB, "estimate", priced, 15_000, "owner@example.com");
     expect(sql.mock.calls[0].slice(1)).toEqual([
-      JOB, "estimate", 15_000, 30_000, 7500, 37_500, "owner@example.com",
+      JOB, "estimate", 15_000, 30_000, 7500, 20_693, 58_193, "owner@example.com",
       [0], ["roller_shades"], ["window"], [4], [2500], [false], [true], [false], [30_000],
-      "owner@example.com", "Estimate installation price: $375",
+      [0, 1], ["takedown", "app_setup_large"], [3, 5], [1860, 15_113], [5580, 15_113],
+      "owner@example.com", "Estimate installation price: $581.93",
     ]);
   });
 
@@ -55,10 +63,11 @@ describe("saveInstallQuote", () => {
   });
 
   it("still writes the quote and event when there are no lines", async () => {
-    const id = await quotes.saveInstallQuote(JOB, "estimate", { ...priced, lines: [] }, 0, "owner@example.com");
+    const id = await quotes.saveInstallQuote(JOB, "estimate", { ...priced, lines: [], extras: [], extrasCents: 0 }, 0, "owner@example.com");
     expect(id).toBe(QUOTE);
     expect(sql).toHaveBeenCalledTimes(1);
-    expect(sql.mock.calls[0].slice(8, 17)).toEqual([[], [], [], [], [], [], [], [], []]);
+    expect(sql.mock.calls[0].slice(9, 18)).toEqual([[], [], [], [], [], [], [], [], []]);
+    expect(sql.mock.calls[0].slice(18, 23)).toEqual([[], [], [], [], []]);
   });
   it("refuses an id that is not a uuid rather than querying with it", async () => {
     await expect(quotes.saveInstallQuote("nope", "estimate", priced, 0, "owner@example.com"))
@@ -77,17 +86,31 @@ describe("listInstallQuotes", () => {
     sql
       .mockResolvedValueOnce([
         { id: QUOTE, kind: "estimate", minimum_cents: 15_000, subtotal_cents: 30_000, measure_cents: 7500,
-          total_cents: 37_500, created_by: "owner@example.com", created_at: "2026-09-16T10:00:00Z" },
+          extras_cents: 20_693, total_cents: 37_500, created_by: "owner@example.com", created_at: "2026-09-16T10:00:00Z" },
       ])
       .mockResolvedValueOnce([
         { install_quote_id: QUOTE, treatment: "roller_shades", basis: "window", quantity: 4,
           rate_cents: 2500, hard_surface: false, high_ladder: true, motorized: false, amount_cents: 30_000 },
-      ]);
+      ])
+      .mockResolvedValueOnce([{ install_quote_id: QUOTE, kind: "takedown", quantity: 3, rate_cents: 1860, amount_cents: 5580 }]);
     const [saved] = await quotes.listInstallQuotes(JOB);
     expect(saved.totalCents).toBe(37_500);
     expect(saved.measureCents).toBe(7500);
     expect(saved.lines).toHaveLength(1);
     expect(saved.lines[0]).toMatchObject({ treatment: "roller_shades", rateCents: 2500, highLadder: true });
+    expect(saved.extrasCents).toBe(20_693);
+    expect(saved.extras).toEqual([{ kind: "takedown", quantity: 3, rateCents: 1860, amountCents: 5580 }]);
+  });
+
+  it("reads a price saved before extras existed as having none", async () => {
+    sql
+      .mockResolvedValueOnce([{ id: QUOTE, kind: "final", minimum_cents: 0, subtotal_cents: 10_000, measure_cents: 0,
+        extras_cents: 0, total_cents: 10_000, created_by: "owner@example.com", created_at: "2026-09-16T10:00:00Z" }])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+    const [saved] = await quotes.listInstallQuotes(JOB);
+    expect(saved.extras).toEqual([]);
+    expect(saved.extrasCents).toBe(0);
   });
 
   it("gives each snapshot only its own lines, whatever order the line rows arrive in", async () => {
@@ -98,9 +121,9 @@ describe("listInstallQuotes", () => {
     });
     sql
       .mockResolvedValueOnce([
-        { id: QUOTE, kind: "final", minimum_cents: 0, subtotal_cents: 300, measure_cents: 0, total_cents: 300,
+        { id: QUOTE, kind: "final", minimum_cents: 0, subtotal_cents: 300, measure_cents: 0, extras_cents: 0, total_cents: 300,
           created_by: "owner@example.com", created_at: "2026-09-16T10:00:00Z" },
-        { id: OTHER, kind: "estimate", minimum_cents: 0, subtotal_cents: 700, measure_cents: 0, total_cents: 700,
+        { id: OTHER, kind: "estimate", minimum_cents: 0, subtotal_cents: 700, measure_cents: 0, extras_cents: 0, total_cents: 700,
           created_by: "owner@example.com", created_at: "2026-09-10T10:00:00Z" },
       ])
       .mockResolvedValueOnce([
@@ -108,7 +131,8 @@ describe("listInstallQuotes", () => {
         lineRow(QUOTE, "roller_shades", 100),
         lineRow(OTHER, "roman_shades", 400),
         lineRow(QUOTE, "cellular_shades", 200),
-      ]);
+      ])
+      .mockResolvedValueOnce([]);
     const saved = await quotes.listInstallQuotes(JOB);
     expect(saved.map((quote) => quote.id)).toEqual([QUOTE, OTHER]);
     expect(saved[0].lines.map((line) => line.treatment)).toEqual(["roller_shades", "cellular_shades"]);
@@ -118,13 +142,14 @@ describe("listInstallQuotes", () => {
   it("reads snapshots from their own stored figures, never from the current rates", async () => {
     sql
       .mockResolvedValueOnce([
-        { id: QUOTE, kind: "estimate", minimum_cents: 0, subtotal_cents: 100, measure_cents: 0, total_cents: 100,
+        { id: QUOTE, kind: "estimate", minimum_cents: 0, subtotal_cents: 100, measure_cents: 0, extras_cents: 0, total_cents: 100,
           created_by: "owner@example.com", created_at: "2026-09-16T10:00:00Z" },
       ])
+      .mockResolvedValueOnce([])
       .mockResolvedValueOnce([]);
     await quotes.listInstallQuotes(JOB);
     // A snapshot joined to install_rates would silently change when a rate changed.
-    expect(sql).toHaveBeenCalledTimes(2);
+    expect(sql).toHaveBeenCalledTimes(3);
     for (const call of sql.mock.calls) expect(text(call)).not.toContain("install_rates");
   });
 

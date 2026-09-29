@@ -136,7 +136,7 @@ export function InstallCalculator({ jobId, rates, settings, saved, measurements 
     // only if its own pricing produces the same fingerprint.
     const shown = priceFingerprint(priced, settings.minimumCents);
     startTransition(async () => {
-      const result = await saveInstallQuoteAction(jobId, kind, unkeyed, chargeMeasure, shown);
+      const result = await saveInstallQuoteAction(jobId, kind, unkeyed, NO_EXTRAS, chargeMeasure, shown);
       if (result.error) {
         setMessage(result.error);
         // Load the current rates so the preview shows the total a second save would store.

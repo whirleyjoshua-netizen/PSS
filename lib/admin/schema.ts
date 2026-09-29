@@ -312,6 +312,20 @@ export const installLinesSchema = z
     motorized: z.boolean(),
   }));
 
+/** The extras sent from the Install tab. The pricing engine trusts its inputs, so they are checked here. */
+export const installExtrasSchema = z.object({
+  takedownWindows: z.number({ error: "Enter a whole number of windows to take down" })
+    .int("Enter a whole number of windows to take down").min(0, "Enter a whole number of windows to take down")
+    .max(1000, "That is more windows than one job can hold"),
+  shutterTakedownSqFt: z.number({ error: "Enter a whole number of square feet to take down" })
+    .int("Enter a whole number of square feet to take down").min(0, "Enter a whole number of square feet to take down")
+    .max(100_000, "That is more square feet than one job can hold"),
+  customSetupCents: z.number({ error: "Enter a set-up price of $0 or more" })
+    .int("Enter a set-up price of $0 or more").min(0, "Enter a set-up price of $0 or more")
+    .max(2_147_483_647, "Enter an amount under $21,474,836")
+    .nullable(),
+});
+
 export const installKindSchema = z.enum(["estimate", "final"], { error: "Save as an estimate or a final price" });
 
 export type MeasurementInput = z.output<typeof measurementSchema>;

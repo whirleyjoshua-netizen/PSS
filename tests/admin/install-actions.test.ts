@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { ExtrasInput } from "@/lib/admin/install-pricing";
 
 const calls: string[] = [];
 const requireAdmin = vi.fn();
@@ -14,16 +15,16 @@ const { saveInstallQuoteAction } = await import("@/app/admin/jobs/[id]/install-a
 const { priceQuote, priceFingerprint, NO_EXTRAS } = await import("@/lib/admin/install-pricing");
 
 const JOB = "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c";
-const settings = { minimumCents: 15_000, hardSurfaceCents: 1000, highLadderCents: 5000, motorizedCents: 1500, measureCents: 7500, takedownCents: 0, shutterTakedownCents: 0, appSetupSmallCents: 0, appSetupLargeCents: 0 };
+const settings = { minimumCents: 15_000, hardSurfaceCents: 1000, highLadderCents: 5000, motorizedCents: 1500, measureCents: 7500, takedownCents: 1860, shutterTakedownCents: 233, appSetupSmallCents: 6975, appSetupLargeCents: 15_113 };
 const line = {
   treatment: "roller_shades" as const, count: 2, widthEighths: null, heightEighths: null,
   hardSurface: false, highLadder: false, motorized: false,
 };
 
 /** What the owner's page would send: the fingerprint of the price it showed. */
-const shown = (lines: typeof line[], rateCents = 10_000, shownSettings = settings, chargeMeasure = false) =>
+const shown = (lines: typeof line[], rateCents = 10_000, shownSettings = settings, chargeMeasure = false, extras: ExtrasInput = NO_EXTRAS) =>
   priceFingerprint(
-    priceQuote(lines, [{ treatment: "roller_shades", basis: "window", rateCents }], shownSettings, NO_EXTRAS, chargeMeasure),
+    priceQuote(lines, [{ treatment: "roller_shades", basis: "window", rateCents }], shownSettings, extras, chargeMeasure),
     shownSettings.minimumCents,
   );
 const MATCHING = () => shown([line]);
@@ -43,38 +44,38 @@ beforeEach(() => {
 describe("saveInstallQuoteAction", () => {
   it("checks the session before anything else", async () => {
     requireAdmin.mockRejectedValue(new Error("NEXT_REDIRECT"));
-    await expect(saveInstallQuoteAction(JOB, "estimate", [line], false, MATCHING())).rejects.toThrow("NEXT_REDIRECT");
+    await expect(saveInstallQuoteAction(JOB, "estimate", [line], NO_EXTRAS, false, MATCHING())).rejects.toThrow("NEXT_REDIRECT");
     expect(rates.listInstallRates).not.toHaveBeenCalled();
     expect(saveInstallQuote).not.toHaveBeenCalled();
   });
 
   it("rejects invalid lines without pricing or saving", async () => {
-    const result = await saveInstallQuoteAction(JOB, "estimate", [{ ...line, count: 1.5 }], false, MATCHING());
+    const result = await saveInstallQuoteAction(JOB, "estimate", [{ ...line, count: 1.5 }], NO_EXTRAS, false, MATCHING());
     expect(result.error).toBeTruthy();
     expect(calls).toEqual(["requireAdmin"]);
     expect(saveInstallQuote).not.toHaveBeenCalled();
   });
 
   it("rejects an unknown kind", async () => {
-    const result = await saveInstallQuoteAction(JOB, "draft" as never, [line], false, MATCHING());
+    const result = await saveInstallQuoteAction(JOB, "draft" as never, [line], NO_EXTRAS, false, MATCHING());
     expect(result.error).toBeTruthy();
     expect(saveInstallQuote).not.toHaveBeenCalled();
   });
 
   it("asks for a line when there are none", async () => {
     // The fingerprint is irrelevant here: an empty job is refused before any price is compared.
-    expect(await saveInstallQuoteAction(JOB, "estimate", [], false, MATCHING())).toEqual({ error: "Add at least one line before saving." });
+    expect(await saveInstallQuoteAction(JOB, "estimate", [], NO_EXTRAS, false, MATCHING())).toEqual({ error: "Add at least one line before saving." });
     expect(saveInstallQuote).not.toHaveBeenCalled();
   });
 
   it("returns the engine's message when a rate is missing", async () => {
-    const result = await saveInstallQuoteAction(JOB, "estimate", [{ ...line, treatment: "shutters" as never }], false, MATCHING());
+    const result = await saveInstallQuoteAction(JOB, "estimate", [{ ...line, treatment: "shutters" as never }], NO_EXTRAS, false, MATCHING());
     expect(result.error).toMatch(/no installation rate is set/i);
     expect(saveInstallQuote).not.toHaveBeenCalled();
   });
 
   it("saves when the server's price matches the price the owner saw", async () => {
-    expect(await saveInstallQuoteAction(JOB, "final", [line], false, MATCHING())).toEqual({ ok: true });
+    expect(await saveInstallQuoteAction(JOB, "final", [line], NO_EXTRAS, false, MATCHING())).toEqual({ ok: true });
     expect(calls[0]).toBe("requireAdmin");
     expect(saveInstallQuote).toHaveBeenCalledWith(
       JOB, "final",
@@ -86,7 +87,7 @@ describe("saveInstallQuoteAction", () => {
 
   it("refuses to save a different price than the owner saw when rates changed", async () => {
     // The page previewed against a $75 rate; the stored rate is now $100.
-    expect(await saveInstallQuoteAction(JOB, "final", [line], false, shown([line], 7_500))).toEqual({
+    expect(await saveInstallQuoteAction(JOB, "final", [line], NO_EXTRAS, false, shown([line], 7_500))).toEqual({
       error: "Rates changed since this page loaded. Review the new total and save again.",
     });
     expect(saveInstallQuote).not.toHaveBeenCalled();
@@ -98,7 +99,7 @@ describe("saveInstallQuoteAction", () => {
     // server now prices them at $100 ($200 of lines), but both totals are the $500 minimum.
     const masking = { ...settings, minimumCents: 50_000 };
     rates.getInstallSettings.mockImplementation(async () => masking);
-    const result = await saveInstallQuoteAction(JOB, "final", [line], false, shown([line], 7_500, masking));
+    const result = await saveInstallQuoteAction(JOB, "final", [line], NO_EXTRAS, false, shown([line], 7_500, masking));
     expect(result).toEqual({ error: "Rates changed since this page loaded. Review the new total and save again." });
     expect(saveInstallQuote).not.toHaveBeenCalled();
   });
@@ -108,14 +109,14 @@ describe("saveInstallQuoteAction", () => {
     // Lines come to $200 either way and clear both minimums, so the total is unchanged and the
     // minimum is not even shown. The save is still refused on purpose: the saved price records
     // the minimum in force (spec §3), and that must be the one this page was loaded with.
-    const result = await saveInstallQuoteAction(JOB, "final", [line], false, MATCHING());
+    const result = await saveInstallQuoteAction(JOB, "final", [line], NO_EXTRAS, false, MATCHING());
     expect(result.error).toMatch(/^Rates changed since this page loaded/);
     expect(saveInstallQuote).not.toHaveBeenCalled();
   });
 
   it("rejects a preview that is not a price fingerprint before reading any rates", async () => {
     for (const preview of [20_000, "", "x".repeat(20_001), null] as never[]) {
-      const result = await saveInstallQuoteAction(JOB, "final", [line], false, preview);
+      const result = await saveInstallQuoteAction(JOB, "final", [line], NO_EXTRAS, false, preview);
       expect(result.error).toBeTruthy();
     }
     expect(rates.listInstallRates).not.toHaveBeenCalled();
@@ -124,13 +125,13 @@ describe("saveInstallQuoteAction", () => {
 
   it("saves a measuring-only visit with no lines when the fee is charged", async () => {
     const measureOnly = shown([], 10_000, settings, true);
-    expect(await saveInstallQuoteAction(JOB, "estimate", [], true, measureOnly)).toEqual({ ok: true });
+    expect(await saveInstallQuoteAction(JOB, "estimate", [], NO_EXTRAS, true, measureOnly)).toEqual({ ok: true });
     expect(saveInstallQuote.mock.calls[0][2]).toMatchObject({ lines: [], measureCents: 7500, totalCents: 7500 });
   });
 
   it("saves the measuring fee when the owner charged for it", async () => {
     const charged = shown([line], 10_000, settings, true);
-    expect(await saveInstallQuoteAction(JOB, "final", [line], true, charged)).toEqual({ ok: true });
+    expect(await saveInstallQuoteAction(JOB, "final", [line], NO_EXTRAS, true, charged)).toEqual({ ok: true });
     expect(saveInstallQuote).toHaveBeenCalledWith(
       JOB, "final",
       expect.objectContaining({ subtotalCents: 20_000, measureCents: 7500, totalCents: 27_500 }),
@@ -139,38 +140,66 @@ describe("saveInstallQuoteAction", () => {
   });
 
   it("saves no measuring fee when the owner did not charge for it", async () => {
-    expect(await saveInstallQuoteAction(JOB, "final", [line], false, MATCHING())).toEqual({ ok: true });
+    expect(await saveInstallQuoteAction(JOB, "final", [line], NO_EXTRAS, false, MATCHING())).toEqual({ ok: true });
     expect(saveInstallQuote.mock.calls[0][2]).toMatchObject({ measureCents: 0, totalCents: 20_000 });
   });
 
   it("refuses when the measuring fee changed since the page loaded", async () => {
     // The page showed a $75 fee; Settings now says $90.
     rates.getInstallSettings.mockImplementation(async () => ({ ...settings, measureCents: 9000 }));
-    const result = await saveInstallQuoteAction(JOB, "final", [line], true, shown([line], 10_000, settings, true));
+    const result = await saveInstallQuoteAction(JOB, "final", [line], NO_EXTRAS, true, shown([line], 10_000, settings, true));
     expect(result.error).toMatch(/^Rates changed since this page loaded/);
     expect(saveInstallQuote).not.toHaveBeenCalled();
   });
 
   it("refuses when the charge choice sent disagrees with the price the page showed", async () => {
     // The page showed a price without the fee but the request says to charge it.
-    const result = await saveInstallQuoteAction(JOB, "final", [line], true, MATCHING());
+    const result = await saveInstallQuoteAction(JOB, "final", [line], NO_EXTRAS, true, MATCHING());
     expect(result.error).toMatch(/^Rates changed since this page loaded/);
     expect(saveInstallQuote).not.toHaveBeenCalled();
   });
 
   it("rejects a charge choice that is not true or false before reading any rates", async () => {
     for (const choice of ["yes", 1, null, undefined] as never[]) {
-      const result = await saveInstallQuoteAction(JOB, "final", [line], choice, MATCHING());
+      const result = await saveInstallQuoteAction(JOB, "final", [line], NO_EXTRAS, choice, MATCHING());
       expect(result.error).toBeTruthy();
     }
     expect(rates.listInstallRates).not.toHaveBeenCalled();
     expect(saveInstallQuote).not.toHaveBeenCalled();
   });
 
+  it("saves a takedown-only price with no lines", async () => {
+    const extras = { takedownWindows: 2, shutterTakedownSqFt: 0, customSetupCents: null };
+    const result = await saveInstallQuoteAction(JOB, "estimate", [], extras, false, shown([], 10_000, settings, false, extras));
+    expect(result).toEqual({ ok: true });
+    const savedPrice = saveInstallQuote.mock.calls[0][2];
+    expect(savedPrice.extras).toEqual([{ kind: "takedown", quantity: 2, rateCents: 1860, amountCents: 3720 }]);
+    expect(savedPrice.totalCents).toBe(15_000); // $37.20 raised to the $150 minimum
+  });
+
+  it("still refuses a price with no lines, no extras and no measuring", async () => {
+    const result = await saveInstallQuoteAction(JOB, "estimate", [], NO_EXTRAS, false, "x");
+    expect(result.error).toBe("Add at least one line before saving.");
+    expect(saveInstallQuote).not.toHaveBeenCalled();
+  });
+
+  it("rejects invalid extras without pricing or saving", async () => {
+    const result = await saveInstallQuoteAction(JOB, "estimate", [line], { ...NO_EXTRAS, takedownWindows: -1 }, false, MATCHING());
+    expect(result.error).toBe("Enter a whole number of windows to take down");
+    expect(calls).toEqual(["requireAdmin"]);
+  });
+
+  it("refuses when the extras the owner saw differ from what the server prices", async () => {
+    const seen = shown([line], 10_000, settings, false, { ...NO_EXTRAS, takedownWindows: 1 });
+    const result = await saveInstallQuoteAction(JOB, "estimate", [line], { ...NO_EXTRAS, takedownWindows: 2 }, false, seen);
+    expect(result.error).toMatch(/^Rates changed since this page loaded/);
+    expect(saveInstallQuote).not.toHaveBeenCalled();
+  });
+
   it("returns a generic message, not the database's, when the save fails", async () => {
     const logged = vi.spyOn(console, "error").mockImplementation(() => {});
     saveInstallQuote.mockRejectedValue(new Error('insert or update on table "install_quotes" violates foreign key constraint'));
-    const result = await saveInstallQuoteAction(JOB, "final", [line], false, MATCHING());
+    const result = await saveInstallQuoteAction(JOB, "final", [line], NO_EXTRAS, false, MATCHING());
     expect(result).toEqual({ error: "Could not save this price. Try again." });
     expect(logged).toHaveBeenCalled();
     logged.mockRestore();
