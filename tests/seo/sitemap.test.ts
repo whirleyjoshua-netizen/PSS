@@ -6,10 +6,10 @@ describe("sitemap", () => {
   it("lists every public route exactly once", async () => {
     const urls = (await sitemap()).map((entry) => entry.url);
 
-    // 1 home + 5 hubs + 16 products + 4 cities
+    // 1 home + 5 hubs + 14 products + 4 cities
     // + gallery, reviews, about, contact, privacy, accessibility
-    expect(urls).toHaveLength(32);
-    expect(new Set(urls).size).toBe(32);
+    expect(urls).toHaveLength(30);
+    expect(new Set(urls).size).toBe(30);
   });
 
   it("uses absolute URLs on the production domain", async () => {

@@ -60,7 +60,7 @@ export const categories: Category[] = [
     seo: {
       title: "Blinds in Las Vegas, NV | Premier Shade Solutions",
       description:
-        "Custom aluminum, vertical, wood, and faux wood blinds for Las Vegas homes. Free in-home consultation, measured and installed by the owners.",
+        "Custom vertical, wood, and faux wood blinds for Las Vegas homes. Free in-home consultation, measured and installed by the owners.",
     },
   },
   {
@@ -136,30 +136,6 @@ export const categories: Category[] = [
 export const products: Product[] = [
   // ---------------------------------------------------------------- blinds
   {
-    slug: "aluminum-blinds",
-    name: "Aluminum Blinds",
-    category: "blinds",
-    tagline: "The practical workhorse.",
-    body: [
-      "Aluminum blinds are the most cost-effective way to get real light control on a lot of windows at once, which is why they show up in rentals, home offices, and secondary bedrooms more than anything else we sell. Slats tilt to cut glare without going dark, and the whole blind raises out of the way when you want the window back.",
-      "They handle heat and humidity without warping, which matters in a bathroom or a laundry room where a wood product would eventually swell. They also wipe down in seconds, which is not a small thing in a valley where dust is a permanent condition.",
-      "The trade-off is acoustic and visual: aluminum slats are thinner and lighter than wood, so they can rattle in a draft and they read as more utilitarian. In rooms where the window treatment is part of the design, we usually steer people elsewhere.",
-    ],
-    features: [
-      "Slat widths from 1/2 inch for small openings to 2 inch for large glass",
-      "Tilt for glare control without losing the view",
-      "Moisture-safe for kitchens, baths, and laundry rooms",
-      "Wide color range including matte, metallic, and wood-look finishes",
-      "The most economical option for covering many windows at once",
-    ],
-    bestFor: "Kitchens, bathrooms, laundry rooms, home offices, and rental properties.",
-    seo: {
-      title: "Aluminum Blinds in Las Vegas, NV | Premier Shade",
-      description:
-        "Durable, affordable custom aluminum blinds for Las Vegas homes. Moisture-safe and easy to clean. Free in-home consultation and measurement.",
-    },
-  },
-  {
     slug: "vertical-blinds",
     name: "Vertical Blinds",
     category: "blinds",
@@ -205,30 +181,6 @@ export const products: Product[] = [
       title: "Wood & Faux Wood Blinds in Las Vegas, NV",
       description:
         "Custom wood and faux wood blinds for Las Vegas homes. Faux wood resists desert sun and warping. Free in-home consultation and install.",
-    },
-  },
-  {
-    slug: "mini-blinds",
-    name: "Mini Blinds",
-    category: "blinds",
-    tagline: "Small openings, clean lines.",
-    body: [
-      "Mini blinds use a narrow one-inch slat, which lets them fit inside shallow window frames, door lights, and small openings where a two-inch slat simply will not mount. They are the quiet solution to the windows that other treatments cannot cover.",
-      "The narrow slat also stacks tighter at the top, so more of a small window stays visible when the blind is raised — a real advantage on a bathroom or stairwell window where every inch of glass counts.",
-      "We most often specify them for door sidelights, garage windows, RV and casita openings, and the awkward high windows builders like to put above a tub.",
-    ],
-    features: [
-      "One inch slats fit shallow frames and small openings",
-      "Compact stack keeps more glass visible when raised",
-      "Aluminum or vinyl construction, both moisture tolerant",
-      "Ideal for door sidelights and glass-panel doors",
-      "Cordless options for safety near tubs and stairs",
-    ],
-    bestFor: "Door sidelights, small bathroom windows, garages, casitas, and stairwells.",
-    seo: {
-      title: "Mini Blinds in Las Vegas, NV | Premier Shade Solutions",
-      description:
-        "Custom one-inch mini blinds for small and shallow Las Vegas window openings, door sidelights, and casitas. Free consultation.",
     },
   },
 
