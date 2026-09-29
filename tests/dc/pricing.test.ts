@@ -84,7 +84,7 @@ describe("sendBlockers", () => {
   const priced = priceVersion(base);
   it("is empty when everything is in place", () => expect(sendBlockers(priced, OK_CONTEXT)).toEqual([]));
   it.each([
-    [{ hasTerms: false }, "Upload your contract terms in Settings first."],
+    [{ hasTerms: false }, "Add your contract terms on the Documents page first."],
     [{ isLatest: false }, "A newer version of this quote has arrived. Review that one."],
     [{ versionStatus: "sent" }, "This version has already been sent."],
     [{ jobStatus: "lost" }, "This job is marked Lost."],

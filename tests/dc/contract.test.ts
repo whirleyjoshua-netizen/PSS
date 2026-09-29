@@ -115,7 +115,7 @@ describe("buildContractPdf", () => {
   it("renders, then appends every terms page, even with characters the font cannot encode", async () => {
     const terms = await PDFDocument.create();
     terms.addPage(); terms.addPage();
-    const bytes = await buildContractPdf({ ...input, client: { ...input.client, name: "Zoë 🙂 O’Neil" } }, await terms.save());
+    const bytes = await buildContractPdf({ ...input, client: { ...input.client, name: "Zoë 🙂 O’Neil" } }, { pdf: await terms.save() });
     const doc = await PDFDocument.load(bytes);
     expect(doc.getPageCount()).toBeGreaterThanOrEqual(3);
   });
@@ -130,7 +130,7 @@ describe("buildContractPdf", () => {
       lines: [{ room: odd, description: `Hunter Douglas ${odd}`, qty: 1, sellUnitCents: 100, sellExtendedCents: 100,
         options: [["Order Width", odd], ["Order Height", odd], ["Mount Type", odd], ["Fabric Type", odd], ["Color", odd], ["Control System", odd]] }],
     };
-    await expect(buildContractPdf(everywhere, await (await PDFDocument.create()).save())).resolves.toBeInstanceOf(Uint8Array);
+    await expect(buildContractPdf(everywhere, { pdf: await (await PDFDocument.create()).save() })).resolves.toBeInstanceOf(Uint8Array);
     expect(drawn.length).toBeGreaterThan(0);
     const font = await helvetica();
     for (const { text } of drawn) expect(encodes(font, text), text).toBe(true);
@@ -139,13 +139,13 @@ describe("buildContractPdf", () => {
   it("can draw every Latin-1 character winAnsiSafe keeps", async () => {
     const latin1 = Array.from({ length: 0xff - 0xa1 + 1 }, (_, i) => String.fromCharCode(0xa1 + i)).join("");
     expect(winAnsiSafe(latin1)).toBe(latin1);
-    const bytes = await buildContractPdf({ ...input, client: { ...input.client, name: latin1 } }, await (await PDFDocument.create()).save());
+    const bytes = await buildContractPdf({ ...input, client: { ...input.client, name: latin1 } }, { pdf: await (await PDFDocument.create()).save() });
     expect(bytes.length).toBeGreaterThan(0);
   });
   it("draws no cost, MSRP, percentage or DC quote number anywhere on the contract", async () => {
     const drawn = spyOnDrawText();
     const leaky = { ...input, lines: [{ ...input.lines[0], options: leakyOptions }, input.lines[1]] };
-    await buildContractPdf(leaky, await (await PDFDocument.create()).save());
+    await buildContractPdf(leaky, { pdf: await (await PDFDocument.create()).save() });
     const all = drawn.map(({ text }) => text).join("\n");
     expect(all).toContain("$1,802.51");
     for (const forbidden of FORBIDDEN) expect(all).not.toContain(forbidden);
@@ -157,7 +157,7 @@ describe("buildContractPdf", () => {
       ...input, projectNo: long,
       client: { name: long, address: long, city: long, email: long },
       lines: [{ ...input.lines[0], room, description: product, options: [["Mount Type", details]] }],
-    }, await (await PDFDocument.create()).save());
+    }, { pdf: await (await PDFDocument.create()).save() });
     for (const { right } of drawn) expect(right).toBeLessThanOrEqual(612 - 54);
     const column = (ch: string) => drawn.filter(({ text }) => new RegExp(`^${ch}+$`).test(text));
     // Room column ends before Product starts (x 149); Product and details end 40pt before Qty (x 430).
@@ -170,7 +170,7 @@ describe("buildContractPdf", () => {
   });
   it("shows the version in the title, so a change order is told apart from the original", async () => {
     const drawn = spyOnDrawText();
-    await buildContractPdf({ ...input, version: 2 }, await (await PDFDocument.create()).save());
+    await buildContractPdf({ ...input, version: 2 }, { pdf: await (await PDFDocument.create()).save() });
     const all = drawn.map(({ text }) => text).join("\n");
     expect(all).toContain("Contract PSS-1042 · Version 2");
     expect(all).not.toContain("Version 1");
@@ -179,9 +179,32 @@ describe("buildContractPdf", () => {
     const terms = await (await PDFDocument.create()).save();
     const many = { ...input, lines: Array.from({ length: 60 }, () => input.lines[0]) };
     const drawn = spyOnDrawText();
-    const doc = await PDFDocument.load(await buildContractPdf(many, terms));
+    const doc = await PDFDocument.load(await buildContractPdf(many, { pdf: terms }));
     expect(doc.getPageCount()).toBeGreaterThan(1);
     expect(drawn.length).toBeGreaterThan(60 * 3);
     for (const { y, text } of drawn) expect(y, text).toBeGreaterThanOrEqual(54);
+  });
+  it("prints text terms on pages after the contract, headed, with bold runs", async () => {
+    const drawn = spyOnDrawText();
+    const bytes = await buildContractPdf(input, { text: "## 4. Your Right to Cancel\n\nCancel within **3 business days** of signing." });
+    expect((await PDFDocument.load(bytes)).getPageCount()).toBe(2);
+    const texts = drawn.map(({ text }) => text);
+    expect(texts).toContain("The terms and conditions on the following pages are part of this contract.");
+    const heading = drawn.find(({ text }) => text === "Terms and Conditions")!;
+    expect(heading.y).toBe(792 - 54);
+    expect(texts).toContain("4. Your Right to Cancel");
+    expect(texts).toContain("3 business days");
+  });
+  it("spills long text terms onto more pages inside the margins, drawing only encodable text", async () => {
+    const drawn = spyOnDrawText();
+    const long = Array.from({ length: 150 }, (_, i) => `## ${i}. Term\n\nText ½″ “quoted” 🙂 → ${"word ".repeat(30)}`).join("\n\n");
+    const doc = await PDFDocument.load(await buildContractPdf(input, { text: long }));
+    expect(doc.getPageCount()).toBeGreaterThan(3);
+    const font = await helvetica();
+    for (const { y, right, text } of drawn) {
+      expect(y, text).toBeGreaterThanOrEqual(54);
+      expect(right, text).toBeLessThanOrEqual(612 - 54 + 0.001);
+      expect(encodes(font, text), text).toBe(true);
+    }
   });
 });

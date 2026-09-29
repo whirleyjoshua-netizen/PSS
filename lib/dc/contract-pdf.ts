@@ -4,11 +4,16 @@ import { business } from "@/content/business";
 import { formatShortDate } from "@/lib/admin/time";
 import { contractRows, winAnsiSafe, type ContractInput } from "./contract-layout";
 import { LETTER, MARGIN, wrap } from "@/lib/pdf/text";
+import { parseDocText } from "@/lib/docs/parse";
+import { renderBlocks, type PdfPen } from "@/lib/docs/pdf";
 
 const COLS = { room: MARGIN, product: MARGIN + 95, qty: 430, unit: 470, total: 540 };
 
-/** Page 1+: the priced contract. Then the owner's terms PDF, page for page. Signing stamps it later. */
-export async function buildContractPdf(input: ContractInput, termsPdf: Uint8Array): Promise<Uint8Array> {
+/** The terms a contract prints: the terms template's filled text, or (legacy) the uploaded PDF. */
+export type ContractTerms = { text: string } | { pdf: Uint8Array };
+
+/** Page 1+: the priced contract. Then the terms: drawn from the terms template, or the uploaded PDF page for page. Signing stamps it later. */
+export async function buildContractPdf(input: ContractInput, terms: ContractTerms): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
   const regular = await doc.embedFont(StandardFonts.Helvetica);
   const bold = await doc.embedFont(StandardFonts.HelveticaBold);
@@ -66,8 +71,16 @@ export async function buildContractPdf(input: ContractInput, termsPdf: Uint8Arra
   y -= 16;
   text("The terms and conditions on the following pages are part of this contract.", MARGIN, 9);
 
-  const terms = await PDFDocument.load(termsPdf);
-  const copied = await doc.copyPages(terms, terms.getPageIndices());
-  for (const p of copied) doc.addPage(p);
+  if ("text" in terms) {
+    // Same fonts and margins as the contract; the signed PDF then carries the exact terms signed.
+    const pen: PdfPen = { doc, page: doc.addPage(LETTER), y: LETTER[1] - MARGIN, regular, bold };
+    pen.page.drawText("Terms and Conditions", { x: MARGIN, y: pen.y, size: 14, font: bold, color: rgb(0.1, 0.1, 0.1) });
+    pen.y -= 26;
+    renderBlocks(pen, parseDocText(terms.text));
+  } else {
+    const uploaded = await PDFDocument.load(terms.pdf);
+    const copied = await doc.copyPages(uploaded, uploaded.getPageIndices());
+    for (const p of copied) doc.addPage(p);
+  }
   return doc.save();
 }
