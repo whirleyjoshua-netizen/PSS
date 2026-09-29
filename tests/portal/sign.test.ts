@@ -124,6 +124,17 @@ describe("recordSignature", () => {
     ]);
   });
 
+  it("in the SAME statement, completes a sent sign document whose PDF this is", async () => {
+    vi.mocked(readFile).mockResolvedValue({ stream: new Response("pdf bytes").body!, contentType: "application/pdf" });
+    query.mockResolvedValue([{ id: "sig" }]);
+    await recordSignature({ jobId: JOB, file: doc(FILE, "Change order.pdf", "contract"), name: "Jane Doe", email: "jane@example.com", ip: null, userAgent: null });
+    const s = (query.mock.calls[0][0] as TemplateStringsArray).join("?").replace(/\s+/g, " ");
+    expect(s).toContain("update job_documents set status = 'completed', completed_at = now(), updated_at = now()");
+    expect(s).toContain("where file_id = (select file_id from signed) and lead_id = (select lead_id from signed) and status = 'sent' and response = 'sign'");
+    // The event body is still the statement's last value: the new CTE binds nothing.
+    expect(query.mock.calls[0].slice(1).at(-1)).toBe('Signed "Change order.pdf" from their project page');
+  });
+
   it("refuses an empty name without touching the database", async () => {
     const result = await recordSignature({
       jobId: JOB, file, name: "   ", email: "jane@example.com", ip: null, userAgent: null,

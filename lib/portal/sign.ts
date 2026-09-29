@@ -82,6 +82,9 @@ export async function signableContracts(leadId: string): Promise<JobFile[]> {
  * updates the sold amount), and a job still at new/visit_booked/quoted moves to Sold with one
  * 'stage' event. A hand-uploaded contract matches no version, so `version` is empty and nothing
  * but the signature and its event is written, exactly as before.
+ *
+ * A sign job document (lib/docs/job-documents.ts) whose PDF is this file, still 'sent', becomes
+ * 'completed' in the same statement. A contract or a hand-uploaded file matches no document.
  */
 export async function recordSignature(input: {
   jobId: string;
@@ -131,6 +134,12 @@ export async function recordSignature(input: {
       select sold.id, ${input.email}, 'stage', prev.status, 'sold', 'Signed contract version ' || version.version
       from sold, prev, version
       where prev.status in ('new','visit_booked','quoted')
+    ),
+    document as (
+      update job_documents set status = 'completed', completed_at = now(), updated_at = now()
+      where file_id = (select file_id from signed) and lead_id = (select lead_id from signed)
+        and status = 'sent' and response = 'sign'
+      returning id
     ),
     logged as (
       insert into job_events (lead_id, actor, kind, body)
