@@ -42,16 +42,17 @@ export function fieldValues(job: FillJob, now: Date): FieldValues {
 }
 
 /**
- * A value is plain text wherever it lands: one line, no braces (so no new marker), no `**` (so no
- * bold), and nothing at its start that would read as a heading or bullet if the marker began a line.
+ * A value is plain text wherever it lands: one line, no braces (so no new marker), no `*` at all (so
+ * it can never open, close or extend bold, even beside the template's own `**`), and nothing at its
+ * start that would read as a heading (`##`, `###`) or bullet (`-`) if the marker began a line. A value
+ * that is only such a mark cleans to "", so the caller keeps the `{{key}}` marker instead.
  */
 export function cleanValue(value: string): string {
   return value
     .replace(/\s+/g, " ")
-    .replace(/[{}]/g, "")
-    .replace(/\*{2,}/g, "*")
+    .replace(/[{}*]/g, "")
     .trim()
-    .replace(/^(?:#+\s+|-\s+)+/, "")
+    .replace(/^(?:(?:#{2,}|-)(?:\s+|$))+/, "")
     .trim();
 }
 

@@ -49,16 +49,41 @@ describe("fillFields", () => {
   it("a value can never become syntax: no bold, marker, heading or bullet", () => {
     const hostile = fieldValues({ ...job, name: "## **Bob** {{deposit}}", address: "- 12\nPalm {{x}}" }, NOW);
     const { text } = fillFields("{{client_name}}\n{{address}}", hostile);
-    expect(text).toBe("*Bob* deposit\n12 Palm x");
+    expect(text).toBe("Bob deposit\n12 Palm x");
+  });
+  it("a value that cleans to nothing keeps its marker instead of printing a heading or bullet", () => {
+    const hostile = fieldValues({ ...job, name: "## **Bob** {{deposit}}", city: "-", address: "-" }, NOW);
+    const first = fillFields("{{client_first_name}} agrees", hostile);
+    expect(first.text.startsWith("## ")).toBe(false);
+    expect(first).toEqual({ text: "{{client_first_name}} agrees", missing: ["client_first_name"], unknown: [] });
+    expect(fillFields("{{city}}\n{{address}} here", hostile))
+      .toEqual({ text: "{{city}}\n{{address}} here", missing: ["city", "address"], unknown: [] });
+  });
+  it("a value cannot close or extend the template's own bold", () => {
+    expect(fillFields("**{{client_name}}**", fieldValues({ ...job, name: "Bob*" }, NOW)).text).toBe("**Bob**");
+    expect(fillFields("**{{client_name}}**", fieldValues({ ...job, name: "*Bob*" }, NOW)).text).toBe("**Bob**");
   });
 });
 
 describe("cleanValue", () => {
-  it("collapses whitespace, drops braces, shortens star runs and strips a leading heading or bullet", () => {
+  it("collapses whitespace, drops braces and stars, and strips a leading heading or bullet", () => {
     expect(cleanValue("  a \n b ")).toBe("a b");
     expect(cleanValue("{{{x}}}")).toBe("x");
-    expect(cleanValue("a***b")).toBe("a*b");
+    expect(cleanValue("a***b")).toBe("ab");
+    expect(cleanValue("Bob*")).toBe("Bob");
+    expect(cleanValue("*Bob*")).toBe("Bob");
     expect(cleanValue("### - Title")).toBe("Title");
     expect(cleanValue("#12 Unit")).toBe("#12 Unit");
+  });
+  it("a value that is only a heading or bullet mark cleans to nothing", () => {
+    expect(cleanValue("##")).toBe("");
+    expect(cleanValue("-")).toBe("");
+    expect(cleanValue("## ##")).toBe("");
+    expect(cleanValue("- -")).toBe("");
+    expect(cleanValue("{{##}}")).toBe("");
+  });
+  it("strips only heading-length runs of #: a lone # is ordinary text", () => {
+    expect(cleanValue("# 5 Main St")).toBe("# 5 Main St");
+    expect(cleanValue("#")).toBe("#");
   });
 });
