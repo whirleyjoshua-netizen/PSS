@@ -6,6 +6,7 @@ import {
 
 const settings: InstallSettings = {
   minimumCents: 0, hardSurfaceCents: 0, highLadderCents: 0, motorizedCents: 0, measureCents: 0,
+  takedownCents: 0, shutterTakedownCents: 0, appSetupSmallCents: 0, appSetupLargeCents: 0,
 };
 const rate = (over: Partial<InstallRate> = {}): InstallRate =>
   ({ treatment: "roller_shades", basis: "window", rateCents: 2500, ...over });

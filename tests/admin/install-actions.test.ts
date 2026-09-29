@@ -14,7 +14,7 @@ const { saveInstallQuoteAction } = await import("@/app/admin/jobs/[id]/install-a
 const { priceQuote, priceFingerprint } = await import("@/lib/admin/install-pricing");
 
 const JOB = "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c";
-const settings = { minimumCents: 15_000, hardSurfaceCents: 1000, highLadderCents: 5000, motorizedCents: 1500, measureCents: 7500 };
+const settings = { minimumCents: 15_000, hardSurfaceCents: 1000, highLadderCents: 5000, motorizedCents: 1500, measureCents: 7500, takedownCents: 0, shutterTakedownCents: 0, appSetupSmallCents: 0, appSetupLargeCents: 0 };
 const line = {
   treatment: "roller_shades" as const, count: 2, widthEighths: null, heightEighths: null,
   hardSurface: false, highLadder: false, motorized: false,

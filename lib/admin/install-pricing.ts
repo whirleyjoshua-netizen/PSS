@@ -28,6 +28,14 @@ export type InstallSettings = {
   motorizedCents: number;
   /** A flat fee for an installer's measuring visit, whatever the number of windows. */
   measureCents: number;
+  /** Per window of blinds or drapery taken down. */
+  takedownCents: number;
+  /** Per whole square foot of shutters taken down. */
+  shutterTakedownCents: number;
+  /** Flat app set-up for 1–3 motors. */
+  appSetupSmallCents: number;
+  /** Flat app set-up for 4–9 motors. 10 or more is priced by hand on the job. */
+  appSetupLargeCents: number;
 };
 
 export type LineInput = {

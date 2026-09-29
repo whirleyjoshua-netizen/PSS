@@ -5,7 +5,7 @@ vi.mock("@/app/admin/settings/actions", () => ({ saveInstallRatesAction: vi.fn()
 
 const { InstallRatesSection } = await import("@/app/admin/settings/InstallRatesSection");
 
-const settings = { minimumCents: 15_000, hardSurfaceCents: 1000, highLadderCents: 5000, motorizedCents: 1500, measureCents: 7500 };
+const settings = { minimumCents: 15_000, hardSurfaceCents: 1000, highLadderCents: 5000, motorizedCents: 1500, measureCents: 7500, takedownCents: 0, shutterTakedownCents: 0, appSetupSmallCents: 0, appSetupLargeCents: 0 };
 
 describe("InstallRatesSection", () => {
   it("lists every installable treatment, and never the not-sure answer", () => {

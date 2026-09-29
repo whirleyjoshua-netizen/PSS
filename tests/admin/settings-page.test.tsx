@@ -20,7 +20,7 @@ const routePlanningConfigured = vi.fn(() => false);
 vi.mock("@/lib/routes/optimize", () => ({ routePlanningConfigured }));
 vi.mock("@/lib/admin/install-rates", () => ({
   listInstallRates: vi.fn(async () => []),
-  getInstallSettings: vi.fn(async () => ({ minimumCents: 0, hardSurfaceCents: 0, highLadderCents: 0, motorizedCents: 0 })),
+  getInstallSettings: vi.fn(async () => ({ minimumCents: 0, hardSurfaceCents: 0, highLadderCents: 0, motorizedCents: 0, takedownCents: 0, shutterTakedownCents: 0, appSetupSmallCents: 0, appSetupLargeCents: 0 })),
 }));
 
 vi.mock("@/app/admin/settings/actions", () => ({
