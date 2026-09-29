@@ -134,8 +134,9 @@ export async function markSent(input: {
 }
 
 /**
- * Spec §6: withdraws a sent document before it is answered. Refused unless the row is still
- * `sent`, and refused when a signature or acknowledgement row naming its file is already
+ * Spec §6: withdraws a sent document before it is answered, or a view document (completed as it
+ * is sent) shared by mistake. Refused unless the row is still `sent` or is a completed view
+ * document, and refused when a signature or acknowledgement row naming its file is already
  * committed when this statement starts.
  *
  * Those `not exists` checks do not see an answer committed after this statement begins. The race
@@ -150,7 +151,7 @@ export async function voidDocument(leadId: string, documentId: string, actor: st
   const rows = await db()`
     with voided as (
       update job_documents set status = 'void', voided_at = now(), updated_at = now()
-      where id = ${documentId} and lead_id = ${leadId} and status = 'sent'
+      where id = ${documentId} and lead_id = ${leadId} and (status = 'sent' or (status = 'completed' and response = 'view'))
         and not exists (select 1 from document_acknowledgements a where a.file_id = job_documents.file_id)
         and not exists (select 1 from contract_signatures s where s.file_id = job_documents.file_id)
       returning lead_id, file_id, title

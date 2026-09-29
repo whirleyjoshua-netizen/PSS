@@ -120,20 +120,20 @@ describe("markSent", () => {
 });
 
 describe("voidDocument", () => {
-  it("voids a sent, unanswered document, unshares its file and logs, in ONE statement", async () => {
+  it("voids a sent, unanswered document or a completed view document, unshares its file and logs, in ONE statement", async () => {
     sql.mockResolvedValueOnce([{ file_id: FILE }]);
     expect(await store.voidDocument(JOB, DOC, "o")).toBe(true);
     const s = text(sql.mock.calls[0]);
     for (const part of [
       "set status = 'void', voided_at = now()",
-      "where id = ? and lead_id = ? and status = 'sent'",
+      "where id = ? and lead_id = ? and (status = 'sent' or (status = 'completed' and response = 'view'))",
       "not exists (select 1 from document_acknowledgements a where a.file_id = job_documents.file_id)",
       "not exists (select 1 from contract_signatures s where s.file_id = job_documents.file_id)",
       "update job_files set shared_at = null where id = (select file_id from voided) and lead_id = ?",
       "'Voided \"' || title || '\"'",
     ]) expect(s).toContain(part);
   });
-  it("answers false when nothing was voided (completed, draft, or another job's)", async () => {
+  it("answers false when nothing was voided (signed, acknowledged, draft, or another job's)", async () => {
     sql.mockResolvedValueOnce([]);
     expect(await store.voidDocument(JOB, DOC, "o")).toBe(false);
   });

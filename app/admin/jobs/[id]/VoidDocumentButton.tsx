@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { voidDocumentAction } from "./document-actions";
 
-/** Withdraws a sent, unanswered document: its file is un-shared and it reads Void (spec §6). */
+/** Withdraws a sent, unanswered document or a view document: its file is un-shared and it reads Void (spec §6). */
 export function VoidDocumentButton({ jobId, documentId, title }: { jobId: string; documentId: string; title: string }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);

@@ -32,6 +32,11 @@ export function documentStatusLabel(doc: Pick<JobDocument, "status" | "response"
   return at ? `Sent ${formatShortDate(at)}` : "Sent";
 }
 
+/** As voidDocument allows: a sent document not yet answered, or a view document shared by mistake. */
+function canVoid(doc: Pick<JobDocument, "status" | "response">): boolean {
+  return doc.status === "sent" || (doc.status === "completed" && doc.response === "view");
+}
+
 /** Spec §6: create from a template, edit the draft, send; the list shows each document's state. */
 export async function DocumentsTab({ job, selectedId, sentNotice }: {
   job: Pick<Job, "id" | "email" | "status">;
@@ -62,7 +67,7 @@ export async function DocumentsTab({ job, selectedId, sentNotice }: {
               <span>{documentStatusLabel(doc)}</span>
               {doc.fileId ? <a href={`/admin/files/${doc.fileId}`} target="_blank" rel="noreferrer" className={TEXT_LINK}>PDF</a> : null}
               {doc.status === "draft" ? <Link href={`/admin/jobs/${job.id}?tab=documents&doc=${doc.id}`} className={TEXT_LINK}>Edit</Link> : null}
-              {doc.status === "sent" ? <VoidDocumentButton jobId={job.id} documentId={doc.id} title={doc.title} /> : null}
+              {canVoid(doc) ? <VoidDocumentButton jobId={job.id} documentId={doc.id} title={doc.title} /> : null}
             </li>
           ))}
         </ul>
