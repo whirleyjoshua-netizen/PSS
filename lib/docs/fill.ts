@@ -18,13 +18,15 @@ const present = (value: string | null | undefined): string | null => {
 /** Spec §3: every field's value for this job at `now`. Null means "no value": the marker stays. */
 export function fieldValues(job: FillJob, now: Date): FieldValues {
   const name = present(job.name);
+  // The first word of the name as it will print, so "- Ann Lee" gives "Ann", not a bare "-".
+  const firstName = name ? cleanValue(name).split(" ")[0] || null : null;
   const phone = present(job.phone);
   const sold = job.soldCents ?? null;
   const total = sold ?? job.quoteCents ?? null;
   const balance = balanceCents(sold, job.depositCents ?? null);
   return {
     client_name: name,
-    client_first_name: name ? name.split(/\s+/)[0] : null,
+    client_first_name: firstName,
     client_email: present(job.email),
     client_phone: phone ? formatPhone(phone) : null,
     address: present(job.address),

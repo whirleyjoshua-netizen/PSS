@@ -51,8 +51,21 @@ describe("fillFields", () => {
     const { text } = fillFields("{{client_name}}\n{{address}}", hostile);
     expect(text).toBe("Bob deposit\n12 Palm x");
   });
+  it("the first name is the first word of the cleaned name, never a heading or bullet mark", () => {
+    const hostile = fieldValues({ ...job, name: "## **Bob** {{deposit}}" }, NOW);
+    expect(hostile.client_first_name).toBe("Bob");
+    const first = fillFields("{{client_first_name}} agrees", hostile);
+    expect(first.text.startsWith("## ")).toBe(false);
+    expect(first).toEqual({ text: "Bob agrees", missing: [], unknown: [] });
+    expect(fillFields("Dear {{client_first_name}},\n{{client_name}}", fieldValues({ ...job, name: "- Ann Lee" }, NOW)))
+      .toEqual({ text: "Dear Ann,\nAnn Lee", missing: [], unknown: [] });
+    const everyField = fillFields(Object.keys(hostile).map((key) => `{{${key}}}`).join("\n"), hostile);
+    expect(everyField.missing).toEqual([]);
+    expect(everyField.text).not.toMatch(/\*|\{\{|^## /m);
+  });
   it("a value that cleans to nothing keeps its marker instead of printing a heading or bullet", () => {
-    const hostile = fieldValues({ ...job, name: "## **Bob** {{deposit}}", city: "-", address: "-" }, NOW);
+    const hostile = fieldValues({ ...job, name: "## -", city: "-", address: "-" }, NOW);
+    expect(hostile.client_first_name).toBeNull();
     const first = fillFields("{{client_first_name}} agrees", hostile);
     expect(first.text.startsWith("## ")).toBe(false);
     expect(first).toEqual({ text: "{{client_first_name}} agrees", missing: ["client_first_name"], unknown: [] });
