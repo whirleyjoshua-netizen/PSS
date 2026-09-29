@@ -1,11 +1,12 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { business } from "@/content/business";
 
 const send = vi.fn();
 vi.mock("resend", () => ({ Resend: class { emails = { send }; } }));
 const login = { issueCustomerLink: vi.fn(), INVITE_MINUTES: 7 * 24 * 60 };
 vi.mock("@/lib/portal/login", () => login);
-vi.mock("@/lib/leads/email", () => ({ ownerRecipients: () => ["owner@example.com"] }));
+const leads = { ownerRecipients: vi.fn() };
+vi.mock("@/lib/leads/email", () => leads);
 vi.mock("@/lib/admin/origin", () => ({ adminOrigin: () => "https://pss.test" }));
 const { notifyOwnersOfDocumentAcknowledgement, sendDocumentEmail } = await import("@/lib/docs/emails");
 
@@ -15,8 +16,11 @@ const job = { id: "11111111-1111-4111-8111-111111111111", name: "  Maria Lopez",
 beforeEach(() => {
   send.mockReset().mockResolvedValue({ error: null });
   login.issueCustomerLink.mockReset().mockResolvedValue(LINK);
+  leads.ownerRecipients.mockReset().mockReturnValue(["owner@example.com"]);
   vi.stubEnv("RESEND_API_KEY", "test-key");
 });
+
+afterEach(() => vi.unstubAllEnvs());
 
 describe("sendDocumentEmail", () => {
   it("asks the client to sign a sign document, with a sign-in link", async () => {
@@ -54,13 +58,25 @@ describe("notifyOwnersOfDocumentAcknowledgement", () => {
     const message = send.mock.calls[0][0];
     expect(message.to).toEqual(["owner@example.com"]);
     expect(message.replyTo).toBe("maria@example.com");
-    expect(message.subject).toBe("Document acknowledged: Service agreement — PSS-1048 — PSS-1048");
+    expect(message.subject).toBe("Document acknowledged: Service agreement — PSS-1048");
     expect(message.text).toContain("Acknowledged by: maria@example.com");
     expect(message.text).toContain("When:            Sep 28, 2026 at 12:05");
     expect(message.text).toContain("Open in tracker: https://pss.test/admin/jobs/11111111-1111-4111-8111-111111111111");
+    expect(message.text).toMatch(/^Maria Lopez acknowledged a document/);
+    expect(message.text).toContain("Project:         PSS-1048");
+  });
+  it("says \"The client\" when the job has no name", async () => {
+    await notifyOwnersOfDocumentAcknowledgement({ ...job, name: "   " }, "Service agreement", "maria@example.com", new Date());
+    expect(send.mock.calls[0][0].text).toMatch(/^The client acknowledged a document from their project page\./);
   });
   it("throws when not configured", async () => {
     vi.stubEnv("RESEND_API_KEY", "");
     await expect(notifyOwnersOfDocumentAcknowledgement(job, "t", "a@b.c", new Date())).rejects.toThrow("Acknowledgement notification email is not configured");
+    expect(send).not.toHaveBeenCalled();
+  });
+  it("throws when there are no owner recipients, sending nothing", async () => {
+    leads.ownerRecipients.mockReturnValue([]);
+    await expect(notifyOwnersOfDocumentAcknowledgement(job, "t", "a@b.c", new Date())).rejects.toThrow("Acknowledgement notification email is not configured");
+    expect(send).not.toHaveBeenCalled();
   });
 });

@@ -40,7 +40,8 @@ export async function sendDocumentEmail(job: Pick<Job, "name" | "email">, title:
 
 /**
  * Tells the owners a client acknowledged a document: who, which, when, where to open the job.
- * The typed name never appears; replyTo is the address the client is signed in as.
+ * The typed name never appears; replyTo is the address the client is signed in as. The subject
+ * carries only the title, so the project number is not repeated; the body has the Project: line.
  */
 export async function notifyOwnersOfDocumentAcknowledgement(
   job: { id: string; name: string; projectNo?: number | null },
@@ -53,7 +54,7 @@ export async function notifyOwnersOfDocumentAcknowledgement(
   if (!apiKey || to.length === 0) throw new Error("Acknowledgement notification email is not configured");
   const projectNo = formatProjectNo(job.projectNo);
   const text = [
-    `${job.name.trim()} acknowledged a document from their project page.`,
+    `${job.name.trim() || "The client"} acknowledged a document from their project page.`,
     "",
     `Acknowledged by: ${acknowledgedBy}`,
     `Document:        ${title}`,
@@ -64,7 +65,7 @@ export async function notifyOwnersOfDocumentAcknowledgement(
   ].filter((line): line is string => line !== null).join("\n");
   const { error } = await new Resend(apiKey).emails.send({
     from: `${business.name} <${fromAddress()}>`, to, replyTo: acknowledgedBy,
-    subject: `Document acknowledged: ${title}${projectNo ? ` — ${projectNo}` : ""}`,
+    subject: `Document acknowledged: ${title}`,
     text,
   });
   if (error) throw new Error(`Resend rejected the acknowledgement notification: ${error.message}`);
