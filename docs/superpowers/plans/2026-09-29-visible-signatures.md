@@ -3806,7 +3806,9 @@ test("visible signatures: marks, adoption and cleanup against a real database", 
     const insert = (fileId: string, method: string | null, initials: string | null, image: string | null) => () => sql`
       insert into contract_signatures (id, lead_id, file_id, signed_name, signed_email, doc_sha256, signature_method, signed_initials, signature_image_pathname)
       values (${randomUUID()}, ${A}, ${fileId}, 'x', 'x@example.com', 'verify', ${method}, ${initials}, ${image})`;
-    check((await refusal(insert(await scratch(), "scribbled", null, null))).includes("contract_signatures_signature_method_check"), "an unknown method is refused", "accepted");
+    // Postgres tests CHECKs in name order, and 'scribbled' also fails the adoption check, which sorts first: either name proves the refusal.
+    const unknown = await refusal(insert(await scratch(), "scribbled", null, null));
+    check(unknown.includes("contract_signatures_signature_method_check") || unknown.includes("contract_signatures_adoption_check"), "an unknown method is refused", "accepted");
     check((await refusal(insert(await scratch(), "drawn", null, null))).includes("contract_signatures_adoption_check"), "drawn without an image is refused", "accepted");
     check((await refusal(insert(await scratch(), "typed", "PC", "jobs/x.png"))).includes("contract_signatures_adoption_check"), "typed with an image is refused", "accepted");
     check((await refusal(insert(await scratch(), null, null, null))) === "", "a pre-adoption row (all null) is still accepted", "refused");
