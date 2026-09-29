@@ -37,7 +37,14 @@ export async function setChoicesAction(jobId: string, versionId: string, choices
 export async function sendContractAction(jobId: string, versionId: string, fingerprint: string): Promise<{ error?: string; ok?: boolean; emailed?: boolean }> {
   const admin = await requireAdmin();
   if (typeof fingerprint !== "string" || fingerprint.length > 50_000) return { error: "Reload the page and try again." };
-  const result = await sendContract({ jobId, versionId, fingerprint, actor: admin.email });
+  let result: Awaited<ReturnType<typeof sendContract>>;
+  try {
+    result = await sendContract({ jobId, versionId, fingerprint, actor: admin.email });
+  } catch (error) {
+    // Blob or pdf-lib can throw. The owner gets a plain answer, not the error page.
+    console.error("Sending the contract failed", error);
+    return { error: "The contract could not be sent. Try again, and if it keeps failing, contact support." };
+  }
   if ("error" in result) return { error: result.error };
   refresh(jobId);
   return { ok: true, emailed: result.emailed };
@@ -56,6 +63,12 @@ export async function checkNowAction(jobId: string): Promise<{ message: string }
   const { seen, results } = polled;
   refresh(jobId);
   const imported = results.filter((r) => r.outcome === "imported").length;
+  const failed = results.filter((r) => r.outcome === "failed").length;
   if (seen === 0 || results.length === 0) return { message: "No new Dealer Copies." };
-  return { message: imported > 0 ? `Imported ${imported}.` : "Checked. Nothing new to import (the owners were emailed about anything that needs fixing)." };
+  // A failure is never emailed on the spot, so it must be said here rather than hidden behind "the owners were emailed".
+  const parts = [
+    imported > 0 ? `Imported ${imported}.` : null,
+    failed > 0 ? `${failed} Dealer ${failed === 1 ? "Copy" : "Copies"} could not be imported. Try again shortly.` : null,
+  ].filter((p): p is string => p !== null);
+  return { message: parts.length > 0 ? parts.join(" ") : "Checked. Nothing new to import (the owners were emailed about anything that needs fixing)." };
 }

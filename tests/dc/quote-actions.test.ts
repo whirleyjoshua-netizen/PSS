@@ -109,6 +109,17 @@ describe("sendContractAction", () => {
     expect(revalidatePath).not.toHaveBeenCalled();
   });
 
+  it("an unexpected failure inside Send (Blob, pdf-lib) is logged and answered plainly, not thrown", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    sendContract.mockRejectedValueOnce(new Error("Blob put failed"));
+    expect(await sendContractAction(J, V, FP)).toEqual({
+      error: "The contract could not be sent. Try again, and if it keeps failing, contact support.",
+    });
+    expect(error).toHaveBeenCalledWith("Sending the contract failed", expect.any(Error));
+    expect(revalidatePath).not.toHaveBeenCalled();
+    error.mockRestore();
+  });
+
   it("refuses a fingerprint that is not a string or is huge", async () => {
     expect(await sendContractAction(J, V, 5 as unknown as string)).toEqual({ error: "Reload the page and try again." });
     expect(await sendContractAction(J, V, "x".repeat(50_001))).toEqual({ error: "Reload the page and try again." });
@@ -135,6 +146,20 @@ describe("checkNowAction", () => {
     expect(await checkNowAction(J)).toEqual({ message: "Could not check the mailbox. Try again in a few minutes." });
     expect(error).toHaveBeenCalled();
     error.mockRestore();
+  });
+
+  it("says how many could not be imported, instead of claiming the owners were emailed", async () => {
+    pollMailbox.mockResolvedValueOnce({ seen: 2, results: [{ messageId: "a", outcome: "failed" }, { messageId: "b", outcome: "failed" }] });
+    expect(await checkNowAction(J)).toEqual({ message: "2 Dealer Copies could not be imported. Try again shortly." });
+    pollMailbox.mockResolvedValueOnce({ seen: 1, results: [{ messageId: "a", outcome: "failed" }] });
+    expect(await checkNowAction(J)).toEqual({ message: "1 Dealer Copy could not be imported. Try again shortly." });
+  });
+
+  it("keeps the import count when some imported and some failed", async () => {
+    pollMailbox.mockResolvedValueOnce({ seen: 3, results: [
+      { messageId: "a", outcome: "imported" }, { messageId: "b", outcome: "failed" }, { messageId: "c", outcome: "no-match" },
+    ] });
+    expect(await checkNowAction(J)).toEqual({ message: "Imported 1. 1 Dealer Copy could not be imported. Try again shortly." });
   });
 
   it("says when it checked mail but imported nothing", async () => {
