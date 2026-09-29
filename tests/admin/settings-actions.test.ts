@@ -124,7 +124,8 @@ describe("route settings action", () => {
 });
 
 describe("saveInstallRatesAction", () => {
-  const jobLevel = { minimumCents: "$1,500", hardSurfaceCents: "10", highLadderCents: "50", motorizedCents: "15.50", measureCents: "$75" };
+  const jobLevel = { minimumCents: "$1,500", hardSurfaceCents: "10", highLadderCents: "50", motorizedCents: "15.50", measureCents: "$75",
+    takedownCents: "18.60", shutterTakedownCents: "2.33", appSetupSmallCents: "69.75", appSetupLargeCents: "151.13" };
 
   it("checks the session before reading any input", async () => {
     requireAdmin.mockImplementationOnce(async () => {
@@ -153,7 +154,8 @@ describe("saveInstallRatesAction", () => {
         { treatment: "roller_shades", basis: "window", rateCents: 2500 },
         { treatment: "shutters", basis: "sq_ft", rateCents: 300 },
       ]),
-      { minimumCents: 150_000, hardSurfaceCents: 1000, highLadderCents: 5000, motorizedCents: 1550, measureCents: 7500 },
+      { minimumCents: 150_000, hardSurfaceCents: 1000, highLadderCents: 5000, motorizedCents: 1550, measureCents: 7500,
+        takedownCents: 1860, shutterTakedownCents: 233, appSetupSmallCents: 6975, appSetupLargeCents: 15_113 },
       "owner@example.com",
     );
     expect(saveInstallRates.mock.calls[0][0]).toHaveLength(2);
@@ -183,6 +185,13 @@ describe("saveInstallRatesAction", () => {
       error: "Measurement fee: Enter an amount, or 0",
       values: submitted,
     });
+    expect(saveInstallRates).not.toHaveBeenCalled();
+  });
+
+  it("names the extras box that is missing, and saves nothing", async () => {
+    const { appSetupLargeCents: _omit, ...submitted } = { ...jobLevel, "rate-roller_shades": "25", "basis-roller_shades": "window" };
+    const result = await saveInstallRatesAction({}, form(submitted));
+    expect(result.error).toBe("App set-up, 4–9 motors: Enter an amount, or 0");
     expect(saveInstallRates).not.toHaveBeenCalled();
   });
 

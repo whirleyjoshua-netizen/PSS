@@ -284,6 +284,10 @@ export const installSettingsSchema = z.object({
   highLadderCents: rateAmount,
   motorizedCents: rateAmount,
   measureCents: rateAmount,
+  takedownCents: rateAmount,
+  shutterTakedownCents: rateAmount,
+  appSetupSmallCents: rateAmount,
+  appSetupLargeCents: rateAmount,
 });
 
 /** Whole eighths, as the Install tab sends them. The messages are shown to the owner as written. */

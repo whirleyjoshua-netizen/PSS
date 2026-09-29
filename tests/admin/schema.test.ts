@@ -256,7 +256,20 @@ describe("appointmentSchema length", () => {
 });
 
 describe("installation rate money fields", () => {
-  const settings = { minimumCents: "150", hardSurfaceCents: "0", highLadderCents: "50", motorizedCents: "15.50", measureCents: "$75" };
+  const settings = { minimumCents: "150", hardSurfaceCents: "0", highLadderCents: "50", motorizedCents: "15.50", measureCents: "$75", takedownCents: "18.60", shutterTakedownCents: "2.33", appSetupSmallCents: "$69.75", appSetupLargeCents: "151.13" };
+
+  it("parses the four extras rates as money", () => {
+    expect(installSettingsSchema.safeParse(settings).data).toMatchObject({
+      takedownCents: 1860, shutterTakedownCents: 233, appSetupSmallCents: 6975, appSetupLargeCents: 15_113,
+    });
+  });
+
+  it("requires each extras rate, even if it is 0", () => {
+    for (const key of ["takedownCents", "shutterTakedownCents", "appSetupSmallCents", "appSetupLargeCents"]) {
+      expect(installSettingsSchema.safeParse({ ...settings, [key]: "" }).success).toBe(false);
+      expect(installSettingsSchema.safeParse({ ...settings, [key]: "0" }).success).toBe(true);
+    }
+  });
 
   it("accepts money the way people type it", () => {
     const parsed = installSettingsSchema.safeParse({ ...settings, minimumCents: "$1,500" });

@@ -70,6 +70,10 @@ const SETTING_LABEL: Record<string, string> = {
   highLadderCents: "High ladder",
   motorizedCents: "Motorized",
   measureCents: "Measurement fee",
+  takedownCents: "Takedown, blinds or drapery",
+  shutterTakedownCents: "Takedown, shutters",
+  appSetupSmallCents: "App set-up, 1–3 motors",
+  appSetupLargeCents: "App set-up, 4–9 motors",
 };
 
 export async function saveInstallRatesAction(
@@ -85,6 +89,10 @@ export async function saveInstallRatesAction(
     highLadderCents: formData.get("highLadderCents") ?? "",
     motorizedCents: formData.get("motorizedCents") ?? "",
     measureCents: formData.get("measureCents") ?? "",
+    takedownCents: formData.get("takedownCents") ?? "",
+    shutterTakedownCents: formData.get("shutterTakedownCents") ?? "",
+    appSetupSmallCents: formData.get("appSetupSmallCents") ?? "",
+    appSetupLargeCents: formData.get("appSetupLargeCents") ?? "",
   });
   if (!settings.success) {
     const issue = settings.error.issues[0];
