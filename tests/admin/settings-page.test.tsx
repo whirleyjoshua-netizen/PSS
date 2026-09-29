@@ -40,6 +40,8 @@ const dcStore = {
   getDcSettings: vi.fn(async () => ({ termsPathname: null as string | null, termsUpdatedAt: null as Date | null, lastPolledAt: null })),
 };
 vi.mock("@/lib/dc/store", () => dcStore);
+const liveTemplateOfKind = vi.fn(async () => null as { updatedAt: Date } | null);
+vi.mock("@/lib/docs/templates", () => ({ liveTemplateOfKind }));
 const getDefaultAssignee = vi.fn(async (): Promise<string | null> => null);
 vi.mock("@/lib/admin/lead-settings", () => ({ getDefaultAssignee }));
 
@@ -53,6 +55,7 @@ beforeEach(() => {
   calendarEnabled.mockReset();
   getSyncState.mockReset();
   listTeam.mockReset().mockResolvedValue([]);
+  liveTemplateOfKind.mockReset().mockResolvedValue(null);
   vi.stubEnv("ADMIN_EMAILS", "owner@example.com");
 });
 
@@ -223,7 +226,7 @@ describe("Direct Connect sections", () => {
     render(await SettingsPage());
     expect(screen.getByLabelText("Duette % of MSRP")).toHaveValue("60");
     expect(screen.getByLabelText("Pirouette % of MSRP")).toHaveValue("");
-    expect(screen.getByRole("region", { name: "Contract terms" })).toHaveTextContent(/Terms last updated Sun, Sep 20/);
+    expect(screen.getByRole("region", { name: "Contract terms" })).toHaveTextContent("Using the uploaded PDF until you create terms on the Documents page.");
     const headings = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
     const at = (name: string) => headings.indexOf(name);
     expect(at("Installation rates")).toBeGreaterThanOrEqual(0);
@@ -232,9 +235,17 @@ describe("Direct Connect sections", () => {
     expect(at("Google Ads")).toBe(headings.length - 1);
   });
 
-  it("says contracts can't be sent until terms are uploaded", async () => {
+  it("says contracts can't be sent until terms are added", async () => {
     calendarEnabled.mockReturnValue(false);
     render(await SettingsPage());
-    expect(screen.getByText("No terms uploaded. Contracts can't be sent until you add them.")).toBeInTheDocument();
+    expect(screen.getByText("No contract terms yet. Contracts can't be sent until you add them on the Documents page.")).toBeInTheDocument();
+  });
+
+  it("says contracts use the terms template once one exists", async () => {
+    calendarEnabled.mockReturnValue(false);
+    liveTemplateOfKind.mockResolvedValueOnce({ updatedAt: new Date("2026-09-28T18:00:00Z") });
+    render(await SettingsPage());
+    expect(liveTemplateOfKind).toHaveBeenCalledWith("terms");
+    expect(screen.getByRole("region", { name: "Contract terms" })).toHaveTextContent("Contracts print the terms from the Documents page");
   });
 });

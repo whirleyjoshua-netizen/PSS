@@ -1,73 +1,24 @@
-"use client";
-
-import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { formatWhen } from "@/lib/admin/time";
-import { TERMS_MAX_BYTES, TERMS_NOT_A_PDF, TERMS_TOO_LARGE } from "@/lib/dc/terms";
 
-const FAILED = "Upload failed. Check your signal and try again.";
-
-async function postTerms(file: File): Promise<{ ok: true } | { error: string }> {
-  const data = new FormData();
-  data.append("file", file, file.name);
-  try {
-    const response = await fetch("/admin/settings/terms", { method: "POST", body: data });
-    if (response.status === 413) return { error: "That file is too large to upload." };
-    const body = await response.json().catch(() => null);
-    if (response.ok && body?.ok) return { ok: true };
-    return { error: body?.error ?? FAILED };
-  } catch {
-    return { error: FAILED };
-  }
-}
-
-/** The contract terms PDF appended to every contract sent from now on. */
-export function TermsSection({ updatedAt }: { updatedAt: Date | null }) {
-  const router = useRouter();
-  const [error, setError] = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
-  const label = updatedAt ? "Replace terms PDF" : "Upload terms PDF";
-
+/**
+ * Spec §8: contract terms are a template on the Documents page now. This line says which terms
+ * contracts use: the template, else a PDF uploaded before templates existed, else none.
+ */
+export function TermsSection({ template, legacyUpload }: { template: { updatedAt: Date } | null; legacyUpload: boolean }) {
   return (
     <section aria-labelledby="terms-heading" className="flex flex-col gap-2">
-      <h2 id="terms-heading" className="text-lg font-semibold">
-        Contract terms
-      </h2>
-      {updatedAt ? (
-        <p className="text-ink-soft">Terms last updated {formatWhen(updatedAt)}.</p>
+      <h2 id="terms-heading" className="text-lg font-semibold">Contract terms</h2>
+      {template ? (
+        <p className="text-ink-soft">Contracts print the terms from the Documents page, last updated {formatWhen(template.updatedAt)}.</p>
+      ) : legacyUpload ? (
+        <p className="text-ink-soft">Using the uploaded PDF until you create terms on the Documents page.</p>
       ) : (
-        <p className="text-overdue">No terms uploaded. Contracts can&apos;t be sent until you add them.</p>
+        <p className="text-overdue">No contract terms yet. Contracts can&apos;t be sent until you add them on the Documents page.</p>
       )}
-      <p className="text-sm text-ink-soft">Contracts already sent keep the terms they were sent with.</p>
-      <label className="inline-flex min-h-11 cursor-pointer items-center self-start border border-charcoal px-4 text-sm">
-        {pending ? "Uploading…" : label}
-        <input
-          type="file"
-          accept="application/pdf"
-          aria-label={label}
-          className="sr-only"
-          disabled={pending}
-          onChange={(event) => {
-            const file = event.target.files?.[0];
-            event.target.value = "";
-            if (!file) return;
-            // The route refuses the same files with the same words; checking here saves a slow upload.
-            if (file.type !== "application/pdf") return setError(TERMS_NOT_A_PDF);
-            if (file.size === 0 || file.size > TERMS_MAX_BYTES) return setError(TERMS_TOO_LARGE);
-            setError(null);
-            startTransition(async () => {
-              const result = await postTerms(file);
-              if ("error" in result) setError(result.error);
-              else router.refresh();
-            });
-          }}
-        />
-      </label>
-      {error ? (
-        <p role="alert" className="text-sm text-overdue">
-          {error}
-        </p>
-      ) : null}
+      <Link href="/admin/documents" className="self-start underline underline-offset-4">
+        {template ? "Edit terms on the Documents page" : "Open the Documents page"}
+      </Link>
     </section>
   );
 }

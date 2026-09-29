@@ -17,13 +17,14 @@ import { AdminAccessSection } from "./AdminAccessSection";
 import { getDcSettings, listMarkupRules, listSeenCollections } from "@/lib/dc/store";
 import { MarkupSection } from "./MarkupSection";
 import { TermsSection } from "./TermsSection";
+import { liveTemplateOfKind } from "@/lib/docs/templates";
 
 /** The team list, plus account and client-portal options as later portal steps land. */
 export default async function SettingsPage() {
   const admin = await requireAdmin();
   const enabled = calendarEnabled();
   // Read both together, so neither rejection is left unhandled while the other is awaited.
-  const [team, rates, installSettings, calendar, routeSettings, defaultAssignee, addedAdmins, rules, collections, dcSettings] = await Promise.all([
+  const [team, rates, installSettings, calendar, routeSettings, defaultAssignee, addedAdmins, rules, collections, dcSettings, termsTemplate] = await Promise.all([
     listTeam(),
     listInstallRates(),
     getInstallSettings(),
@@ -43,6 +44,7 @@ export default async function SettingsPage() {
     listMarkupRules(),
     listSeenCollections(),
     getDcSettings(),
+    liveTemplateOfKind("terms"),
   ]);
   const routeSetup = {
     map: Boolean(process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY && process.env.NEXT_PUBLIC_GOOGLE_MAP_ID),
@@ -61,7 +63,10 @@ export default async function SettingsPage() {
       <RoutesSection settings={routeSettings} setup={routeSetup} />
       <InstallRatesSection rates={rates} settings={installSettings} />
       <MarkupSection collections={collections} rules={rules} />
-      <TermsSection updatedAt={dcSettings.termsUpdatedAt} />
+      <TermsSection
+        template={termsTemplate ? { updatedAt: termsTemplate.updatedAt } : null}
+        legacyUpload={dcSettings.termsPathname !== null}
+      />
       <section aria-labelledby="outlook-heading" className="flex flex-col gap-2">
         <h2 id="outlook-heading" className="text-lg font-semibold">
           Outlook calendar
