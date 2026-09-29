@@ -33,6 +33,8 @@ export async function notifyOwnersOfSignature(
   stamped: boolean,
   /** The saved signed_at, so the email shows the time on record rather than the send time. */
   signedAt: Date,
+  /** The job document's title when the signed file is one: it is then worded as a document, not a contract. */
+  documentTitle: string | null = null,
 ): Promise<void> {
   const apiKey = process.env.RESEND_API_KEY;
   const to = ownerRecipients();
@@ -44,10 +46,10 @@ export async function notifyOwnersOfSignature(
 
   const projectNo = formatProjectNo(job.projectNo);
   const text = [
-    `${job.name} signed their contract from their project page.`,
+    documentTitle === null ? `${job.name} signed their contract from their project page.` : `${job.name} signed a document from their project page.`,
     "",
     `Signed by:   ${signedBy}`,
-    `Document:    ${documentName}`,
+    `Document:    ${documentTitle ?? documentName}`,
     // Both formatters are Las Vegas time, so the day and the time cannot disagree.
     `When:        ${formatShortDate(signedAt)} at ${formatTime(signedAt)}`,
     projectNo ? `Project:     ${projectNo}` : null,
@@ -63,7 +65,10 @@ export async function notifyOwnersOfSignature(
     from: `${business.name} <${from}>`,
     to,
     replyTo: signedBy,
-    subject: `Contract signed: ${documentName}${projectNo ? ` — ${projectNo}` : ""}`,
+    subject: documentTitle === null
+      ? `Contract signed: ${documentName}${projectNo ? ` — ${projectNo}` : ""}`
+      // A job document's title usually already carries the project number.
+      : `Document signed: ${documentTitle}${projectNo && !documentTitle.includes(projectNo) ? ` — ${projectNo}` : ""}`,
     text,
   });
 

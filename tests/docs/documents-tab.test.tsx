@@ -55,10 +55,12 @@ describe("DocumentsTab", () => {
     expect(options).toEqual(["Service agreement (Service agreement)"]);
     expect(screen.getByRole("button", { name: "Create document" })).toBeInTheDocument();
   });
-  it("lists documents with status, PDF and Void only while sent", async () => {
+  it("lists documents with status, PDF and Void only while sent, or once a view document is completed", async () => {
     listJobDocuments.mockResolvedValue([
       doc({ id: "d1", status: "sent", fileId: "f1", sentAt: new Date("2026-09-28T18:00:00Z"), title: "A" }),
       doc({ id: "d2", status: "completed", fileId: "f2", sentAt: new Date(), completedAt: new Date("2026-09-29T18:00:00Z"), title: "B" }),
+      doc({ id: "d3", status: "completed", response: "view", fileId: "f3", sentAt: new Date("2026-09-28T18:00:00Z"), completedAt: new Date("2026-09-28T18:00:00Z"), title: "C" }),
+      doc({ id: "d4", status: "completed", response: "sign", fileId: "f4", sentAt: new Date(), completedAt: new Date("2026-09-29T18:00:00Z"), title: "D" }),
     ]);
     render(await DocumentsTab({ job, selectedId: null, sentNotice: null }));
     const rows = within(screen.getByRole("list", { name: "Documents on this job" })).getAllByRole("listitem");
@@ -66,6 +68,18 @@ describe("DocumentsTab", () => {
     expect(within(rows[0]).getByRole("button", { name: "Void A" })).toBeInTheDocument();
     expect(within(rows[1]).getByText("Acknowledged Sep 29, 2026")).toBeInTheDocument();
     expect(within(rows[1]).queryByRole("button")).toBeNull();
+    expect(within(rows[2]).getByRole("button", { name: "Void C" })).toBeInTheDocument();
+    expect(within(rows[3]).queryByRole("button")).toBeNull();
+  });
+  it("links a signed document's PDF to its signed copy, and to the original until one exists", async () => {
+    listJobDocuments.mockResolvedValue([
+      doc({ id: "d1", status: "completed", response: "sign", fileId: "f1", signedFileId: "s1", sentAt: new Date(), completedAt: new Date(), title: "A" }),
+      doc({ id: "d2", status: "completed", response: "sign", fileId: "f2", signedFileId: null, sentAt: new Date(), completedAt: new Date(), title: "B" }),
+    ]);
+    render(await DocumentsTab({ job, selectedId: null, sentNotice: null }));
+    const rows = within(screen.getByRole("list", { name: "Documents on this job" })).getAllByRole("listitem");
+    expect(within(rows[0]).getByRole("link", { name: "PDF" })).toHaveAttribute("href", "/admin/files/s1");
+    expect(within(rows[1]).getByRole("link", { name: "PDF" })).toHaveAttribute("href", "/admin/files/f2");
   });
   it("opens a selected draft with its blockers, Send disabled", async () => {
     listJobDocuments.mockResolvedValue([doc({})]);

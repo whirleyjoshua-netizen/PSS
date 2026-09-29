@@ -1,5 +1,5 @@
 import "server-only";
-import { PDFDocument, StandardFonts, rgb, type PDFPage } from "pdf-lib";
+import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import { business } from "@/content/business";
 import { formatShortDate } from "@/lib/admin/time";
 import { contractRows, winAnsiSafe, type ContractInput } from "./contract-layout";
@@ -11,6 +11,21 @@ const COLS = { room: MARGIN, product: MARGIN + 95, qty: 430, unit: 470, total: 5
 
 /** The terms a contract prints: the terms template's filled text, or (legacy) the uploaded PDF. */
 export type ContractTerms = { text: string } | { pdf: Uint8Array };
+
+/** The "Terms and Conditions" pages, from a new page. Same fonts and margins as the contract; the signed PDF then carries the exact terms signed. */
+function drawTerms(doc: PDFDocument, regular: PDFFont, bold: PDFFont, text: string): void {
+  const pen: PdfPen = { doc, page: doc.addPage(LETTER), y: LETTER[1] - MARGIN, regular, bold };
+  pen.page.drawText("Terms and Conditions", { x: MARGIN, y: pen.y, size: 14, font: bold, color: rgb(0.1, 0.1, 0.1) });
+  pen.y -= 26;
+  renderBlocks(pen, parseDocText(text));
+}
+
+/** The terms pages alone, drawn exactly as buildContractPdf prints them: the terms template's Preview PDF. */
+export async function buildTermsPdf(text: string): Promise<Uint8Array> {
+  const doc = await PDFDocument.create();
+  drawTerms(doc, await doc.embedFont(StandardFonts.Helvetica), await doc.embedFont(StandardFonts.HelveticaBold), text);
+  return doc.save();
+}
 
 /** Page 1+: the priced contract. Then the terms: drawn from the terms template, or the uploaded PDF page for page. Signing stamps it later. */
 export async function buildContractPdf(input: ContractInput, terms: ContractTerms): Promise<Uint8Array> {
@@ -72,11 +87,7 @@ export async function buildContractPdf(input: ContractInput, terms: ContractTerm
   text("The terms and conditions on the following pages are part of this contract.", MARGIN, 9);
 
   if ("text" in terms) {
-    // Same fonts and margins as the contract; the signed PDF then carries the exact terms signed.
-    const pen: PdfPen = { doc, page: doc.addPage(LETTER), y: LETTER[1] - MARGIN, regular, bold };
-    pen.page.drawText("Terms and Conditions", { x: MARGIN, y: pen.y, size: 14, font: bold, color: rgb(0.1, 0.1, 0.1) });
-    pen.y -= 26;
-    renderBlocks(pen, parseDocText(terms.text));
+    drawTerms(doc, regular, bold, terms.text);
   } else {
     const uploaded = await PDFDocument.load(terms.pdf);
     const copied = await doc.copyPages(uploaded, uploaded.getPageIndices());

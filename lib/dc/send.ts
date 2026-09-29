@@ -6,9 +6,9 @@ import { getJob, type Job } from "@/lib/admin/jobs";
 import { listInstallQuotes } from "@/lib/admin/install-quotes";
 import { formatCents } from "@/lib/admin/money";
 import { formatProjectNo } from "@/lib/portal/project-no";
-import { FIELD_KEYS, TERMS_FIELDS } from "@/lib/docs/fields";
-import { fieldValues, fillFields, type FieldValues } from "@/lib/docs/fill";
+import { fillFields, termsFieldValues } from "@/lib/docs/fill";
 import { remainingMarkers } from "@/lib/docs/parse";
+import { STARTER_TERMS } from "@/lib/docs/starter-terms";
 import { liveTemplateOfKind, type DocumentTemplate } from "@/lib/docs/templates";
 import { buildContractPdf, type ContractTerms } from "./contract-pdf";
 import { pickInstallQuote, priceVersion, pricingFingerprint, sendBlockers, type InstallChoice, type PricedVersion } from "./pricing";
@@ -44,14 +44,20 @@ function frozenPrice(version: StoredVersion): PricedVersion {
  * marker (a total, a deposit) stays and refuses, so terms never print a figure beside the contract's.
  */
 function fillTerms(template: DocumentTemplate, job: Job, now: Date): { text: string } | { error: string } {
-  const all = fieldValues(job, now);
-  const values = Object.fromEntries(FIELD_KEYS.map((key) => [key, TERMS_FIELDS.includes(key) ? all[key] : null])) as FieldValues;
-  const filled = fillFields(template.body, values);
+  const filled = fillFields(template.body, termsFieldValues(job, now));
   const left = remainingMarkers(filled.text);
   if (left.length > 0) {
     return { error: `Your contract terms have ${left.join(", ")} with no value for this job. Fix the terms on the Documents page.` };
   }
   return { text: filled.text };
+}
+
+/** The starter terms banner (their first line), which the owner deletes once an attorney has reviewed them. */
+const STARTER_DRAFT_LINE = STARTER_TERMS.split("\n")[0].trim();
+
+/** True while the terms still carry the starter DRAFT banner as one of their lines. */
+function carriesDraftLine(body: string): boolean {
+  return body.split("\n").some((line) => line.trim() === STARTER_DRAFT_LINE);
 }
 
 /** The review plus the job and settings it was computed from, so Send uses the very same reads. */
@@ -84,6 +90,7 @@ async function review(jobId: string): Promise<{ review: Review; job: Job; settin
   if (termsTemplate) {
     const filled = fillTerms(termsTemplate, job, new Date());
     if ("error" in filled) blockers.push(filled.error);
+    if (carriesDraftLine(termsTemplate.body)) blockers.push("Your contract terms still carry the DRAFT line. Remove it on the Documents page.");
   }
   return { review: { version, priced, blockers, fingerprint: pricingFingerprint(priced), install, rules, olderVersions }, job, settings, termsTemplate };
 }

@@ -83,14 +83,6 @@ export function parseDocText(source: string): Block[] {
 
 const unique = (values: string[]): string[] => [...new Set(values)];
 
-/** Every marker's trimmed key, once each, in order of first appearance. */
-export const findFieldKeys = (text: string): string[] =>
-  unique([...text.matchAll(markerPattern())].map((match) => match[1].trim()));
-
-/** The keys used in `text` that `allowed` does not contain. */
-export const unknownFields = (text: string, allowed: readonly string[]): string[] =>
-  findFieldKeys(text).filter((key) => !allowed.includes(key));
-
 /** The markers still in `text`, exactly as written, once each. Send is blocked while any remain. */
 export const remainingMarkers = (text: string): string[] =>
   unique([...text.matchAll(markerPattern())].map((match) => match[0]));

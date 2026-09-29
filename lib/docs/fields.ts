@@ -27,8 +27,6 @@ export const FIELD_KEYS: readonly FieldKey[] = FIELDS.map((field) => field.key);
 export const isFieldKey = (value: unknown): value is FieldKey =>
   typeof value === "string" && (FIELD_KEYS as readonly string[]).includes(value);
 
-export const fieldLabel = (key: FieldKey): string => FIELDS.find((field) => field.key === key)!.label;
-
 /** Terms are printed inside every contract, so they may use only what exists at contract time. */
 export const TERMS_FIELDS: readonly FieldKey[] = [
   "client_name", "project_no", "today", "company_name", "company_phone", "company_email",

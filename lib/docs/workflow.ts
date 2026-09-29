@@ -12,7 +12,6 @@ import { getTemplate } from "./templates";
 import { TITLE_MAX } from "./validate";
 
 export const SEND_RACE = "This document changed while you were sending. Reload and try again.";
-export { TITLE_MAX };
 
 /** Spec §6: every reason Send is disabled, each said plainly. The page and sendJobDocument share it. */
 export function documentSendBlockers(doc: Pick<JobDocument, "status" | "title" | "body">, job: Pick<Job, "email" | "status">): string[] {

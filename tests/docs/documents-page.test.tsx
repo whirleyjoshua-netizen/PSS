@@ -4,6 +4,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@/lib/admin/session", () => ({ requireAdmin: vi.fn(async () => ({ email: "o@x.com" })) }));
 const listTemplates = vi.fn();
 vi.mock("@/lib/docs/templates", () => ({ listTemplates }));
+const getDcSettings = vi.fn();
+vi.mock("@/lib/dc/store", () => ({ getDcSettings }));
 vi.mock("@/app/admin/documents/actions", () => ({
   createTemplateAction: vi.fn(async () => ({})), saveTemplateAction: vi.fn(async () => ({})),
   archiveTemplateAction: vi.fn(), startStarterTermsAction: vi.fn(),
@@ -16,7 +18,10 @@ const actions = vi.mocked(await import("@/app/admin/documents/actions"));
 const template = (over: Record<string, unknown>) => ({ id: "t1", name: "Service agreement", kind: "service_agreement", response: "acknowledge",
   body: "x", archivedAt: null, createdBy: null, updatedBy: null, createdAt: new Date(), updatedAt: new Date("2026-09-28T18:00:00Z"), ...over });
 
-beforeEach(() => listTemplates.mockReset().mockResolvedValue([]));
+beforeEach(() => {
+  listTemplates.mockReset().mockResolvedValue([]);
+  getDcSettings.mockReset().mockResolvedValue({ termsPathname: null, termsUpdatedAt: null, lastPolledAt: null });
+});
 
 describe("Documents page", () => {
   it("groups live templates as Contract terms, Client documents and Portal guides", async () => {
@@ -32,6 +37,19 @@ describe("Documents page", () => {
     render(await DocumentsPage({ searchParams: Promise.resolve({}) }));
     expect(within(screen.getByRole("region", { name: "Contract terms" }))
       .getByRole("button", { name: "Start from the Premier Shade starter terms" })).toBeInTheDocument();
+  });
+  it("says contracts use the uploaded PDF when there is no terms template but an upload, and still offers the starter", async () => {
+    getDcSettings.mockResolvedValue({ termsPathname: "settings/terms.pdf", termsUpdatedAt: null, lastPolledAt: null });
+    render(await DocumentsPage({ searchParams: Promise.resolve({}) }));
+    const terms = within(screen.getByRole("region", { name: "Contract terms" }));
+    expect(terms.getByText("Contracts use your uploaded PDF. Creating terms here replaces it in every contract from then on.")).toBeInTheDocument();
+    expect(terms.queryByText(/No contract terms yet/)).toBeNull();
+    expect(terms.getByRole("button", { name: "Start from the Premier Shade starter terms" })).toBeInTheDocument();
+  });
+  it("says contracts can't be sent with neither a terms template nor an upload", async () => {
+    render(await DocumentsPage({ searchParams: Promise.resolve({}) }));
+    expect(within(screen.getByRole("region", { name: "Contract terms" }))
+      .getByText("No contract terms yet. Contracts can't be sent until you add them.")).toBeInTheDocument();
   });
   it("hides the starter once terms exist", async () => {
     listTemplates.mockResolvedValue([template({ kind: "terms", name: "Contract terms", response: "view" })]);
@@ -49,6 +67,18 @@ describe("TemplateForm", () => {
     const fields = [...(screen.getByLabelText("Insert field") as HTMLSelectElement).options].map((o) => o.value).filter(Boolean);
     expect(fields).toEqual(["client_name", "project_no", "today", "company_name", "company_phone", "company_email"]);
     expect(screen.getByRole("button", { name: "Create template" })).toBeInTheDocument();
+  });
+  it("previews with the kind, so terms render as the contract prints them", () => {
+    const posted: Record<string, string>[] = [];
+    const submit = vi.spyOn(HTMLFormElement.prototype, "submit").mockImplementation(function (this: HTMLFormElement) {
+      posted.push(Object.fromEntries([...new FormData(this).entries()].map(([k, v]) => [k, String(v)])));
+    });
+    render(<TemplateForm template={null} />);
+    fireEvent.change(screen.getByLabelText("Kind"), { target: { value: "terms" } });
+    fireEvent.change(screen.getByLabelText("Text"), { target: { value: "## T" } });
+    fireEvent.click(screen.getByRole("button", { name: "Preview PDF" }));
+    expect(posted).toEqual([expect.objectContaining({ kind: "terms", response: "view", body: "## T" })]);
+    submit.mockRestore();
   });
   it("offers no field at all for a guide", () => {
     render(<TemplateForm template={null} />);

@@ -4,7 +4,7 @@ import { balanceCents, formatCents } from "@/lib/admin/money";
 import { formatDateOnly, formatShortDate } from "@/lib/admin/time";
 import { formatPhone } from "@/lib/leads/schema";
 import { formatProjectNo } from "@/lib/portal/project-no";
-import { isFieldKey, markerPattern, type FieldKey } from "./fields";
+import { FIELD_KEYS, TERMS_FIELDS, isFieldKey, markerPattern, type FieldKey } from "./fields";
 
 export type FillJob = Pick<Job, "name" | "email" | "phone" | "address" | "city" | "projectNo" | "soldCents" | "quoteCents" | "depositCents" | "installOn">;
 export type FieldValues = Record<FieldKey, string | null>;
@@ -56,6 +56,15 @@ export function cleanValue(value: string): string {
     .trim()
     .replace(/^(?:(?:#{2,}|-)(?:\s+|$))+/, "")
     .trim();
+}
+
+/**
+ * Spec §8: the values contract terms may print. Only TERMS_FIELDS are filled: any other marker (a
+ * total, a deposit) stays, so terms never print a figure beside the contract's.
+ */
+export function termsFieldValues(job: FillJob, now: Date): FieldValues {
+  const all = fieldValues(job, now);
+  return Object.fromEntries(FIELD_KEYS.map((key) => [key, TERMS_FIELDS.includes(key) ? all[key] : null])) as FieldValues;
 }
 
 /** Replaces every marker it can. Spec §3: a field with no value stays `{{key}}`; unknown keys are reported. */

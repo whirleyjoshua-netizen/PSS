@@ -77,7 +77,7 @@ export function TemplateForm({ template }: {
         </p>
       ) : null}
       <DocEditor name="body" label="Text" defaultValue={template?.body ?? ""} mode="template" kind={kind}
-        titleField="name" previewExtras={{ response: singleton ? "view" : response }} onChange={() => setEdited(true)} />
+        titleField="name" previewExtras={{ kind, response: singleton ? "view" : response }} onChange={() => setEdited(true)} />
       {state.errors && state.errors.length > 0 ? (
         <ul aria-label="Template problems" className="flex flex-col gap-1 text-sm text-overdue">
           {state.errors.map((error) => <li key={error}>{error}</li>)}

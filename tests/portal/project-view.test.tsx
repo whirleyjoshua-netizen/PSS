@@ -276,6 +276,14 @@ describe("ProjectView contract signing", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Thank you — your contract was signed on");
   });
 
+  it("names the job document it lands back on, and offers it to sign as a document", async () => {
+    listSignatures.mockResolvedValue([{ signedAt: new Date("2026-09-18T17:00:00Z"), fileId: "c1", documentTitle: "Change order — PSS-1048" } as never]);
+    signableContracts.mockResolvedValue([{ id: "c2", name: "Service agreement — PSS-1048.pdf", document: { title: "Service agreement — PSS-1048", kind: "service_agreement" } } as never]);
+    render(await ProjectView({ job, justSigned: "1", justSignedFile: "c1" }));
+    expect(screen.getByRole("status")).toHaveTextContent("Thank you — you signed “Change order — PSS-1048” on Sep 18, 2026.");
+    expect(screen.getByText("Sign this document", { selector: "summary" })).toBeInTheDocument();
+  });
+
   // The lasting record: an ordinary visit, no ?signed hint at all.
   it("keeps a Signed line with a download link once the stamped copy exists", async () => {
     listSharedDocuments.mockResolvedValue([{ id: "c1", name: "Contract-1048.pdf", docType: "contract" }]);

@@ -23,8 +23,10 @@
  * To watch it fail (the only way to know it works), make one change at a time, re-run, restore:
  *  - markSent: delete `and title = ${input.title} and body = ${input.body}`: step 5's
  *    "a body other than the stored one is refused" fails.
- *  - voidDocument: delete `and status = 'sent'`: step 10's "voiding it again answers false" fails
- *    (step 11's "a completed view document cannot be voided" would fail next).
+ *  - voidDocument: delete the whole `and (status = 'sent' or ...)` clause: step 10's "voiding it
+ *    again answers false" fails. Narrow it to `and status = 'sent'`: step 11's "a completed view
+ *    document can be voided" fails. (Deleting only `and response = 'view'` fails no step: a
+ *    completed sign or acknowledge document always has the row its `not exists` guard refuses on.)
  *  - deleteFile: delete the `not exists (... job_documents ...)` clause: step 7's "nor delete it"
  *    fails with the job_documents_file_id_fkey violation instead of an answer.
  *  - acknowledgeableDocuments: delete `and d.status = 'sent'`: step 10's "a void document is not
@@ -365,8 +367,17 @@ test("Documents: templates, drafts, send, acknowledge, void and sign against a r
     const viewSent = await sendJobDocument({ jobId: A.id, documentId: d3, actor: ACTOR });
     const row4 = await docRow(d3);
     check("ok" in viewSent && row4.status === "completed" && row4.completed_at !== null, "a view document is completed on send", JSON.stringify(row4));
-    check((await voidDocument(A.id, d3, ACTOR)) === false, "a completed view document cannot be voided", "true");
-    check((await docRow(d3)).status === "completed", "and it stays completed", "changed");
+    const viewFileId = row4.file_id as string;
+    check((await fileRow(viewFileId)).shared_at !== null, "its PDF is shared", "unshared");
+    // A view document sent by mistake can be taken down (final review ruling I2).
+    check((await voidDocument(B.id, d3, ACTOR)) === false, "another job cannot void a completed view document", "true");
+    check((await docRow(d3)).status === "completed", "and it is still completed", "changed");
+    check((await voidDocument(A.id, d3, ACTOR)) === true, "a completed view document can be voided", "false");
+    const row4v = await docRow(d3);
+    check(row4v.status === "void" && row4v.voided_at !== null && (await fileRow(viewFileId)).shared_at === null,
+      "it is void and its file unshared", JSON.stringify(row4v));
+    check((await documentEvents(A.id)).includes(`Voided "${row4v.title as string}"`), "a Voided event names it", "no event");
+    check((await voidDocument(A.id, d3, ACTOR)) === false, "voiding it again answers false", "true");
 
     console.log("step 12: a sign document is signed through the contract path");
     const signTemplate = keepTemplate(await createTemplate({ name: "VERIFY Change order", kind: "change_order", response: "sign",

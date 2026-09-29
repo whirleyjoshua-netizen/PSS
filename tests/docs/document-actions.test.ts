@@ -4,7 +4,7 @@ const order: string[] = [];
 const requireAdmin = vi.fn(async () => { order.push("auth"); return { email: "owner@example.com" }; });
 vi.mock("@/lib/admin/session", () => ({ requireAdmin }));
 vi.mock("@/lib/admin/jobs", () => ({ isUuid: (id: string) => /^[0-9a-f-]{36}$/.test(id) }));
-const workflow = { createDocumentFromTemplate: vi.fn(), sendJobDocument: vi.fn(), TITLE_MAX: 200 };
+const workflow = { createDocumentFromTemplate: vi.fn(), sendJobDocument: vi.fn() };
 vi.mock("@/lib/docs/workflow", () => workflow);
 const store = { updateDraft: vi.fn(), discardDraft: vi.fn(), voidDocument: vi.fn() };
 vi.mock("@/lib/docs/job-documents", () => store);
