@@ -22,6 +22,7 @@ const redirect = vi.fn((path: string) => { throw new Error(`NEXT_REDIRECT ${path
 vi.mock("next/navigation", () => ({ redirect }));
 
 const { acknowledgeDocumentAction, acknowledgeDocumentFormAction } = await import("@/app/(site)/project/actions");
+const { TYPED_NAME_MAX } = await import("@/lib/portal/typed-name");
 
 const MINE = "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c";
 const THEIRS = "9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d";
@@ -88,6 +89,22 @@ describe("acknowledgeDocumentAction", () => {
     recordAcknowledgement.mockResolvedValue("already-acknowledged");
     expect(await acknowledgeDocumentAction(MINE, FILE, "John", true)).toBe("acknowledged");
     expect(pending).toHaveLength(0);
+  });
+  it("refuses a typed name longer than the cap, reading nothing, and takes one at the cap", async () => {
+    expect(await acknowledgeDocumentAction(MINE, FILE, "a".repeat(TYPED_NAME_MAX + 1), true)).toBe("invalid");
+    expect(acknowledgeableDocuments).not.toHaveBeenCalled();
+    expect(recordAcknowledgement).not.toHaveBeenCalled();
+    expect(await acknowledgeDocumentAction(MINE, FILE, ` ${"a".repeat(TYPED_NAME_MAX)} `, true)).toBe("acknowledged");
+    expect(recordAcknowledgement).toHaveBeenCalledTimes(1);
+  });
+  it("still answers acknowledged when the owners' email fails after the response", async () => {
+    notifyOwnersOfDocumentAcknowledgement.mockRejectedValue(new Error("resend down"));
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(await acknowledgeDocumentAction(MINE, FILE, "John Ramos", true)).toBe("acknowledged");
+    await expect(runAfter()).resolves.toBeUndefined();
+    expect(notifyOwnersOfDocumentAcknowledgement).toHaveBeenCalledTimes(1);
+    expect(logged).toHaveBeenCalled();
+    logged.mockRestore();
   });
   it("passes a blank-name refusal through", async () => {
     recordAcknowledgement.mockResolvedValue("invalid");

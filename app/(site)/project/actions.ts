@@ -18,6 +18,7 @@ import { formatProjectNo } from "@/lib/portal/project-no";
 import { notifyOwnersOfSignature, sendCustomerSignedCopy } from "@/lib/portal/send-signature-email";
 import { recordSignature, signableContracts, signatureFor, storeSignedCopy, type SignResult } from "@/lib/portal/sign";
 import { stampSignature } from "@/lib/portal/stamp";
+import { isTypedNameTooLong } from "@/lib/portal/typed-name";
 import { requestService } from "@/lib/portal/service-request";
 import { serviceRequestSchema } from "@/lib/portal/service-schema";
 import { destroyCustomerSession, requireCustomer } from "@/lib/portal/session";
@@ -262,6 +263,8 @@ export async function signContractAction(
   const job = jobs.find((candidate) => candidate.id === jobId);
   if (!job) return "not-found";
   if (!agreed) return "invalid";
+  // The column is text and a post can carry megabytes: refuse an overlong name before reading anything.
+  if (isTypedNameTooLong(name)) return "invalid";
 
   const contracts = await signableContracts(job.id);
   const file = contracts.find((candidate) => candidate.id === fileId);
@@ -366,6 +369,8 @@ export async function acknowledgeDocumentAction(jobId: string, fileId: string, n
   const job = jobs.find((candidate) => candidate.id === jobId);
   if (!job) return "not-found";
   if (!read) return "invalid";
+  // The same cap as signing, before anything is read.
+  if (isTypedNameTooLong(name)) return "invalid";
 
   const documents = await acknowledgeableDocuments(job.id);
   const doc = documents.find((candidate) => candidate.file.id === fileId);

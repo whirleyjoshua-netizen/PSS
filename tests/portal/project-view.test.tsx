@@ -473,6 +473,8 @@ describe("Needs your attention", () => {
     expect(within(region).getByRole("heading", { name: "Documents to sign" })).toBeInTheDocument();
     expect(within(region).getByRole("heading", { name: "Documents to acknowledge" })).toBeInTheDocument();
     expect(within(region).getByText("I have read Service agreement — PSS-1048")).toBeInTheDocument();
+    // Signing first: it is the more consequential of the two.
+    expect(within(region).getAllByRole("heading", { level: 3 }).map((h) => h.textContent)).toEqual(["Documents to sign", "Documents to acknowledge"]);
     expect(screen.queryByRole("heading", { name: "Your contract" })).toBeNull();
     // At the top: before the tracker.
     const regions = screen.getAllByRole("region").map((r) => r.getAttribute("aria-labelledby"));

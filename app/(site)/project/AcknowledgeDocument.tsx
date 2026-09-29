@@ -1,6 +1,7 @@
 import { business } from "@/content/business";
 import { formatShortDate } from "@/lib/admin/time";
 import type { Acknowledgement } from "@/lib/portal/acknowledge-document";
+import { TYPED_NAME_MAX } from "@/lib/portal/typed-name";
 import { acknowledgeDocumentFormAction } from "./actions";
 
 /**
@@ -29,7 +30,7 @@ export function AcknowledgeDocument({ jobId, document }: {
           </p>
           <label className="flex flex-col gap-1 text-sm">
             Your full name
-            <input type="text" name="acknowledgedName" required pattern=".*\S.*" title="Type your full name" autoComplete="name"
+            <input type="text" name="acknowledgedName" required maxLength={TYPED_NAME_MAX} pattern=".*\S.*" title="Type your full name" autoComplete="name"
               className="min-h-11 w-full border border-rule bg-ivory px-3" />
           </label>
           <label className="flex items-start gap-2 text-sm">

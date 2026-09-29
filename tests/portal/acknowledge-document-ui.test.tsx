@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { business } from "@/content/business";
 
 vi.mock("@/app/(site)/project/actions", () => ({ acknowledgeDocumentFormAction: vi.fn() }));
+const { TYPED_NAME_MAX } = await import("@/lib/portal/typed-name");
 const { AcknowledgeDocument, DocumentAcknowledgedNotice } = await import("@/app/(site)/project/AcknowledgeDocument");
 
 const JOB = "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c";
@@ -20,6 +21,7 @@ describe("AcknowledgeDocument", () => {
     expect(form.querySelector('input[name="fileId"]')).toHaveValue("f1");
     expect(within(form).getByRole("link", { name: `Open ${doc.file.name}` })).toHaveAttribute("href", "/project/files/f1");
     expect(within(form).getByLabelText("Your full name")).toBeRequired();
+    expect(within(form).getByLabelText("Your full name")).toHaveAttribute("maxLength", String(TYPED_NAME_MAX));
     expect(within(form).getByLabelText(`I have read ${doc.title}`)).toBeRequired();
     expect(within(form).getByRole("button", { name: "Acknowledge" })).toHaveAttribute("type", "submit");
   });

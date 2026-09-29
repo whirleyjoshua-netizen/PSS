@@ -26,7 +26,7 @@ export default async function ProjectJobPage({
       justAcknowledged={query.acknowledged ?? null}
       justSigned={query.signed ?? null}
       justSignedFile={query.file ?? null}
-        justDocAck={query.docAck ?? null}
+      justDocAck={query.docAck ?? null}
     />
   );
 }

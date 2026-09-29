@@ -7,6 +7,7 @@ import { business } from "@/content/business";
 vi.mock("@/app/(site)/project/actions", () => ({ signContractFormAction: vi.fn() }));
 
 const { SignContract, SignatureNotice } = await import("@/app/(site)/project/SignContract");
+const { TYPED_NAME_MAX } = await import("@/lib/portal/typed-name");
 
 const JOB = "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c";
 const FILE = { id: "22222222-2222-4222-8222-222222222222", name: "Contract - Living room.pdf" };
@@ -20,6 +21,8 @@ describe("SignContract", () => {
     const name = screen.getByLabelText("Your full name");
     expect(name).toHaveAttribute("name", "signedName");
     expect(name).toBeRequired();
+    // The same cap the action enforces, so the browser stops a name the server would refuse.
+    expect(name).toHaveAttribute("maxLength", String(TYPED_NAME_MAX));
     // A name of only spaces satisfies `required`; the pattern is what refuses it in the browser.
     expect(name).toHaveAttribute("pattern", String.raw`.*\S.*`);
     const pattern = new RegExp(`^(?:${name.getAttribute("pattern")})$`);
