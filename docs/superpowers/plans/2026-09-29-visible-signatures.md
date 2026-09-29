@@ -3021,3 +3021,535 @@ Claude-Session: https://claude.ai/code/session_01VsZpDCE8YaRq5jxSkaAZGj"
 ```
 
 ---
+
+## Task 12: The portal form — adopt by typing or drawing
+
+**Files:**
+- Create: `app/(site)/project/AdoptSignature.tsx`, `app/(site)/project/SignaturePad.tsx`, `app/(site)/project/hand-font.ts`
+- Modify: `app/(site)/project/SignContract.tsx` (the props type on line 12; the name label at lines 32–45; the checkbox at 46–49; the "missing" notice text on line 94), `tests/setup.ts`
+- Test: `tests/portal/sign-ui.test.tsx` (modify), `tests/portal/adopt-signature.test.tsx` (new)
+
+**Interfaces:**
+- Consumes:
+  - `INITIALS_INPUT_PATTERN`, `INITIALS_MAX`, `SIGNATURE_PAD`, `INITIALS_PAD`, `MAX_PIXEL_RATIO` and `PNG_DATA_URL_MAX` (Task 4, client-safe);
+  - `hasInitialMarks` (Task 3, client-safe);
+  - `type SignableFile` with `signMarks` (Task 8);
+  - `TYPED_NAME_MAX`;
+  - the TTF (Task 0).
+- Produces the form fields Task 11 reads:
+  - `signatureMethod`: hidden, `typed` or `drawn`;
+  - `signedName`;
+  - `signedInitials`: typed mode, only when the file has initial marks;
+  - `signatureImage` and `initialsImage`: drawn mode, PNG data URLs.
+- Accessible names Task 14 uses: "Your full name", "Your initials", the buttons "Type" and "Draw", canvases "Signature pad" and "Initials pad", and the checkbox "I agree to sign this {noun} electronically" plus " and to initial every numbered section" when the file has initial marks.
+
+Read `node_modules/next/dist/docs/01-app/03-api-reference/02-components/font.md` (the `next/font/local` section) before writing `hand-font.ts`. If the path differs, run `grep -rl "next/font/local" node_modules/next/dist/docs`.
+
+- [ ] **Step 1: Mock `next/font/local` for every test**
+
+Append to `tests/setup.ts`:
+
+```ts
+// next/font/local is a build-time transform. Under vitest it is a plain module that cannot load a
+// font file, and any component that imports app/(site)/project/hand-font.ts would fail to import.
+vi.mock("next/font/local", () => ({ default: () => ({ className: "font-hand", style: { fontFamily: "hand" } }) }));
+```
+
+- [ ] **Step 2: Write the failing tests** `tests/portal/adopt-signature.test.tsx`
+
+```tsx
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { PNG_DATA_URL_MAX } from "@/lib/portal/adoption-limits";
+
+vi.mock("@/app/(site)/project/actions", () => ({ signContractFormAction: vi.fn() }));
+const { SignContract } = await import("@/app/(site)/project/SignContract");
+
+const JOB = "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c";
+const MARKS = { initials: [{ page: 1, x: 502, y: 700, section: "4" }], signature: { page: 2, x: 154, y: 300 } };
+const FILE = { id: "22222222-2222-4222-8222-222222222222", name: "Contract.pdf", signMarks: MARKS };
+const PLAIN = { ...FILE, signMarks: { initials: [], signature: MARKS.signature } };
+const URL_OK = "data:image/png;base64,iVBORw0KGgo=";
+
+// jsdom may lack PointerEvent. A MouseEvent subclass carries clientX/clientY and pointerId.
+beforeAll(() => {
+  if (!("PointerEvent" in window)) {
+    class PointerEventPolyfill extends MouseEvent {
+      pointerId: number;
+      constructor(type: string, init: PointerEventInit = {}) { super(type, init); this.pointerId = init.pointerId ?? 1; }
+    }
+    Object.assign(window, { PointerEvent: PointerEventPolyfill });
+  }
+});
+
+const ctx = { beginPath: vi.fn(), moveTo: vi.fn(), lineTo: vi.fn(), stroke: vi.fn(), clearRect: vi.fn(), lineCap: "", lineJoin: "", strokeStyle: "", lineWidth: 0 };
+beforeEach(() => {
+  for (const fn of [ctx.beginPath, ctx.moveTo, ctx.lineTo, ctx.stroke, ctx.clearRect]) fn.mockClear();
+  vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(ctx as never);
+  vi.spyOn(HTMLCanvasElement.prototype, "toDataURL").mockReturnValue(URL_OK);
+  vi.spyOn(HTMLCanvasElement.prototype, "getBoundingClientRect").mockReturnValue({ left: 0, top: 0, width: 300, height: 100, right: 300, bottom: 100, x: 0, y: 0, toJSON: () => ({}) });
+  Object.defineProperty(window, "devicePixelRatio", { value: 3, configurable: true });
+});
+afterEach(() => vi.restoreAllMocks());
+
+const draw = (canvas: HTMLElement) => {
+  fireEvent.pointerDown(canvas, { clientX: 150, clientY: 50, pointerId: 1 });
+  fireEvent.pointerMove(canvas, { clientX: 200, clientY: 60, pointerId: 1 });
+  fireEvent.pointerUp(canvas, { clientX: 200, clientY: 60, pointerId: 1 });
+};
+const field = (form: HTMLFormElement, name: string) => form.querySelector<HTMLInputElement>(`[name="${name}"]`);
+
+describe("with JavaScript off (the server-rendered HTML)", () => {
+  it("is a typed form: method typed, name, initials, and no Draw and no pad", () => {
+    const html = renderToStaticMarkup(<SignContract jobId={JOB} file={FILE} />);
+    expect(html).toContain('name="signatureMethod" value="typed"');
+    expect(html).toContain('name="signedName"');
+    expect(html).toMatch(/name="signedInitials"[^>]*required/);
+    expect(html).not.toContain("<canvas");
+    expect(html).not.toContain(">Draw<");
+    expect(html).toContain("I agree to sign this contract electronically and to initial every numbered section");
+  });
+  it("asks for no initials when the document has no numbered sections", () => {
+    const html = renderToStaticMarkup(<SignContract jobId={JOB} file={PLAIN} />);
+    expect(html).not.toContain('name="signedInitials"');
+    expect(html).toContain("I agree to sign this contract electronically</label>");
+  });
+  it("asks for no initials on a hand-uploaded contract (no marks at all)", () => {
+    const html = renderToStaticMarkup(<SignContract jobId={JOB} file={{ id: FILE.id, name: FILE.name }} />);
+    expect(html).not.toContain('name="signedInitials"');
+  });
+});
+
+describe("typing", () => {
+  it("previews the name and initials in the handwriting font as they are typed", () => {
+    render(<SignContract jobId={JOB} file={FILE} />);
+    fireEvent.change(screen.getByLabelText("Your full name"), { target: { value: "Jane Doe" } });
+    fireEvent.change(screen.getByLabelText("Your initials"), { target: { value: "JD" } });
+    const preview = screen.getByTestId("signature-preview");
+    expect(preview).toHaveTextContent("Jane Doe");
+    expect(preview).toHaveTextContent("JD");
+    expect(preview.querySelector(".font-hand")).not.toBeNull();
+  });
+  it("limits typed initials in the browser as the server does", () => {
+    render(<SignContract jobId={JOB} file={FILE} />);
+    const initials = screen.getByLabelText("Your initials");
+    expect(initials).toHaveAttribute("maxLength", "6");
+    expect(initials).toBeRequired();
+    expect(initials).toHaveAttribute("pattern", "[A-Za-z][A-Za-z.\\- ]{0,5}");
+  });
+});
+
+describe("drawing", () => {
+  it("switches to two pads, posts method drawn, and drops the typed initials field", () => {
+    const { container } = render(<SignContract jobId={JOB} file={FILE} />);
+    const form = container.querySelector("form")!;
+    fireEvent.click(screen.getByRole("button", { name: "Draw" }));
+    expect(field(form, "signatureMethod")!.value).toBe("drawn");
+    expect(field(form, "signedInitials")).toBeNull();
+    expect(screen.getByLabelText("Signature pad").tagName).toBe("CANVAS");
+    expect(screen.getByLabelText("Initials pad").tagName).toBe("CANVAS");
+    expect(screen.getByLabelText("Your full name")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Type" }));
+    expect(field(form, "signatureMethod")!.value).toBe("typed");
+    expect(screen.queryByLabelText("Signature pad")).toBeNull();
+  });
+  it("shows only the signature pad when the document has no numbered sections", () => {
+    render(<SignContract jobId={JOB} file={PLAIN} />);
+    fireEvent.click(screen.getByRole("button", { name: "Draw" }));
+    expect(screen.getByLabelText("Signature pad")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Initials pad")).toBeNull();
+  });
+  it("carries the strokes as a PNG data URL, and Clear empties it", () => {
+    const { container } = render(<SignContract jobId={JOB} file={FILE} />);
+    const form = container.querySelector("form")!;
+    fireEvent.click(screen.getByRole("button", { name: "Draw" }));
+    draw(screen.getByLabelText("Signature pad"));
+    expect(field(form, "signatureImage")!.value).toBe(URL_OK);
+    expect(HTMLCanvasElement.prototype.toDataURL).toHaveBeenCalledWith("image/png");
+    fireEvent.click(screen.getByRole("button", { name: "Clear signature" }));
+    expect(field(form, "signatureImage")!.value).toBe("");
+    expect(ctx.clearRect).toHaveBeenCalled();
+  });
+  it("blocks the submit while a pad is empty: the carrier is required and not read-only", () => {
+    const { container } = render(<SignContract jobId={JOB} file={FILE} />);
+    const form = container.querySelector("form")!;
+    fireEvent.click(screen.getByRole("button", { name: "Draw" }));
+    const carrier = field(form, "signatureImage")!;
+    expect(carrier).toBeRequired();
+    expect(carrier).not.toHaveAttribute("readonly");
+    expect(carrier.checkValidity()).toBe(false);
+    draw(screen.getByLabelText("Signature pad"));
+    expect(carrier.checkValidity()).toBe(true);
+  });
+  it("refuses a drawing too large to send, and says so", () => {
+    vi.mocked(HTMLCanvasElement.prototype.toDataURL).mockReturnValue(`data:image/png;base64,${"A".repeat(PNG_DATA_URL_MAX)}`);
+    const { container } = render(<SignContract jobId={JOB} file={FILE} />);
+    fireEvent.click(screen.getByRole("button", { name: "Draw" }));
+    draw(screen.getByLabelText("Signature pad"));
+    expect(field(container.querySelector("form")!, "signatureImage")!.value).toBe("");
+    expect(screen.getByRole("alert")).toHaveTextContent("too detailed");
+  });
+});
+
+describe("the pad on a phone (Review Focus: mobile canvas)", () => {
+  it("never scrolls the page while drawing, and fits the screen", () => {
+    render(<SignContract jobId={JOB} file={FILE} />);
+    fireEvent.click(screen.getByRole("button", { name: "Draw" }));
+    const pad = screen.getByLabelText("Signature pad");
+    expect(pad).toHaveClass("touch-none");
+    expect(pad).toHaveClass("w-full");
+    expect(pad.style.maxWidth).toBe("600px");
+    expect(screen.getByLabelText("Initials pad").style.maxWidth).toBe("200px");
+  });
+  it("sizes the bitmap from its laid-out size at a pixel ratio capped at 2, and maps touches into it", () => {
+    render(<SignContract jobId={JOB} file={FILE} />);
+    fireEvent.click(screen.getByRole("button", { name: "Draw" }));
+    const pad = screen.getByLabelText("Signature pad") as HTMLCanvasElement;
+    draw(pad);
+    // Laid out 300 x 100 at devicePixelRatio 3, capped at 2: a 600 x 200 bitmap, within 1200 x 400.
+    expect([pad.width, pad.height]).toEqual([600, 200]);
+    // A touch at (150, 50) CSS px lands at (300, 100) in the bitmap.
+    expect(ctx.moveTo).toHaveBeenCalledWith(300, 100);
+  });
+});
+```
+
+In `tests/portal/sign-ui.test.tsx`, change the "names the empty field" expectation (line 99) to:
+
+```ts
+    expect(status).toHaveTextContent("please type your full name, add your initials or signature where asked, and tick the box to agree");
+```
+
+The other `SignContract` tests in that file keep passing unchanged. The name input keeps its label, `required`, `maxLength` and `pattern`, and the checkbox label without marks is unchanged.
+
+- [ ] **Step 3: Run the tests to see them fail**
+
+Run: `npx vitest run --maxWorkers=2 tests/portal/adopt-signature.test.tsx tests/portal/sign-ui.test.tsx`
+Expected: FAIL. There is no `signatureMethod`, no Draw button, and the old notice wording.
+
+- [ ] **Step 4: Write** `app/(site)/project/hand-font.ts`
+
+```ts
+import localFont from "next/font/local";
+
+/** The handwriting font the signed PDF draws with (lib/pdf/fonts), so the preview shows what will be stamped (spec §7). */
+export const handFont = localFont({ src: "../../../lib/pdf/fonts/GreatVibes-Regular.ttf", display: "swap" });
+```
+
+- [ ] **Step 5: Write** `app/(site)/project/SignaturePad.tsx`
+
+```tsx
+"use client";
+
+import { useRef, useState, type PointerEvent } from "react";
+import { MAX_PIXEL_RATIO, PNG_DATA_URL_MAX } from "@/lib/portal/adoption-limits";
+
+/**
+ * A drawing pad (spec §4). It uses pointer events, so a finger, a pen or a mouse all draw, and
+ * `touch-none` so drawing never scrolls the page. The bitmap is sized on the first stroke from the
+ * pad's laid-out size, at a pixel ratio capped at 2, so the PNG stays within the server's
+ * 1200 x 400. The strokes become a transparent PNG data URL, carried by a required text input: an
+ * empty pad blocks the submit. Rendered only after hydration, so JavaScript-off never meets it.
+ */
+export function SignaturePad({ name, label, maxWidth, maxHeight, value, onChange }: {
+  name: string;
+  /** "Signature" or "Initials": the canvas is "<label> pad", the button "Clear <label>". */
+  label: string;
+  maxWidth: number;
+  maxHeight: number;
+  value: string;
+  onChange: (dataUrl: string) => void;
+}) {
+  const canvas = useRef<HTMLCanvasElement>(null);
+  const drawing = useRef(false);
+  const [tooLarge, setTooLarge] = useState(false);
+  const lower = label.toLowerCase();
+
+  const context = (element: HTMLCanvasElement) => {
+    if (element.dataset.sized !== "1") {
+      const rect = element.getBoundingClientRect();
+      const ratio = Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO);
+      element.width = Math.max(1, Math.round(Math.min(rect.width, maxWidth) * ratio));
+      element.height = Math.max(1, Math.round(Math.min(rect.height, maxHeight) * ratio));
+      element.dataset.sized = "1";
+    }
+    const ctx = element.getContext("2d");
+    if (ctx) {
+      const rect = element.getBoundingClientRect();
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.strokeStyle = "#1a1a1a";
+      ctx.lineWidth = 2.5 * (rect.width ? element.width / rect.width : 1);
+    }
+    return ctx;
+  };
+
+  // Where the pointer is, in bitmap pixels: the pad may be laid out at any size.
+  const point = (event: PointerEvent<HTMLCanvasElement>) => {
+    const element = event.currentTarget;
+    const rect = element.getBoundingClientRect();
+    return {
+      x: (event.clientX - rect.left) * (rect.width ? element.width / rect.width : 1),
+      y: (event.clientY - rect.top) * (rect.height ? element.height / rect.height : 1),
+    };
+  };
+
+  const clear = () => {
+    const element = canvas.current;
+    if (element) element.getContext("2d")?.clearRect(0, 0, element.width, element.height);
+    onChange("");
+  };
+
+  const start = (event: PointerEvent<HTMLCanvasElement>) => {
+    const ctx = context(event.currentTarget);
+    if (!ctx) return;
+    event.preventDefault();
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    drawing.current = true;
+    const { x, y } = point(event);
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + 0.01, y); // a tap leaves a dot
+    ctx.stroke();
+  };
+
+  const move = (event: PointerEvent<HTMLCanvasElement>) => {
+    if (!drawing.current) return;
+    const ctx = event.currentTarget.getContext("2d");
+    if (!ctx) return;
+    event.preventDefault();
+    const { x, y } = point(event);
+    ctx.lineTo(x, y);
+    ctx.stroke();
+  };
+
+  const end = () => {
+    if (!drawing.current || !canvas.current) return;
+    drawing.current = false;
+    const url = canvas.current.toDataURL("image/png");
+    // The server refuses anything longer (lib/portal/adoption.ts): say so here, not after the post.
+    if (url.length > PNG_DATA_URL_MAX) {
+      setTooLarge(true);
+      clear();
+      return;
+    }
+    setTooLarge(false);
+    onChange(url);
+  };
+
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="text-sm">Draw your {lower}</span>
+      <canvas
+        ref={canvas}
+        role="img"
+        aria-label={`${label} pad`}
+        className="w-full touch-none border border-rule bg-ivory"
+        style={{ maxWidth, aspectRatio: `${maxWidth} / ${maxHeight}` }}
+        onPointerDown={start}
+        onPointerMove={move}
+        onPointerUp={end}
+        onPointerCancel={end}
+      />
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          onClick={() => {
+            setTooLarge(false);
+            clear();
+          }}
+          className="min-h-11 text-sm underline underline-offset-4"
+        >
+          Clear {lower}
+        </button>
+        {tooLarge ? <p role="alert" className="text-sm">That {lower} is too detailed to send. Clear it and draw it a little simpler.</p> : null}
+      </div>
+      {/* Carries the drawing. Required and NOT read-only (a read-only input is never validated), so an empty pad blocks the submit. */}
+      <input
+        className="sr-only"
+        tabIndex={-1}
+        aria-label={`${label} (required)`}
+        name={name}
+        value={value}
+        onChange={() => {}}
+        required
+      />
+    </div>
+  );
+}
+```
+
+- [ ] **Step 6: Write** `app/(site)/project/AdoptSignature.tsx`
+
+```tsx
+"use client";
+
+import { useState, useSyncExternalStore } from "react";
+import { INITIALS_INPUT_PATTERN, INITIALS_MAX, INITIALS_PAD, SIGNATURE_PAD } from "@/lib/portal/adoption-limits";
+import { TYPED_NAME_MAX } from "@/lib/portal/typed-name";
+import { handFont } from "./hand-font";
+import { SignaturePad } from "./SignaturePad";
+
+// False on the server and before hydration, true in a hydrated browser (the FilesTabs.tsx pattern).
+const subscribe = () => () => {};
+const useHydrated = () => useSyncExternalStore(subscribe, () => true, () => false);
+
+/**
+ * Adopting a signature (spec §4): Type (the default) or Draw. Typing works as a plain form post with
+ * JavaScript off. The switch, the live preview and the pads appear only once hydrated, so the
+ * server-rendered form is exactly the typed one. The full name is always typed: it is the printed
+ * name and the record.
+ */
+export function AdoptSignature({ needsInitials }: { needsInitials: boolean }) {
+  const hydrated = useHydrated();
+  const [method, setMethod] = useState<"typed" | "drawn">("typed");
+  const [name, setName] = useState("");
+  const [initials, setInitials] = useState("");
+  const [signatureImage, setSignatureImage] = useState("");
+  const [initialsImage, setInitialsImage] = useState("");
+  const drawn = hydrated && method === "drawn";
+  const tab = (active: boolean) =>
+    `min-h-11 flex-1 border border-charcoal px-4 font-display text-xs uppercase tracking-[0.2em] ${active ? "bg-charcoal text-ivory" : "text-charcoal"}`;
+
+  return (
+    <fieldset className="flex min-w-0 flex-col gap-3">
+      <legend className="mb-1 text-sm font-semibold">Adopt your signature</legend>
+      <input type="hidden" name="signatureMethod" value={drawn ? "drawn" : "typed"} />
+      {hydrated ? (
+        <div role="group" aria-label="How you sign" className="flex">
+          <button type="button" aria-pressed={!drawn} onClick={() => setMethod("typed")} className={tab(!drawn)}>Type</button>
+          <button type="button" aria-pressed={drawn} onClick={() => setMethod("drawn")} className={tab(drawn)}>Draw</button>
+        </div>
+      ) : null}
+      <label className="flex flex-col gap-1 text-sm">
+        Your full name
+        <input
+          type="text"
+          name="signedName"
+          required
+          maxLength={TYPED_NAME_MAX}
+          // `required` alone lets a name of only spaces through, which the action then refuses.
+          pattern=".*\S.*"
+          title="Type your full name"
+          autoComplete="name"
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+          className="min-h-11 w-full border border-rule bg-ivory px-3"
+        />
+      </label>
+      {!drawn && needsInitials ? (
+        <label className="flex flex-col gap-1 text-sm">
+          Your initials
+          <input
+            type="text"
+            name="signedInitials"
+            required
+            maxLength={INITIALS_MAX}
+            pattern={INITIALS_INPUT_PATTERN}
+            title="1 to 6 letters, starting with a letter"
+            autoComplete="off"
+            value={initials}
+            onChange={(event) => setInitials(event.target.value)}
+            className="min-h-11 w-28 border border-rule bg-ivory px-3"
+          />
+        </label>
+      ) : null}
+      {!drawn && hydrated ? (
+        <div data-testid="signature-preview" aria-hidden="true" className="flex flex-wrap items-end gap-6 border-b border-rule pb-1">
+          <span className={`${handFont.className} text-3xl`}>{name.trim() || "Your name"}</span>
+          {needsInitials ? <span className={`${handFont.className} text-2xl`}>{initials.trim() || "Initials"}</span> : null}
+        </div>
+      ) : null}
+      {drawn ? (
+        <>
+          <SignaturePad name="signatureImage" label="Signature" maxWidth={SIGNATURE_PAD.maxWidth} maxHeight={SIGNATURE_PAD.maxHeight}
+            value={signatureImage} onChange={setSignatureImage} />
+          {needsInitials ? (
+            <SignaturePad name="initialsImage" label="Initials" maxWidth={INITIALS_PAD.maxWidth} maxHeight={INITIALS_PAD.maxHeight}
+              value={initialsImage} onChange={setInitialsImage} />
+          ) : null}
+        </>
+      ) : null}
+    </fieldset>
+  );
+}
+```
+
+- [ ] **Step 7: Modify** `app/(site)/project/SignContract.tsx`
+
+1. Imports: add
+   ```ts
+   import { hasInitialMarks } from "@/lib/pdf/sign-marks";
+   import { AdoptSignature } from "./AdoptSignature";
+   ```
+   and remove the now-unused `TYPED_NAME_MAX` import.
+2. The props type on line 12 becomes:
+
+```tsx
+export function SignContract({ jobId, file }: { jobId: string; file: Pick<SignableFile, "id" | "name"> & { document?: SignableFile["document"]; signMarks?: SignableFile["signMarks"] } }) {
+```
+
+3. After the `noun` line, add:
+   ```tsx
+   const initialling = hasInitialMarks(file.signMarks);
+   ```
+4. Replace the "Your full name" `<label>…</label>` (lines 32–45) with:
+   ```tsx
+   <AdoptSignature needsInitials={initialling} />
+   ```
+5. The checkbox label text (line 48) becomes:
+   ```tsx
+   I agree to sign this {noun} electronically{initialling ? " and to initial every numbered section" : ""}
+   ```
+6. The "missing" notice (line 94) becomes:
+   ```tsx
+   "We could not record that signature: please type your full name, add your initials or signature where asked, and tick the box to agree, then sign again."
+   ```
+7. Update the component's doc comment:
+
+```tsx
+/**
+ * Signing one shared contract. Closed until opened, like ApproveQuote, so the customer reads
+ * what they are agreeing to before the button is reachable. The customer adopts a signature
+ * (AdoptSignature: typed by default, drawn with JavaScript) and, when the file has numbered
+ * sections, initials. With JavaScript off it is plain HTML: the reveal is the browser's and the
+ * submit is a typed form post.
+ */
+```
+
+`ProjectView.tsx` needs no change: it already passes the whole `SignableFile`, which now carries `signMarks`.
+
+- [ ] **Step 8: Run the tests, typecheck and lint**
+
+Run:
+```bash
+npx vitest run --maxWorkers=2 tests/portal/adopt-signature.test.tsx tests/portal/sign-ui.test.tsx tests/portal/project-view.test.tsx tests/portal/project-pages.test.tsx
+npm run typecheck
+npx eslint "app/(site)/project"
+```
+
+Expected: PASS and clean.
+
+If `project-view.test.tsx` or `project-pages.test.tsx` fail on `hand-font`, check that Step 1's global mock is in `tests/setup.ts`. Do not mock `hand-font` per file.
+
+- [ ] **Step 9: Power checks** (revert after each)
+  1. In `AdoptSignature`, render the switch unconditionally (drop `hydrated ?`). "is a typed form … no Draw" should go red.
+  2. Add `readOnly` to the carrier input. "blocks the submit while a pad is empty" should go red.
+  3. Change `MAX_PIXEL_RATIO` use to `window.devicePixelRatio`. "sizes the bitmap … capped at 2" should go red (900 x 300).
+  4. Remove `touch-none`. "never scrolls the page while drawing" should go red.
+  5. In `end`, drop the `PNG_DATA_URL_MAX` check. "refuses a drawing too large to send" should go red.
+
+- [ ] **Step 10: Commit**
+
+```bash
+git add "app/(site)/project/AdoptSignature.tsx" "app/(site)/project/SignaturePad.tsx" "app/(site)/project/hand-font.ts" "app/(site)/project/SignContract.tsx" tests/setup.ts tests/portal/sign-ui.test.tsx tests/portal/adopt-signature.test.tsx
+git commit -m "feat: clients adopt a signature by typing or drawing, and initials when the document has sections
+
+Power checks: <names>
+
+Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01VsZpDCE8YaRq5jxSkaAZGj"
+```
+
+---
