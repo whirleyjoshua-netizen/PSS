@@ -58,7 +58,9 @@ describe("AdminNav", () => {
       pathname.mockReturnValue(path);
       const { unmount } = render(<AdminNav email="owner@example.com" />);
       expect(within(column()).getByRole("link", { name: "Documents" })).toHaveAttribute("aria-current", "page");
-      expect(within(column()).getByRole("link", { name: "Settings" })).not.toHaveAttribute("aria-current");
+      for (const other of ["Jobs", "Schedule", "Settings"]) {
+        expect(within(column()).getByRole("link", { name: other })).not.toHaveAttribute("aria-current");
+      }
       unmount();
     }
   });

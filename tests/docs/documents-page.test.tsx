@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/admin/session", () => ({ requireAdmin: vi.fn(async () => ({ email: "o@x.com" })) }));
@@ -11,6 +11,7 @@ vi.mock("@/app/admin/documents/actions", () => ({
 
 const { default: DocumentsPage } = await import("@/app/admin/documents/page");
 const { TemplateForm } = await import("@/app/admin/documents/TemplateForm");
+const actions = vi.mocked(await import("@/app/admin/documents/actions"));
 
 const template = (over: Record<string, unknown>) => ({ id: "t1", name: "Service agreement", kind: "service_agreement", response: "acknowledge",
   body: "x", archivedAt: null, createdBy: null, updatedBy: null, createdAt: new Date(), updatedAt: new Date("2026-09-28T18:00:00Z"), ...over });
@@ -61,5 +62,72 @@ describe("TemplateForm", () => {
     expect(screen.getByLabelText("Client response")).toHaveValue("sign");
     expect(screen.getByLabelText("Text")).toHaveValue("## A");
     expect(screen.getByRole("button", { name: "Save template" })).toBeInTheDocument();
+  });
+});
+
+// React 19 resets a form after its action finishes. Every control must still show what the owner
+// chose, or the next save silently posts the mount-time value.
+describe("TemplateForm keeps the owner's values after the server answers", () => {
+  const value = (label: string) => (screen.getByLabelText(label) as HTMLInputElement).value;
+  const submit = async (name: string) => {
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name })); });
+  };
+  const editForm = () => {
+    render(<TemplateForm template={{ id: "t1", name: "SA", kind: "service_agreement", response: "sign", body: "## A" }} />);
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "  Padded name  " } });
+    fireEvent.change(screen.getByLabelText("Client response"), { target: { value: "acknowledge" } });
+    fireEvent.change(screen.getByLabelText("Text"), { target: { value: "typed {{client_name}}" } });
+  };
+
+  it("keeps name, response and text when a save is refused", async () => {
+    actions.saveTemplateAction.mockResolvedValueOnce({ errors: ["This template was archived. Reload the page."] });
+    editForm();
+    await submit("Save template");
+    await screen.findByRole("list", { name: "Template problems" });
+    const posted = actions.saveTemplateAction.mock.calls.at(-1)![1];
+    expect(posted.get("response")).toBe("acknowledge");
+    expect(value("Name")).toBe("  Padded name  ");
+    expect(value("Client response")).toBe("acknowledge");
+    expect(value("Text")).toBe("typed {{client_name}}");
+    expect(screen.getByText("Service agreement")).toBeInTheDocument();
+  });
+
+  it("shows what was saved, with the name trimmed as the store keeps it, and clears Saved. on the next edit", async () => {
+    actions.saveTemplateAction.mockResolvedValueOnce({ saved: true });
+    editForm();
+    await submit("Save template");
+    expect(await screen.findByRole("status")).toHaveTextContent("Saved.");
+    expect(value("Name")).toBe("Padded name");
+    expect(value("Client response")).toBe("acknowledge");
+    expect(value("Text")).toBe("typed {{client_name}}");
+    fireEvent.change(screen.getByLabelText("Text"), { target: { value: "typed again" } });
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+
+  it("keeps kind, name, a view-only response and text when a create is refused", async () => {
+    actions.createTemplateAction.mockResolvedValueOnce({ errors: ["There is already a live Contract terms template. Edit that one instead."] });
+    render(<TemplateForm template={null} />);
+    fireEvent.change(screen.getByLabelText("Kind"), { target: { value: "terms" } });
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "My terms" } });
+    fireEvent.change(screen.getByLabelText("Text"), { target: { value: "typed body" } });
+    await submit("Create template");
+    await screen.findByRole("list", { name: "Template problems" });
+    expect(value("Kind")).toBe("terms");
+    expect(value("Name")).toBe("My terms");
+    expect(value("Client response")).toBe("view");
+    expect(screen.getByLabelText("Client response")).toBeDisabled();
+    expect(value("Text")).toBe("typed body");
+  });
+});
+
+describe("starter terms button", () => {
+  it("is disabled while the starter terms are being created", async () => {
+    actions.startStarterTermsAction.mockImplementationOnce(() => new Promise(() => {}));
+    render(await DocumentsPage({ searchParams: Promise.resolve({}) }));
+    const button = screen.getByRole("button", { name: "Start from the Premier Shade starter terms" });
+    expect(button).toBeEnabled();
+    await act(async () => { fireEvent.click(button); });
+    expect(button).toBeDisabled();
+    expect(actions.startStarterTermsAction).toHaveBeenCalled();
   });
 });

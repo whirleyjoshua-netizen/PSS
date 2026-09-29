@@ -4,7 +4,7 @@ import { requireAdmin } from "@/lib/admin/session";
 import { formatWhen } from "@/lib/admin/time";
 import { TEMPLATE_GROUPS, docResponseLabel, templateGroup, templateKindLabel, type TemplateGroup } from "@/lib/docs/kinds";
 import { listTemplates } from "@/lib/docs/templates";
-import { startStarterTermsAction } from "./actions";
+import { StarterTermsButton } from "./StarterTermsButton";
 
 const EMPTY: Record<TemplateGroup, string> = {
   terms: "No contract terms yet. Contracts can't be sent until you add them.",
@@ -43,11 +43,7 @@ export default async function DocumentsPage({ searchParams }: { searchParams: Pr
                 ))}
               </ul>
             )}
-            {group.value === "terms" && !hasTerms ? (
-              <form action={startStarterTermsAction}>
-                <button type="submit" className={ACTION_LINK}>Start from the Premier Shade starter terms</button>
-              </form>
-            ) : null}
+            {group.value === "terms" && !hasTerms ? <StarterTermsButton /> : null}
           </section>
         );
       })}
