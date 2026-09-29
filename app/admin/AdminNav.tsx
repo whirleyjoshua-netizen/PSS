@@ -9,15 +9,16 @@ import { signOut } from "./actions";
 const LINKS: readonly { href: string; label: string; icon: IconName }[] = [
   { href: "/admin", label: "Jobs", icon: "jobs" },
   { href: "/admin/schedule", label: "Schedule", icon: "calendar" },
+  { href: "/admin/documents", label: "Documents", icon: "document" },
   { href: "/admin/settings", label: "Settings", icon: "settings" },
 ];
 
-/** A job page, including the new-job form, belongs under Jobs. */
+/** A job page, including the new-job form, belongs under Jobs; a template page under Documents. */
 function isActive(href: string, pathname: string): boolean {
   if (href === "/admin") {
     return pathname === "/admin" || pathname.startsWith("/admin/jobs/");
   }
-  return pathname === href;
+  return pathname === href || pathname.startsWith(`${href}/`);
 }
 
 /** "joshua.whirley@…" → "JW"; "owner@…" → "OW". */
