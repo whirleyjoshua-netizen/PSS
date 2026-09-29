@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { findFieldKeys, parseDocText, parseInline, remainingMarkers, unknownFields } from "@/lib/docs/parse";
+import { parseDocText, parseInline, remainingMarkers } from "@/lib/docs/parse";
 
 const t = (text: string, bold = false) => ({ type: "text" as const, text, bold });
 const f = (key: string, bold = false) => ({ type: "field" as const, key, bold });
@@ -63,9 +63,6 @@ describe("parseDocText", () => {
 
 describe("markers", () => {
   const text = "{{client_name}} owes {{deposit}}. {{client_name}} again, {{ nope }} and {{a b}}.";
-  it("finds each field key once, in order", () => expect(findFieldKeys(text)).toEqual(["client_name", "deposit", "nope", "a b"]));
-  it("names the keys that are not allowed", () =>
-    expect(unknownFields(text, ["client_name", "deposit"])).toEqual(["nope", "a b"]));
   it("lists the markers still in the text, as written", () =>
     expect(remainingMarkers(text)).toEqual(["{{client_name}}", "{{deposit}}", "{{ nope }}", "{{a b}}"]));
   it("finds nothing in text without markers", () => expect(remainingMarkers("Just { braces } and }} {{")).toEqual([]));

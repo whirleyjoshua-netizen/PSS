@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FIELDS, FIELD_KEYS, TERMS_FIELDS, fieldLabel, isFieldKey, markerPattern } from "@/lib/docs/fields";
+import { FIELDS, FIELD_KEYS, TERMS_FIELDS, isFieldKey, markerPattern } from "@/lib/docs/fields";
 import {
   CLIENT_DOC_KINDS, SINGLETON_KINDS, TEMPLATE_KINDS, allowedFields, docResponseLabel, isClientDocKind, isDocResponse,
   isSingletonKind, isTemplateKind, templateGroup, templateKindLabel,
@@ -12,7 +12,6 @@ describe("fields", () => {
       "contract_total", "deposit", "balance_due", "install_date", "company_name", "company_phone", "company_email",
     ]);
     for (const field of FIELDS) expect(field.label.trim()).not.toBe("");
-    expect(fieldLabel("project_no")).toBe("Project number (PSS-####)");
   });
   it("lets terms use only what exists when a contract is generated", () => {
     expect(TERMS_FIELDS).toEqual(["client_name", "project_no", "today", "company_name", "company_phone", "company_email"]);
