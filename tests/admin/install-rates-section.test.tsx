@@ -5,7 +5,7 @@ vi.mock("@/app/admin/settings/actions", () => ({ saveInstallRatesAction: vi.fn()
 
 const { InstallRatesSection } = await import("@/app/admin/settings/InstallRatesSection");
 
-const settings = { minimumCents: 15_000, hardSurfaceCents: 1000, highLadderCents: 5000, motorizedCents: 1500, measureCents: 7500 };
+const settings = { minimumCents: 15_000, hardSurfaceCents: 1000, highLadderCents: 5000, motorizedCents: 1500, measureCents: 7500, takedownCents: 1860, shutterTakedownCents: 233, appSetupSmallCents: 6975, appSetupLargeCents: 15_113 };
 
 describe("InstallRatesSection", () => {
   it("lists every installable treatment, and never the not-sure answer", () => {
@@ -24,6 +24,16 @@ describe("InstallRatesSection", () => {
   it("leaves an unconfigured rate blank rather than showing a misleading zero", () => {
     render(<InstallRatesSection rates={[]} settings={settings} />);
     expect(screen.getByLabelText("Shutters rate")).toHaveValue("");
+  });
+
+  it("shows the four extras rates in their own group", () => {
+    render(<InstallRatesSection rates={[]} settings={settings} />);
+    const extras = screen.getByRole("group", { name: "Extras" });
+    expect(within(extras).getByLabelText("Takedown, blinds or drapery (per window)")).toHaveValue("18.60");
+    expect(within(extras).getByLabelText("Takedown, shutters (per sq ft)")).toHaveValue("2.33");
+    expect(within(extras).getByLabelText("App set-up, 1–3 motors")).toHaveValue("69.75");
+    expect(within(extras).getByLabelText("App set-up, 4–9 motors")).toHaveValue("151.13");
+    expect(extras).toHaveTextContent("10 or more motors: you enter the set-up price on the job.");
   });
 
   it("shows the job-level numbers", () => {

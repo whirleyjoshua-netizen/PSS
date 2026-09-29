@@ -5,6 +5,7 @@ import type { Basis, InstallRate, InstallSettings } from "./install-pricing";
 
 const ZERO: InstallSettings = {
   minimumCents: 0, hardSurfaceCents: 0, highLadderCents: 0, motorizedCents: 0, measureCents: 0,
+  takedownCents: 0, shutterTakedownCents: 0, appSetupSmallCents: 0, appSetupLargeCents: 0,
 };
 
 /** Only treatments the owner has actually priced. A missing row is "not set yet". */
@@ -18,7 +19,8 @@ export async function listInstallRates(): Promise<InstallRate[]> {
 }
 
 export async function getInstallSettings(): Promise<InstallSettings> {
-  const rows = await db()`select minimum_cents, hard_surface_cents, high_ladder_cents, motorized_cents, measure_cents
+  const rows = await db()`select minimum_cents, hard_surface_cents, high_ladder_cents, motorized_cents, measure_cents,
+    takedown_cents, shutter_takedown_cents, app_setup_small_cents, app_setup_large_cents
     from install_settings where id = true`;
   const row = rows[0];
   if (!row) return ZERO;
@@ -28,6 +30,10 @@ export async function getInstallSettings(): Promise<InstallSettings> {
     highLadderCents: Number(row.high_ladder_cents),
     motorizedCents: Number(row.motorized_cents),
     measureCents: Number(row.measure_cents),
+    takedownCents: Number(row.takedown_cents),
+    shutterTakedownCents: Number(row.shutter_takedown_cents),
+    appSetupSmallCents: Number(row.app_setup_small_cents),
+    appSetupLargeCents: Number(row.app_setup_large_cents),
   };
 }
 
@@ -61,6 +67,10 @@ export async function saveInstallRates(
       high_ladder_cents = ${settings.highLadderCents},
       motorized_cents = ${settings.motorizedCents},
       measure_cents = ${settings.measureCents},
+      takedown_cents = ${settings.takedownCents},
+      shutter_takedown_cents = ${settings.shutterTakedownCents},
+      app_setup_small_cents = ${settings.appSetupSmallCents},
+      app_setup_large_cents = ${settings.appSetupLargeCents},
       updated_by = ${actor},
       updated_at = now()
     where id = true`;

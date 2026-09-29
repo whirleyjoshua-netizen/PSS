@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { appointmentSchema, detailsSchema, newJobSchema, handJobSchema, noteSchema, lostSchema, routeSettingsSchema, teamMemberSchema, installRateSchema, installSettingsSchema, installLinesSchema, installKindSchema, HAND_SOURCES, JOB_SOURCES } from "@/lib/admin/schema";
+import { appointmentSchema, detailsSchema, newJobSchema, handJobSchema, noteSchema, lostSchema, routeSettingsSchema, teamMemberSchema, installRateSchema, installSettingsSchema, installLinesSchema, installKindSchema, installExtrasSchema, HAND_SOURCES, JOB_SOURCES } from "@/lib/admin/schema";
 import { APPOINTMENT_KINDS } from "@/lib/admin/appointment-kinds";
 import { TEAM_ROLES } from "@/lib/admin/team-roles";
 
@@ -256,7 +256,20 @@ describe("appointmentSchema length", () => {
 });
 
 describe("installation rate money fields", () => {
-  const settings = { minimumCents: "150", hardSurfaceCents: "0", highLadderCents: "50", motorizedCents: "15.50", measureCents: "$75" };
+  const settings = { minimumCents: "150", hardSurfaceCents: "0", highLadderCents: "50", motorizedCents: "15.50", measureCents: "$75", takedownCents: "18.60", shutterTakedownCents: "2.33", appSetupSmallCents: "$69.75", appSetupLargeCents: "151.13" };
+
+  it("parses the four extras rates as money", () => {
+    expect(installSettingsSchema.safeParse(settings).data).toMatchObject({
+      takedownCents: 1860, shutterTakedownCents: 233, appSetupSmallCents: 6975, appSetupLargeCents: 15_113,
+    });
+  });
+
+  it("requires each extras rate, even if it is 0", () => {
+    for (const key of ["takedownCents", "shutterTakedownCents", "appSetupSmallCents", "appSetupLargeCents"]) {
+      expect(installSettingsSchema.safeParse({ ...settings, [key]: "" }).success).toBe(false);
+      expect(installSettingsSchema.safeParse({ ...settings, [key]: "0" }).success).toBe(true);
+    }
+  });
 
   it("accepts money the way people type it", () => {
     const parsed = installSettingsSchema.safeParse({ ...settings, minimumCents: "$1,500" });
@@ -340,5 +353,24 @@ describe("installLinesSchema", () => {
   it("accepts only estimate or final as a kind", () => {
     expect(installKindSchema.safeParse("final").success).toBe(true);
     expect(installKindSchema.safeParse("draft").success).toBe(false);
+  });
+});
+
+describe("installExtrasSchema", () => {
+  const ok = { takedownWindows: 3, shutterTakedownSqFt: 0, customSetupCents: null };
+  it("accepts whole numbers and a null set-up price", () => {
+    expect(installExtrasSchema.safeParse(ok).success).toBe(true);
+    expect(installExtrasSchema.safeParse({ ...ok, customSetupCents: 25_000 }).success).toBe(true);
+  });
+  it.each([
+    [{ takedownWindows: 1.5 }, "Enter a whole number of windows to take down"],
+    [{ takedownWindows: -1 }, "Enter a whole number of windows to take down"],
+    [{ shutterTakedownSqFt: 2.5 }, "Enter a whole number of square feet to take down"],
+    [{ customSetupCents: -1 }, "Enter a set-up price of $0 or more"],
+    [{ customSetupCents: 10.5 }, "Enter a set-up price of $0 or more"],
+  ])("refuses %o", (over, message) => {
+    const result = installExtrasSchema.safeParse({ ...ok, ...over });
+    expect(result.success).toBe(false);
+    expect(result.error?.issues[0].message).toBe(message);
   });
 });

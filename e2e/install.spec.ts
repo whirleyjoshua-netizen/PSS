@@ -28,7 +28,9 @@ const savedPrices = (page: import("@playwright/test").Page) =>
 async function resetRates() {
   await sql()`delete from install_rates`;
   await sql()`update install_settings set minimum_cents = 0, hard_surface_cents = 0,
-    high_ladder_cents = 0, motorized_cents = 0, measure_cents = 0, updated_by = null, updated_at = now()`;
+    high_ladder_cents = 0, motorized_cents = 0, measure_cents = 0,
+    takedown_cents = 0, shutter_takedown_cents = 0, app_setup_small_cents = 0, app_setup_large_cents = 0,
+    updated_by = null, updated_at = now()`;
 }
 
 test.beforeAll(async () => {
@@ -150,4 +152,107 @@ test("a charged measuring fee goes on top of the minimum, is saved as shown, and
   await expect(items.nth(0)).toContainText("Includes $90 measurement");
   await expect(items.nth(0)).not.toContainText(/minimum applied/i);
   await expect(items.nth(1)).toContainText("$225");
+});
+
+test("takedown and app set-up are priced, count toward the minimum, and every stored field matches the screen", async ({ page }) => {
+  const name = `E2E Install Extras ${Date.now()}`;
+  const [job] = await sql()`insert into leads (name, phone, email, city, source, status)
+    values (${name}, '7025550403', ${EMAIL}, 'Henderson', 'phone', 'quoted')
+    returning id`;
+  await signIn(page);
+
+  await page.goto("/admin/settings");
+  await page.getByLabel("Roller shades priced by").selectOption("window");
+  await page.getByLabel("Roller shades rate").fill("25");
+  await page.getByLabel("Minimum job cost").fill("150");
+  await page.getByLabel("Motorized").fill("0");
+  await page.getByLabel("Measurement fee").fill("0");
+  await page.getByLabel("Takedown, blinds or drapery (per window)").fill("18.60");
+  await page.getByLabel("Takedown, shutters (per sq ft)").fill("2.33");
+  await page.getByLabel("App set-up, 1–3 motors").fill("69.75");
+  await page.getByLabel("App set-up, 4–9 motors").fill("151.13");
+  await page.getByRole("button", { name: "Save rates" }).click();
+  await expect(page.getByRole("status")).toHaveText("Saved.");
+
+  await page.goto(`/admin/jobs/${job.id}?tab=install`);
+  await page.getByRole("button", { name: /add line/i }).click();
+  await page.getByLabel("Treatment").selectOption("roller_shades");
+  await page.getByLabel("Windows").fill("5");
+  await page.getByRole("checkbox", { name: "Motorized" }).check();
+  await page.getByLabel("Blinds/drapery takedown (count)").fill("3");
+  await page.getByLabel("Shutter takedown (sq ft)").fill("10");
+  // $125 lines + $55.80 + $23.30 + $151.13 set-up (5 motors) = $355.23
+  await expect(page.getByTestId("install-extra-app_setup_large")).toContainText("$151.13");
+  await expect(page.getByTestId("install-total")).toHaveText("$355.23");
+  await page.getByRole("button", { name: /save as estimate/i }).click();
+  await expect(savedPrices(page).getByRole("listitem").first()).toContainText("$355.23");
+
+  const [{ id: quoteId }] = await sql()`select id from install_quotes where lead_id = ${job.id}`;
+  const [quote] = await sql()`select kind, minimum_cents, subtotal_cents, extras_cents, measure_cents, total_cents, created_by
+    from install_quotes where id = ${quoteId}`;
+  expect(quote).toEqual({
+    kind: "estimate", minimum_cents: 15_000, subtotal_cents: 12_500, extras_cents: 23_023, measure_cents: 0,
+    total_cents: 35_523, created_by: EMAIL,
+  });
+  const events = await sql()`select actor, kind, body from job_events where lead_id = ${job.id} order by created_at`;
+  expect(events).toEqual([{ actor: EMAIL, kind: "edit", body: "Estimate installation price: $355.23" }]);
+  const lines = await sql()`select treatment, basis, quantity, rate_cents, hard_surface, high_ladder, motorized, amount_cents
+    from install_quote_lines where install_quote_id = ${quoteId} order by position`;
+  expect(lines).toEqual([{ treatment: "roller_shades", basis: "window", quantity: 5, rate_cents: 2500,
+    hard_surface: false, high_ladder: false, motorized: true, amount_cents: 12_500 }]);
+  const extras = await sql()`select position, kind, quantity, rate_cents, amount_cents
+    from install_quote_extras where install_quote_id = ${quoteId} order by position`;
+  expect(extras).toEqual([
+    { position: 0, kind: "takedown", quantity: 3, rate_cents: 1860, amount_cents: 5580 },
+    { position: 1, kind: "shutter_takedown", quantity: 10, rate_cents: 233, amount_cents: 2330 },
+    { position: 2, kind: "app_setup_large", quantity: 5, rate_cents: 15_113, amount_cents: 15_113 },
+  ]);
+
+  // Ten motors: the set-up is typed by hand, and saving waits for it.
+  await page.getByRole("button", { name: /add line/i }).click();
+  await page.getByLabel("Treatment").selectOption("roller_shades");
+  await page.getByLabel("Windows").fill("10");
+  await page.getByRole("checkbox", { name: "Motorized" }).check();
+  await expect(page.getByRole("button", { name: /save as final/i })).toBeDisabled();
+  await page.getByLabel("Set-up price").fill("250");
+  await expect(page.getByTestId("install-total")).toHaveText("$500");
+  await page.getByRole("button", { name: /save as final/i }).click();
+  await expect(savedPrices(page).getByRole("listitem")).toHaveCount(2);
+  await expect(savedPrices(page).getByRole("listitem").first()).toContainText("$500");
+  const finals = await sql()`select id, kind, minimum_cents, subtotal_cents, extras_cents, measure_cents, total_cents, created_by
+    from install_quotes where lead_id = ${job.id} and kind = 'final'`;
+  expect(finals).toHaveLength(1);
+  const { id: finalId, ...final } = finals[0];
+  expect(final).toEqual({
+    kind: "final", minimum_cents: 15_000, subtotal_cents: 25_000, extras_cents: 25_000, measure_cents: 0,
+    total_cents: 50_000, created_by: EMAIL,
+  });
+  const finalLines = await sql()`select treatment, basis, quantity, rate_cents, hard_surface, high_ladder, motorized, amount_cents
+    from install_quote_lines where install_quote_id = ${finalId} order by position`;
+  expect(finalLines).toEqual([{ treatment: "roller_shades", basis: "window", quantity: 10, rate_cents: 2500,
+    hard_surface: false, high_ladder: false, motorized: true, amount_cents: 25_000 }]);
+  const finalExtras = await sql()`select position, kind, quantity, rate_cents, amount_cents
+    from install_quote_extras where install_quote_id = ${finalId} order by position`;
+  expect(finalExtras).toEqual([
+    { position: 0, kind: "app_setup_custom", quantity: 10, rate_cents: 25_000, amount_cents: 25_000 },
+  ]);
+
+  // Takedown only: no new windows, and the minimum applies.
+  await page.getByLabel("Blinds/drapery takedown (count)").fill("2");
+  await expect(page.getByTestId("install-total")).toHaveText("$150");
+  await page.getByRole("button", { name: /save as estimate/i }).click();
+  await expect(savedPrices(page).getByRole("listitem")).toHaveCount(3);
+  await expect(savedPrices(page).getByRole("listitem").first()).toContainText("Minimum applied (lines and extras came to $37.20)");
+  const secondEstimates = await sql()`select id, kind, minimum_cents, subtotal_cents, extras_cents, measure_cents, total_cents
+    from install_quotes where lead_id = ${job.id} and kind = 'estimate' and id <> ${quoteId}`;
+  expect(secondEstimates).toHaveLength(1);
+  const { id: takedownId, ...takedownOnly } = secondEstimates[0];
+  expect(takedownOnly).toEqual({
+    kind: "estimate", minimum_cents: 15_000, subtotal_cents: 0, extras_cents: 3720, measure_cents: 0, total_cents: 15_000,
+  });
+  const takedownLines = await sql()`select id from install_quote_lines where install_quote_id = ${takedownId}`;
+  expect(takedownLines).toEqual([]);
+  const takedownExtras = await sql()`select position, kind, quantity, rate_cents, amount_cents
+    from install_quote_extras where install_quote_id = ${takedownId} order by position`;
+  expect(takedownExtras).toEqual([{ position: 0, kind: "takedown", quantity: 2, rate_cents: 1860, amount_cents: 3720 }]);
 });

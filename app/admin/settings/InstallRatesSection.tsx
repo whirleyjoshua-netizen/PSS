@@ -81,6 +81,27 @@ export function InstallRatesSection({
           </label>
         </fieldset>
 
+        <fieldset className="flex flex-col gap-2">
+          <legend className="text-sm font-semibold">Extras</legend>
+          <label className="flex items-center justify-between gap-3">
+            Takedown, blinds or drapery (per window)
+            <input name="takedownCents" inputMode="decimal" defaultValue={shown("takedownCents", amount(settings.takedownCents))} className={field} />
+          </label>
+          <label className="flex items-center justify-between gap-3">
+            Takedown, shutters (per sq ft)
+            <input name="shutterTakedownCents" inputMode="decimal" defaultValue={shown("shutterTakedownCents", amount(settings.shutterTakedownCents))} className={field} />
+          </label>
+          <label className="flex items-center justify-between gap-3">
+            App set-up, 1–3 motors
+            <input name="appSetupSmallCents" inputMode="decimal" defaultValue={shown("appSetupSmallCents", amount(settings.appSetupSmallCents))} className={field} />
+          </label>
+          <label className="flex items-center justify-between gap-3">
+            App set-up, 4–9 motors
+            <input name="appSetupLargeCents" inputMode="decimal" defaultValue={shown("appSetupLargeCents", amount(settings.appSetupLargeCents))} className={field} />
+          </label>
+          <p className="text-xs text-ink-soft">10 or more motors: you enter the set-up price on the job.</p>
+        </fieldset>
+
         <label className="flex items-center justify-between gap-3 text-sm">
           Minimum job cost
           <input name="minimumCents" inputMode="decimal" defaultValue={shown("minimumCents", amount(settings.minimumCents))} className={field} />

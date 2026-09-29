@@ -4,18 +4,25 @@ const PORT = 3100;
 const baseURL = `http://127.0.0.1:${PORT}`;
 
 // The e2e specs write to and delete from whatever database this names, so it must be the Neon test
-// branch. Checked here, before any spec or the web server runs. The message names the pattern only:
-// never print the URL, which carries the password.
+// branch. Checked here, before any spec or the web server runs. Production (cold-term) is refused
+// first, always. The pinned test branch (ep-lingering-fog) can be deleted and replaced, so a run may
+// name its own test-branch endpoint in E2E_TEST_ENDPOINT (an ep-… id, never production). Messages
+// name the endpoint id only: never print the URL, which carries the password.
 const e2eDatabase = process.env.E2E_POSTGRES_URL;
 if (e2eDatabase) {
   let host = "";
   try {
     host = new URL(e2eDatabase).hostname;
   } catch {
-    throw new Error("E2E_POSTGRES_URL is not a valid URL. It must point at the Neon test branch (ep-lingering-fog).");
+    throw new Error("E2E_POSTGRES_URL is not a valid URL. It must point at a Neon test branch.");
   }
   if (host.includes("cold-term")) throw new Error("E2E_POSTGRES_URL points at production (cold-term). Refusing to run e2e against it.");
-  if (!host.includes("ep-lingering-fog")) throw new Error("E2E_POSTGRES_URL must point at the Neon test branch (ep-lingering-fog).");
+  const namedEndpoint = process.env.E2E_TEST_ENDPOINT;
+  if (namedEndpoint !== undefined && (!namedEndpoint.startsWith("ep-") || namedEndpoint.includes("cold-term"))) {
+    throw new Error("E2E_TEST_ENDPOINT must be a Neon test-branch endpoint (ep-…), never production.");
+  }
+  const requiredEndpoint = namedEndpoint ?? "ep-lingering-fog";
+  if (!host.includes(requiredEndpoint)) throw new Error(`E2E_POSTGRES_URL must point at the Neon test branch (${requiredEndpoint}).`);
 }
 
 export default defineConfig({

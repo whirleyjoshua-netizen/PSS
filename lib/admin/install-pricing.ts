@@ -28,6 +28,14 @@ export type InstallSettings = {
   motorizedCents: number;
   /** A flat fee for an installer's measuring visit, whatever the number of windows. */
   measureCents: number;
+  /** Per window of blinds or drapery taken down. */
+  takedownCents: number;
+  /** Per whole square foot of shutters taken down. */
+  shutterTakedownCents: number;
+  /** Flat app set-up for 1–3 motors. */
+  appSetupSmallCents: number;
+  /** Flat app set-up for 4–9 motors. 10 or more is priced by hand on the job. */
+  appSetupLargeCents: number;
 };
 
 export type LineInput = {
@@ -41,6 +49,34 @@ export type LineInput = {
   motorized: boolean;
 };
 
+export const EXTRA_KINDS = ["takedown", "shutter_takedown", "app_setup_small", "app_setup_large", "app_setup_custom"] as const;
+export type ExtraKind = (typeof EXTRA_KINDS)[number];
+
+/**
+ * The extras the owner asks for on a job. App set-up is not asked for: it follows from the
+ * motorized lines. `customSetupCents` is the price typed for 10 or more motors, and is
+ * ignored below that.
+ */
+export type ExtrasInput = { takedownWindows: number; shutterTakedownSqFt: number; customSetupCents: number | null };
+export const NO_EXTRAS: ExtrasInput = { takedownWindows: 0, shutterTakedownSqFt: 0, customSetupCents: null };
+
+/** From this many motors the set-up is quoted by hand; the sheet has no flat price for it. */
+export const CUSTOM_SETUP_MOTORS = 10;
+
+export type PricedExtra = { kind: ExtraKind; quantity: number; rateCents: number; amountCents: number };
+
+/** One motor per motorized shade. */
+export const motorCount = (lines: LineInput[]): number =>
+  lines.reduce((sum, line) => sum + (line.motorized ? line.count : 0), 0);
+
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+
+export function extraLabel(extra: Pick<PricedExtra, "kind" | "quantity">): string {
+  if (extra.kind === "takedown") return `Takedown, ${plural(extra.quantity, "window", "windows")}`;
+  if (extra.kind === "shutter_takedown") return `Shutter takedown, ${extra.quantity} sq ft`;
+  return `App set-up, ${plural(extra.quantity, "motor", "motors")}`;
+}
+
 export type PricedLine = LineInput & {
   basis: Basis;
   rateCents: number;
@@ -51,6 +87,9 @@ export type PricedLine = LineInput & {
 export type PricedQuote = {
   lines: PricedLine[];
   subtotalCents: number;
+  /** Each extra charged, in order. Counts toward the minimum like the lines. */
+  extras: PricedExtra[];
+  extrasCents: number;
   /** The measuring fee charged: the flat fee when charged, otherwise 0. */
   measureCents: number;
   /** The work (raised to the minimum when it applies) plus the measuring fee. */
@@ -89,14 +128,45 @@ const surchargeFor = (line: LineInput, settings: InstallSettings): number =>
   (line.highLadder ? settings.highLadderCents : 0) +
   (line.motorized ? settings.motorizedCents : 0);
 
+const notSet = (name: string) => new Error(`No rate is set for ${name}`);
+
+/** Rows only for extras actually charged, in a fixed order: takedown, shutter takedown, set-up. */
+function priceExtras(lines: LineInput[], settings: InstallSettings, extras: ExtrasInput): PricedExtra[] {
+  const priced: PricedExtra[] = [];
+  const perUnit = (kind: ExtraKind, quantity: number, rateCents: number, name: string) => {
+    if (quantity <= 0) return;
+    // A missing rate must be loud, as with treatments: zero would quietly give the work away.
+    if (rateCents <= 0) throw notSet(name);
+    priced.push({ kind, quantity, rateCents, amountCents: rateCents * quantity });
+  };
+  perUnit("takedown", extras.takedownWindows, settings.takedownCents, "blinds/drapery takedown");
+  perUnit("shutter_takedown", extras.shutterTakedownSqFt, settings.shutterTakedownCents, "shutter takedown");
+
+  const motors = motorCount(lines);
+  if (motors === 0) return priced;
+  if (motors >= CUSTOM_SETUP_MOTORS) {
+    if (extras.customSetupCents === null) throw new Error("10 or more motors: enter the app set-up price");
+    priced.push({ kind: "app_setup_custom", quantity: motors, rateCents: extras.customSetupCents, amountCents: extras.customSetupCents });
+    return priced;
+  }
+  const small = motors <= 3;
+  const rateCents = small ? settings.appSetupSmallCents : settings.appSetupLargeCents;
+  if (rateCents <= 0) throw notSet(small ? "app set-up, 1–3 motors" : "app set-up, 4–9 motors");
+  priced.push({ kind: small ? "app_setup_small" : "app_setup_large", quantity: motors, rateCents, amountCents: rateCents });
+  return priced;
+}
+
 /**
  * `chargeMeasure` is required, never defaulted: whether an installer's measuring visit is billed
  * is a decision made per job, and a silent default would drop or add a fee without anyone choosing.
+ * `extras` is required, never defaulted, for the same reason: takedown and a typed set-up price are
+ * chosen per job, and a default would quietly leave them off. Pass `NO_EXTRAS` to choose none.
  */
 export function priceQuote(
   lines: LineInput[],
   rates: InstallRate[],
   settings: InstallSettings,
+  extras: ExtrasInput,
   chargeMeasure: boolean,
 ): PricedQuote {
   const byTreatment = new Map(rates.map((r) => [r.treatment, r]));
@@ -111,20 +181,28 @@ export function priceQuote(
   });
   const subtotalCents = priced.reduce((sum, l) => sum + l.amountCents, 0);
   if (subtotalCents > MAX_CENTS) throw new Error(TOO_LARGE);
-  // A job with nothing to install is not a job — no lines, or only lines with a count of 0 —
-  // so the minimum should not invent a charge out of nothing.
-  const hasWork = priced.some((l) => l.quantity > 0);
-  const minimumApplied = hasWork && subtotalCents < settings.minimumCents;
+  const pricedExtras = priceExtras(lines, settings, extras);
+  if (pricedExtras.some((extra) => extra.amountCents > MAX_CENTS)) throw new Error(TOO_LARGE);
+  const extrasCents = pricedExtras.reduce((sum, extra) => sum + extra.amountCents, 0);
+  if (extrasCents > MAX_CENTS) throw new Error(TOO_LARGE);
+  // Takedown and set-up happen on the install trip, so they count toward the minimum.
+  const workCents = subtotalCents + extrasCents;
+  if (workCents > MAX_CENTS) throw new Error(TOO_LARGE);
+  // A job with nothing to install and nothing to take down is not a job — no lines, or only
+  // lines with a count of 0, and no extras — so the minimum should not invent a charge out of nothing.
+  const hasWork = priced.some((l) => l.quantity > 0) || pricedExtras.length > 0;
+  const minimumApplied = hasWork && workCents < settings.minimumCents;
   // The minimum covers the install trip; measuring is its own trip, so its fee goes on top.
   const measureCents = chargeMeasure ? settings.measureCents : 0;
-  const totalCents = (minimumApplied ? settings.minimumCents : subtotalCents) + measureCents;
+  const totalCents = (minimumApplied ? settings.minimumCents : workCents) + measureCents;
   if (totalCents > MAX_CENTS) throw new Error(TOO_LARGE);
-  return { lines: priced, subtotalCents, measureCents, totalCents, minimumApplied };
+  return { lines: priced, subtotalCents, extras: pricedExtras, extrasCents, measureCents, totalCents, minimumApplied };
 }
 
 /**
  * Everything a saved price records, as one comparable string: the minimum in force, the
- * subtotal, the measuring fee and total, and each line's stored columns in order. A saved price is immutable,
+ * subtotal, the extras' total, the measuring fee and total, each line's stored columns in order,
+ * and each extra's kind, quantity, rate and amount in order. A saved price is immutable,
  * so the server saves only when its own fingerprint equals the one the owner was looking
  * at. Comparing the total alone is not enough — rates can move between lines, or the
  * minimum can hide a changed subtotal, while the total stays the same.
@@ -133,10 +211,12 @@ export function priceFingerprint(priced: PricedQuote, minimumCents: number): str
   return JSON.stringify({
     minimumCents,
     subtotalCents: priced.subtotalCents,
+    extrasCents: priced.extrasCents,
     measureCents: priced.measureCents,
     totalCents: priced.totalCents,
     lines: priced.lines.map((l) => [
       l.treatment, l.basis, l.quantity, l.rateCents, l.hardSurface, l.highLadder, l.motorized, l.amountCents,
     ]),
+    extras: priced.extras.map((e) => [e.kind, e.quantity, e.rateCents, e.amountCents]),
   });
 }
