@@ -3,6 +3,21 @@ import { defineConfig, devices } from "@playwright/test";
 const PORT = 3100;
 const baseURL = `http://127.0.0.1:${PORT}`;
 
+// The e2e specs write to and delete from whatever database this names, so it must be the Neon test
+// branch. Checked here, before any spec or the web server runs. The message names the pattern only:
+// never print the URL, which carries the password.
+const e2eDatabase = process.env.E2E_POSTGRES_URL;
+if (e2eDatabase) {
+  let host = "";
+  try {
+    host = new URL(e2eDatabase).hostname;
+  } catch {
+    throw new Error("E2E_POSTGRES_URL is not a valid URL. It must point at the Neon test branch (ep-lingering-fog).");
+  }
+  if (host.includes("cold-term")) throw new Error("E2E_POSTGRES_URL points at production (cold-term). Refusing to run e2e against it.");
+  if (!host.includes("ep-lingering-fog")) throw new Error("E2E_POSTGRES_URL must point at the Neon test branch (ep-lingering-fog).");
+}
+
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: true,

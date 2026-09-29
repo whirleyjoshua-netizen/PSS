@@ -1,7 +1,7 @@
 import path from "node:path";
 import { readFileSync } from "node:fs";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
-import { test, expect, type Browser, type Locator, type Page } from "@playwright/test";
+import { test, expect, type Browser, type BrowserContext, type Locator, type Page } from "@playwright/test";
 import { neon } from "@neondatabase/serverless";
 import { del } from "@vercel/blob";
 import { formatCents } from "../lib/admin/money";
@@ -43,11 +43,16 @@ async function signInOwner(page: Page) {
   await expect(page.getByRole("heading", { name: "Jobs", exact: true })).toBeVisible();
 }
 
+/** Every context customerPage opens, closed in afterAll. */
+const contexts: BrowserContext[] = [];
+
 async function customerPage(browser: Browser, email: string): Promise<Page> {
   const token = randomBytes(32).toString("base64url");
   await sql()`insert into customer_login_tokens (token_hash, email, expires_at)
     values (${hash(token)}, ${email}, now() + interval '15 minutes')`;
-  const page = await (await browser.newContext()).newPage();
+  const context = await browser.newContext();
+  contexts.push(context);
+  const page = await context.newPage();
   await page.goto(`/project/auth?token=${token}`);
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/\/project$/);
@@ -187,6 +192,7 @@ test.beforeAll(async () => {
 });
 
 test.afterAll(async () => {
+  await Promise.all(contexts.splice(0).map((context) => context.close()));
   if (!url) return;
   // Blobs this run created (a contract, its stamped copy, the terms). The seeded Dealer Copy has none.
   const token = process.env.E2E_BLOB_READ_WRITE_TOKEN;
@@ -375,7 +381,7 @@ test.describe("send, sign and the release gate", () => {
     expect(drawn.join(" ")).not.toContain("{{");
   });
 
-  test("the customer signs the contract, and the owner sees Sold and ready to order", async ({ page, browser }) => {
+  test("the customer signs the contract, the owner sees Sold, and the order link waits for the cancellation window", async ({ page, browser }) => {
     const customer = await customerPage(browser, CUSTOMER);
     await expect(customer.getByRole("heading", { name: "Documents to sign" })).toBeVisible();
     // By text, not by role: the contract's link sits inside a CLOSED <details>, and role locators
@@ -412,6 +418,15 @@ test.describe("send, sign and the release gate", () => {
       .toBeVisible();
     await expect(review.getByRole("link", { name: /^Signed — ready to order/ })).toHaveCount(0);
     await expect(figure(review, "Client total")).toHaveText(formatCents(waivedTotal()));
+
+    // Once the window has closed, the order link appears. Test branch only: the signature is moved
+    // back three weeks, well past three business days whatever the holidays.
+    await sql()`update dc_quote_versions set signed_at = signed_at - interval '21 days' where id = ${versionId}`;
+    await sql()`update contract_signatures set signed_at = signed_at - interval '21 days' where lead_id = ${job.id}`;
+    await page.reload();
+    const closed = page.getByRole("region", { name: /^DC quote / });
+    await expect(closed.getByRole("link", { name: `Signed — ready to order: Open quote ${quote.quoteNo} in Direct Connect` })).toBeVisible();
+    await expect(closed.getByText(/Cancellation window ends/)).toHaveCount(0);
   });
 
   test("gate: another customer's quoted job does not move and never sees this contract", async ({ browser }) => {

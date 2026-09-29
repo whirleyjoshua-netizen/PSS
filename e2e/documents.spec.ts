@@ -1,8 +1,10 @@
 import { createHash, randomBytes } from "node:crypto";
-import { test, expect, type Browser, type Page } from "@playwright/test";
+import { test, expect, type Browser, type BrowserContext, type Page } from "@playwright/test";
 import { neon } from "@neondatabase/serverless";
 import { del } from "@vercel/blob";
+import { winAnsiSafe } from "../lib/dc/contract-layout";
 import { formatProjectNo } from "../lib/portal/project-no";
+import { pdfText } from "./fixtures/pdf-text";
 
 const url = process.env.E2E_POSTGRES_URL;
 test.skip(!url, "Set E2E_POSTGRES_URL to a Neon branch to run the Documents tests");
@@ -28,10 +30,15 @@ async function signInOwner(page: Page) {
   await expect(page.getByRole("heading", { name: "Jobs", exact: true })).toBeVisible();
 }
 
+/** Every context customerPage opens, closed in afterAll. */
+const contexts: BrowserContext[] = [];
+
 async function customerPage(browser: Browser, email: string): Promise<Page> {
   const token = randomBytes(32).toString("base64url");
   await sql()`insert into customer_login_tokens (token_hash, email, expires_at) values (${hash(token)}, ${email}, now() + interval '15 minutes')`;
-  const page = await (await browser.newContext()).newPage();
+  const context = await browser.newContext();
+  contexts.push(context);
+  const page = await context.newPage();
   await page.goto(`/project/auth?token=${token}`);
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/\/project$/);
@@ -60,6 +67,16 @@ const documentsTab = async (page: Page, jobId: string) => {
   await page.goto(`/admin/jobs/${jobId}?tab=documents`);
   await expect(page.getByRole("heading", { name: "Documents", exact: true })).toBeVisible();
 };
+
+/**
+ * What a sent PDF draws, as one string: the words the client reads. The PDF draws through
+ * winAnsiSafe (the em dash in a title becomes "-") and wraps lines, so compare against that.
+ */
+function drawnText(bytes: Buffer): string {
+  const drawn = pdfText(bytes).join(" ");
+  expect(drawn).not.toContain("{{");
+  return drawn;
+}
 
 /** Creates a document from a template on the job's Documents tab; answers its draft panel. */
 async function createDocument(page: Page, jobId: string, option: string, title: string) {
@@ -95,6 +112,7 @@ test.beforeAll(async () => {
 });
 
 test.afterAll(async () => {
+  await Promise.all(contexts.splice(0).map((context) => context.close()));
   if (!url) return;
   const token = process.env.E2E_BLOB_READ_WRITE_TOKEN;
   if (token) {
@@ -196,6 +214,12 @@ test("the client acknowledges it, fingerprinting the bytes served, and the owner
   const [file] = await sql()`select f.id from job_documents d join job_files f on f.id = d.file_id where d.lead_id = ${job.id} and d.title = ${ackTitle()}`;
   const served = await fetchFile(customer, `/project/files/${file.id}`);
   expect(served.status).toBe(200);
+  // The PDF the client is served carries the text the owner saved and saw, fields filled.
+  const drawn = drawnText(served.bytes);
+  expect(drawn).toContain(winAnsiSafe(ackTitle()));
+  expect(pdfText(served.bytes)).toContain("Scope of work");
+  expect(drawn).toContain("Hello E2E. Your deposit is $500.");
+  expect(drawn).toContain("Balance on install day.");
   await item.locator("summary").click();
   await item.getByLabel("Your full name").fill("Pat Client");
   await item.getByLabel(`I have read ${ackTitle()}`).check();
@@ -240,6 +264,13 @@ test("a sign document is signed through the contract path, and the owner sees Si
   await expect(attention.getByRole("heading", { name: "Documents to sign" })).toBeVisible();
   const details = attention.locator("details", { hasText: `${signTitle()}.pdf` });
   await expect(details).toHaveCount(1);
+  const [sent] = await sql()`select file_id from job_documents where lead_id = ${job.id} and title = ${signTitle()}`;
+  const served = await fetchFile(customer, `/project/files/${sent.file_id}`);
+  expect(served.status).toBe(200);
+  const drawn = drawnText(served.bytes);
+  expect(drawn).toContain(winAnsiSafe(signTitle()));
+  expect(pdfText(served.bytes)).toContain("Change");
+  expect(drawn).toContain(`One more shade for ${NAME} A.`);
   await details.locator("summary").click();
   await details.getByLabel("Your full name").fill("Pat Client");
   // A job document signs through the contract path, but the customer reads "document" and its title.
@@ -278,9 +309,11 @@ test("Void withdraws a sent document from the client", async ({ page, browser })
 
   await page.getByRole("button", { name: `Void ${ackTitle()}` }).click();
   await expect(page.getByRole("button", { name: `Void ${ackTitle()}` })).toHaveCount(0);
-  const [doc] = await sql()`select d.status, f.shared_at from job_documents d join job_files f on f.id = d.file_id
+  const [doc] = await sql()`select d.status, d.file_id, f.shared_at from job_documents d join job_files f on f.id = d.file_id
     where d.lead_id = ${job.id} and d.body = ${"## Scope of work\n\nSecond copy, deposit $500."}`;
-  expect(doc).toEqual({ status: "void", shared_at: null });
+  expect(doc).toMatchObject({ status: "void", shared_at: null });
+  // Withdrawn means unreachable, not just unlisted: the client's own file route refuses it.
+  expect(await fetchFile(customer, `/project/files/${doc.file_id}`)).toMatchObject({ status: 404 });
 
   await customer.reload();
   await expect(customer.getByRole("heading", { level: 1 })).toBeVisible();
