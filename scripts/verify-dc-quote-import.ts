@@ -19,8 +19,11 @@
  *      in exact cents and the fixture's options, one 'quote' event, and an unshared Dealer Copy
  *      file (doc_type dealer_copy) — through the real createFile. B gets no rows (release gate);
  *   2. idempotence: the same message again is "unchanged"; importVersion with that messageId is
- *      null; the same bytes under a new message are "unchanged". Still one version;
- *   3. numbering: a changed Dealer Copy under a new message creates version 2;
+ *      null; the same bytes under a new message are "unchanged", and so is a re-send whose only
+ *      difference is DC's per-email tracking pixel (the hash is of the parsed quote). Still one
+ *      version; the stored source_sha256 is quoteSha256 of the quote, and client_name is the DC Client;
+ *   3. numbering: a Dealer Copy whose quote changed (a new Client name) under a new message creates
+ *      version 2, which stores that name;
  *   4. draft-only edits: setLineOverride / setVersionChoices on v2 answer true; with v2 marked
  *      'sent' by hand they answer false and the rows are unchanged;
  *   5. races: sendContract on v2 while (a) another send marks it sent, (b) a line's % of MSRP
@@ -35,6 +38,9 @@
  *   9. a second 'sent' version on the same contract file violates the unique index (23505);
  *  10. sign: recordSignature on the contract signs v2, sells A with sold_cents = the total;
  *  11. a raw `update job_files set shared_at = now()` on the Dealer Copy is a check violation;
+ *  11b. a generated contract: listFiles marks v2's contract quoteContract; setDocType on it answers
+ *      false; re-sharing the contract of a superseded version answers false and leaves it
+ *      unshared, while unsharing it and sharing a plain document (positive control) answer true;
  *  12. deletes everything it wrote (leads by name prefix, their rows, its messages) and puts back
  *      the markup rules and dc_settings it changed, even on failure.
  *
@@ -100,8 +106,8 @@ vi.mock("../lib/dc/send-contract-email", () => ({
   },
 }));
 
-import { getFile } from "../lib/admin/files";
-import { importDealerCopy } from "../lib/dc/import";
+import { createFile, getFile, listFiles, setDocType, setShared } from "../lib/admin/files";
+import { importDealerCopy, quoteSha256 } from "../lib/dc/import";
 import { parseDealerCopy } from "../lib/dc/parse";
 import { priceVersion } from "../lib/dc/pricing";
 import { loadReview, sendContract } from "../lib/dc/send";
@@ -289,14 +295,23 @@ test("DC quote import: import, edit, send, sign and the Dealer Copy guard agains
     const resent = await importDealerCopy({ internetMessageId: message(2), receivedAt: new Date(), html });
     check(resent.outcome === "unchanged" && resent.leadId === A.id, "the same bytes under a new message are unchanged",
       `got ${JSON.stringify(resent)}`);
+    const pixel = /awstrack\.me\/I0\/[^"']+/;
+    const repixelled = html.replace(pixel, "awstrack.me/I0/010001a0ffffffff-00000000-0000-0000-0000-000000000000-000000/verify=473");
+    check(pixel.test(html) && repixelled !== html, "setup: the fixture has a tracking pixel to change", "no awstrack URL");
+    const pixelOnly = await importDealerCopy({ internetMessageId: message(4), receivedAt: new Date(), html: repixelled });
+    check(pixelOnly.outcome === "unchanged" && pixelOnly.leadId === A.id,
+      "a re-send differing only in DC's tracking pixel is unchanged", `got ${JSON.stringify(pixelOnly)}`);
+    check(v1rows[0].source_sha256 === quoteSha256(quote) && v1rows[0].client_name === quote.clientName && quote.clientName === "Test",
+      "v1 stores the parsed quote's hash and the DC Client name", `sha ${v1rows[0].source_sha256}, client ${v1rows[0].client_name}`);
     const afterReplay = await sql`select count(*)::int as n from dc_quote_versions where lead_id = ${A.id}`;
     const filesAfterReplay = await sql`select count(*)::int as n from job_files where lead_id = ${A.id}`;
     check(afterReplay[0].n === 1 && filesAfterReplay[0].n === 1, "still one version and one Dealer Copy",
       `versions ${afterReplay[0].n}, files ${filesAfterReplay[0].n}`);
 
     console.log("step 3: numbering");
-    const html2 = html.replace("</body>", "<!-- revised --></body>");
-    check(html2 !== html, "setup: the second Dealer Copy differs", "no </body> found");
+    // A change DC would make to the quote itself: the client's name, which leaves every figure as it was.
+    const html2 = html.replace("<b>Client:</b></td><td>Test<", "<b>Client:</b></td><td>Test Revised<");
+    check(html2 !== html, "setup: the second Dealer Copy names another client", "no Client: Test cell found");
     const second = await importDealerCopy({ internetMessageId: message(3), receivedAt: new Date(), html: html2 });
     check(second.outcome === "imported" && second.version === 2, "a changed copy under a new message is version 2",
       `got ${JSON.stringify(second)}`);
@@ -304,6 +319,8 @@ test("DC quote import: import, edit, send, sign and the Dealer Copy guard agains
     check(versions.length === 2 && versions[0].version === 2 && versions[1].version === 1 &&
         versions[0].status === "draft" && versions[0].lines.length === 4,
       "listVersions: v2 (draft, 4 lines) then v1", `got ${JSON.stringify(versions.map((v) => [v.version, v.status, v.lines.length]))}`);
+    check(versions[0].clientName === "Test Revised" && versions[1].clientName === "Test",
+      "listVersions reads each version's DC Client name back", `got ${JSON.stringify(versions.map((v) => v.clientName))}`);
     const v2 = versions[0].id;
     check(same(await footprint(B.id), bBefore), "B still has no new rows", "B changed");
 
@@ -484,6 +501,31 @@ test("DC quote import: import, edit, send, sign and the Dealer Copy guard agains
       .then(() => "updated", (error: { code?: string; constraint?: string }) => `${error.code}:${error.constraint}`);
     check(shareCopy === "23514:job_files_dealer_copy_never_shared",
       "sharing the Dealer Copy is a check violation", `got ${shareCopy}`);
+
+    console.log("step 11b: a generated contract is managed from the Quote tab");
+    const listed = await listFiles(A.id);
+    check(listed.find((f) => f.id === contractId)?.quoteContract === true &&
+        listed.filter((f) => f.id !== contractId).every((f) => f.quoteContract === false),
+      "listFiles marks v2's contract, and only it, as a quote contract", JSON.stringify(listed.map((f) => [f.name, f.quoteContract])));
+    check((await setDocType(A.id, contractId, "other", ACTOR)) === false, "relabelling v2's contract answers false", "true");
+    const oldContract = await createFile({ leadId: A.id, kind: "document", name: "Contract old.pdf", contentType: "application/pdf",
+      body: new Blob(["%PDF-1.4 old"]), actor: ACTOR, docType: "contract" });
+    if (!oldContract) throw new Error("setup: could not create the superseded contract file");
+    await sql`
+      insert into dc_quote_versions
+        (id, lead_id, version, dc_quote_no, po_reference, source_file_id, source_sha256, status,
+         dealer_subtotal_cents, handling_fee_cents, oversized_fee_cents, dealer_total_cents, contract_file_id)
+      values (${randomUUID()}, ${A.id}, 3, ${quote.quoteNo}, ${quote.poReference}, ${dealerCopyId}, ${"0".repeat(64)},
+              'superseded', 1, 0, 0, 1, ${oldContract.id})`;
+    check((await setShared(A.id, oldContract.id, true, ACTOR)) === false, "re-sharing a superseded version's contract answers false", "true");
+    const oldRow = (await sql`select shared_at, doc_type from job_files where id = ${oldContract.id}`)[0];
+    check(oldRow.shared_at === null, "the superseded contract is still unshared", JSON.stringify(oldRow));
+    check((await setShared(A.id, oldContract.id, false, ACTOR)) === true, "unsharing it is still allowed", "false");
+    check((await setDocType(A.id, oldContract.id, "other", ACTOR)) === false, "relabelling it answers false", "true");
+    const plain = await createFile({ leadId: A.id, kind: "document", name: "Plain.pdf", contentType: "application/pdf",
+      body: new Blob(["%PDF-1.4 plain"]), actor: ACTOR, docType: "contract" });
+    if (!plain) throw new Error("setup: could not create the plain file");
+    check((await setShared(A.id, plain.id, true, ACTOR)) === true, "positive control: sharing a contract no version names answers true", "false");
     check(same(await footprint(B.id), bBefore), "B still has no new rows at the end", "B changed");
 
     console.log("\nPASSED: the DC quote import holds against a real database. Manual run, not coverage.\n");
