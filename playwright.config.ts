@@ -19,7 +19,7 @@ export default defineConfig({
     // admin-mobile.spec.ts is the mirror image: phone-width only, so desktop skips it.
     { name: "desktop", use: { ...devices["Desktop Chrome"] }, testIgnore: /admin-mobile\.spec\.ts/ },
     // admin.spec.ts, portal.spec.ts, and call.spec.ts run serially, desktop-only
-    { name: "mobile", use: { ...devices["Pixel 7"] }, testIgnore: /(admin|admin-access|portal|call|follow-ups|questionnaire|stages|team|appointments|install|routes)\.spec\.ts/ },
+    { name: "mobile", use: { ...devices["Pixel 7"] }, testIgnore: /(admin|admin-access|portal|call|follow-ups|questionnaire|stages|team|appointments|install|routes|dc-quote)\.spec\.ts/ },
   ],
 
   // Tests run against a production build, so what is verified is what ships.
