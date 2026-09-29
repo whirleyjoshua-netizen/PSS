@@ -72,7 +72,7 @@ export function pickInstallQuote(quotes: InstallChoice[]): InstallChoice | null 
 
 export function sendBlockers(priced: PricedVersion, context: SendContext): string[] {
   const reasons = [...priced.blockers];
-  if (!context.hasTerms) reasons.push("Upload your contract terms in Settings first.");
+  if (!context.hasTerms) reasons.push("Add your contract terms on the Documents page first.");
   if (!context.isLatest) reasons.push("A newer version of this quote has arrived. Review that one.");
   if (context.versionStatus !== "draft") reasons.push("This version has already been sent.");
   if (context.jobStatus === "lost") reasons.push("This job is marked Lost.");

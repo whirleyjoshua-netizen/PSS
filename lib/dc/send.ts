@@ -6,7 +6,10 @@ import { getJob, type Job } from "@/lib/admin/jobs";
 import { listInstallQuotes } from "@/lib/admin/install-quotes";
 import { formatCents } from "@/lib/admin/money";
 import { formatProjectNo } from "@/lib/portal/project-no";
-import { buildContractPdf } from "./contract-pdf";
+import { fieldValues, fillFields } from "@/lib/docs/fill";
+import { remainingMarkers } from "@/lib/docs/parse";
+import { liveTemplateOfKind, type DocumentTemplate } from "@/lib/docs/templates";
+import { buildContractPdf, type ContractTerms } from "./contract-pdf";
 import { pickInstallQuote, priceVersion, pricingFingerprint, sendBlockers, type InstallChoice, type PricedVersion } from "./pricing";
 import { sendContractEmail } from "./send-contract-email";
 import { getDcSettings, listMarkupRules, listVersions, type DcSettings, type StoredVersion } from "./store";
@@ -36,9 +39,9 @@ function frozenPrice(version: StoredVersion): PricedVersion {
 }
 
 /** The review plus the job and settings it was computed from, so Send uses the very same reads. */
-async function review(jobId: string): Promise<{ review: Review; job: Job; settings: DcSettings } | null> {
-  const [job, versions, rules, installs, settings] = await Promise.all([
-    getJob(jobId), listVersions(jobId), listMarkupRules(), listInstallQuotes(jobId), getDcSettings(),
+async function review(jobId: string): Promise<{ review: Review; job: Job; settings: DcSettings; termsTemplate: DocumentTemplate | null } | null> {
+  const [job, versions, rules, installs, settings, termsTemplate] = await Promise.all([
+    getJob(jobId), listVersions(jobId), listMarkupRules(), listInstallQuotes(jobId), getDcSettings(), liveTemplateOfKind("terms"),
   ]);
   if (!job || versions.length === 0) return null;
   const [version, ...olderVersions] = versions;
@@ -58,10 +61,10 @@ async function review(jobId: string): Promise<{ review: Review; job: Job; settin
     priced = frozenPrice(version);
   }
   const blockers = sendBlockers(priced, {
-    hasTerms: settings.termsPathname !== null, isLatest: true, versionStatus: version.status,
+    hasTerms: termsTemplate !== null || settings.termsPathname !== null, isLatest: true, versionStatus: version.status,
     jobStatus: job.status, customerEmail: job.email,
   });
-  return { review: { version, priced, blockers, fingerprint: pricingFingerprint(priced), install, rules, olderVersions }, job, settings };
+  return { review: { version, priced, blockers, fingerprint: pricingFingerprint(priced), install, rules, olderVersions }, job, settings, termsTemplate };
 }
 
 /** The latest version of a job's DC quote, priced exactly as Send would price it. */
@@ -77,21 +80,35 @@ export async function loadReview(jobId: string): Promise<Review | null> {
 export async function sendContract(input: { jobId: string; versionId: string; fingerprint: string; actor: string }): Promise<{ ok: true; emailed: boolean } | { error: string }> {
   const loaded = await review(input.jobId);
   if (!loaded) return { error: "This job has no Direct Connect quote." };
-  const { review: current, job, settings } = loaded;
+  const { review: current, job, settings, termsTemplate } = loaded;
   if (current.version.id !== input.versionId) return { error: "A newer version of this quote has arrived. Review that one." };
   if (current.blockers.length > 0) return { error: current.blockers[0] };
   if (current.fingerprint !== input.fingerprint) return { error: "Prices changed since you opened this page. Review them and send again." };
 
   const { priced, version } = current;
-  const terms = await get(settings.termsPathname!, { access: "private" });
-  if (!terms || terms.statusCode !== 200) return { error: "Your contract terms file could not be read. Upload it again in Settings." };
-  const termsBytes = new Uint8Array(await new Response(terms.stream).arrayBuffer());
+  // Spec §8: the live terms template, filled for this job now; otherwise the uploaded PDF.
+  const now = new Date();
+  let terms: ContractTerms;
+  if (termsTemplate) {
+    const filled = fillFields(termsTemplate.body, fieldValues(job, now));
+    const left = remainingMarkers(filled.text);
+    if (left.length > 0) {
+      return { error: `Your contract terms have ${left.join(", ")} with no value for this job. Fix the terms on the Documents page.` };
+    }
+    terms = { text: filled.text };
+  } else {
+    const stored = await get(settings.termsPathname!, { access: "private" });
+    if (!stored || stored.statusCode !== 200) {
+      return { error: "Your contract terms file could not be read. Add your contract terms on the Documents page." };
+    }
+    terms = { pdf: new Uint8Array(await new Response(stored.stream).arrayBuffer()) };
+  }
 
   const projectNo = formatProjectNo(job.projectNo) ?? "PSS";
   const name = `Contract ${projectNo} v${version.version}.pdf`;
   const pricedLine = (position: number) => priced.lines.find((x) => x.position === position)!;
   const pdf = await buildContractPdf({
-    projectNo, version: version.version, date: new Date(),
+    projectNo, version: version.version, date: now,
     client: { name: job.name, address: job.address, city: job.city, email: job.email },
     lines: version.lines.map((l) => {
       const p = pricedLine(l.position);
@@ -99,7 +116,7 @@ export async function sendContract(input: { jobId: string; versionId: string; fi
     }),
     installCents: priced.installCents, handlingChargedCents: priced.handlingChargedCents,
     oversizedCents: priced.oversizedCents, clientTotalCents: priced.clientTotalCents!,
-  }, termsBytes);
+  }, terms);
 
   const file = await createFile({ leadId: job.id, kind: "document", name, contentType: "application/pdf",
     body: new Blob([new Uint8Array(pdf)], { type: "application/pdf" }), actor: input.actor, docType: "contract" });

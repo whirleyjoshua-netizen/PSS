@@ -241,7 +241,7 @@ test("an imported quote shows its four lines and can't be sent until markups, an
     await expect(blockers.getByText(`Set a markup for ${name} first.`, { exact: true })).toBeVisible();
   }
   await expect(blockers.getByText("Save an installation price, or tick No installation.")).toBeVisible();
-  await expect(blockers.getByText("Upload your contract terms in Settings first.")).toBeVisible();
+  await expect(blockers.getByText("Add your contract terms on the Documents page first.")).toBeVisible();
   await expect(figure(review, "Client total")).toHaveText("—");
   await expect(review.getByRole("button", { name: "Send contract" })).toBeDisabled();
 });
@@ -281,7 +281,7 @@ test("markups set in Settings and a final install price give the total computed 
   // Only the terms are still missing.
   const blockers = review.getByRole("list", { name: "Before you can send" }).getByRole("listitem");
   await expect(blockers).toHaveCount(1);
-  await expect(blockers).toHaveText("Upload your contract terms in Settings first.");
+  await expect(blockers).toHaveText("Add your contract terms on the Documents page first.");
   await expect(review.getByRole("button", { name: "Send contract" })).toBeDisabled();
 });
 

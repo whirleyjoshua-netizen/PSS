@@ -21,6 +21,8 @@ const pdf = { buildContractPdf: vi.fn() };
 vi.mock("@/lib/dc/contract-pdf", () => pdf);
 const email = { sendContractEmail: vi.fn() };
 vi.mock("@/lib/dc/send-contract-email", () => email);
+const templates = { liveTemplateOfKind: vi.fn() };
+vi.mock("@/lib/docs/templates", () => templates);
 const { loadReview, sendContract } = await import("@/lib/dc/send");
 
 const { createFile, deleteFile } = files;
@@ -52,7 +54,8 @@ const install = { id: INSTALL, kind: "final", totalCents: 25000, createdAt: new 
 
 beforeEach(() => {
   for (const f of [sql, ...Object.values(store), ...Object.values(installs), ...Object.values(jobs), ...Object.values(files),
-    ...Object.values(blob), ...Object.values(pdf), ...Object.values(email)]) f.mockReset();
+    ...Object.values(blob), ...Object.values(pdf), ...Object.values(email), ...Object.values(templates)]) f.mockReset();
+  templates.liveTemplateOfKind.mockResolvedValue(null);
   jobs.getJob.mockResolvedValue(job);
   store.listVersions.mockResolvedValue([version]);
   store.listMarkupRules.mockResolvedValue({ Duette: 60 });
@@ -167,7 +170,7 @@ describe("sendContract", () => {
     blob.get.mockResolvedValue(null);
     const review = await loadReview(JOB);
     const result = await sendContract({ jobId: JOB, versionId: V1, fingerprint: review!.fingerprint, actor: OWNER });
-    expect(result).toEqual({ error: "Your contract terms file could not be read. Upload it again in Settings." });
+    expect(result).toEqual({ error: "Your contract terms file could not be read. Add your contract terms on the Documents page." });
     expect(createFile).not.toHaveBeenCalled();
     expect(sql).not.toHaveBeenCalled();
   });
@@ -189,7 +192,7 @@ describe("sendContract", () => {
     await sendContract({ jobId: JOB, versionId: V1, fingerprint: review!.fingerprint, actor: OWNER });
     const { priced } = review!;
     const [contract, terms] = pdf.buildContractPdf.mock.calls[0];
-    expect(terms).toEqual(termsBytes);
+    expect(terms).toEqual({ pdf: termsBytes });
     expect(contract).toMatchObject({
       projectNo: "PSS-1042", version: 1,
       client: { name: "Test Testt", address: "1 Main St", city: "Las Vegas", email: "t@example.com" },
@@ -264,5 +267,38 @@ describe("sendContract", () => {
     expect(await sendContract({ jobId: JOB, versionId: V1, fingerprint: review!.fingerprint, actor: OWNER })).toEqual({ ok: true, emailed: false });
     expect(deleteFile).not.toHaveBeenCalled();
     spy.mockRestore();
+  });
+});
+
+describe("terms from the Documents page", () => {
+  const TERMS = { id: "t", name: "Contract terms", kind: "terms", response: "view", archivedAt: null,
+    body: "## Terms\n\n{{company_name}} and {{client_name}}, {{project_no}}." };
+
+  it("prefers the live terms template over the uploaded PDF, filled for this job", async () => {
+    templates.liveTemplateOfKind.mockResolvedValue(TERMS);
+    const review = await loadReview(JOB);
+    const result = await sendContract({ jobId: JOB, versionId: V1, fingerprint: review!.fingerprint, actor: OWNER });
+    expect(result).toEqual({ ok: true, emailed: true });
+    expect(templates.liveTemplateOfKind).toHaveBeenCalledWith("terms");
+    expect(blob.get).not.toHaveBeenCalled();
+    expect(pdf.buildContractPdf.mock.calls[0][1]).toEqual({ text: "## Terms\n\nPremier Shade Solutions LLC and Test Testt, PSS-1042." });
+  });
+  it("has no terms blocker with a template and no upload", async () => {
+    store.getDcSettings.mockResolvedValue({ termsPathname: null, termsUpdatedAt: null, lastPolledAt: null });
+    templates.liveTemplateOfKind.mockResolvedValue(TERMS);
+    expect((await loadReview(JOB))!.blockers).toEqual([]);
+  });
+  it("blocks with neither a template nor an upload", async () => {
+    store.getDcSettings.mockResolvedValue({ termsPathname: null, termsUpdatedAt: null, lastPolledAt: null });
+    expect((await loadReview(JOB))!.blockers).toContain("Add your contract terms on the Documents page first.");
+  });
+  it("refuses, storing nothing, when a terms field has no value for this job", async () => {
+    templates.liveTemplateOfKind.mockResolvedValue(TERMS);
+    jobs.getJob.mockResolvedValue({ ...job, name: "   " });
+    const review = await loadReview(JOB);
+    expect(await sendContract({ jobId: JOB, versionId: V1, fingerprint: review!.fingerprint, actor: OWNER }))
+      .toEqual({ error: "Your contract terms have {{client_name}} with no value for this job. Fix the terms on the Documents page." });
+    expect(pdf.buildContractPdf).not.toHaveBeenCalled();
+    expect(createFile).not.toHaveBeenCalled();
   });
 });
