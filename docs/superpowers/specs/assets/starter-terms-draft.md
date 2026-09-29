@@ -1,4 +1,4 @@
-<!-- DRAFT — have a Nevada attorney review before use. Fill [TRIP CHARGE] and [SERVICE VISIT PRICE]. -->
+<!-- DRAFT — have a Nevada attorney review before use. -->
 
 ## 1. Our Agreement
 
@@ -60,7 +60,7 @@ To help installation go smoothly, please:
 - Keep pets secured away from the work areas.
 - Have an adult **18 or older** at home for the whole visit.
 
-If we arrive as scheduled and can't install through no fault of ours, a return-trip charge of **$[TRIP CHARGE]** applies.
+If we arrive as scheduled and can't install through no fault of ours, a return-trip charge of **$175** applies.
 
 We are not responsible for conditions that existed before we arrived, such as damaged or uneven walls, out-of-square window frames, or drywall that can't hold anchors securely. We'll point out any concern we notice. Small touch-ups to paint or drywall around brackets are your responsibility.
 
@@ -80,7 +80,7 @@ The official Hunter Douglas warranty for your product is what governs, and we're
 
 ## 13. Service Calls
 
-After your first year, or for products we did not install, service visits are **$[SERVICE VISIT PRICE] per visit** plus any parts. We'll quote the cost before doing any work.
+After your first year, or for products we did not install, service visits are **$175 per visit** plus any parts. We'll quote the cost before doing any work.
 
 Parts covered by the manufacturer's warranty are free, but our labor to install them after the first year is billed as a service visit.
 
