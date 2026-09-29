@@ -52,12 +52,15 @@ function fillTerms(template: DocumentTemplate, job: Job, now: Date): { text: str
   return { text: filled.text };
 }
 
+/** A line as it reads, ignoring bold marks and spacing, so un-bolding the banner doesn't sneak it past. */
+const asRead = (line: string): string => line.replace(/\*/g, "").replace(/\s+/g, " ").trim();
+
 /** The starter terms banner (their first line), which the owner deletes once an attorney has reviewed them. */
-const STARTER_DRAFT_LINE = STARTER_TERMS.split("\n")[0].trim();
+const STARTER_DRAFT_LINE = asRead(STARTER_TERMS.split("\n")[0]);
 
 /** True while the terms still carry the starter DRAFT banner as one of their lines. */
 function carriesDraftLine(body: string): boolean {
-  return body.split("\n").some((line) => line.trim() === STARTER_DRAFT_LINE);
+  return body.split("\n").some((line) => asRead(line) === STARTER_DRAFT_LINE);
 }
 
 /** The review plus the job and settings it was computed from, so Send uses the very same reads. */

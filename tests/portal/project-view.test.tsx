@@ -284,6 +284,15 @@ describe("ProjectView contract signing", () => {
     expect(screen.getByText("Sign this document", { selector: "summary" })).toBeInTheDocument();
   });
 
+  it("names a signed job document by its title in the Signed list, even once its file is no longer shared", async () => {
+    listSharedDocuments.mockResolvedValue([]);
+    listSignatures.mockResolvedValue([{ signedAt: new Date("2026-09-18T17:00:00Z"), fileId: "c1", documentTitle: "Change order — PSS-1048" } as never]);
+    render(await ProjectView({ job }));
+    const signed = screen.getByRole("region", { name: "Signed" });
+    expect(signed).toHaveTextContent("Change order — PSS-1048");
+    expect(signed).not.toHaveTextContent("your contract");
+  });
+
   // The lasting record: an ordinary visit, no ?signed hint at all.
   it("keeps a Signed line with a download link once the stamped copy exists", async () => {
     listSharedDocuments.mockResolvedValue([{ id: "c1", name: "Contract-1048.pdf", docType: "contract" }]);

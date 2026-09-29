@@ -186,7 +186,7 @@ export async function ProjectView({
                 <p>
                   Signed on {formatShortDate(signature.signedAt)} at {formatTime(signature.signedAt)}:{" "}
                   <span className="break-all">
-                    {documents.find((file) => file.id === signature.fileId)?.name ?? "your contract"}
+                    {signature.documentTitle ?? documents.find((file) => file.id === signature.fileId)?.name ?? "your contract"}
                   </span>
                 </p>
                 {signature.signedFileId ? (

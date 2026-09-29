@@ -325,6 +325,16 @@ describe("terms from the Documents page", () => {
       templates.liveTemplateOfKind.mockResolvedValue({ ...TERMS, body: `## Terms\n\n  ${first}  \n\nMore.` });
       expect((await loadReview(JOB))!.blockers).toEqual([DRAFT]);
     });
+    it("still finds the line with its bold taken off or its spacing changed", async () => {
+      const { STARTER_TERMS } = await import("@/lib/docs/starter-terms");
+      const plain = STARTER_TERMS.split("\n")[0].trim().replace(/\*/g, "").replace(/ /g, "   ");
+      templates.liveTemplateOfKind.mockResolvedValue({ ...TERMS, body: `## Terms\n\n${plain}\n\nMore.` });
+      expect((await loadReview(JOB))!.blockers).toEqual([DRAFT]);
+    });
+    it("does not mistake terms that merely mention a draft for the banner", async () => {
+      templates.liveTemplateOfKind.mockResolvedValue({ ...TERMS, body: "## Terms\n\nA draft of the order is shared before it is placed." });
+      expect((await loadReview(JOB))!.blockers).toEqual([]);
+    });
     it("clears once the owner deletes the line", async () => {
       const { STARTER_TERMS } = await import("@/lib/docs/starter-terms");
       const reviewed = STARTER_TERMS.split("\n").slice(1).join("\n");
