@@ -109,5 +109,5 @@ alter table job_files add constraint job_files_dealer_copy_never_shared check (
 alter table job_events drop constraint if exists job_events_kind_check;
 
 alter table job_events add constraint job_events_kind_check check (
-  kind in ('stage','note','edit','email','reward','measure','file','contact','message','service','signature','quote')
+  kind in ('stage','note','edit','email','reward','measure','file','contact','message','service','signature','quote','document')
 );

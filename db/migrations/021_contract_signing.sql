@@ -14,7 +14,7 @@ alter table job_files add constraint job_files_doc_type_check check (
 alter table job_events drop constraint if exists job_events_kind_check;
 
 alter table job_events add constraint job_events_kind_check check (
-  kind in ('stage','note','edit','email','reward','measure','file','contact','message','service','signature','quote')
+  kind in ('stage','note','edit','email','reward','measure','file','contact','message','service','signature','quote','document')
 );
 
 -- One signature per contract file. doc_sha256 is the fingerprint of the exact bytes the
