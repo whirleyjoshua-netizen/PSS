@@ -4,12 +4,13 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { test, expect, type Browser, type Locator, type Page } from "@playwright/test";
 import { neon } from "@neondatabase/serverless";
 import { del } from "@vercel/blob";
-import { PDFDocument, StandardFonts } from "pdf-lib";
 import { formatCents } from "../lib/admin/money";
 import { sellUnitCents } from "../lib/dc/money";
 import { parseDealerCopy } from "../lib/dc/parse";
 import type { DcQuote } from "../lib/dc/types";
 import { formatProjectNo } from "../lib/portal/project-no";
+import { business } from "../content/business";
+import { pdfText } from "./fixtures/pdf-text";
 
 const url = process.env.E2E_POSTGRES_URL;
 test.skip(!url, "Set E2E_POSTGRES_URL to a Neon branch to run the Direct Connect quote tests");
@@ -124,20 +125,13 @@ async function seedImport(jobId: string, html: string, quote: DcQuote): Promise<
   return rows[0].id as string;
 }
 
-/** A one-page terms PDF, made here rather than committed: only the send test uploads it. */
-async function termsPdf(): Promise<Buffer> {
-  const doc = await PDFDocument.create();
-  const page = doc.addPage([612, 792]);
-  page.drawText("Terms and conditions (test)", { x: 72, y: 700, size: 18, font: await doc.embedFont(StandardFonts.Helvetica) });
-  return Buffer.from(await doc.save());
-}
-
 /** The figure beside one label in the review's totals. */
 const figure = (review: Locator, label: string) =>
   review.locator(`xpath=.//dt[normalize-space()="${label}"]/following-sibling::div/dd`);
 
-/** The stage badge beside the job's name in the header. */
-const stageBadge = (page: Page) => page.locator("h1", { hasText: NAME }).first().locator("xpath=following-sibling::span[1]");
+/** The stage badge beside the job's name in the header: the one with the stage icon, not the PSS number before it. */
+const stageBadge = (page: Page) =>
+  page.locator("h1", { hasText: NAME }).first().locator("xpath=following-sibling::span[.//*[local-name()='svg']][1]");
 
 const quoteTab = async (page: Page, jobId: string) => {
   await page.goto(`/admin/jobs/${jobId}?tab=quote`);
@@ -152,6 +146,7 @@ let quote: DcQuote;
 let versionId: string;
 let savedRules: { collection: string; pct_of_msrp: string; updated_by: string | null; updated_at: string }[] = [];
 let savedTerms: { terms_file_pathname: string | null; terms_updated_by: string | null; terms_updated_at: string | null } | null = null;
+let savedTermsTemplates: string[] = [];
 let expectedProducts: number;
 let expectedTotal: number;
 
@@ -164,6 +159,9 @@ test.beforeAll(async () => {
   [savedTerms] = (await sql()`select terms_file_pathname, terms_updated_by, terms_updated_at from dc_settings where id`) as typeof savedTerms[];
   await sql()`delete from markup_rules where lower(collection) = any(${COLLECTIONS})`;
   await sql()`update dc_settings set terms_file_pathname = null, terms_updated_by = null, terms_updated_at = null where id`;
+  // The terms template is one live row across the whole database: set any aside for the run.
+  savedTermsTemplates = (await sql()`select id from document_templates where archived_at is null and kind = 'terms'`).map((r) => r.id as string);
+  if (savedTermsTemplates.length > 0) await sql()`update document_templates set archived_at = now() where id = any(${savedTermsTemplates})`;
 
   job = await lead(`${NAME} A`, CUSTOMER, "visit_booked");
   bystander = await lead(`${NAME} B`, BYSTANDER, "quoted");
@@ -222,6 +220,8 @@ test.afterAll(async () => {
     await sql()`update dc_settings set terms_file_pathname = ${savedTerms.terms_file_pathname},
       terms_updated_by = ${savedTerms.terms_updated_by}, terms_updated_at = ${savedTerms.terms_updated_at} where id`;
   }
+  await sql()`delete from document_templates where created_by = ${OWNER} and kind = 'terms'`;
+  if (savedTermsTemplates.length > 0) await sql()`update document_templates set archived_at = null where id = any(${savedTermsTemplates})`;
 });
 
 test("an imported quote shows its four lines and can't be sent until markups, an install price and terms exist", async ({ page }) => {
@@ -321,11 +321,19 @@ test.describe("send, sign and the release gate", () => {
   const waivedTotal = () => expectedTotal - quote.handlingFeeCents;
   const contractName = () => `Contract ${formatProjectNo(job.projectNo)} v1.pdf`;
 
-  test("with terms uploaded, Send contract sends the reviewed total and the job moves to Quoted", async ({ page }) => {
+  test("with the starter terms, Send contract sends the reviewed total, prints the terms, and the job moves to Quoted", async ({ page }) => {
     await signInOwner(page);
-    await page.goto("/admin/settings");
-    await page.getByLabel("Upload terms PDF").setInputFiles({ name: "terms.pdf", mimeType: "application/pdf", buffer: await termsPdf() });
-    await expect(page.getByText(/^Terms last updated /)).toBeVisible();
+    await page.goto("/admin/documents");
+    await page.getByRole("button", { name: "Start from the Premier Shade starter terms" }).click();
+    await expect(page).toHaveURL(/\/admin\/documents\/[0-9a-f-]{36}$/);
+    // The starter opens with a DRAFT banner line the owner deletes once an attorney has reviewed it.
+    const terms = page.getByLabel("Text");
+    const starter = await terms.inputValue();
+    const [banner, ...rest] = starter.split("\n");
+    expect(banner).toMatch(/^\*\*DRAFT:/);
+    await terms.fill(rest.join("\n").trimStart());
+    await page.getByRole("button", { name: "Save template" }).click();
+    await expect(page.getByRole("status")).toHaveText("Saved.");
 
     const review = await quoteTab(page, job.id);
     await expect(review.getByRole("list", { name: "Before you can send" })).toHaveCount(0);
@@ -348,6 +356,23 @@ test.describe("send, sign and the release gate", () => {
 
     await page.reload();
     await expect(stageBadge(page)).toHaveText("Quoted");
+
+    // The contract prints the terms template's text, fields filled: spec §8.
+    const contract = await page.evaluate(async (href) => {
+      const buffer = new Uint8Array(await (await fetch(href)).arrayBuffer());
+      let binary = "";
+      for (const byte of buffer) binary += String.fromCharCode(byte);
+      return btoa(binary);
+    }, `/admin/files/${version.contract_file_id}`);
+    const drawn = pdfText(Buffer.from(contract, "base64"));
+    expect(drawn).toContain("Terms and Conditions");
+    expect(drawn).toContain("4. Your Right to Cancel");
+    expect(drawn).toContain("18. Contact Us");
+    expect(drawn).toContain("Premier Shade Solutions LLC");
+    // Drawn only by the terms' Contact Us list: proves {{company_phone}} and {{company_email}} were filled.
+    expect(drawn).toContain(`Phone: ${business.phone.display}`);
+    expect(drawn).toContain(`Email: ${business.email}`);
+    expect(drawn.join(" ")).not.toContain("{{");
   });
 
   test("the customer signs the contract, and the owner sees Sold and ready to order", async ({ page, browser }) => {
@@ -381,7 +406,11 @@ test.describe("send, sign and the release gate", () => {
     await expect(stageBadge(page)).toHaveText("Sold");
     await expect(review.getByRole("heading", { name: `DC quote ${quote.quoteNo} · version 1` })).toBeVisible();
     await expect(review.getByText("Signed", { exact: true })).toBeVisible();
-    await expect(review.getByRole("link", { name: /^Signed — ready to order/ })).toBeVisible();
+    // Spec §9: just signed, the three-business-day cancellation window is still open, so the owner is
+    // told when it ends and is not yet offered the order link.
+    await expect(review.getByText(/^Signed [A-Z][a-z]{2} \d{1,2}, \d{4}\. Cancellation window ends .+ — place the Direct Connect order after that\.$/))
+      .toBeVisible();
+    await expect(review.getByRole("link", { name: /^Signed — ready to order/ })).toHaveCount(0);
     await expect(figure(review, "Client total")).toHaveText(formatCents(waivedTotal()));
   });
 
