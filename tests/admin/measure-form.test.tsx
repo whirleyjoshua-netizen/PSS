@@ -161,6 +161,20 @@ describe("MeasureForm", () => {
     expect(screen.getByLabelText(/^quantity/i)).toHaveValue(1);
   });
 
+  it("steps from what the box shows, never below 1", async () => {
+    const user = userEvent.setup();
+    render(<MeasureForm jobId={LEAD} window={null} defaultRoom="" />);
+    const quantity = screen.getByLabelText(/^quantity/i);
+    await user.clear(quantity);
+    await user.type(quantity, "0");
+    await user.click(screen.getByRole("button", { name: "One more" }));
+    expect(quantity).toHaveValue(1);
+    await user.clear(quantity);
+    await user.type(quantity, "12");
+    await user.click(screen.getByRole("button", { name: "One more" }));
+    expect(quantity).toHaveValue(13);
+  });
+
   it("shows an existing window's quantity for editing", () => {
     render(<MeasureForm jobId={LEAD} window={{ ...existingWindow, quantity: 6 }} defaultRoom="" />);
     expect(screen.getByLabelText(/^quantity/i)).toHaveValue(6);

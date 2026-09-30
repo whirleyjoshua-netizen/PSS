@@ -42,6 +42,7 @@ vi.mock("@/app/admin/jobs/measure-actions", () => ({ removeMeasurement: vi.fn(),
 vi.mock("@/app/admin/jobs/[id]/QuoteTab", () => ({ QuoteTab: ({ job }: { job: Job }) => <p>Quote tab for {job.id}</p> }));
 
 const { default: JobPage } = await import("@/app/admin/jobs/[id]/page");
+const { listMeasurements } = await import("@/lib/admin/measurements");
 const open = async (query: { tab?: string; edit?: string }) =>
   render(await JobPage({ params: Promise.resolve({ id: ID }), searchParams: Promise.resolve(query) }));
 
@@ -60,6 +61,17 @@ describe("job page layout", () => {
     await open({ tab: "measurements" });
     expect(screen.getByText("No windows measured yet.")).toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "Customer" })).toBeNull();
+  });
+
+  it("counts windows, not saved lines, on the Measurements tab", async () => {
+    const line = {
+      id: "w", leadId: ID, position: 1, room: "Den", label: null, widthEighths: 240, heightEighths: 320,
+      depthEighths: null, mount: "inside" as const, requirements: [], notes: null, photoFileId: null,
+      measuredBy: "x", createdAt: new Date(), updatedAt: new Date(), quantity: 10,
+    };
+    vi.mocked(listMeasurements).mockResolvedValueOnce([line, { ...line, id: "v", quantity: 2 }]);
+    await open({});
+    expect(screen.getByRole("link", { name: /Measurements/ })).toHaveTextContent("12");
   });
 
   it("shows the Files tab without the measurements block", async () => {

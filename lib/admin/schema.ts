@@ -124,10 +124,11 @@ const inches = z.preprocess(
 const eighth = z.coerce.number().int().min(0).max(7).default(0);
 const requirementValues = REQUIREMENTS.map((r) => r.value) as [Requirement, ...Requirement[]];
 const QUANTITY_MESSAGE = `Quantity must be a whole number from 1 to ${MAX_QUANTITY}`;
+// Digits only: Number() would also take "1e1", "+5" and "0x10", which the stepper reads differently.
 const quantity = z.preprocess(
   blank,
-  z.coerce.number({ error: QUANTITY_MESSAGE }).int(QUANTITY_MESSAGE).min(1, QUANTITY_MESSAGE)
-    .max(MAX_QUANTITY, QUANTITY_MESSAGE).default(1),
+  z.string({ error: QUANTITY_MESSAGE }).trim().regex(/^\d+$/, QUANTITY_MESSAGE).transform(Number)
+    .pipe(z.number().min(1, QUANTITY_MESSAGE).max(MAX_QUANTITY, QUANTITY_MESSAGE)).default(1),
 );
 const uuid = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, "Unknown photo");
 

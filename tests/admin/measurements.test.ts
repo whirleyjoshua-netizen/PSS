@@ -37,7 +37,7 @@ describe("measurementSchema", () => {
   });
 
   it("refuses a quantity that is not a whole number from 1 to 99", () => {
-    for (const quantity of ["0", "-2", "100", "2.5", "ten"]) {
+    for (const quantity of ["0", "-2", "100", "2.5", "ten", "1e1", "+5", "0x10", "Infinity"]) {
       const parsed = measurementSchema.safeParse({ ...form, quantity });
       expect(parsed.success, quantity).toBe(false);
       if (!parsed.success) expect(parsed.error.issues[0].message).toBe("Quantity must be a whole number from 1 to 99");
@@ -109,11 +109,12 @@ describe("measurements", () => {
     expect(sql.mock.calls[0]).toContain("Added window: Kitchen, Left of sink");
   });
 
-  it("saves a changed quantity when a window is edited", async () => {
+  it("saves a changed quantity when a window is edited, and logs how many it now covers", async () => {
     sql.mockResolvedValue([{ id: WIN, previous_photo_id: null, new_photo_id: null }]);
     await m.updateMeasurement(LEAD, WIN, { ...input, quantity: 7 }, "o");
     expect(text(sql.mock.calls[0])).toMatch(/quantity = \?/);
     expect(sql.mock.calls[0]).toContain(7);
+    expect(sql.mock.calls[0]).toContain("Edited 7 windows: Kitchen, Left of sink");
   });
 
   it("reads the quantity back from the row", async () => {

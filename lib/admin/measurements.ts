@@ -20,7 +20,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const describe = (input: { room: string; label: string | null }) =>
   input.label ? `${input.room}, ${input.label}` : input.room;
 
-const added = (quantity: number) => (quantity > 1 ? `${quantity} windows` : "window");
+const windows = (quantity: number) => (quantity > 1 ? `${quantity} windows` : "window");
 
 function toMeasurement(row: Record<string, unknown>): WindowMeasurement {
   return {
@@ -76,7 +76,7 @@ export async function addMeasurement(leadId: string, input: MeasurementInput, ac
     ),
     logged as (
       insert into job_events (lead_id, actor, kind, body)
-      select lead_id, ${actor}, 'measure', ${`Added ${added(input.quantity)}: ${describe(input)}`} from created
+      select lead_id, ${actor}, 'measure', ${`Added ${windows(input.quantity)}: ${describe(input)}`} from created
     )
     select id from created`;
   return (rows[0]?.id as string | undefined) ?? null;
@@ -105,7 +105,7 @@ export async function updateMeasurement(
     ),
     logged as (
       insert into job_events (lead_id, actor, kind, body)
-      select lead_id, ${actor}, 'measure', ${`Edited window: ${describe(input)}`} from changed
+      select lead_id, ${actor}, 'measure', ${`Edited ${windows(input.quantity)}: ${describe(input)}`} from changed
     )
     select changed.id, previous.photo_file_id as previous_photo_id, changed.photo_file_id as new_photo_id
     from changed, previous`;

@@ -37,8 +37,12 @@ function Dimension({ name, label, value }: { name: "width" | "height" | "depth";
  */
 function Quantity({ value }: { value: number }) {
   const [quantity, setQuantity] = useState(String(value));
+  // Reads the box the way the server does: digits only, and blank means 1.
   const step = (by: number) =>
-    setQuantity((current) => String(Math.min(MAX_QUANTITY, Math.max(1, (Number.parseInt(current, 10) || 1) + by))));
+    setQuantity((current) => {
+      const now = /^\d+$/.test(current.trim()) ? Number(current) : 1;
+      return String(Math.min(MAX_QUANTITY, Math.max(1, now + by)));
+    });
   const stepper = "min-h-12 w-12 shrink-0 border border-rule text-xl";
   return (
     <div className="flex flex-col gap-2">
