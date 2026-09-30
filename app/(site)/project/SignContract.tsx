@@ -1,17 +1,21 @@
 import { business } from "@/content/business";
 import { formatShortDate } from "@/lib/admin/time";
+import { hasInitialMarks } from "@/lib/pdf/sign-marks";
 import type { ListedSignature, SignableFile } from "@/lib/portal/sign";
-import { TYPED_NAME_MAX } from "@/lib/portal/typed-name";
 import { signContractFormAction } from "./actions";
+import { AdoptSignature } from "./AdoptSignature";
 
 /**
  * Signing one shared contract. Closed until opened, like ApproveQuote, so the customer reads
- * what they are agreeing to before the button is reachable. Plain HTML throughout: the reveal is
- * the browser's and the submit is a form post, so it works with JavaScript off.
+ * what they are agreeing to before the button is reachable. The customer adopts a signature
+ * (AdoptSignature: typed by default, drawn with JavaScript) and, when the file has numbered
+ * sections, initials. With JavaScript off it is plain HTML: the reveal is the browser's and the
+ * submit is a typed form post.
  */
-export function SignContract({ jobId, file }: { jobId: string; file: Pick<SignableFile, "id" | "name"> & { document?: SignableFile["document"] } }) {
+export function SignContract({ jobId, file }: { jobId: string; file: Pick<SignableFile, "id" | "name"> & { document?: SignableFile["document"]; signMarks?: SignableFile["signMarks"] } }) {
   // A job document's PDF is signed through this same path; the customer reads "document" and its title.
   const noun = file.document ? "document" : "contract";
+  const initialling = hasInitialMarks(file.signMarks);
   const form = (
     <details className="w-full max-w-sm">
       <summary className="inline-flex min-h-11 cursor-pointer items-center border border-charcoal px-5 py-3 font-display text-xs uppercase tracking-[0.2em] text-charcoal hover:bg-charcoal hover:text-ivory">
@@ -29,23 +33,10 @@ export function SignContract({ jobId, file }: { jobId: string; file: Pick<Signab
             {file.name}
           </a>
         </p>
-        <label className="flex flex-col gap-1 text-sm">
-          Your full name
-          <input
-            type="text"
-            name="signedName"
-            required
-            maxLength={TYPED_NAME_MAX}
-            // `required` alone lets a name of only spaces through, which the action then refuses.
-            pattern=".*\S.*"
-            title="Type your full name"
-            autoComplete="name"
-            className="min-h-11 w-full border border-rule bg-ivory px-3"
-          />
-        </label>
+        <AdoptSignature needsInitials={initialling} />
         <label className="flex items-start gap-2 text-sm">
           <input type="checkbox" name="agreed" required className="mt-1 size-4" />
-          I agree to sign this {noun} electronically
+          I agree to sign this {noun} electronically{initialling ? " and to initial every numbered section" : ""}
         </label>
         <button
           type="submit"
@@ -91,7 +82,7 @@ export function SignatureNotice({
           ? `Thank you — you signed “${signature.documentTitle}” on ${formatShortDate(signature.signedAt)}. A copy is on its way to your email.`
           : `Thank you — your contract was signed on ${formatShortDate(signature.signedAt)}. A copy is on its way to your email.`
         : signed === "missing"
-          ? "We could not record that signature: please type your full name and tick the box to agree, then sign again."
+          ? "We could not record that signature: please type your full name, add your initials or signature where asked, and tick the box to agree, then sign again."
           : `We could not record that signature just now. Please call us on ${business.phone.display} and we will sort it out.`}
     </p>
   );
