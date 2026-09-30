@@ -92,7 +92,7 @@ export async function updateMeasurement(
 ): Promise<boolean> {
   if (!UUID.test(leadId) || !UUID.test(windowId)) return false;
   const rows = await db()`
-    with previous as (select photo_file_id from window_measurements where id = ${windowId} and lead_id = ${leadId}),
+    with previous as (select photo_file_id, quantity from window_measurements where id = ${windowId} and lead_id = ${leadId}),
     photo as (select id from job_files where id = ${input.photoFileId} and lead_id = ${leadId} and kind = 'photo'),
     changed as (
       update window_measurements set
@@ -105,7 +105,10 @@ export async function updateMeasurement(
     ),
     logged as (
       insert into job_events (lead_id, actor, kind, body)
-      select lead_id, ${actor}, 'measure', ${`Edited ${windows(input.quantity)}: ${describe(input)}`} from changed
+      select changed.lead_id, ${actor}, 'measure',
+        case when previous.quantity = ${input.quantity} then ${`Edited ${windows(input.quantity)}: ${describe(input)}`}
+        else ${`Edited ${describe(input)}: `} || previous.quantity::text || ${` → ${input.quantity} ${input.quantity > 1 ? "windows" : "window"}`} end
+      from changed, previous
     )
     select changed.id, previous.photo_file_id as previous_photo_id, changed.photo_file_id as new_photo_id
     from changed, previous`;
@@ -122,12 +125,12 @@ export async function deleteMeasurement(leadId: string, windowId: string, actor:
   const rows = await db()`
     with removed as (
       delete from window_measurements where id = ${windowId} and lead_id = ${leadId}
-      returning lead_id, room, label, photo_file_id
+      returning lead_id, room, label, photo_file_id, quantity
     ),
     logged as (
       insert into job_events (lead_id, actor, kind, body)
       select lead_id, ${actor}, 'measure',
-        'Deleted window: ' || room || coalesce(', ' || label, '') from removed
+        case when quantity > 1 then 'Deleted ' || quantity::text || ' windows: ' else 'Deleted window: ' end || room || coalesce(', ' || label, '') from removed
     )
     select photo_file_id from removed`;
   if (!rows[0]) return false;
