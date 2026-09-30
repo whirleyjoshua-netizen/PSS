@@ -4,13 +4,21 @@ import { business } from "@/content/business";
 import { formatShortDate } from "@/lib/admin/time";
 import { winAnsiSafe } from "@/lib/dc/contract-layout";
 import { LETTER, MARGIN, wrapRuns, type Seg } from "@/lib/pdf/text";
+import {
+  INITIALS_BOX, INITIALS_GUTTER, SIGNATURE_BLOCK, sectionNumber, type InitialsMark, type MarkPoint, type SignMarks,
+} from "@/lib/pdf/sign-marks";
 import type { DocResponse } from "./kinds";
 import type { Block, Inline } from "./types";
 
-/** Where the next line goes. renderBlocks moves `page` and `y` as it draws. */
-export type PdfPen = { doc: PDFDocument; page: PDFPage; y: number; regular: PDFFont; bold: PDFFont };
+/**
+ * Where the next line goes. renderBlocks moves `page` and `y` as it draws. When `initials` is set
+ * (a PDF the client will sign), each numbered heading gets an empty initials box and its mark is
+ * pushed here (spec §3).
+ */
+export type PdfPen = { doc: PDFDocument; page: PDFPage; y: number; regular: PDFFont; bold: PDFFont; initials?: InitialsMark[] };
 
-export const SIGN_CLOSING = "Signed electronically on the client's project page.";
+/** A generated PDF and the places the client's marks belong on it (spec §3). */
+export type RenderedPdf = { bytes: Uint8Array; marks: SignMarks };
 
 const INK = rgb(0.1, 0.1, 0.1);
 const BODY = 10;
@@ -51,17 +59,56 @@ function drawLines(pen: PdfPen, lines: Seg[][], x: number, size: number, lead: n
   }
 }
 
+const plainText = (inlines: Inline[]): string =>
+  inlines.map((inline) => (inline.type === "text" ? inline.text : `{{${inline.key}}}`)).join("");
+
+const pageIndex = (pen: PdfPen): number => pen.doc.getPages().indexOf(pen.page);
+
+/** The empty initials line at the right margin, level with the heading's first baseline (pen.y). Answers its place. */
+function drawInitialsBox(pen: PdfPen): MarkPoint {
+  const x = LETTER[0] - MARGIN - INITIALS_BOX.width;
+  const y = pen.y - INITIALS_BOX.lineDrop;
+  pen.page.drawLine({ start: { x, y }, end: { x: x + INITIALS_BOX.width, y }, thickness: 0.5, color: INK });
+  pen.page.drawText("Initials", { x, y: y - 8, size: 6, font: pen.regular, color: INK });
+  return { page: pageIndex(pen), x, y };
+}
+
+/**
+ * "Client signature", "Printed name" and "Date", each with an empty line, kept together on one
+ * page (a new one if the rest of this one is too short). Answers the signature line's left end (spec §3).
+ */
+export function drawSignatureBlock(pen: PdfPen): MarkPoint {
+  ensure(pen, SIGNATURE_BLOCK.height);
+  const top = pen.y - SIGNATURE_BLOCK.before;
+  const x = MARGIN + SIGNATURE_BLOCK.labelWidth;
+  const rows: [string, number][] = [
+    ["Client signature", SIGNATURE_BLOCK.lineWidth], ["Printed name", SIGNATURE_BLOCK.lineWidth], ["Date", SIGNATURE_BLOCK.dateWidth],
+  ];
+  rows.forEach(([label, width], i) => {
+    const baseline = top - i * SIGNATURE_BLOCK.row;
+    const line = baseline - SIGNATURE_BLOCK.lineDrop;
+    pen.page.drawText(label, { x: MARGIN, y: baseline, size: BODY, font: pen.regular, color: INK });
+    pen.page.drawLine({ start: { x, y: line }, end: { x: x + width, y: line }, thickness: 0.5, color: INK });
+  });
+  pen.y = top - 2 * SIGNATURE_BLOCK.row - LEAD;
+  return { page: pageIndex(pen), x, y: top - SIGNATURE_BLOCK.lineDrop };
+}
+
 /** Draws doc-text blocks from the pen's position, adding pages as needed. Used for documents and contract terms. */
 export function renderBlocks(pen: PdfPen, blocks: Block[]): void {
   const fonts = { regular: pen.regular, bold: pen.bold };
   blocks.forEach((block, index) => {
     if (block.type === "heading") {
       const style = HEADING[block.level];
-      const lines = wrapRuns(segsOf(block.inlines, true), fonts, style.size, WIDTH);
+      // Only a PDF the client will sign initials its numbered sections (spec §3).
+      const section = pen.initials ? sectionNumber(plainText(block.inlines)) : null;
+      const lines = wrapRuns(segsOf(block.inlines, true), fonts, style.size, section ? WIDTH - INITIALS_GUTTER : WIDTH);
       // A heading never sits alone at the foot of a page: it moves with room for a line of text.
       // The space above it is skipped at the top of a fresh page, where nothing sits above it.
       const freshPage = ensure(pen, style.before + lines.length * style.lead + LEAD);
       if (index > 0 && !freshPage) pen.y -= style.before;
+      // After the page decision, so a heading that moved takes its box and its mark with it.
+      if (section && pen.initials) pen.initials.push({ ...drawInitialsBox(pen), section });
       drawLines(pen, lines, MARGIN, style.size, style.lead);
     } else if (block.type === "paragraph") {
       drawLines(pen, wrapRuns(segsOf(block.inlines), fonts, BODY, WIDTH), MARGIN, BODY, LEAD);
@@ -89,12 +136,13 @@ export type DocumentPdfInput = {
   response: DocResponse;
 };
 
-/** A job document as a PDF (spec §6): company header, title and date, client block, body, signing line. */
-export async function buildDocumentPdf(input: DocumentPdfInput): Promise<Uint8Array> {
+/** A job document as a PDF (spec §6): company header, title and date, client block, body, and for a sign document the signature block. */
+export async function renderDocumentPdf(input: DocumentPdfInput): Promise<RenderedPdf> {
   const doc = await PDFDocument.create();
   const regular = await doc.embedFont(StandardFonts.Helvetica);
   const bold = await doc.embedFont(StandardFonts.HelveticaBold);
-  const pen: PdfPen = { doc, page: doc.addPage(LETTER), y: LETTER[1] - MARGIN, regular, bold };
+  const signing = input.response === "sign";
+  const pen: PdfPen = { doc, page: doc.addPage(LETTER), y: LETTER[1] - MARGIN, regular, bold, initials: signing ? [] : undefined };
   const fonts = { regular, bold };
 
   drawLines(pen, [[{ text: business.legalName, bold: true }]], MARGIN, 14, 16);
@@ -115,9 +163,15 @@ export async function buildDocumentPdf(input: DocumentPdfInput): Promise<Uint8Ar
   pen.y -= 14;
 
   renderBlocks(pen, input.blocks);
-  if (input.response === "sign") {
+  let signature: MarkPoint | null = null;
+  if (signing) {
     pen.y -= GAP;
-    drawLines(pen, [[{ text: SIGN_CLOSING, bold: true }]], MARGIN, BODY, LEAD);
+    signature = drawSignatureBlock(pen);
   }
-  return doc.save();
+  return { bytes: await doc.save(), marks: { initials: pen.initials ?? [], signature } };
+}
+
+/** The same PDF as bytes alone: the preview route and anything that never stores marks. */
+export async function buildDocumentPdf(input: DocumentPdfInput): Promise<Uint8Array> {
+  return (await renderDocumentPdf(input)).bytes;
 }
