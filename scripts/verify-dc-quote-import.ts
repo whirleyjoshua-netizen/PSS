@@ -95,9 +95,12 @@ vi.mock("@vercel/blob", () => ({
   },
 }));
 vi.mock("../lib/dc/contract-pdf", () => ({
-  buildContractPdf: async (input: { projectNo: string; version: number }) => {
+  renderContractPdf: async (input: { projectNo: string; version: number }) => {
     if (hooks.duringBuild) await hooks.duringBuild();
-    return new Uint8Array(Buffer.from(`%PDF-1.4 verify contract ${input.projectNo} v${input.version}`));
+    return {
+      bytes: new Uint8Array(Buffer.from(`%PDF-1.4 verify contract ${input.projectNo} v${input.version}`)),
+      marks: { initials: [], signature: { page: 0, x: 154, y: 300 } },
+    };
   },
 }));
 vi.mock("../lib/dc/send-contract-email", () => ({
@@ -484,7 +487,7 @@ test("DC quote import: import, edit, send, sign and the Dealer Copy guard agains
     console.log("step 10: sign");
     const contract = await getFile(contractId);
     if (!contract) throw new Error("setup: the contract file is gone");
-    const signed = await recordSignature({ jobId: A.id, file: contract, name: "Jane Doe", email: ACTOR, ip: null, userAgent: null });
+    const signed = await recordSignature({ jobId: A.id, file: contract, name: "Jane Doe", email: ACTOR, ip: null, userAgent: null, adoption: { method: "typed", initials: null } });
     check(signed === "signed", "recordSignature answers signed", `got ${signed}`);
     const v2signed = await versionRow(v2);
     check(v2signed.status === "signed" && v2signed.signed_at !== null, "v2 is signed with signed_at",

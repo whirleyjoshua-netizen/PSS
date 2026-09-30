@@ -4,6 +4,7 @@ import { del, get, put } from "@vercel/blob";
 import { db } from "@/lib/db";
 import { docTypeLabel, isDocType, type DocType, type StoredDocType } from "./doc-types";
 import { safeName, type FileKind } from "./uploads";
+import type { SignMarks } from "@/lib/pdf/sign-marks";
 
 export type JobFile = {
   id: string;
@@ -86,7 +87,15 @@ export async function listFiles(leadId: string): Promise<JobFile[]> {
  */
 export async function listBlobPathnames(leadId: string): Promise<string[]> {
   if (!UUID.test(leadId)) return [];
-  const rows = await db()`select blob_pathname from job_files where lead_id = ${leadId}`;
+  // A drawn signature's images live in Blob but have no job_files row: named here too, or deleting
+  // the job would orphan them (contract_signatures cascades away with the job).
+  const rows = await db()`
+    select blob_pathname from job_files where lead_id = ${leadId}
+    union all
+    select p as blob_pathname
+    from contract_signatures s
+    cross join lateral unnest(array[s.signature_image_pathname, s.initials_image_pathname]) as p
+    where s.lead_id = ${leadId} and p is not null`;
   return rows.map((row) => row.blob_pathname as string);
 }
 
@@ -103,6 +112,9 @@ export async function getFile(fileId: string): Promise<JobFile | null> {
  *
  * `docType` is written in the same insert, so a file born as a Dealer Copy is never, even
  * for a moment, a document without that label. It defaults to null.
+ *
+ * `signMarks` (spec §3), where the client's initials and signature belong on a generated PDF, is
+ * written in the same insert too, so a PDF that will be signed never exists without them.
  */
 export async function createFile(input: {
   leadId: string;
@@ -112,6 +124,7 @@ export async function createFile(input: {
   body: Blob;
   actor: string;
   docType?: StoredDocType;
+  signMarks?: SignMarks | null;
 }): Promise<JobFile | null> {
   if (!UUID.test(input.leadId)) return null;
   const sql = db();
@@ -125,9 +138,10 @@ export async function createFile(input: {
   try {
     const rows = await sql`
       with created as (
-        insert into job_files (id, lead_id, uploaded_by, kind, name, content_type, size_bytes, blob_pathname, doc_type)
+        insert into job_files (id, lead_id, uploaded_by, kind, name, content_type, size_bytes, blob_pathname, doc_type, sign_marks)
         values (${id}, ${input.leadId}, ${input.actor}, ${input.kind}, ${input.name},
-                ${input.contentType}, ${input.body.size}, ${pathname}, ${input.docType ?? null})
+                ${input.contentType}, ${input.body.size}, ${pathname}, ${input.docType ?? null},
+                ${input.signMarks ? JSON.stringify(input.signMarks) : null}::jsonb)
         returning *
       ),
       logged as (

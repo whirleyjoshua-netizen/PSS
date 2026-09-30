@@ -14,12 +14,14 @@ import { listSharedDocuments, readFile } from "@/lib/admin/files";
 import {
   listSignatures, recordSignature, signableContracts, signatureFor, storeSignedCopy,
 } from "@/lib/portal/sign";
+import { pngBytes } from "../fixtures/png";
 
 const JOB = "11111111-1111-4111-8111-111111111111";
 const FILE = "22222222-2222-4222-8222-222222222222";
 const STAMPED = "33333333-3333-4333-8333-333333333333";
 // The known SHA-256 of the ASCII bytes "pdf bytes".
 const PDF_BYTES_SHA256 = "d1cb546b102fab8362de413fdacc187b05be10df72b72db3b3e50b4953f6a555";
+const TYPED = { method: "typed", initials: null } as const;
 
 const doc = (id: string, name: string, docType: string) => ({
   id, leadId: JOB, createdAt: new Date(), uploadedBy: "owner@example.com",
@@ -115,7 +117,7 @@ describe("recordSignature", () => {
 
     const result = await recordSignature({
       jobId: JOB, file, name: "  Jane Doe  ", email: "jane@example.com",
-      ip: "203.0.113.4", userAgent: "test-agent",
+      ip: "203.0.113.4", userAgent: "test-agent", adoption: TYPED,
     });
 
     expect(result).toBe("signed");
@@ -145,7 +147,7 @@ describe("recordSignature", () => {
   it("in the SAME statement, marks a generated contract's version signed and moves the job to Sold", async () => {
     vi.mocked(readFile).mockResolvedValue({ stream: new Response("pdf bytes").body!, contentType: "application/pdf" });
     query.mockResolvedValue([{ id: "s1", lead_id: JOB, file_id: FILE, signed_name: "A", signed_email: "a@x", signed_at: new Date(), doc_sha256: "x", signed_file_id: null }]);
-    await recordSignature({ jobId: JOB, file: doc(FILE, "Contract PSS-1042 v1.pdf", "contract"), name: "A", email: "a@x", ip: null, userAgent: null });
+    await recordSignature({ jobId: JOB, file: doc(FILE, "Contract PSS-1042 v1.pdf", "contract"), name: "A", email: "a@x", ip: null, userAgent: null, adoption: TYPED });
     expect(query).toHaveBeenCalledTimes(1);
     const s = (query.mock.calls[0][0] as TemplateStringsArray).join("?").replace(/\s+/g, " ");
     expect(s).toContain("update dc_quote_versions set status = 'signed'");
@@ -161,7 +163,7 @@ describe("recordSignature", () => {
   it("in the SAME statement, completes a sent sign document whose PDF this is", async () => {
     vi.mocked(readFile).mockResolvedValue({ stream: new Response("pdf bytes").body!, contentType: "application/pdf" });
     query.mockResolvedValue([{ id: "sig" }]);
-    await recordSignature({ jobId: JOB, file: doc(FILE, "Change order.pdf", "contract"), name: "Jane Doe", email: "jane@example.com", ip: null, userAgent: null });
+    await recordSignature({ jobId: JOB, file: doc(FILE, "Change order.pdf", "contract"), name: "Jane Doe", email: "jane@example.com", ip: null, userAgent: null, adoption: TYPED });
     const s = (query.mock.calls[0][0] as TemplateStringsArray).join("?").replace(/\s+/g, " ");
     expect(s).toContain("update job_documents set status = 'completed', completed_at = now(), updated_at = now()");
     expect(s).toContain("where file_id = (select file_id from signed) and lead_id = (select lead_id from signed) and status = 'sent' and response = 'sign'");
@@ -171,7 +173,7 @@ describe("recordSignature", () => {
 
   it("refuses an empty name without touching the database", async () => {
     const result = await recordSignature({
-      jobId: JOB, file, name: "   ", email: "jane@example.com", ip: null, userAgent: null,
+      jobId: JOB, file, name: "   ", email: "jane@example.com", ip: null, userAgent: null, adoption: TYPED,
     });
     expect(result).toBe("invalid");
     expect(query).not.toHaveBeenCalled();
@@ -184,7 +186,7 @@ describe("recordSignature", () => {
     });
     query.mockResolvedValue([]); // on conflict do nothing returned no row
     const result = await recordSignature({
-      jobId: JOB, file, name: "Jane Doe", email: "jane@example.com", ip: null, userAgent: null,
+      jobId: JOB, file, name: "Jane Doe", email: "jane@example.com", ip: null, userAgent: null, adoption: TYPED,
     });
     expect(result).toBe("already-signed");
     expect(query).toHaveBeenCalledTimes(1);
@@ -193,7 +195,7 @@ describe("recordSignature", () => {
   it("answers not-found when the bytes cannot be read", async () => {
     vi.mocked(readFile).mockResolvedValue(null);
     const result = await recordSignature({
-      jobId: JOB, file, name: "Jane Doe", email: "jane@example.com", ip: null, userAgent: null,
+      jobId: JOB, file, name: "Jane Doe", email: "jane@example.com", ip: null, userAgent: null, adoption: TYPED,
     });
     expect(result).toBe("not-found");
     expect(query).not.toHaveBeenCalled();
@@ -279,11 +281,13 @@ describe("signatureFor", () => {
       id: "sig", lead_id: JOB, file_id: FILE, signed_name: "Jane Doe",
       signed_email: "jane@example.com", signed_at: signedAt, doc_sha256: PDF_BYTES_SHA256,
       signed_file_id: STAMPED,
+      signature_method: null, signed_initials: null, signature_image_pathname: null, initials_image_pathname: null,
     }]);
     expect(await signatureFor(FILE)).toEqual({
       id: "sig", leadId: JOB, fileId: FILE, signedName: "Jane Doe",
       signedEmail: "jane@example.com", signedAt, docSha256: PDF_BYTES_SHA256,
       signedFileId: STAMPED,
+      signatureMethod: null, signedInitials: null, signatureImagePathname: null, initialsImagePathname: null,
     });
     expect(query.mock.calls[0].slice(1)).toEqual([FILE]);
   });
@@ -291,5 +295,135 @@ describe("signatureFor", () => {
   it("answers null when the contract is unsigned", async () => {
     query.mockResolvedValue([]);
     expect(await signatureFor(FILE)).toBeNull();
+  });
+});
+
+describe("signableContracts carries each file's sign marks, read from the database", () => {
+  const marks = { initials: [{ page: 1, x: 502, y: 700, section: "4" }], signature: { page: 2, x: 154, y: 300 } };
+  it("attaches a file's stored marks, and null for a file without", async () => {
+    const OTHER = "55555555-5555-4555-8555-555555555555";
+    vi.mocked(listSharedDocuments).mockResolvedValue([doc(FILE, "Contract.pdf", "contract"), doc(OTHER, "Upload.pdf", "contract")]);
+    query.mockImplementation(async (strings: TemplateStringsArray) =>
+      strings.join("?").includes("sign_marks") ? [{ id: FILE, sign_marks: marks }] : []);
+    const offered = await signableContracts(JOB);
+    expect(offered.map((file) => [file.id, file.signMarks])).toEqual([[FILE, marks], [OTHER, null]]);
+    const call = query.mock.calls.find(([strings]) => (strings as TemplateStringsArray).join("?").includes("sign_marks"))!;
+    expect((call[0] as TemplateStringsArray).join("?")).toContain("from job_files");
+    expect(call.slice(1)).toEqual([JOB]);
+  });
+  it("treats malformed stored marks as none", async () => {
+    vi.mocked(listSharedDocuments).mockResolvedValue([doc(FILE, "Contract.pdf", "contract")]);
+    query.mockImplementation(async (strings: TemplateStringsArray) =>
+      strings.join("?").includes("sign_marks") ? [{ id: FILE, sign_marks: { initials: "nope" } }] : []);
+    expect((await signableContracts(JOB))[0].signMarks).toBeNull();
+  });
+});
+
+describe("recordSignature stores the adoption (spec §6)", () => {
+  const file = doc(FILE, "Contract.pdf", "contract");
+  const SIG = pngBytes(600, 200);
+  const INI = pngBytes(200, 100);
+  const served = () => vi.mocked(readFile).mockResolvedValue({ stream: new Response("pdf bytes").body!, contentType: "application/pdf" });
+  const base = { jobId: JOB, file, name: "Jane Doe", email: "jane@example.com", ip: null, userAgent: null };
+  // values: id, lead, file, name, email, ip, ua, sha256, then method, initials, signature path, initials path.
+  const adoptionValues = () => query.mock.calls[0].slice(1).slice(8, 12);
+
+  it("writes a typed adoption in the same insert, and stores nothing in Blob", async () => {
+    served();
+    query.mockResolvedValue([{ id: "sig" }]);
+    expect(await recordSignature({ ...base, adoption: { method: "typed", initials: "JD" } })).toBe("signed");
+    expect(adoptionValues()).toEqual(["typed", "JD", null, null]);
+    const sql = (query.mock.calls[0][0] as TemplateStringsArray).join("?").replace(/\s+/g, " ");
+    expect(sql).toContain("doc_sha256, signature_method, signed_initials, signature_image_pathname, initials_image_pathname)");
+    expect(put).not.toHaveBeenCalled();
+    expect(query).toHaveBeenCalledTimes(1);
+  });
+
+  it("stores drawn PNGs privately under the job BEFORE the statement, and records their pathnames", async () => {
+    served();
+    query.mockResolvedValue([{ id: "sig" }]);
+    vi.mocked(put).mockResolvedValue(undefined as never);
+    expect(await recordSignature({ ...base, adoption: { method: "drawn", signaturePng: SIG, initialsPng: INI } })).toBe("signed");
+    expect(put).toHaveBeenCalledTimes(2);
+    const [[sigPath, sigBody, sigOptions], [iniPath, iniBody]] = vi.mocked(put).mock.calls;
+    expect(sigPath).toMatch(new RegExp(`^jobs/${JOB}/signatures/[0-9a-f-]{36}-signature\\.png$`));
+    expect(iniPath).toBe((sigPath as string).replace("-signature.png", "-initials.png"));
+    expect(sigBody).toBe(SIG);
+    expect(iniBody).toBe(INI);
+    expect(sigOptions).toEqual({ access: "private", contentType: "image/png", addRandomSuffix: false });
+    expect(vi.mocked(put).mock.invocationCallOrder[1]).toBeLessThan(query.mock.invocationCallOrder[0]);
+    expect(adoptionValues()).toEqual(["drawn", null, sigPath, iniPath]);
+    expect(del).not.toHaveBeenCalled();
+  });
+
+  it("stores only the signature when the drawn adoption has no initials", async () => {
+    served();
+    query.mockResolvedValue([{ id: "sig" }]);
+    vi.mocked(put).mockResolvedValue(undefined as never);
+    await recordSignature({ ...base, adoption: { method: "drawn", signaturePng: SIG, initialsPng: null } });
+    expect(put).toHaveBeenCalledTimes(1);
+    expect(adoptionValues()[3]).toBeNull();
+  });
+
+  it("removes the stored PNGs when the statement wrote nothing (already signed)", async () => {
+    served();
+    query.mockResolvedValue([]);
+    vi.mocked(put).mockResolvedValue(undefined as never);
+    expect(await recordSignature({ ...base, adoption: { method: "drawn", signaturePng: SIG, initialsPng: INI } })).toBe("already-signed");
+    expect(vi.mocked(del).mock.calls.map(([path]) => path)).toEqual(vi.mocked(put).mock.calls.map(([path]) => path));
+  });
+
+  it("removes the stored PNGs and rethrows when the statement fails", async () => {
+    served();
+    query.mockRejectedValue(new Error("db down"));
+    vi.mocked(put).mockResolvedValue(undefined as never);
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    await expect(recordSignature({ ...base, adoption: { method: "drawn", signaturePng: SIG, initialsPng: INI } })).rejects.toThrow("db down");
+    expect(put).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(del).mock.calls.map(([path]) => path)).toEqual(vi.mocked(put).mock.calls.map(([path]) => path));
+  });
+
+  // A put can reject after the object was written (a timeout, say), so every ATTEMPTED path is removed.
+  it("answers not-found, writes no row, and leaves nothing behind when a PNG cannot be stored", async () => {
+    served();
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(put).mockResolvedValueOnce(undefined as never).mockRejectedValueOnce(new Error("blob down"));
+    expect(await recordSignature({ ...base, adoption: { method: "drawn", signaturePng: SIG, initialsPng: INI } })).toBe("not-found");
+    expect(query).not.toHaveBeenCalled();
+    expect(put).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(del).mock.calls.map(([path]) => path)).toEqual(vi.mocked(put).mock.calls.map(([path]) => path));
+  });
+
+  it("removes the signature path when its own put rejects, and never attempts the initials", async () => {
+    served();
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(put).mockRejectedValueOnce(new Error("timeout"));
+    expect(await recordSignature({ ...base, adoption: { method: "drawn", signaturePng: SIG, initialsPng: INI } })).toBe("not-found");
+    expect(query).not.toHaveBeenCalled();
+    expect(put).toHaveBeenCalledTimes(1);
+    const [[sigPath]] = vi.mocked(put).mock.calls;
+    expect(sigPath).toMatch(/-signature\.png$/);
+    expect(vi.mocked(del).mock.calls.map(([path]) => path)).toEqual([sigPath]);
+  });
+
+  it("stores nothing for an empty name or unreadable bytes", async () => {
+    expect(await recordSignature({ ...base, name: "  ", adoption: { method: "drawn", signaturePng: SIG, initialsPng: null } })).toBe("invalid");
+    vi.mocked(readFile).mockResolvedValue(null);
+    expect(await recordSignature({ ...base, adoption: { method: "drawn", signaturePng: SIG, initialsPng: null } })).toBe("not-found");
+    expect(put).not.toHaveBeenCalled();
+  });
+});
+
+describe("signatureFor maps the adoption", () => {
+  it("reads a drawn adoption's pathnames", async () => {
+    query.mockResolvedValue([{
+      id: "sig", lead_id: JOB, file_id: FILE, signed_name: "Jane Doe", signed_email: "jane@example.com", signed_at: new Date(),
+      doc_sha256: "h", signed_file_id: null, signature_method: "drawn", signed_initials: null,
+      signature_image_pathname: "jobs/x/signatures/a-signature.png", initials_image_pathname: "jobs/x/signatures/a-initials.png",
+    }]);
+    expect(await signatureFor(FILE)).toMatchObject({
+      signatureMethod: "drawn", signedInitials: null,
+      signatureImagePathname: "jobs/x/signatures/a-signature.png", initialsImagePathname: "jobs/x/signatures/a-initials.png",
+    });
   });
 });
