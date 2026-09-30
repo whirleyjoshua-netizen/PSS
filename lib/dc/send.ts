@@ -10,7 +10,7 @@ import { fillFields, termsFieldValues } from "@/lib/docs/fill";
 import { remainingMarkers } from "@/lib/docs/parse";
 import { STARTER_TERMS } from "@/lib/docs/starter-terms";
 import { liveTemplateOfKind, type DocumentTemplate } from "@/lib/docs/templates";
-import { buildContractPdf, type ContractTerms } from "./contract-pdf";
+import { renderContractPdf, type ContractTerms } from "./contract-pdf";
 import { pickInstallQuote, priceVersion, pricingFingerprint, sendBlockers, type InstallChoice, type PricedVersion } from "./pricing";
 import { sendContractEmail } from "./send-contract-email";
 import { getDcSettings, listMarkupRules, listVersions, type DcSettings, type StoredVersion } from "./store";
@@ -135,7 +135,7 @@ export async function sendContract(input: { jobId: string; versionId: string; fi
   const projectNo = formatProjectNo(job.projectNo) ?? "PSS";
   const name = `Contract ${projectNo} v${version.version}.pdf`;
   const pricedLine = (position: number) => priced.lines.find((x) => x.position === position)!;
-  const pdf = await buildContractPdf({
+  const rendered = await renderContractPdf({
     projectNo, version: version.version, date: now,
     client: { name: job.name, address: job.address, city: job.city, email: job.email },
     lines: version.lines.map((l) => {
@@ -146,8 +146,10 @@ export async function sendContract(input: { jobId: string; versionId: string; fi
     oversizedCents: priced.oversizedCents, clientTotalCents: priced.clientTotalCents!,
   }, terms);
 
+  // The marks go in with the file, in createFile's one statement (spec §3).
   const file = await createFile({ leadId: job.id, kind: "document", name, contentType: "application/pdf",
-    body: new Blob([new Uint8Array(pdf)], { type: "application/pdf" }), actor: input.actor, docType: "contract" });
+    body: new Blob([new Uint8Array(rendered.bytes)], { type: "application/pdf" }), actor: input.actor, docType: "contract",
+    signMarks: rendered.marks });
   if (!file) return { error: "This job no longer exists." };
 
   const lineRows = JSON.stringify(version.lines.map((l) => {
