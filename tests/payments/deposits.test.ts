@@ -62,11 +62,26 @@ describe("depositState", () => {
     const s = text(sql.mock.calls[0]);
     for (const part of [
       "bool_or(d.status = 'paid') as has_paid", "bool_or(d.status = 'pending') as has_pending",
-      "bool_or(d.status = 'refunded') as has_refunded", "from deposits d where d.dc_quote_version_id = v.id",
-      "order by coalesce(h.has_paid, false) desc, coalesce(h.has_pending, false) desc, coalesce(h.has_refunded, false) desc, v.version desc limit 1",
+      "from deposits d where d.dc_quote_version_id = v.id",
+      "order by coalesce(h.has_paid, false) desc, coalesce(h.has_pending, false) desc, v.version desc limit 1",
       "join chosen c on c.id = v.id",
     ]) expect(s).toContain(part);
     expect(s).not.toContain("select max(version)");
+  });
+  it("a newer signed version outranks an older version whose deposit was refunded", async () => {
+    // Amended P5: cancelled and refunded, then re-signed — the new version is asked for a new deposit.
+    // A refund never ranks a version; only paid, then pending, then the version number do.
+    sql.mockResolvedValueOnce([versionRow({ version: 3, id: null, status: null, amount_cents: null })]);
+    expect(await d.depositState(LEAD)).toMatchObject({ version: 3, paid: null, pending: null, refunded: null });
+    const s = text(sql.mock.calls[0]);
+    expect(s).toContain("coalesce(h.has_pending, false) desc, v.version desc limit 1");
+    expect(s).not.toContain("has_refunded");
+  });
+  it("still reports a refunded deposit on the chosen version", async () => {
+    sql.mockResolvedValueOnce([versionRow({ version_status: "cancelled", status: "refunded", paid_at: "2026-09-28T18:00:00Z", refunded_at: "2026-09-29T09:00:00Z" })]);
+    expect(await d.depositState(LEAD)).toMatchObject({
+      versionStatus: "cancelled", paid: null, pending: null, refunded: { id: DEPOSIT, status: "refunded", refundedAt: new Date("2026-09-29T09:00:00Z") },
+    });
   });
   it("is null without a signed version, and never queries for a malformed id", async () => {
     expect(await d.depositState(LEAD)).toBeNull();
