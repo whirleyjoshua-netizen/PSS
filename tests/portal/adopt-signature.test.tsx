@@ -98,6 +98,20 @@ describe("drawing", () => {
     expect(field(form, "signatureMethod")!.value).toBe("typed");
     expect(screen.queryByLabelText("Signature pad")).toBeNull();
   });
+  it("never posts a drawing the pad no longer shows: back from Type, the pads start empty", () => {
+    const { container } = render(<SignContract jobId={JOB} file={FILE} />);
+    const form = container.querySelector("form")!;
+    fireEvent.click(screen.getByRole("button", { name: "Draw" }));
+    draw(screen.getByLabelText("Signature pad"));
+    draw(screen.getByLabelText("Initials pad"));
+    fireEvent.click(screen.getByRole("button", { name: "Type" }));
+    fireEvent.click(screen.getByRole("button", { name: "Draw" }));
+    // The remounted canvases are blank, so their carriers must be too, and the submit is blocked.
+    expect(field(form, "signatureImage")!.value).toBe("");
+    expect(field(form, "initialsImage")!.value).toBe("");
+    expect(field(form, "signatureImage")!.checkValidity()).toBe(false);
+    expect(field(form, "initialsImage")!.checkValidity()).toBe(false);
+  });
   it("shows only the signature pad when the document has no numbered sections", () => {
     render(<SignContract jobId={JOB} file={PLAIN} />);
     fireEvent.click(screen.getByRole("button", { name: "Draw" }));

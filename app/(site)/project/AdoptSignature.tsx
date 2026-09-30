@@ -33,7 +33,19 @@ export function AdoptSignature({ needsInitials }: { needsInitials: boolean }) {
       <input type="hidden" name="signatureMethod" value={drawn ? "drawn" : "typed"} />
       {hydrated ? (
         <div role="group" aria-label="How you sign" className="flex">
-          <button type="button" aria-pressed={!drawn} onClick={() => setMethod("typed")} className={tab(!drawn)}>Type</button>
+          <button
+            type="button"
+            aria-pressed={!drawn}
+            onClick={() => {
+              // The pads unmount, and return blank: drop what they carried, or it would post unseen.
+              setMethod("typed");
+              setSignatureImage("");
+              setInitialsImage("");
+            }}
+            className={tab(!drawn)}
+          >
+            Type
+          </button>
           <button type="button" aria-pressed={drawn} onClick={() => setMethod("drawn")} className={tab(drawn)}>Draw</button>
         </div>
       ) : null}
