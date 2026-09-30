@@ -6,9 +6,10 @@ import { DC_NEW_QUOTE_URL, dcQuoteUrl } from "@/lib/dc/links";
 
 const setLinePctAction = vi.fn();
 const setChoicesAction = vi.fn();
+const sendQuoteAction = vi.fn();
 const sendContractAction = vi.fn();
 const checkNowAction = vi.fn();
-vi.mock("@/app/admin/jobs/[id]/quote-actions", () => ({ setLinePctAction, setChoicesAction, sendContractAction, checkNowAction }));
+vi.mock("@/app/admin/jobs/[id]/quote-actions", () => ({ setLinePctAction, setChoicesAction, sendQuoteAction, sendContractAction, checkNowAction }));
 const loadReview = vi.fn();
 vi.mock("@/lib/dc/send", () => ({ loadReview }));
 const depositState = vi.fn(async (_id: string) => null as unknown);
@@ -41,7 +42,8 @@ const version = (over: Partial<StoredVersion> = {}): StoredVersion => ({
   id: V, leadId: J, version: 2, dcQuoteNo: "12345678", poReference: "PSS-1042", clientName: "Jane Client", sourceFileId: "file-1", sourceSha256: "x",
   status: "draft", subtotalCents: 0, handlingFeeCents: 2500, oversizedFeeCents: 0, dealerTotalCents: 121277,
   waiveHandling: false, noInstall: false, installQuoteId: null, installCents: null, productsCents: null, clientTotalCents: null,
-  contractFileId: null, sentAt: null, signedAt: null, createdAt: new Date("2026-09-20T18:00:00Z"), lines: LINES, ...over,
+  contractFileId: null, sentAt: null, signedAt: null, createdAt: new Date("2026-09-20T18:00:00Z"),
+  quoteFileId: null, offeredAt: null, approvedAt: null, lines: LINES, ...over,
 });
 
 /** Odd-cent figures no recomputation from the lines would land on, so each one on screen came from here. */
@@ -68,6 +70,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   setLinePctAction.mockResolvedValue({});
   setChoicesAction.mockResolvedValue({});
+  sendQuoteAction.mockResolvedValue({ ok: true, emailed: true });
   sendContractAction.mockResolvedValue({ ok: true, emailed: true });
   checkNowAction.mockResolvedValue({ message: "No new Dealer Copies." });
 });
@@ -224,49 +227,50 @@ describe("QuoteReview send", () => {
     expect(within(list).getAllByRole("listitem").map((li) => li.textContent)).toEqual([
       "Set a markup for PowerView first.", "Add the client's email address to the job first.",
     ]);
-    expect(screen.getByRole("button", { name: "Send contract" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Send quote" })).toBeDisabled();
   });
 
   it("sends the reviewed version with review.fingerprint unchanged", async () => {
     render(<QuoteReview jobId={J} review={review()} />);
-    fireEvent.click(screen.getByRole("button", { name: "Send contract" }));
-    expect(await screen.findByRole("status")).toHaveTextContent(/^Contract sent\.$/);
-    expect(sendContractAction).toHaveBeenCalledWith(J, V, FP);
+    fireEvent.click(screen.getByRole("button", { name: "Send quote" }));
+    expect(await screen.findByRole("status")).toHaveTextContent(/^Quote sent\.$/);
+    expect(sendQuoteAction).toHaveBeenCalledWith(J, V, FP);
   });
 
   it("tells the owner plainly when the client email failed", async () => {
-    sendContractAction.mockResolvedValueOnce({ ok: true, emailed: false });
+    sendQuoteAction.mockResolvedValueOnce({ ok: true, emailed: false });
     render(<QuoteReview jobId={J} review={review()} />);
-    fireEvent.click(screen.getByRole("button", { name: "Send contract" }));
+    fireEvent.click(screen.getByRole("button", { name: "Send quote" }));
     expect(await screen.findByRole("status")).toHaveTextContent(
-      "Contract sent, but the email to the client failed — send them their project page link yourself.",
+      "Quote sent, but the email to the client failed — send them their project page link yourself.",
     );
   });
 
   it("shows Send's error", async () => {
-    sendContractAction.mockResolvedValueOnce({ error: "Prices changed since you opened this page. Review them and send again." });
+    sendQuoteAction.mockResolvedValueOnce({ error: "Prices changed since you opened this page. Review them and send again." });
     render(<QuoteReview jobId={J} review={review()} />);
-    fireEvent.click(screen.getByRole("button", { name: "Send contract" }));
+    fireEvent.click(screen.getByRole("button", { name: "Send quote" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Prices changed since you opened this page. Review them and send again.");
   });
 });
 
 describe("QuoteReview after sending", () => {
-  const sent = version({ status: "sent", sentAt: new Date("2026-09-21T18:00:00Z"), clientTotalCents: 184834 });
+  const sent = version({ status: "sent", sentAt: new Date("2026-09-21T18:00:00Z"), clientTotalCents: 184834,
+    offeredAt: new Date("2026-09-20T18:00:00Z"), approvedAt: new Date("2026-09-20T20:00:00Z") });
 
   it("locks every input and says when and for how much it was sent", () => {
     render(<QuoteReview jobId={J} review={review({ version: sent, blockers: ["This version has already been sent."] })} />);
     for (const box of screen.getAllByRole("textbox")) expect(box).toHaveAttribute("readonly");
     expect(screen.getByRole("checkbox", { name: "Waive" })).toBeDisabled();
     expect(screen.getByRole("checkbox", { name: "No installation on this job" })).toBeDisabled();
-    expect(screen.getByText("Sent Sep 21, 2026 for $1,848.34")).toBeInTheDocument();
+    expect(screen.getByText("Contract sent Sep 21, 2026 for $1,848.34")).toBeInTheDocument();
     expect(screen.queryByText(/ready to order/)).toBeNull();
   });
 
   it("reads the sent total from review.priced, the frozen figures", () => {
     const r = review({ version: { ...sent, clientTotalCents: 180000 }, blockers: ["This version has already been sent."] });
     render(<QuoteReview jobId={J} review={{ ...r, priced: { ...r.priced, clientTotalCents: 177717 } }} />);
-    expect(screen.getByText("Sent Sep 21, 2026 for $1,777.17")).toBeInTheDocument();
+    expect(screen.getByText("Contract sent Sep 21, 2026 for $1,777.17")).toBeInTheDocument();
     expect(total("Client total")).toHaveTextContent("$1,777.17");
   });
 
@@ -294,6 +298,27 @@ describe("QuoteReview after sending", () => {
       expect(screen.getByRole("link", { name: /^Signed — ready to order/ })).toBeInTheDocument();
       expect(screen.queryByText(/Cancellation window/)).toBeNull();
     });
+  });
+});
+
+describe("QuoteReview after Send quote", () => {
+  const offered = version({ status: "offered", offeredAt: new Date("2026-09-21T18:00:00Z"), clientTotalCents: 184834 });
+
+  it("says the quote went out and is waiting for the client, with no contract button", () => {
+    render(<QuoteReview jobId={J} review={review({ version: offered, blockers: ["This version has already been sent."] })} />);
+    expect(screen.getByText("Quote sent")).toBeInTheDocument();
+    expect(screen.getByText("Quote sent Sep 21, 2026 for $1,848.34. Waiting for the client to approve it.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Send contract" })).toBeNull();
+  });
+
+  it("offers Send contract when the client approved but the contract did not go out, and sends it", async () => {
+    sendContractAction.mockResolvedValueOnce({ ok: true, emailed: true });
+    const approved = { ...offered, approvedAt: new Date("2026-09-22T18:00:00Z") };
+    render(<QuoteReview jobId={J} review={review({ version: approved, blockers: ["This version has already been sent."] })} />);
+    expect(screen.getByText("The client approved this quote on Sep 22, 2026, but the contract was not sent.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Send contract" }));
+    expect(await screen.findByRole("status")).toHaveTextContent(/^Contract sent\.$/);
+    expect(sendContractAction).toHaveBeenCalledWith(J, V);
   });
 });
 
@@ -386,7 +411,7 @@ describe("QuoteTab", () => {
     loadReview.mockResolvedValueOnce(review());
     render(await QuoteTab({ job }));
     expect(screen.getByRole("link", { name: "Open quote 12345678 in Direct Connect" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Send contract" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Send quote" })).toBeInTheDocument();
   });
 
   // Ruling P9: QuoteTab reads no job status; whether the panel shows is decided by depositState alone.

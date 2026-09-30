@@ -10,14 +10,23 @@ import { fillFields, termsFieldValues } from "@/lib/docs/fill";
 import { remainingMarkers } from "@/lib/docs/parse";
 import { STARTER_TERMS } from "@/lib/docs/starter-terms";
 import { liveTemplateOfKind, type DocumentTemplate } from "@/lib/docs/templates";
+import type { ContractInput } from "./contract-layout";
 import { renderContractPdf, type ContractTerms } from "./contract-pdf";
 import { pickInstallQuote, priceVersion, pricingFingerprint, sendBlockers, type InstallChoice, type PricedVersion } from "./pricing";
+import { buildQuotePdf } from "./quote-pdf";
 import { sendContractEmail } from "./send-contract-email";
+import { sendQuoteEmail } from "./send-quote-email";
 import { getDcSettings, listMarkupRules, listVersions, type DcSettings, type StoredVersion } from "./store";
 
 export type Review = { version: StoredVersion; priced: PricedVersion; blockers: string[]; fingerprint: string; install: InstallChoice | null; rules: Record<string, number>; olderVersions: StoredVersion[] };
 
-/** A sent version's price as Send froze it: the per-line % and sell stored at send, and the stored totals. */
+const NEWER = "A newer version of this quote has arrived. Review that one.";
+const RACE = "This quote changed while you were sending. Reload and try again.";
+const NO_TERMS = "Add your contract terms on the Documents page first.";
+const DRAFT_TERMS = "Your contract terms still carry the DRAFT line. Remove it on the Documents page.";
+const TERMS_UNREADABLE = "Your contract terms file could not be read. Add your contract terms on the Documents page.";
+
+/** An offered (or later) version's price as Send quote froze it: the per-line % and sell stored then, and the stored totals. */
 function frozenPrice(version: StoredVersion): PricedVersion {
   const lines = version.lines.map((l) => {
     const sellExtendedCents = l.sellUnitCents === null ? null : l.sellUnitCents * l.qty;
@@ -40,8 +49,8 @@ function frozenPrice(version: StoredVersion): PricedVersion {
 }
 
 /**
- * Spec §8: the terms template filled for this job at `now`. Only TERMS_FIELDS are filled: any other
- * marker (a total, a deposit) stays and refuses, so terms never print a figure beside the contract's.
+ * Spec §8 (documents): the terms template filled for this job at `now`. Only TERMS_FIELDS are filled: any
+ * other marker (a total, a deposit) stays and refuses, so terms never print a figure beside the contract's.
  */
 function fillTerms(template: DocumentTemplate, job: Job, now: Date): { text: string } | { error: string } {
   const filled = fillFields(template.body, termsFieldValues(job, now));
@@ -63,7 +72,7 @@ function carriesDraftLine(body: string): boolean {
   return body.split("\n").some((line) => asRead(line) === STARTER_DRAFT_LINE);
 }
 
-/** The review plus the job and settings it was computed from, so Send uses the very same reads. */
+/** The review plus the job and settings it was computed from, so Send quote and the contract use the very same reads. */
 async function review(jobId: string): Promise<{ review: Review; job: Job; settings: DcSettings; termsTemplate: DocumentTemplate | null } | null> {
   const [job, versions, rules, installs, settings, termsTemplate] = await Promise.all([
     getJob(jobId), listVersions(jobId), listMarkupRules(), listInstallQuotes(jobId), getDcSettings(), liveTemplateOfKind("terms"),
@@ -81,7 +90,7 @@ async function review(jobId: string): Promise<{ review: Review; job: Job; settin
       dealerTotalCents: version.dealerTotalCents, waiveHandling: version.waiveHandling, install, noInstall: version.noInstall,
     });
   } else {
-    // Sent, signed or superseded: what was sent, never a re-price with today's markup or install price.
+    // Offered, sent, signed, superseded or cancelled: what was sent, never a re-price with today's markup or install price.
     install = version.installQuoteId ? choices.find((q) => q.id === version.installQuoteId) ?? null : null;
     priced = frozenPrice(version);
   }
@@ -89,54 +98,41 @@ async function review(jobId: string): Promise<{ review: Review; job: Job; settin
     hasTerms: termsTemplate !== null || settings.termsPathname !== null, isLatest: true, versionStatus: version.status,
     jobStatus: job.status, customerEmail: job.email,
   });
-  // Shown before Send; Send fills and checks again with its own `now`.
+  // Shown before Send quote; Send quote and the contract fill and check again with their own `now`.
   if (termsTemplate) {
     const filled = fillTerms(termsTemplate, job, new Date());
     if ("error" in filled) blockers.push(filled.error);
-    if (carriesDraftLine(termsTemplate.body)) blockers.push("Your contract terms still carry the DRAFT line. Remove it on the Documents page.");
+    if (carriesDraftLine(termsTemplate.body)) blockers.push(DRAFT_TERMS);
   }
   return { review: { version, priced, blockers, fingerprint: pricingFingerprint(priced), install, rules, olderVersions }, job, settings, termsTemplate };
 }
 
-/** The latest version of a job's DC quote, priced exactly as Send would price it. */
+/** The latest version of a job's DC quote, priced exactly as Send quote would price it. */
 export async function loadReview(jobId: string): Promise<Review | null> {
   return (await review(jobId))?.review ?? null;
 }
 
 /**
- * Recomputes the price, refuses anything the owner did not see (a blocker, a newer version, a
- * changed fingerprint), builds the contract, then freezes, shares and logs it in one statement.
- * The client email goes last: a failed email leaves the contract sent and answers emailed false.
+ * The terms the contract prints: the live terms template filled for this job at `now`, otherwise the
+ * uploaded PDF's bytes. Send quote resolves them too and throws the result away (spec §2: nothing that
+ * could stop the contract later is left unchecked).
  */
-export async function sendContract(input: { jobId: string; versionId: string; fingerprint: string; actor: string }): Promise<{ ok: true; emailed: boolean } | { error: string }> {
-  const loaded = await review(input.jobId);
-  if (!loaded) return { error: "This job has no Direct Connect quote." };
-  const { review: current, job, settings, termsTemplate } = loaded;
-  if (current.version.id !== input.versionId) return { error: "A newer version of this quote has arrived. Review that one." };
-  if (current.blockers.length > 0) return { error: current.blockers[0] };
-  if (current.fingerprint !== input.fingerprint) return { error: "Prices changed since you opened this page. Review them and send again." };
-
-  const { priced, version } = current;
-  // Spec §8: the live terms template, filled for this job now; otherwise the uploaded PDF.
-  const now = new Date();
-  let terms: ContractTerms;
+async function resolveTerms(termsTemplate: DocumentTemplate | null, settings: DcSettings, job: Job, now: Date): Promise<ContractTerms | { error: string }> {
   if (termsTemplate) {
-    const filled = fillTerms(termsTemplate, job, now);
-    if ("error" in filled) return filled;
-    terms = filled;
-  } else {
-    const stored = await get(settings.termsPathname!, { access: "private" });
-    if (!stored || stored.statusCode !== 200) {
-      return { error: "Your contract terms file could not be read. Add your contract terms on the Documents page." };
-    }
-    terms = { pdf: new Uint8Array(await new Response(stored.stream).arrayBuffer()) };
+    if (carriesDraftLine(termsTemplate.body)) return { error: DRAFT_TERMS };
+    return fillTerms(termsTemplate, job, now);
   }
+  if (!settings.termsPathname) return { error: NO_TERMS };
+  const stored = await get(settings.termsPathname, { access: "private" });
+  if (!stored || stored.statusCode !== 200) return { error: TERMS_UNREADABLE };
+  return { pdf: new Uint8Array(await new Response(stored.stream).arrayBuffer()) };
+}
 
-  const projectNo = formatProjectNo(job.projectNo) ?? "PSS";
-  const name = `Contract ${projectNo} v${version.version}.pdf`;
+/** What the quote and the contract print, from the priced version the review computed or Send quote froze. */
+function pricedInput(job: Job, version: StoredVersion, priced: PricedVersion, projectNo: string, date: Date): ContractInput {
   const pricedLine = (position: number) => priced.lines.find((x) => x.position === position)!;
-  const rendered = await renderContractPdf({
-    projectNo, version: version.version, date: now,
+  return {
+    projectNo, version: version.version, date,
     client: { name: job.name, address: job.address, city: job.city, email: job.email },
     lines: version.lines.map((l) => {
       const p = pricedLine(l.position);
@@ -144,35 +140,55 @@ export async function sendContract(input: { jobId: string; versionId: string; fi
     }),
     installCents: priced.installCents, handlingChargedCents: priced.handlingChargedCents,
     oversizedCents: priced.oversizedCents, clientTotalCents: priced.clientTotalCents!,
-  }, terms);
+  };
+}
 
-  // The marks go in with the file, in createFile's one statement (spec §3).
+/**
+ * Spec §2, Send quote. Recomputes the price, refuses anything the owner did not see (a blocker, a newer
+ * version, a changed fingerprint) and anything that would stop the contract later (the terms), builds the
+ * quote PDF, then in ONE statement freezes the price (draft → offered), supersedes and unshares every other
+ * unsigned version's quote and contract, shares the quote, records quote_cents, moves New / Appointment
+ * booked / Approved to Quoted (an approval of a superseded price no longer stands), and logs it.
+ * The client email goes last: a failed email leaves the quote sent and answers emailed false.
+ */
+export async function sendQuote(input: { jobId: string; versionId: string; fingerprint: string; actor: string }): Promise<{ ok: true; emailed: boolean } | { error: string }> {
+  const loaded = await review(input.jobId);
+  if (!loaded) return { error: "This job has no Direct Connect quote." };
+  const { review: current, job, settings, termsTemplate } = loaded;
+  if (current.version.id !== input.versionId) return { error: NEWER };
+  if (current.blockers.length > 0) return { error: current.blockers[0] };
+  if (current.fingerprint !== input.fingerprint) return { error: "Prices changed since you opened this page. Review them and send again." };
+
+  const { priced, version } = current;
+  const now = new Date();
+  const terms = await resolveTerms(termsTemplate, settings, job, now);
+  if ("error" in terms) return terms;
+
+  const projectNo = formatProjectNo(job.projectNo) ?? "PSS";
+  const name = `Quote ${projectNo} v${version.version}.pdf`;
+  const pdf = await buildQuotePdf(pricedInput(job, version, priced, projectNo, now));
   const file = await createFile({ leadId: job.id, kind: "document", name, contentType: "application/pdf",
-    body: new Blob([new Uint8Array(rendered.bytes)], { type: "application/pdf" }), actor: input.actor, docType: "contract",
-    signMarks: rendered.marks });
+    body: new Blob([new Uint8Array(pdf)], { type: "application/pdf" }), actor: input.actor, docType: "quote" });
   if (!file) return { error: "This job no longer exists." };
 
   const lineRows = JSON.stringify(version.lines.map((l) => {
-    const p = pricedLine(l.position);
+    const p = priced.lines.find((x) => x.position === l.position)!;
     return { position: l.position, override: l.pctOverride, pct: p.pct, sell_unit_cents: p.sellUnitCents, overridden: p.source === "override" };
   }));
   let rows: Record<string, unknown>[];
   try {
-    // One statement: freeze this version (only if it is still the latest draft), price its lines,
-    // supersede and unshare any earlier unsigned contract, share this one, record the quoted
-    // amount, move New / Appointment booked to Quoted, and log both. All or nothing.
     // Every CTE sees the same snapshot, so `moved`'s case reads the status before this update.
+    // dc_quote_versions_one_offered is deferred to commit, so offering this version while `superseded`
+    // retires the old offered one, in the same statement, is allowed.
     rows = await db()`
       with prev as (select status from leads where id = ${job.id}),
-      frozen as (
-        update dc_quote_versions set status = 'sent', install_quote_id = ${priced.installQuoteId}, install_cents = ${priced.installCents},
+      offered as (
+        update dc_quote_versions set status = 'offered', install_quote_id = ${priced.installQuoteId}, install_cents = ${priced.installCents},
           products_cents = ${priced.productsCents}, client_total_cents = ${priced.clientTotalCents},
-          contract_file_id = ${file.id}, sent_at = now(), sent_by = ${input.actor}
+          quote_file_id = ${file.id}, offered_at = now(), offered_by = ${input.actor}
         where id = ${version.id} and lead_id = ${job.id} and status = 'draft'
           and version = (select max(version) from dc_quote_versions where lead_id = ${job.id})
-          -- The inputs this price was computed from must be the ones still stored: a waive,
-          -- no-install or per-line % saved after the review would otherwise sit beside a total
-          -- that ignores it.
+          -- The inputs this price was computed from must be the ones still stored.
           and waive_handling = ${version.waiveHandling} and no_install = ${version.noInstall}
           and not exists (
             select 1 from dc_quote_lines q
@@ -185,19 +201,103 @@ export async function sendContract(input: { jobId: string; versionId: string; fi
       ),
       priced_lines as (
         update dc_quote_lines set markup_pct = l.pct, sell_unit_cents = l.sell_unit_cents, markup_overridden = l.overridden
-        from frozen, jsonb_to_recordset(${lineRows}::jsonb) as l(position int, pct numeric, sell_unit_cents int, overridden boolean)
-        where dc_quote_lines.version_id = frozen.id and dc_quote_lines.position = l.position
+        from offered, jsonb_to_recordset(${lineRows}::jsonb) as l(position int, pct numeric, sell_unit_cents int, overridden boolean)
+        where dc_quote_lines.version_id = offered.id and dc_quote_lines.position = l.position
         returning 1
       ),
       superseded as (
         update dc_quote_versions set status = 'superseded'
-        where lead_id = ${job.id} and status in ('sent','draft') and id <> ${version.id} and exists (select 1 from frozen)
-        returning contract_file_id
+        where lead_id = ${job.id} and status in ('draft','offered','sent') and id <> ${version.id} and exists (select 1 from offered)
+        returning contract_file_id, quote_file_id
       ),
       unshared as (
         update job_files set shared_at = null
-        where id in (select contract_file_id from superseded) and lead_id = ${job.id}
+        where lead_id = ${job.id}
+          and (id in (select contract_file_id from superseded) or id in (select quote_file_id from superseded))
           and not exists (select 1 from contract_signatures s where s.file_id = job_files.id or s.signed_file_id = job_files.id)
+        returning id
+      ),
+      shared as (
+        update job_files set shared_at = now()
+        where id = ${file.id} and lead_id = ${job.id} and exists (select 1 from offered)
+        returning id
+      ),
+      moved as (
+        update leads set quote_cents = ${priced.clientTotalCents},
+          status = case when status in ('new','visit_booked','approved') then 'quoted' else status end,
+          stage_changed_at = case when status in ('new','visit_booked','approved') then now() else stage_changed_at end,
+          updated_at = now()
+        where id = ${job.id} and exists (select 1 from offered)
+        returning id
+      ),
+      stage_logged as (
+        insert into job_events (lead_id, actor, kind, from_status, to_status, body)
+        select ${job.id}, ${input.actor}, 'stage', prev.status, 'quoted', 'Quote sent' from prev, moved
+        where prev.status in ('new','visit_booked','approved')
+      ),
+      logged as (
+        insert into job_events (lead_id, actor, kind, body)
+        select ${job.id}, ${input.actor}, 'quote', ${`Sent ${name} for ${formatCents(priced.clientTotalCents)}`} from offered
+      )
+      select id from offered`;
+  } catch (error) {
+    // Nothing links to the quote yet: remove it, or every retry leaves another one on the job.
+    await deleteFile(file.id, input.actor).catch((cleanup) => console.error("Could not remove the unsent quote", cleanup));
+    throw error;
+  }
+  if (rows.length === 0) {
+    // The version stopped being the latest draft (another send, or a newer import) after we read it.
+    if (!(await deleteFile(file.id, input.actor))) console.error(`Could not remove the unsent quote ${file.id}`);
+    return { error: RACE };
+  }
+  try {
+    await sendQuoteEmail(job, name);
+    return { ok: true, emailed: true };
+  } catch (error) {
+    console.error(`Quote ${name} sent but the client email failed`, error);
+    return { ok: true, emailed: false };
+  }
+}
+
+/**
+ * Spec §2, the contract for an approved quote: called on the client's approval, or by the owner's Send
+ * contract when that failed. Builds from the price Send quote froze (no fingerprint: nothing can have
+ * moved), with 029's sign marks stored in createFile's statement, then in ONE statement moves the
+ * version offered → sent (approved, still the newest, job not Lost and with an email), shares the
+ * contract and logs it. A second call matches nothing, removes its file and says so.
+ */
+export async function sendContract(input: { jobId: string; versionId: string; actor: string }): Promise<{ ok: true; emailed: boolean } | { error: string }> {
+  const loaded = await review(input.jobId);
+  if (!loaded) return { error: "This job has no Direct Connect quote." };
+  const { review: current, job, settings, termsTemplate } = loaded;
+  const { version, priced } = current;
+  if (version.id !== input.versionId) return { error: NEWER };
+  if (version.status !== "offered") return { error: "This quote's contract has already been sent, or the quote was never sent." };
+  if (!version.approvedAt) return { error: "The client has not approved this quote yet." };
+  if (job.status === "lost") return { error: "This job is marked Lost." };
+  if (!job.email?.trim()) return { error: "Add the client's email address to the job first." };
+
+  const now = new Date();
+  const terms = await resolveTerms(termsTemplate, settings, job, now);
+  if ("error" in terms) return terms;
+
+  const projectNo = formatProjectNo(job.projectNo) ?? "PSS";
+  const name = `Contract ${projectNo} v${version.version}.pdf`;
+  const rendered = await renderContractPdf(pricedInput(job, version, priced, projectNo, now), terms);
+  // The marks go in with the file, in createFile's one statement (visible signatures spec §3).
+  const file = await createFile({ leadId: job.id, kind: "document", name, contentType: "application/pdf",
+    body: new Blob([new Uint8Array(rendered.bytes)], { type: "application/pdf" }), actor: input.actor, docType: "contract",
+    signMarks: rendered.marks });
+  if (!file) return { error: "This job no longer exists." };
+
+  let rows: Record<string, unknown>[];
+  try {
+    rows = await db()`
+      with frozen as (
+        update dc_quote_versions set status = 'sent', contract_file_id = ${file.id}, sent_at = now(), sent_by = ${input.actor}
+        where id = ${version.id} and lead_id = ${job.id} and status = 'offered' and approved_at is not null
+          and version = (select max(version) from dc_quote_versions where lead_id = ${job.id})
+          and exists (select 1 from leads where id = ${job.id} and status <> 'lost' and nullif(trim(email), '') is not null)
         returning id
       ),
       shared as (
@@ -205,33 +305,18 @@ export async function sendContract(input: { jobId: string; versionId: string; fi
         where id = ${file.id} and lead_id = ${job.id} and exists (select 1 from frozen)
         returning id
       ),
-      moved as (
-        update leads set quote_cents = ${priced.clientTotalCents},
-          status = case when status in ('new','visit_booked') then 'quoted' else status end,
-          stage_changed_at = case when status in ('new','visit_booked') then now() else stage_changed_at end,
-          updated_at = now()
-        where id = ${job.id} and exists (select 1 from frozen)
-        returning id
-      ),
-      stage_logged as (
-        insert into job_events (lead_id, actor, kind, from_status, to_status, body)
-        select ${job.id}, ${input.actor}, 'stage', prev.status, 'quoted', 'Contract sent' from prev, moved
-        where prev.status in ('new','visit_booked')
-      ),
       logged as (
         insert into job_events (lead_id, actor, kind, body)
         select ${job.id}, ${input.actor}, 'quote', ${`Sent ${name} for ${formatCents(priced.clientTotalCents)}`} from frozen
       )
       select id from frozen`;
   } catch (error) {
-    // Nothing links to the contract yet: remove it, or every retry leaves another one on the job.
     await deleteFile(file.id, input.actor).catch((cleanup) => console.error("Could not remove the unsent contract", cleanup));
     throw error;
   }
   if (rows.length === 0) {
-    // The version stopped being the latest draft (another send, or a newer import) after we read it.
     if (!(await deleteFile(file.id, input.actor))) console.error(`Could not remove the unsent contract ${file.id}`);
-    return { error: "This quote changed while you were sending. Reload and try again." };
+    return { error: RACE };
   }
   try {
     await sendContractEmail(job, name);

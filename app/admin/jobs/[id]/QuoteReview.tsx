@@ -10,11 +10,14 @@ import { cancellationWindowLastDay, inCancellationWindow } from "@/lib/docs/busi
 import { ruleFor, type PricedLine } from "@/lib/dc/pricing";
 import type { Review } from "@/lib/dc/send";
 import type { StoredLine, StoredVersion } from "@/lib/dc/store";
-import { sendContractAction, setChoicesAction, setLinePctAction } from "./quote-actions";
+import { sendContractAction, sendQuoteAction, setChoicesAction, setLinePctAction } from "./quote-actions";
 import { HEADING, TEXT_LINK } from "./ui";
 
-const STATUS: Record<StoredVersion["status"], string> = { draft: "Draft", sent: "Sent", signed: "Signed", superseded: "Superseded" };
-const EMAIL_FAILED = "Contract sent, but the email to the client failed — send them their project page link yourself.";
+const STATUS: Record<StoredVersion["status"], string> = {
+  draft: "Draft", offered: "Quote sent", sent: "Contract sent", signed: "Signed", superseded: "Superseded", cancelled: "Cancelled",
+};
+const EMAIL_FAILED = "Quote sent, but the email to the client failed — send them their project page link yourself.";
+const CONTRACT_EMAIL_FAILED = "Contract sent, but the email to the client failed — send them their project page link yourself.";
 const MARKUP_SETTINGS = "/admin/settings#markup-heading";
 const cell = "border-b border-rule px-2 py-2 align-top";
 const num = `${cell} text-right tabular-nums`;
@@ -126,9 +129,18 @@ export function QuoteReview({ jobId, review, now }: { jobId: string; review: Rev
 
   const send = () =>
     startSend(async () => {
-      const result = await sendContractAction(jobId, version.id, fingerprint);
+      const result = await sendQuoteAction(jobId, version.id, fingerprint);
       if (result.error) setSendResult({ error: result.error });
-      else setSendResult({ ok: result.emailed === false ? EMAIL_FAILED : "Contract sent." });
+      else setSendResult({ ok: result.emailed === false ? EMAIL_FAILED : "Quote sent." });
+    });
+
+  // Spec §2: the client approved, but the contract step failed (the owners were emailed). The owner sends it.
+  const awaitingContract = version.status === "offered" && version.approvedAt !== null;
+  const sendContract = () =>
+    startSend(async () => {
+      const result = await sendContractAction(jobId, version.id);
+      if (result.error) setSendResult({ error: result.error });
+      else setSendResult({ ok: result.emailed === false ? CONTRACT_EMAIL_FAILED : "Contract sent." });
     });
 
   const installNote = version.noInstall
@@ -149,7 +161,13 @@ export function QuoteReview({ jobId, review, now }: { jobId: string; review: Rev
         <a className={TEXT_LINK} href={`/admin/files/${version.sourceFileId}`} target="_blank" rel="noreferrer">Dealer copy</a>
       </header>
 
-      {version.sentAt ? <p className="text-sm">Sent {formatShortDate(version.sentAt)} for {formatCents(priced.clientTotalCents)}</p> : null}
+      {version.status === "offered" && version.offeredAt ? (
+        <p className="text-sm">Quote sent {formatShortDate(version.offeredAt)} for {formatCents(priced.clientTotalCents)}.{version.approvedAt ? "" : " Waiting for the client to approve it."}</p>
+      ) : null}
+      {awaitingContract && version.approvedAt ? (
+        <p className="text-sm font-semibold">The client approved this quote on {formatShortDate(version.approvedAt)}, but the contract was not sent.</p>
+      ) : null}
+      {version.sentAt ? <p className="text-sm">Contract sent {formatShortDate(version.sentAt)} for {formatCents(priced.clientTotalCents)}</p> : null}
       {version.status === "signed" ? (
         <div className="flex flex-col gap-1">
           {inWindow && version.signedAt && lastCancellableDay ? (
@@ -261,11 +279,17 @@ export function QuoteReview({ jobId, review, now }: { jobId: string; review: Rev
             </ul>
           </div>
         ) : null}
-        <div>
+        <div className="flex flex-wrap gap-3">
           <button type="button" onClick={send} disabled={blockers.length > 0 || sending}
             className="inline-flex min-h-11 items-center justify-center bg-charcoal px-5 text-sm text-ivory disabled:cursor-not-allowed disabled:opacity-40">
-            Send contract
+            Send quote
           </button>
+          {awaitingContract ? (
+            <button type="button" onClick={sendContract} disabled={sending}
+              className="inline-flex min-h-11 items-center justify-center border border-charcoal px-5 text-sm disabled:opacity-40">
+              Send contract
+            </button>
+          ) : null}
         </div>
         {sendResult && "ok" in sendResult ? <p role="status" className="text-sm">{sendResult.ok}</p> : null}
         {sendResult && "error" in sendResult ? <p role="alert" className="text-sm text-red-700">{sendResult.error}</p> : null}
