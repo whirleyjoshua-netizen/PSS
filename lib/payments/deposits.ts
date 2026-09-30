@@ -282,6 +282,18 @@ export async function recordDepositPayment(input: {
   return rows[0] ? { depositId: rows[0].id as string } : null;
 }
 
+/**
+ * Gives up one pending deposit that never got a Checkout Session: the portal's replacement for a row
+ * too old for its session to open (ruling P14). A row that has a session is left to expireDeposit.
+ */
+export async function expireSessionlessDeposit(depositId: string): Promise<boolean> {
+  if (!isUuid(depositId)) return false;
+  const rows = await db()`
+    update deposits set status = 'expired' where id = ${depositId} and status = 'pending' and stripe_session_id is null
+    returning id`;
+  return rows.length > 0;
+}
+
 /** checkout.session.expired: only a pending deposit expires, so an expiry after payment changes nothing. */
 export async function expireDeposit(sessionId: string): Promise<boolean> {
   const rows = await db()`

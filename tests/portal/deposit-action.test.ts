@@ -5,7 +5,7 @@ vi.mock("@/lib/portal/session", () => ({ requireCustomer }));
 vi.mock("@/lib/portal/login", () => ({ portalOrigin: () => "https://pss.test" }));
 const deposits = {
   depositState: vi.fn(), claimStripeDeposit: vi.fn(), pendingStripeDeposit: vi.fn(), attachSession: vi.fn(),
-  expireDeposit: vi.fn(), expireStaleDeposits: vi.fn(),
+  expireDeposit: vi.fn(), expireStaleDeposits: vi.fn(), expireSessionlessDeposit: vi.fn(),
 };
 vi.mock("@/lib/payments/deposits", () => deposits);
 const create = vi.fn();
@@ -22,7 +22,7 @@ const THEIRS = "9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d";
 const VERSION = "7a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
 const DEPOSIT = "5d1f6a2e-3b4c-4d5e-8f60-7a8b9c0d1e2f";
 const EMAIL = "maria@example.com";
-// The clock is frozen so expires_at is exact.
+// The clock is frozen. A fresh pending row is created at NOW, so its session closes at NOW + 22h.
 const NOW = new Date("2026-09-30T17:00:00Z");
 const EXPIRES_AT = Math.floor(NOW.getTime() / 1000) + 22 * 3600;
 const job = { id: MINE, name: "Maria Lopez", projectNo: 1048, status: "signed" };
@@ -44,6 +44,7 @@ beforeEach(() => {
   deposits.attachSession.mockReset().mockResolvedValue(true);
   deposits.expireDeposit.mockReset().mockResolvedValue(true);
   deposits.expireStaleDeposits.mockReset().mockResolvedValue(0);
+  deposits.expireSessionlessDeposit.mockReset().mockResolvedValue(true);
   create.mockReset().mockResolvedValue(open);
   retrieve.mockReset().mockResolvedValue(open);
   stripeClient.mockClear();
@@ -89,14 +90,50 @@ describe("startDepositAction", () => {
     expect(deposits.attachSession).toHaveBeenCalledWith(DEPOSIT, "cs_1");
   });
 
-  // Ruling P11(a): Stripe closes the session at 22 hours, before the 23-hour local stale cutoff, so a
-  // row expireStaleDeposits gives up never still has a payable session behind it.
-  it("closes the checkout 22 hours from now, in whole seconds, before the 23-hour stale cutoff", async () => {
+  // Rulings P11(a) and P14: Stripe closes the session 22 hours after the deposit ROW was created —
+  // before the 23-hour local stale cutoff, and the same value on every tap for that row.
+  it("closes the checkout 22 hours after the deposit row was created, in whole seconds", async () => {
+    const createdAt = new Date(NOW.getTime() - 3 * 3600 * 1000 - 500);
+    deposits.claimStripeDeposit.mockResolvedValue(pending({ createdAt }));
     await startDepositAction(MINE);
     const params = create.mock.calls[0][0] as { expires_at: number };
-    expect(params.expires_at).toBe(Math.floor(Date.now() / 1000) + 22 * 3600);
+    expect(params.expires_at).toBe(Math.floor(createdAt.getTime() / 1000) + 22 * 3600);
     expect(Number.isInteger(params.expires_at)).toBe(true);
-    expect(params.expires_at).toBeLessThan(Math.floor(Date.now() / 1000) + 23 * 3600);
+    expect(params.expires_at).toBeLessThan(Math.floor(createdAt.getTime() / 1000) + 23 * 3600);
+  });
+
+  // Ruling P14(a): a second tap seconds later, while the first create is still in flight, must send
+  // exactly the same parameters, or Stripe refuses the reused idempotency key.
+  it("sends identical parameters, expires_at included, for the same row on taps seconds apart", async () => {
+    await startDepositAction(MINE);
+    vi.setSystemTime(new Date(NOW.getTime() + 7_000));
+    await startDepositAction(MINE);
+    expect(create).toHaveBeenCalledTimes(2);
+    expect(create.mock.calls[1]).toEqual(create.mock.calls[0]);
+    expect((create.mock.calls[1][0] as { expires_at: number }).expires_at).toBe(EXPIRES_AT);
+  });
+
+  // Ruling P14(b): a sessionless row too old for Stripe's 30-minute minimum is given up and replaced.
+  it("replaces a sessionless pending row created 22 hours ago and opens Checkout for the new row", async () => {
+    const FRESH = "6e2f7b3f-4c5d-4e6f-9a71-8b9c0d1e2f3a";
+    deposits.claimStripeDeposit
+      .mockResolvedValueOnce(pending({ createdAt: new Date(NOW.getTime() - 22 * 3600 * 1000) }))
+      .mockResolvedValueOnce(pending({ id: FRESH }));
+    expect(await startDepositAction(MINE)).toEqual({ url: "https://checkout.stripe.test/c/cs_1" });
+    expect(deposits.expireSessionlessDeposit).toHaveBeenCalledWith(DEPOSIT);
+    expect(deposits.claimStripeDeposit).toHaveBeenCalledTimes(2);
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(create).toHaveBeenCalledWith(expect.objectContaining({
+      expires_at: EXPIRES_AT, metadata: { depositId: FRESH, leadId: MINE },
+    }), { idempotencyKey: `deposit-${FRESH}` });
+    expect(deposits.attachSession).toHaveBeenCalledWith(FRESH, "cs_1");
+  });
+
+  it("keeps a sessionless row whose session would still have more than 35 minutes to run", async () => {
+    deposits.claimStripeDeposit.mockResolvedValue(pending({ createdAt: new Date(NOW.getTime() - (22 * 3600 - 36 * 60) * 1000) }));
+    await startDepositAction(MINE);
+    expect(deposits.expireSessionlessDeposit).not.toHaveBeenCalled();
+    expect(create).toHaveBeenCalledWith(expect.anything(), { idempotencyKey: `deposit-${DEPOSIT}` });
   });
 
   it("takes cards only (Apple Pay and Google Pay arrive as cards)", async () => {

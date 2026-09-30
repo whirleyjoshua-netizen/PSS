@@ -136,6 +136,15 @@ describe("attachSession / expireDeposit / expireStaleDeposits", () => {
     expect(await d.expireStaleDeposits(VERSION)).toBe(2);
     expect(text(sql.mock.calls[0])).toContain("status = 'pending' and created_at < now() - interval '23 hours'");
   });
+  it("gives up one pending deposit that never got a Checkout Session, and nothing else", async () => {
+    sql.mockResolvedValueOnce([{ id: DEPOSIT }]);
+    expect(await d.expireSessionlessDeposit(DEPOSIT)).toBe(true);
+    expect(sql).toHaveBeenCalledTimes(1);
+    expect(text(sql.mock.calls[0])).toContain("update deposits set status = 'expired' where id = ? and status = 'pending' and stripe_session_id is null");
+    expect(values(sql.mock.calls[0])).toEqual([DEPOSIT]);
+    expect(await d.expireSessionlessDeposit("not-a-uuid")).toBe(false);
+    expect(sql).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("markStripeDepositPaid", () => {

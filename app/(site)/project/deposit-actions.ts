@@ -3,7 +3,8 @@
 import { redirect } from "next/navigation";
 import type Stripe from "stripe";
 import {
-  attachSession, claimStripeDeposit, depositState, expireDeposit, expireStaleDeposits, pendingStripeDeposit, type Deposit,
+  attachSession, claimStripeDeposit, depositState, expireDeposit, expireSessionlessDeposit, expireStaleDeposits, pendingStripeDeposit,
+  type Deposit,
 } from "@/lib/payments/deposits";
 import { stripeClient } from "@/lib/payments/stripe";
 import { portalOrigin } from "@/lib/portal/login";
@@ -12,14 +13,23 @@ import { requireCustomer } from "@/lib/portal/session";
 
 export type StartDepositResult = { url: string } | "not-found" | "not-due" | "paid" | "processing" | "unavailable";
 
-/** Stripe closes the session this long after it opens: before expireStaleDeposits' 23-hour cutoff (ruling P11a). */
+/** Stripe closes the session this long after the deposit row was created: before expireStaleDeposits' 23-hour cutoff (ruling P11a). */
 const CHECKOUT_SECONDS = 22 * 3600;
+/** Stripe refuses an expires_at under 30 minutes away; a row closer than this is replaced instead (ruling P14). */
+const MIN_REMAINING_SECONDS = 35 * 60;
+
+/**
+ * Derived from the row, not the clock (ruling P14), so every tap for one row sends identical parameters
+ * under its idempotency key: Stripe refuses a reused key with different parameters.
+ */
+const checkoutExpiresAt = (deposit: Deposit): number => Math.floor(deposit.createdAt.getTime() / 1000) + CHECKOUT_SECONDS;
 
 const text = (value: FormDataEntryValue | null): string => (typeof value === "string" ? value : "");
 
 /**
- * One deposit row, one Checkout Session. Cards only (Apple Pay and Google Pay arrive as cards), and the
- * session expires at 22 hours, so a row the 23-hour stale cutoff gives up has no payable session left.
+ * One deposit row, one Checkout Session: the same row always produces the same parameters. Cards only
+ * (Apple Pay and Google Pay arrive as cards), and the session expires 22 hours after the row was created,
+ * so a row the 23-hour stale cutoff gives up has no payable session left.
  */
 function checkoutParams(job: { id: string; projectNo?: number | null }, email: string, deposit: Deposit): Stripe.Checkout.SessionCreateParams {
   const origin = portalOrigin();
@@ -28,7 +38,7 @@ function checkoutParams(job: { id: string; projectNo?: number | null }, email: s
     mode: "payment",
     customer_email: email,
     payment_method_types: ["card"],
-    expires_at: Math.floor(Date.now() / 1000) + CHECKOUT_SECONDS,
+    expires_at: checkoutExpiresAt(deposit),
     line_items: [{ quantity: 1, price_data: { currency: "usd", unit_amount: deposit.amountCents, product_data: { name: `50% deposit — ${projectNo}` } } }],
     metadata: { depositId: deposit.id, leadId: job.id },
     payment_intent_data: { metadata: { depositId: deposit.id, leadId: job.id } },
@@ -63,6 +73,11 @@ export async function startDepositAction(jobId: string): Promise<StartDepositRes
     const deposit = (await claimStripeDeposit({ leadId: job.id, versionId: state.versionId, amountCents: state.amountCents }))
       ?? (await pendingStripeDeposit(state.versionId));
     if (!deposit) return "not-due";
+    // A row that never got a session and is too old for one to open: give it up and claim a fresh one.
+    if (!deposit.stripeSessionId && checkoutExpiresAt(deposit) < Math.floor(Date.now() / 1000) + MIN_REMAINING_SECONDS) {
+      await expireSessionlessDeposit(deposit.id);
+      continue;
+    }
     let session: Stripe.Checkout.Session;
     try {
       session = deposit.stripeSessionId
@@ -77,7 +92,7 @@ export async function startDepositAction(jobId: string): Promise<StartDepositRes
       await attachSession(deposit.id, session.id);
       return { url: session.url };
     }
-    // Expired at Stripe: give the row up and claim a fresh one, once.
+    // Expired at Stripe: give the row up and claim a fresh one.
     await expireDeposit(session.id);
   }
   return "unavailable";
