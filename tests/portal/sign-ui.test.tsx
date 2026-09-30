@@ -96,7 +96,7 @@ describe("SignatureNotice", () => {
   it("names the empty field when the name or the box was missing", () => {
     render(<SignatureNotice signed="missing" signature={null} />);
     const status = screen.getByRole("status");
-    expect(status).toHaveTextContent("please type your full name and tick the box to agree");
+    expect(status).toHaveTextContent("please type your full name, add your initials or signature where asked, and tick the box to agree");
     expect(status).not.toHaveTextContent(business.phone.display);
   });
 
