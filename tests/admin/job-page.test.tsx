@@ -84,7 +84,7 @@ describe("job page", () => {
 
   it("makes the move-to-next-stage button full width with a decorative icon", () => {
     render(<StageControls job={job} />);
-    const button = screen.getByRole("button", { name: "Move to Sold" });
+    const button = screen.getByRole("button", { name: "Move to Approved" });
     expect(button.className).toContain("w-full");
     expect(button.querySelector('svg[aria-hidden="true"]')).not.toBeNull();
   });
@@ -100,7 +100,7 @@ describe("job page", () => {
   it("still renders every stage-control part by default, including the unused move button", () => {
     render(<StageControls job={job} />);
     expect(screen.getByText("Stage:")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Move to Sold" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Move to Approved" })).toBeInTheDocument();
     expect(screen.getByLabelText("Set stage")).toBeInTheDocument();
   });
 });

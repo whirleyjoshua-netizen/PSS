@@ -43,7 +43,10 @@
   --color-stage-new: #C98A2E;
   --color-stage-visit: #5B8DB8;
   --color-stage-quoted: #8A6A9E;
+  --color-stage-approved: #6F7FAE;
+  --color-stage-signed: #A0607A;
   --color-stage-sold: #5E9A5A;
+  --color-stage-measure: #8C8A3E;
   --color-stage-ordered: #B07D4F;
   --color-stage-installed: #1E1E1E;
   --color-stage-completed: #3F7D6B;

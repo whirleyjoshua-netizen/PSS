@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/admin/session";
+import { BOOKED_OR_LATER, SOLD_OR_LATER } from "@/lib/admin/stages";
 import { ATTRIBUTION_DAYS } from "@/lib/leads/attribution";
 import { conversionsCsv, type ConversionRow } from "@/lib/leads/conversions";
 
@@ -16,14 +17,14 @@ export async function GET() {
   const rows = await db().query(
     `select l.gclid, l.created_at, l.sold_cents,
        (select min(e.created_at) from job_events e where e.lead_id = l.id and e.kind = 'stage'
-          and e.to_status in ('visit_booked', 'quoted', 'sold', 'ordered', 'installed', 'completed')) as booked_at,
+          and e.to_status = any($2::text[])) as booked_at,
        (select min(e.created_at) from job_events e where e.lead_id = l.id and e.kind = 'stage'
-          and e.to_status in ('sold', 'ordered', 'installed', 'completed')) as sold_at
+          and e.to_status = any($3::text[])) as sold_at
      from leads l
      where l.gclid is not null
        and coalesce(l.ad_clicked_at, l.created_at) > now() - make_interval(days => $1)
      order by l.created_at`,
-    [ATTRIBUTION_DAYS],
+    [ATTRIBUTION_DAYS, [...BOOKED_OR_LATER], [...SOLD_OR_LATER]],
   );
 
   const csv = conversionsCsv(

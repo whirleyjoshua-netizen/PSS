@@ -4,5 +4,5 @@
 alter table leads drop constraint if exists leads_status_check;
 
 alter table leads add constraint leads_status_check check (
-  status in ('new','visit_booked','quoted','sold','ordered','installed','completed','lost')
+  status in ('new','visit_booked','quoted','approved','signed','sold','measure','ordered','installed','completed','lost')
 );

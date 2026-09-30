@@ -70,5 +70,5 @@ create index if not exists document_acknowledgements_lead_id_idx on document_ack
 alter table job_events drop constraint if exists job_events_kind_check;
 
 alter table job_events add constraint job_events_kind_check check (
-  kind in ('stage','note','edit','email','reward','measure','file','contact','message','service','signature','quote','document')
+  kind in ('stage','note','edit','email','reward','measure','file','contact','message','service','signature','quote','document','payment')
 );

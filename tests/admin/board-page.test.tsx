@@ -94,7 +94,7 @@ describe("board look and conveniences", () => {
     jobs.listJobs.mockResolvedValue([job, { ...jobB, status: "completed" }, { ...jobB, id: "5b4d0e3a-0e74-4c75-9c3e-3f4a5b6c7d8e", name: "Lee Park", status: "lost" }]);
     await open({});
     const board = screen.getByRole("region", { name: "Board" });
-    expect(within(board).getAllByRole("region")).toHaveLength(6);
+    expect(within(board).getAllByRole("region")).toHaveLength(9);
     expect(within(board).queryByText("Chris Lane")).toBeNull();
     expect(within(board).queryByText("Lee Park")).toBeNull();
   });
@@ -102,7 +102,7 @@ describe("board look and conveniences", () => {
   it("has an add link in every board column", async () => {
     await open({});
     expect(screen.getByRole("link", { name: "+ Add lead" })).toHaveAttribute("href", "/admin/jobs/new?stage=new");
-    expect(screen.getAllByRole("link", { name: "+ Add job" })).toHaveLength(5);
+    expect(screen.getAllByRole("link", { name: "+ Add job" })).toHaveLength(8);
   });
 
   it("has a New Job button and a search box that keeps the list filter", async () => {

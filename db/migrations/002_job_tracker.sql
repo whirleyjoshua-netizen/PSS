@@ -7,7 +7,7 @@
 -- file, so every definition must match. 'contacted' was retired by 011.
 alter table leads drop constraint if exists leads_status_check;
 alter table leads add constraint leads_status_check check (
-  status in ('new','visit_booked','quoted','sold','ordered','installed','completed','lost')
+  status in ('new','visit_booked','quoted','approved','signed','sold','measure','ordered','installed','completed','lost')
 );
 
 -- Hand-entered jobs (a phone call, a referral) may arrive without an email.
@@ -31,7 +31,7 @@ create table if not exists job_events (
   lead_id     uuid not null references leads (id) on delete cascade,
   created_at  timestamptz not null default now(),
   actor       text not null,
-  kind        text not null check (kind in ('stage','note','edit')),
+  kind        text not null check (kind in ('stage','note','edit','email','reward','measure','file','contact','message','service','signature','quote','document','payment')),
   from_status text,
   to_status   text,
   body        text

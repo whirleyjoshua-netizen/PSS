@@ -62,7 +62,7 @@ describe("JobList", () => {
     const select = screen.getByLabelText("Stage");
     expect(select).toHaveValue("lost");
     expect(within(select).getAllByRole("option").map((o) => o.textContent)).toEqual([
-      "All jobs", "New lead", "Appointment booked", "Quoted", "Sold", "Ordered", "Installed", "Completed", "Lost",
+      "All jobs", "New lead", "Appointment booked", "Quoted", "Approved", "Signed", "Sold", "Official measure", "Ordered", "Installed", "Completed", "Lost",
     ]);
     const form = select.closest("form")!;
     expect(form).toHaveAttribute("action", "/admin");
