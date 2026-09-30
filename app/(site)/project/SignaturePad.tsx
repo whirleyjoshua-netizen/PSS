@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type PointerEvent } from "react";
+import { useEffect, useRef, useState, type PointerEvent } from "react";
 import { MAX_PIXEL_RATIO, PNG_DATA_URL_MAX } from "@/lib/portal/adoption-limits";
 
 /**
@@ -20,9 +20,16 @@ export function SignaturePad({ name, label, maxWidth, maxHeight, value, onChange
   onChange: (dataUrl: string) => void;
 }) {
   const canvas = useRef<HTMLCanvasElement>(null);
-  const drawing = useRef(false);
+  // The pointer drawing the current stroke, or null. A second finger neither extends nor ends it.
+  const active = useRef<number | null>(null);
+  const carrier = useRef<HTMLInputElement>(null);
   const [tooLarge, setTooLarge] = useState(false);
   const lower = label.toLowerCase();
+
+  // An empty pad blocks the submit; the browser's bubble then says what to do, not "fill in this field".
+  useEffect(() => {
+    carrier.current?.setCustomValidity(value ? "" : `Draw your ${lower}`);
+  }, [value, lower]);
 
   const context = (element: HTMLCanvasElement) => {
     if (element.dataset.sized !== "1") {
@@ -60,11 +67,12 @@ export function SignaturePad({ name, label, maxWidth, maxHeight, value, onChange
   };
 
   const start = (event: PointerEvent<HTMLCanvasElement>) => {
+    if (active.current !== null) return;
     const ctx = context(event.currentTarget);
     if (!ctx) return;
     event.preventDefault();
     event.currentTarget.setPointerCapture?.(event.pointerId);
-    drawing.current = true;
+    active.current = event.pointerId;
     const { x, y } = point(event);
     ctx.beginPath();
     ctx.moveTo(x, y);
@@ -73,7 +81,7 @@ export function SignaturePad({ name, label, maxWidth, maxHeight, value, onChange
   };
 
   const move = (event: PointerEvent<HTMLCanvasElement>) => {
-    if (!drawing.current) return;
+    if (active.current !== event.pointerId) return;
     const ctx = event.currentTarget.getContext("2d");
     if (!ctx) return;
     event.preventDefault();
@@ -82,9 +90,9 @@ export function SignaturePad({ name, label, maxWidth, maxHeight, value, onChange
     ctx.stroke();
   };
 
-  const end = () => {
-    if (!drawing.current || !canvas.current) return;
-    drawing.current = false;
+  const end = (event: PointerEvent<HTMLCanvasElement>) => {
+    if (active.current !== event.pointerId || !canvas.current) return;
+    active.current = null;
     const url = canvas.current.toDataURL("image/png");
     // The server refuses anything longer (lib/portal/adoption.ts): say so here, not after the post.
     if (url.length > PNG_DATA_URL_MAX) {
@@ -123,11 +131,13 @@ export function SignaturePad({ name, label, maxWidth, maxHeight, value, onChange
         </button>
         {tooLarge ? <p role="alert" className="text-sm">That {lower} is too detailed to send. Clear it and draw it a little simpler.</p> : null}
       </div>
-      {/* Carries the drawing. Required and NOT read-only (a read-only input is never validated), so an empty pad blocks the submit. */}
+      {/* Carries the drawing. Required and NOT read-only (a read-only input is never validated), so an
+          empty pad blocks the submit. Hidden from assistive tech and the tab order: the pad is the control. */}
       <input
+        ref={carrier}
         className="sr-only"
         tabIndex={-1}
-        aria-label={`${label} (required)`}
+        aria-hidden="true"
         name={name}
         value={value}
         onChange={() => {}}

@@ -49,7 +49,9 @@ describe("with JavaScript off (the server-rendered HTML)", () => {
     expect(html).toContain('name="signatureMethod" value="typed"');
     expect(html).toContain('name="signedName"');
     // Inside a form with an action, React's server renderer writes `name` last, so find the tag first.
-    expect(html.match(/<input[^>]*name="signedInitials"[^>]*>/)?.[0]).toContain('required=""');
+    const initialsTag = html.match(/<input[^>]*name="signedInitials"[^>]*>/)?.[0];
+    expect(initialsTag).toContain('required=""');
+    expect(initialsTag).toContain('pattern="[A-Za-z][A-Za-z.\\- ]{0,5}"');
     expect(html).not.toContain("<canvas");
     expect(html).not.toContain(">Draw<");
     expect(html).toContain("I agree to sign this contract electronically and to initial every numbered section");
@@ -139,6 +141,44 @@ describe("drawing", () => {
     expect(carrier.checkValidity()).toBe(false);
     draw(screen.getByLabelText("Signature pad"));
     expect(carrier.checkValidity()).toBe(true);
+  });
+  it("names what is missing on an empty pad, and keeps the carrier out of the accessibility tree", () => {
+    const { container } = render(<SignContract jobId={JOB} file={FILE} />);
+    const form = container.querySelector("form")!;
+    fireEvent.click(screen.getByRole("button", { name: "Draw" }));
+    const signature = field(form, "signatureImage")!;
+    const initials = field(form, "initialsImage")!;
+    expect(signature.validationMessage).toBe("Draw your signature");
+    expect(initials.validationMessage).toBe("Draw your initials");
+    for (const carrier of [signature, initials]) {
+      expect(carrier).toHaveAttribute("aria-hidden", "true");
+      expect(carrier).toHaveAttribute("tabindex", "-1");
+      expect(carrier).toBeRequired();
+    }
+    draw(screen.getByLabelText("Signature pad"));
+    expect(signature.validationMessage).toBe("");
+    expect(signature.checkValidity()).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Clear signature" }));
+    expect(signature.validationMessage).toBe("Draw your signature");
+  });
+  it("draws one stroke per finger: a second finger neither extends nor ends the stroke", () => {
+    const { container } = render(<SignContract jobId={JOB} file={FILE} />);
+    const form = container.querySelector("form")!;
+    fireEvent.click(screen.getByRole("button", { name: "Draw" }));
+    const pad = screen.getByLabelText("Signature pad");
+    fireEvent.pointerDown(pad, { clientX: 150, clientY: 50, pointerId: 1 });
+    ctx.lineTo.mockClear();
+    fireEvent.pointerDown(pad, { clientX: 10, clientY: 10, pointerId: 2 });
+    fireEvent.pointerMove(pad, { clientX: 20, clientY: 20, pointerId: 2 });
+    fireEvent.pointerUp(pad, { clientX: 20, clientY: 20, pointerId: 2 });
+    expect(ctx.moveTo).toHaveBeenCalledTimes(1);
+    expect(ctx.lineTo).not.toHaveBeenCalled();
+    expect(HTMLCanvasElement.prototype.toDataURL).not.toHaveBeenCalled();
+    expect(field(form, "signatureImage")!.value).toBe("");
+    fireEvent.pointerMove(pad, { clientX: 200, clientY: 60, pointerId: 1 });
+    expect(ctx.lineTo).toHaveBeenCalledWith(400, 120);
+    fireEvent.pointerUp(pad, { clientX: 200, clientY: 60, pointerId: 1 });
+    expect(field(form, "signatureImage")!.value).toBe(URL_OK);
   });
   it("refuses a drawing too large to send, and says so", () => {
     vi.mocked(HTMLCanvasElement.prototype.toDataURL).mockReturnValue(`data:image/png;base64,${"A".repeat(PNG_DATA_URL_MAX)}`);
