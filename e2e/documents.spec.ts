@@ -1,10 +1,11 @@
 import { createHash, randomBytes } from "node:crypto";
-import { test, expect, type Browser, type BrowserContext, type Page } from "@playwright/test";
+import { test, expect, type Browser, type BrowserContext, type Locator, type Page } from "@playwright/test";
 import { neon } from "@neondatabase/serverless";
 import { del } from "@vercel/blob";
 import { winAnsiSafe } from "../lib/dc/contract-layout";
 import { formatProjectNo } from "../lib/portal/project-no";
 import { pdfText } from "./fixtures/pdf-text";
+import { pdfPages } from "./fixtures/pdf-pages";
 
 const url = process.env.E2E_POSTGRES_URL;
 test.skip(!url, "Set E2E_POSTGRES_URL to a Neon branch to run the Documents tests");
@@ -18,6 +19,7 @@ const CUSTOMER = `e2e-docs-${STAMP}@example.com`;
 const BYSTANDER = `e2e-docs-bystander-${STAMP}@example.com`;
 const ACK_TEMPLATE = `E2E Agreement ${STAMP}`;
 const SIGN_TEMPLATE = `E2E Change Order ${STAMP}`;
+const DRAW_TEMPLATE = `E2E Service Agreement ${STAMP}`;
 const EMAIL_FAILED = "Sent, but the email to the client failed — send them their project page link yourself.";
 
 const hash = (token: string) => createHash("sha256").update(token).digest("hex");
@@ -87,11 +89,23 @@ async function createDocument(page: Page, jobId: string, option: string, title: 
   return page.getByRole("region", { name: `Draft: ${title}` });
 }
 
+/** Draws a stroke across a pad with the mouse: Chromium turns it into pointer events. */
+async function scribble(page: Page, pad: Locator) {
+  await pad.scrollIntoViewIfNeeded();
+  const box = (await pad.boundingBox())!;
+  await page.mouse.move(box.x + box.width * 0.2, box.y + box.height * 0.6);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width * 0.5, box.y + box.height * 0.3, { steps: 8 });
+  await page.mouse.move(box.x + box.width * 0.8, box.y + box.height * 0.6, { steps: 8 });
+  await page.mouse.up();
+}
+
 let job: { id: string; projectNo: number };
 let bystander: { id: string; projectNo: number };
 let priorGuides: string[] = [];
 const ackTitle = () => `${ACK_TEMPLATE} — ${formatProjectNo(job.projectNo)}`;
 const signTitle = () => `${SIGN_TEMPLATE} — ${formatProjectNo(job.projectNo)}`;
+const drawTitle = () => `${DRAW_TEMPLATE} — ${formatProjectNo(job.projectNo)}`;
 
 test.beforeAll(async () => {
   if (!url) return;
@@ -109,6 +123,9 @@ test.beforeAll(async () => {
     values (gen_random_uuid(), ${`E2E Install guide ${STAMP}`}, 'guide_install', 'view', ${"## Before we arrive\n\n- Clear the windowsills."}, ${OWNER}, ${OWNER})`;
   await sql()`insert into document_templates (id, name, kind, response, body, created_by, updated_by)
     values (gen_random_uuid(), ${SIGN_TEMPLATE}, 'change_order', 'sign', ${"## Change\n\nOne more shade for {{client_name}}."}, ${OWNER}, ${OWNER})`;
+  await sql()`insert into document_templates (id, name, kind, response, body, created_by, updated_by)
+    values (gen_random_uuid(), ${DRAW_TEMPLATE}, 'service_agreement', 'sign',
+      ${"## 1. Scope\n\nTwo shades for {{client_name}}.\n\n## 2. Payment\n\nPaid on install."}, ${OWNER}, ${OWNER})`;
 });
 
 test.afterAll(async () => {
@@ -117,7 +134,12 @@ test.afterAll(async () => {
   const token = process.env.E2E_BLOB_READ_WRITE_TOKEN;
   if (token) {
     const files = await sql()`select blob_pathname from job_files where lead_id in (select id from leads where name like 'E2E Docs %')`;
-    const paths = files.map((f) => f.blob_pathname as string);
+    const images = await sql()`select signature_image_pathname, initials_image_pathname from contract_signatures
+      where lead_id in (select id from leads where name like 'E2E Docs %')`;
+    const paths = [
+      ...files.map((f) => f.blob_pathname as string),
+      ...images.flatMap((r) => [r.signature_image_pathname, r.initials_image_pathname]).filter((p): p is string => typeof p === "string"),
+    ];
     if (paths.length > 0) await del(paths, { token }).catch((error) => console.error("Could not remove e2e blobs", error));
   }
   await sql()`delete from document_acknowledgements where lead_id in (select id from leads where name like 'E2E Docs %')`;
@@ -291,6 +313,55 @@ test("a sign document is signed through the contract path, and the owner sees Si
   await documentsTab(page, job.id);
   await expect(page.getByRole("list", { name: "Documents on this job" }).getByRole("listitem").filter({ hasText: signTitle() }))
     .toContainText(/Signed [A-Z][a-z]{2} \d{1,2}, \d{4}/);
+});
+
+test("a service agreement with numbered sections is signed by drawing, with initials on every section", async ({ page, browser }) => {
+  await signInOwner(page);
+  const panel = await createDocument(page, job.id, `${DRAW_TEMPLATE} (Service agreement)`, drawTitle());
+  await panel.getByRole("button", { name: "Send to client" }).click();
+  await expect(page).toHaveURL(/tab=documents&sent=email-failed/);
+
+  const customer = await customerPage(browser, CUSTOMER);
+  const [sent] = await sql()`select file_id from job_documents where lead_id = ${job.id} and title = ${drawTitle()}`;
+  const unsigned = pdfText((await fetchFile(customer, `/project/files/${sent.file_id}`)).bytes);
+  expect(unsigned.filter((text) => text === "Initials")).toHaveLength(2);
+  expect(unsigned).toContain("Client signature");
+
+  const details = customer.locator("details", { hasText: `${drawTitle()}.pdf` });
+  await details.locator("summary").click();
+  const form = details.locator("form");
+  await form.getByRole("button", { name: "Draw" }).click();
+  await form.getByLabel("Your full name").fill("Pat Client");
+  await scribble(customer, form.getByLabel("Signature pad"));
+  await scribble(customer, form.getByLabel("Initials pad"));
+  await form.getByLabel("I agree to sign this document electronically and to initial every numbered section").check();
+  await form.getByRole("button", { name: "Sign this document" }).click();
+  await expect(customer.getByRole("status")).toContainText(`Thank you — you signed “${drawTitle()}” on`);
+
+  const [signature] = await sql()`select signature_method, signed_initials, signature_image_pathname, initials_image_pathname
+    from contract_signatures where file_id = ${sent.file_id}`;
+  expect(signature).toMatchObject({ signature_method: "drawn", signed_initials: null });
+  expect(signature.signature_image_pathname).toMatch(new RegExp(`^jobs/${job.id}/signatures/[0-9a-f-]{36}-signature\\.png$`));
+  expect(signature.initials_image_pathname).toMatch(/-initials\.png$/);
+
+  // The stamped copy is written in after(): wait for it.
+  let signedFileId: string | null = null;
+  await expect.poll(async () => {
+    const [row] = await sql()`select signed_file_id from contract_signatures where file_id = ${sent.file_id}`;
+    signedFileId = (row?.signed_file_id as string | null) ?? null;
+    return signedFileId;
+  }, { timeout: 20_000 }).not.toBeNull();
+  const pages = await pdfPages((await fetchFile(customer, `/project/files/${signedFileId}`)).bytes);
+  const body = pages.slice(0, -1);
+  // One drawn image per numbered section plus the signature, on the document's own pages (spec §10).
+  expect(body.reduce((sum, p) => sum + p.images, 0)).toBe(2 + 1);
+  // The signature page shows both adopted images.
+  expect(pages.at(-1)!.images).toBe(2);
+  const blockPage = body.find((p) => p.runs.some((run) => run.text === "Client signature"))!;
+  expect(blockPage.runs.map((run) => run.text)).toContain("Pat Client");
+  const record = pages.at(-1)!.runs.map((run) => run.text).join("\n");
+  expect(record).toContain("Method:     drawn");
+  expect(record).toContain("Initialed sections: 1, 2");
 });
 
 test("Void withdraws a sent document from the client", async ({ page, browser }) => {
