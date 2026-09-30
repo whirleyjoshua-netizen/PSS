@@ -239,7 +239,9 @@ export async function ProjectView({
 
       <section className="flex flex-col gap-2" aria-labelledby="next-heading">
         <h2 id="next-heading" className={heading}>Next step</h2>
-        {(quote && current.key === "quote") || depositDue ? (
+        {/* Ruling P18: only while the job is Quoted with something to approve (a shared uploaded quote or
+            an offered DC version's PDF). An Approved job waits on the owners or its contract, not here. */}
+        {(job.status === "quoted" && quote) || depositDue ? (
           <p className="font-display text-xs uppercase tracking-[0.2em] text-charcoal">Action required</p>
         ) : null}
         <p>{STEP_NEXT[current.key]}</p>

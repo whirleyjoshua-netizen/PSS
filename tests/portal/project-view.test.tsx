@@ -256,6 +256,21 @@ describe("ProjectView approval", () => {
     expect(within(banner).getByRole("link", { name: "Review quote" })).toHaveAttribute("href", "/project/files/fq");
   });
 
+  // Ruling P18: "Action required" means there is a quote to approve, so only a Quoted job with one.
+  it("shows Action required on a Quoted job with a shared quote", async () => {
+    listSharedDocuments.mockResolvedValue([quoteDoc]);
+    render(await ProjectView({ job: { ...job, status: "quoted" } }));
+    const next = screen.getByRole("region", { name: "Next step" });
+    expect(within(next).getByText("Action required")).toBeInTheDocument();
+  });
+
+  it("shows no Action required once an uploaded quote's job is Approved", async () => {
+    listSharedDocuments.mockResolvedValue([quoteDoc]);
+    render(await ProjectView({ job: { ...job, status: "approved" } }));
+    const next = screen.getByRole("region", { name: "Next step" });
+    expect(within(next).queryByText("Action required")).toBeNull();
+  });
+
   it("offers nothing once the client approved it", async () => {
     listSharedDocuments.mockResolvedValue([dcQuote]);
     offeredVersion.mockResolvedValue({ id: "v", version: 2, quoteFileId: "fq", approvedAt: new Date() });
