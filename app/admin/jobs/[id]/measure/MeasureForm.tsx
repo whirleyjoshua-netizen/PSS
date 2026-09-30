@@ -37,10 +37,13 @@ function Dimension({ name, label, value }: { name: "width" | "height" | "depth";
  */
 function Quantity({ value }: { value: number }) {
   const [quantity, setQuantity] = useState(String(value));
-  // Reads the box the way the server does: digits only, and blank means 1.
+  // Steps only a box of plain digits, the only kind the server accepts. A blank box counts as the
+  // 1 it would be saved as; anything else ("1e1") is left as typed, for the server to refuse.
   const step = (by: number) =>
     setQuantity((current) => {
-      const now = /^\d+$/.test(current.trim()) ? Number(current) : 1;
+      const typed = current.trim();
+      if (typed !== "" && !/^\d+$/.test(typed)) return current;
+      const now = typed === "" ? 1 : Number(typed);
       return String(Math.min(MAX_QUANTITY, Math.max(1, now + by)));
     });
   const stepper = "min-h-12 w-12 shrink-0 border border-rule text-xl";

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
@@ -173,6 +173,34 @@ describe("MeasureForm", () => {
     await user.type(quantity, "12");
     await user.click(screen.getByRole("button", { name: "One more" }));
     expect(quantity).toHaveValue(13);
+  });
+
+  it("keeps a typed quantity on screen when the save is refused", async () => {
+    saveMeasurement.mockResolvedValue({ error: "Choose inside or outside mount" });
+    const user = userEvent.setup();
+    render(<MeasureForm jobId={LEAD} window={null} defaultRoom="" />);
+    const quantity = screen.getByLabelText(/^quantity/i);
+    await user.clear(quantity);
+    await user.type(quantity, "10");
+    await user.click(screen.getByRole("button", { name: "Kitchen" }));
+    await user.type(screen.getByLabelText(/^width inches/i), "35");
+    await user.type(screen.getByLabelText(/^height inches/i), "48");
+    await user.click(screen.getByRole("button", { name: /save and next window/i }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/mount/i);
+    expect(screen.getByLabelText(/^quantity/i)).toHaveValue(10);
+  });
+
+  it("leaves a box that is not plain digits alone when stepping, for the server to refuse", async () => {
+    const user = userEvent.setup();
+    render(<MeasureForm jobId={LEAD} window={null} defaultRoom="" />);
+    const quantity = screen.getByLabelText(/^quantity/i) as HTMLInputElement;
+    fireEvent.change(quantity, { target: { value: "1e1" } });
+    expect(quantity.value).toBe("1e1");
+    await user.click(screen.getByRole("button", { name: "One more" }));
+    expect(quantity.value).toBe("1e1");
+    await user.click(screen.getByRole("button", { name: "One fewer" }));
+    expect(quantity.value).toBe("1e1");
   });
 
   it("puts 1 back in a quantity box left blank, so the screen shows what is saved", async () => {
