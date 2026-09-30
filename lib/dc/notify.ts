@@ -48,12 +48,12 @@ export function staleFailuresEmail(failures: { quoteNo: string | null; receivedA
   };
 }
 
-/** Plain text to the owners, like the approval email. Throws when misconfigured or rejected. */
+/** Plain text to the owners. Throws when misconfigured or rejected. Used by the DC import and the deposit flow. */
 export async function notifyOwners(email: { subject: string; text: string }): Promise<void> {
   const apiKey = process.env.RESEND_API_KEY;
   const to = ownerRecipients();
   const from = process.env.LEAD_FROM_EMAIL ?? "leads@premiershadesolutions.com";
-  if (!apiKey || to.length === 0) throw new Error("DC import notification email is not configured");
+  if (!apiKey || to.length === 0) throw new Error("Owner notification email is not configured");
   const { error } = await new Resend(apiKey).emails.send({ from: `${business.name} <${from}>`, to, subject: email.subject, text: email.text });
-  if (error) throw new Error(`Resend rejected the DC import notification: ${error.message}`);
+  if (error) throw new Error(`Resend rejected the owner notification: ${error.message}`);
 }

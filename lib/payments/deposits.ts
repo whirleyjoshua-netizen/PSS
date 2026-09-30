@@ -29,6 +29,9 @@ export type DepositState = {
 /** Spec §4: half the signed total, a half cent rounding up. The SQL twin is (client_total_cents + 1) / 2. */
 export const depositAmountCents = (soldCents: number): number => Math.round(soldCents / 2);
 
+/** What markStripeDepositPaid applied. stageBefore is the job's stage before the write. */
+export type StripePaid = { leadId: string; versionId: string; stageBefore: string | null; otherSessionIds: string[] };
+
 /** Who a card payment's timeline entries name. */
 export const STRIPE_ACTOR = "Stripe";
 /** lost_reason, and the stage event's body, for a cancelled and refunded order. */
@@ -176,10 +179,14 @@ export async function attachSession(depositId: string, sessionId: string): Promi
  * expired in the same statement. deposit_cents is written and a Signed job moves to Sold; a job the
  * owner moved elsewhere keeps its stage, and the payment is still recorded. A duplicate delivery finds
  * the row already paid, matches nothing and answers null.
+ *
+ * It answers the job's stage BEFORE the write (ruling P11c: the owners' receipt says when the job was not
+ * in Signed, so they review it) and the Checkout Sessions of the pending rows it expired (ruling P11a: the
+ * webhook closes them in Stripe, best-effort, so a second payment cannot follow).
  */
 export async function markStripeDepositPaid(input: {
   depositId: string; sessionId: string; paymentIntentId: string | null; amountCents: number;
-}): Promise<{ leadId: string } | null> {
+}): Promise<StripePaid | null> {
   if (!isUuid(input.depositId)) return null;
   const rows = await db()`
     with paid as (
@@ -195,7 +202,7 @@ export async function markStripeDepositPaid(input: {
     others_expired as (
       update deposits set status = 'expired'
       where dc_quote_version_id = (select dc_quote_version_id from paid) and status = 'pending' and id <> ${input.depositId}
-      returning id
+      returning id, stripe_session_id
     ),
     prev as (select l.status from leads l join paid on l.id = paid.lead_id),
     moved as (
@@ -215,8 +222,16 @@ export async function markStripeDepositPaid(input: {
       select moved.id, ${STRIPE_ACTOR}, 'stage', prev.status, 'sold', 'Deposit paid' from moved, prev
       where prev.status = 'signed'
     )
-    select lead_id from paid`;
-  return rows[0] ? { leadId: rows[0].lead_id as string } : null;
+    select paid.lead_id, paid.dc_quote_version_id, (select status from prev) as stage_before,
+      array(select stripe_session_id from others_expired where stripe_session_id is not null) as other_sessions
+    from paid`;
+  const row = rows[0];
+  if (!row) return null;
+  return {
+    leadId: row.lead_id as string, versionId: row.dc_quote_version_id as string,
+    stageBefore: (row.stage_before as string | null) ?? null,
+    otherSessionIds: Array.isArray(row.other_sessions) ? (row.other_sessions as string[]) : [],
+  };
 }
 
 /**

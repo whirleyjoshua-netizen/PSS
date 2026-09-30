@@ -142,8 +142,8 @@ describe("markStripeDepositPaid", () => {
   const input = { depositId: DEPOSIT, sessionId: "cs_1", paymentIntentId: "pi_1", amountCents: 92417 };
 
   it("in ONE statement marks the pending deposit paid, writes deposit_cents, moves Signed to Sold and logs both", async () => {
-    sql.mockResolvedValueOnce([{ lead_id: LEAD }]);
-    expect(await d.markStripeDepositPaid(input)).toEqual({ leadId: LEAD });
+    sql.mockResolvedValueOnce([{ lead_id: LEAD, dc_quote_version_id: VERSION, stage_before: "signed", other_sessions: [] }]);
+    expect(await d.markStripeDepositPaid(input)).toEqual({ leadId: LEAD, versionId: VERSION, stageBefore: "signed", otherSessionIds: [] });
     expect(sql).toHaveBeenCalledTimes(1);
     const s = text(sql.mock.calls[0]);
     for (const part of [
@@ -157,8 +157,8 @@ describe("markStripeDepositPaid", () => {
     expect(values(sql.mock.calls[0])).toEqual(expect.arrayContaining(["cs_1", "pi_1", DEPOSIT, 92417, "Stripe", "Deposit $924.17 paid by card"]));
   });
   it("marks paid an EXPIRED card deposit whose Checkout Session completed, so real money is never dropped (P11b)", async () => {
-    sql.mockResolvedValueOnce([{ lead_id: LEAD }]);
-    expect(await d.markStripeDepositPaid(input)).toEqual({ leadId: LEAD });
+    sql.mockResolvedValueOnce([{ lead_id: LEAD, dc_quote_version_id: VERSION, stage_before: "signed", other_sessions: [] }]);
+    expect(await d.markStripeDepositPaid(input)).toEqual({ leadId: LEAD, versionId: VERSION, stageBefore: "signed", otherSessionIds: [] });
     const s = text(sql.mock.calls[0]);
     const paid = s.slice(s.indexOf("with paid as ("), s.indexOf("others_expired as ("));
     // Only with the session Stripe completed: an expired row never takes a session it did not hold.
@@ -171,7 +171,7 @@ describe("markStripeDepositPaid", () => {
     expect(sql).toHaveBeenCalledTimes(1);
     const s = text(sql.mock.calls[0]);
     expect(s).toContain(
-      "others_expired as ( update deposits set status = 'expired' where dc_quote_version_id = (select dc_quote_version_id from paid) and status = 'pending' and id <> ? returning id )",
+      "others_expired as ( update deposits set status = 'expired' where dc_quote_version_id = (select dc_quote_version_id from paid) and status = 'pending' and id <> ? returning id, stripe_session_id )",
     );
     expect(values(sql.mock.calls[0]).filter((value) => value === DEPOSIT).length).toBe(2);
   });
@@ -182,6 +182,16 @@ describe("markStripeDepositPaid", () => {
     expect(paid).toContain("and not exists (select 1 from deposits d where d.dc_quote_version_id = deposits.dc_quote_version_id and d.status = 'paid')");
     // The accepted statuses are exactly pending and expired.
     expect(paid.match(/status = '(\w+)' and/g)).toEqual(["status = 'pending' and", "status = 'expired' and"]);
+  });
+  it("answers the version, the stage before and the other checkouts it expired, so the webhook can close them and word the receipt", async () => {
+    sql.mockResolvedValueOnce([{ lead_id: LEAD, dc_quote_version_id: VERSION, stage_before: "lost", other_sessions: ["cs_2", "cs_3"] }]);
+    expect(await d.markStripeDepositPaid(input)).toEqual({ leadId: LEAD, versionId: VERSION, stageBefore: "lost", otherSessionIds: ["cs_2", "cs_3"] });
+    expect(sql).toHaveBeenCalledTimes(1);
+    const s = text(sql.mock.calls[0]);
+    expect(s).toContain("returning id, stripe_session_id )");
+    expect(s).toContain(
+      "select paid.lead_id, paid.dc_quote_version_id, (select status from prev) as stage_before, array(select stripe_session_id from others_expired where stripe_session_id is not null) as other_sessions from paid",
+    );
   });
   it("answers null when no pending deposit matched (a duplicate delivery, or one recorded by hand)", async () => {
     expect(await d.markStripeDepositPaid(input)).toBeNull();
