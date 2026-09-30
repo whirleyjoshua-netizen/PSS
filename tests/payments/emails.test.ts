@@ -9,7 +9,7 @@ vi.mock("@/lib/admin/jobs", () => jobs);
 const deposits = { depositState: vi.fn() };
 vi.mock("@/lib/payments/deposits", () => deposits);
 
-const { alertUnmatchedPayment, sendCancellationEmails, sendDepositReceipts } = await import("@/lib/payments/emails");
+const { alertUnmatchedPayment, alertUnrecordedRefund, sendCancellationEmails, sendDepositReceipts } = await import("@/lib/payments/emails");
 
 const LEAD = "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c";
 const job = { id: LEAD, name: "Maria Lopez", email: " Maria@Example.com ", projectNo: 1048 };
@@ -88,6 +88,17 @@ describe("alertUnmatchedPayment", () => {
     const [alert] = sent();
     expect(alert.subject).toBe("A card payment needs checking in Stripe");
     for (const line of ["Because.", "Checkout Session: cs_1", "Amount:           $924.17", "Deposit:          d1"]) expect(alert.text).toContain(line);
+  });
+});
+
+describe("alertUnrecordedRefund", () => {
+  it("tells the owners the card was refunded but the cancellation is not recorded", async () => {
+    await alertUnrecordedRefund({ job: job as never, depositId: "d1", amountCents: 92417 });
+    const [alert] = sent();
+    expect(alert.to).toEqual(["owner@example.com"]);
+    expect(alert.subject).toBe("Refunded but not recorded: PSS-1048");
+    for (const line of ["Maria Lopez's deposit of $924.17 was refunded to the card in Stripe", "Deposit: d1",
+      "https://admin.example.com/admin/jobs/" + LEAD + "?tab=quote"]) expect(alert.text).toContain(line);
   });
 });
 

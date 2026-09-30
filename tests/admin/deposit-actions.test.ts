@@ -11,7 +11,7 @@ const deposits = { depositState: vi.fn(), recordDepositPayment: vi.fn(), cancelD
 vi.mock("@/lib/payments/deposits", () => deposits);
 const stripe = { stripeClient: vi.fn(() => ({}) as unknown), closeCheckout: vi.fn(), refundPayment: vi.fn() };
 vi.mock("@/lib/payments/stripe", () => stripe);
-const emails = { sendDepositReceipts: vi.fn(), sendCancellationEmails: vi.fn() };
+const emails = { sendDepositReceipts: vi.fn(), sendCancellationEmails: vi.fn(), alertUnrecordedRefund: vi.fn() };
 vi.mock("@/lib/payments/emails", () => emails);
 
 const { cancelDepositAction, recordDepositAction } = await import("@/app/admin/jobs/[id]/deposit-actions");
@@ -37,6 +37,8 @@ beforeEach(() => {
   stripe.refundPayment.mockReset().mockResolvedValue(true);
   emails.sendDepositReceipts.mockReset().mockResolvedValue(undefined);
   emails.sendCancellationEmails.mockReset().mockResolvedValue(undefined);
+  emails.alertUnrecordedRefund.mockReset().mockResolvedValue(undefined);
+  vi.spyOn(console, "error").mockImplementation(() => {});
 });
 
 describe("recordDepositAction", () => {
@@ -81,6 +83,14 @@ describe("recordDepositAction", () => {
     expect(deposits.recordDepositPayment).not.toHaveBeenCalled();
   });
 
+  it("refuses when the chosen version is not a signed contract", async () => {
+    deposits.depositState.mockResolvedValue({ ...state, versionStatus: "cancelled" });
+    expect(await recordDepositAction(JOB, "924", "check")).toEqual({ error: "This job has no signed contract." });
+    deposits.depositState.mockResolvedValue(null);
+    expect(await recordDepositAction(JOB, "924", "check")).toEqual({ error: "This job has no signed contract." });
+    expect(deposits.recordDepositPayment).not.toHaveBeenCalled();
+  });
+
   it("says so when the statement recorded nothing (the job moved meanwhile)", async () => {
     deposits.recordDepositPayment.mockResolvedValue(null);
     expect(await recordDepositAction(JOB, "924", "check")).toEqual({ error: "The deposit could not be recorded. Reload the page and check the job's stage." });
@@ -105,6 +115,27 @@ describe("cancelDepositAction", () => {
       error: "Stripe did not refund the card, so nothing was changed. Try again, or refund it in the Stripe dashboard first.",
     });
     expect(deposits.cancelDeposit).not.toHaveBeenCalled();
+  });
+
+  // Ruling P16: the card is refunded, so the owner is told exactly that, a line is logged and the owners are alerted.
+  const REFUNDED_UNRECORDED = "The card was refunded in Stripe, but PSS could not record the cancellation. Reload and press Cancel & refund again — it will not refund twice.";
+
+  it("says the card was refunded, logs and alerts the owners, when the cancellation records nothing", async () => {
+    deposits.cancelDeposit.mockResolvedValue(false);
+    expect(await cancelDepositAction(JOB, DEPOSIT)).toEqual({ error: REFUNDED_UNRECORDED });
+    expect(console.error).toHaveBeenCalledWith(expect.stringContaining(DEPOSIT), expect.anything());
+    for (const cb of afterCbs.splice(0)) await cb();
+    expect(emails.alertUnrecordedRefund).toHaveBeenCalledWith({ job, depositId: DEPOSIT, amountCents: 92417 });
+    expect(emails.sendCancellationEmails).not.toHaveBeenCalled();
+  });
+
+  it("says the card was refunded, logs and alerts the owners, when the cancellation throws", async () => {
+    deposits.cancelDeposit.mockRejectedValue(new Error("connection reset"));
+    expect(await cancelDepositAction(JOB, DEPOSIT)).toEqual({ error: REFUNDED_UNRECORDED });
+    expect(console.error).toHaveBeenCalledWith(expect.stringContaining(DEPOSIT), expect.anything());
+    for (const cb of afterCbs.splice(0)) await cb();
+    expect(emails.alertUnrecordedRefund).toHaveBeenCalledWith({ job, depositId: DEPOSIT, amountCents: 92417 });
+    expect(emails.sendCancellationEmails).not.toHaveBeenCalled();
   });
 
   it("marks a recorded deposit refunded without calling Stripe", async () => {

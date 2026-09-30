@@ -100,6 +100,24 @@ export async function alertUnmatchedPayment(input: { sessionId: string; amountCe
   });
 }
 
+/**
+ * Ruling P16: Stripe refunded the card but PSS could not record the cancellation, so the job still shows
+ * the deposit paid. The owners are told to press Cancel & refund again (it will not refund twice).
+ * Throws on failure; callers catch.
+ */
+export async function alertUnrecordedRefund(input: { job: Pick<Job, "id" | "name" | "projectNo">; depositId: string; amountCents: number }): Promise<void> {
+  const projectNo = formatProjectNo(input.job.projectNo) ?? "a job";
+  await notifyOwners({
+    subject: `Refunded but not recorded: ${projectNo}`,
+    text: [
+      `${input.job.name}'s deposit of ${formatCents(input.amountCents)} was refunded to the card in Stripe, but PSS could not record the cancellation.`, "",
+      "The job still shows the deposit as paid. Open it and press Cancel & refund again; the card will not be refunded twice.", "",
+      `Deposit: ${input.depositId}`,
+      `Open in tracker: ${adminOrigin()}/admin/jobs/${input.job.id}?tab=quote`,
+    ].join("\n"),
+  });
+}
+
 /** Cancel & refund (spec §4): the client and the owners are told. Neither failure is thrown. */
 export async function sendCancellationEmails(input: { job: Job; amountCents: number; method: DepositMethod; inWindow: boolean; actor: string }): Promise<void> {
   const { job } = input;

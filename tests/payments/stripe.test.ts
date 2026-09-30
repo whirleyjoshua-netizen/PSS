@@ -102,4 +102,16 @@ describe("refundPayment", () => {
     expect(await refundPayment(fake.client, "pi_1", "d1")).toBe(false);
     expect(await refundPayment(null, "pi_1", "d1")).toBe(false);
   });
+  // Ruling P16: a retry after Stripe's 24-hour idempotency window finds the charge already refunded.
+  it("answers true when Stripe says the charge is already refunded", async () => {
+    const fake = fakeStripe({ status: "complete" });
+    fake.create.mockRejectedValueOnce(new Stripe.errors.StripeInvalidRequestError({
+      message: "Charge ch_1 has already been refunded.", code: "charge_already_refunded", type: "invalid_request_error",
+    }));
+    expect(await refundPayment(fake.client, "pi_1", "d1")).toBe(true);
+    fake.create.mockRejectedValueOnce(new Stripe.errors.StripeInvalidRequestError({
+      message: "No such payment_intent", code: "resource_missing", type: "invalid_request_error",
+    }));
+    expect(await refundPayment(fake.client, "pi_1", "d1")).toBe(false);
+  });
 });

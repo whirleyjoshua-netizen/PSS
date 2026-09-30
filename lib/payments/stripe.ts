@@ -63,13 +63,18 @@ export async function closeCheckout(stripe: Stripe | null, sessionId: string): P
   }
 }
 
-/** Refunds a card deposit in full. One idempotency key per deposit, so a second press refunds nothing more. */
+/**
+ * Refunds a card deposit in full. One idempotency key per deposit, so a second press refunds nothing more.
+ * A charge Stripe says is already refunded counts as refunded (ruling P16): a retry after the key's 24-hour
+ * window must still let the cancellation be recorded.
+ */
 export async function refundPayment(stripe: Stripe | null, paymentIntentId: string, depositId: string): Promise<boolean> {
   if (!stripe) return false;
   try {
     await stripe.refunds.create({ payment_intent: paymentIntentId }, { idempotencyKey: `refund-${depositId}` });
     return true;
   } catch (error) {
+    if (error instanceof Stripe.errors.StripeInvalidRequestError && error.code === "charge_already_refunded") return true;
     console.error(`Stripe did not refund ${paymentIntentId}`, error);
     return false;
   }

@@ -50,6 +50,31 @@ describe("DepositPanel", () => {
     expect(cancelDepositAction).toHaveBeenCalledWith(J, "d1");
   });
 
+  it("offers Cancel & refund on a job still Signed with a paid deposit, and keeps both choices locked while it runs", async () => {
+    let finish: (value: { ok: true }) => void = () => {};
+    cancelDepositAction.mockReturnValueOnce(new Promise((resolve) => { finish = resolve; }));
+    render(<DepositPanel jobId={J} view={{ ...view, jobStatus: "signed", paid: { ...paid, method: "cash" } }} />);
+    expect(screen.queryByRole("button", { name: "Payment received" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel & refund" }));
+    fireEvent.click(screen.getByRole("button", { name: "Yes, cancel and refund" }));
+    expect(await screen.findByRole("button", { name: "Keep the order" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Yes, cancel and refund" })).toBeDisabled();
+    finish({ ok: true });
+    expect(await screen.findByRole("status")).toHaveTextContent("Cancelled and refunded. The job is Lost.");
+    expect(cancelDepositAction).toHaveBeenCalledWith(J, "d1");
+  });
+
+  it("keeps Keep waiting locked while a payment is being recorded", async () => {
+    let finish: (value: { ok: true }) => void = () => {};
+    recordDepositAction.mockReturnValueOnce(new Promise((resolve) => { finish = resolve; }));
+    render(<DepositPanel jobId={J} view={view} />);
+    fireEvent.click(screen.getByRole("button", { name: "Payment received" }));
+    fireEvent.click(screen.getByRole("button", { name: "Record payment" }));
+    expect(await screen.findByRole("button", { name: "Keep waiting" })).toBeDisabled();
+    finish({ ok: true });
+    expect(await screen.findByRole("status")).toHaveTextContent("Deposit recorded. The job is Sold.");
+  });
+
   it("says when the window has closed, and words a recorded deposit as one to return", () => {
     render(<DepositPanel jobId={J} view={{ ...view, jobStatus: "sold", inWindow: false, paid: { ...paid, method: "check" } }} />);
     fireEvent.click(screen.getByRole("button", { name: "Cancel & refund" }));

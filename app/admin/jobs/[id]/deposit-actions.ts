@@ -6,7 +6,7 @@ import { dollarsToCents, formatCents } from "@/lib/admin/money";
 import { requireAdmin } from "@/lib/admin/session";
 import { inCancellationWindow } from "@/lib/docs/business-days";
 import { cancelDeposit, depositState, isRecordedMethod, recordDepositPayment } from "@/lib/payments/deposits";
-import { sendCancellationEmails, sendDepositReceipts } from "@/lib/payments/emails";
+import { alertUnrecordedRefund, sendCancellationEmails, sendDepositReceipts } from "@/lib/payments/emails";
 import { closeCheckout, refundPayment, stripeClient } from "@/lib/payments/stripe";
 import { MISSING, refresh } from "../form-state";
 
@@ -57,13 +57,27 @@ export async function cancelDepositAction(jobId: string, depositId: string): Pro
   const state = await depositState(job.id);
   const deposit = state?.paid;
   if (!state || !deposit || deposit.id !== depositId) return { error: "This deposit is no longer paid. Reload the page." };
-  if (deposit.method === "stripe") {
+  const card = deposit.method === "stripe";
+  if (card) {
     const refunded = deposit.stripePaymentIntentId !== null
       && await refundPayment(stripeClient(), deposit.stripePaymentIntentId, deposit.id);
     if (!refunded) return { error: "Stripe did not refund the card, so nothing was changed. Try again, or refund it in the Stripe dashboard first." };
   }
-  if (!(await cancelDeposit({ leadId: job.id, deposit, actor: admin.email }))) {
-    return { error: "The cancellation could not be recorded. Reload the page." };
+  let recorded = false;
+  let failure: unknown = "the statement matched no paid deposit";
+  try {
+    recorded = await cancelDeposit({ leadId: job.id, deposit, actor: admin.email });
+  } catch (error) {
+    failure = error;
+  }
+  if (!recorded) {
+    console.error(`Deposit ${deposit.id}: the cancellation was not recorded${card ? " after Stripe refunded the card" : ""}`, failure);
+    if (!card) return { error: "The cancellation could not be recorded. Reload the page." };
+    // Ruling P16: the money has gone back, so say so. Pressing again refunds nothing more (the idempotency
+    // key, or Stripe's charge_already_refunded, which refundPayment counts as refunded).
+    after(() => alertUnrecordedRefund({ job, depositId: deposit.id, amountCents: deposit.amountCents })
+      .catch((error: unknown) => console.error(`Could not alert the owners about deposit ${deposit.id}`, error)));
+    return { error: "The card was refunded in Stripe, but PSS could not record the cancellation. Reload and press Cancel & refund again — it will not refund twice." };
   }
   const inWindow = inCancellationWindow(state.signedAt, new Date());
   after(() => sendCancellationEmails({ job, amountCents: deposit.amountCents, method: deposit.method, inWindow, actor: admin.email }));

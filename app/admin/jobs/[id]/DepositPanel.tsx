@@ -90,7 +90,7 @@ export function DepositPanel({ jobId, view }: { jobId: string; view: DepositView
               </select>
             </label>
             <button type="submit" disabled={pending} className={primary}>Record payment</button>
-            <button type="button" onClick={() => setRecording(false)} className={secondary}>Keep waiting</button>
+            <button type="button" onClick={() => setRecording(false)} disabled={pending} className={`${secondary} disabled:opacity-40`}>Keep waiting</button>
           </form>
         ) : (
           <div>
@@ -114,7 +114,7 @@ export function DepositPanel({ jobId, view }: { jobId: string; view: DepositView
             </p>
             <div className="flex flex-wrap gap-3">
               <button type="button" onClick={cancel} disabled={pending} className={primary}>Yes, cancel and refund</button>
-              <button type="button" onClick={() => setConfirming(false)} className={secondary}>Keep the order</button>
+              <button type="button" onClick={() => setConfirming(false)} disabled={pending} className={`${secondary} disabled:opacity-40`}>Keep the order</button>
             </div>
           </div>
         ) : (
