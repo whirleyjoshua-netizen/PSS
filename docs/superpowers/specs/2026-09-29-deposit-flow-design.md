@@ -72,7 +72,12 @@ Named checks: method list, status list, amount_cents > 0; unique partial index: 
 
 After signing, the portal shows **Pay 50% deposit — $X** with the amount and the cancellation date. The signed-copy and owner emails are unchanged; the client's signed-copy email adds the deposit link.
 
-**Coordination:** pss-dd owns `sign.ts`, `SignContract.tsx` and `signContractAction` for visible signatures (029). This work starts after 029 merges and changes only the stage target in `recordSignature`'s `sold` step and the post-sign portal view.
+**Coordination (confirmed with pss-dd, 2026-09-29):** pss-dd owns `sign.ts`, `SignContract.tsx` and `signContractAction` for visible signatures (029, branch feat/signatures). This work starts after 029 merges and:
+- changes only the stage target in `recordSignature`'s `sold` step; the statement stays a single CTE, and a sign `job_document` is still completed in it;
+- adds the deposit button in `ProjectView` without touching `signContractAction` (which validates the Type/Draw adoption);
+- keeps 029's `renderContractPdf` + `signMarks` pass-through when `sendContract` is called on approval;
+- owns `lib/portal/send-signature-email.ts` (029 does not touch it);
+- keeps `'document'` (from 026) in every job_events kind list — `tests/db/migration-checks-consistent.test.ts` enforces identical lists.
 
 ## 4. Deposit and Sold
 
@@ -91,7 +96,7 @@ The portal never trusts the success redirect: only a verified webhook or an owne
 
 ## 5. Official measure
 
-`confirmSchedule` (`appointment-actions.ts`) gains, next to the consultation rule: a confirmed **measure** appointment on a **Sold** job → `setStage(... "measure")`. Ordered stays manual.
+`confirmSchedule` (`appointment-actions.ts`) gains, next to the consultation rule: a confirmed **measure** appointment on a **Sold** job → `setStage(... "measure")`. Ordered stays manual. The 3-business-day window still counts from the contract's `signed_at` and still holds the Quote tab's "ready to order" link until it passes; booking the measure inside the window is allowed (it costs nothing if the client cancels), ordering is not prompted until the window has passed.
 
 **Client progress bar** (`lib/portal/progress.ts`, minStage never decreases): Consultation, Measurements, Quote ready (quoted), Contract signed (signed), Deposit paid (sold), Final measure (measure), In production (ordered), Ready to install, Installed.
 
