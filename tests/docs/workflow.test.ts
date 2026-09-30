@@ -8,7 +8,7 @@ const store = { getJobDocument: vi.fn(), insertDraft: vi.fn(), markSent: vi.fn()
 vi.mock("@/lib/docs/job-documents", () => store);
 const templates = { getTemplate: vi.fn() };
 vi.mock("@/lib/docs/templates", () => templates);
-const pdf = { buildDocumentPdf: vi.fn() };
+const pdf = { renderDocumentPdf: vi.fn() };
 vi.mock("@/lib/docs/pdf", () => pdf);
 const emails = { sendDocumentEmail: vi.fn() };
 vi.mock("@/lib/docs/emails", () => emails);
@@ -20,6 +20,7 @@ const DOC = "22222222-2222-4222-8222-222222222222";
 const FILE = "33333333-3333-4333-8333-333333333333";
 const TEMPLATE = "44444444-4444-4444-8444-444444444444";
 const NOW = new Date("2026-09-28T19:00:00Z");
+const MARKS = { initials: [{ page: 1, x: 502, y: 700, section: "4" }], signature: { page: 2, x: 154, y: 300 } };
 const job = { id: JOB, name: "Maria Lopez", email: "maria@example.com", phone: "7025550100", address: "12 Palm Way", city: "Henderson",
   status: "sold", projectNo: 1048, soldCents: 450000, quoteCents: null, depositCents: null, installOn: null };
 const template = { id: TEMPLATE, name: "Service agreement", kind: "service_agreement", response: "acknowledge", archivedAt: null,
@@ -34,14 +35,14 @@ beforeEach(() => {
   store.insertDraft.mockResolvedValue(DOC);
   store.getJobDocument.mockResolvedValue(draft);
   store.markSent.mockResolvedValue(true);
-  pdf.buildDocumentPdf.mockResolvedValue(new Uint8Array([37, 80, 68, 70]));
+  pdf.renderDocumentPdf.mockResolvedValue({ bytes: new Uint8Array([37, 80, 68, 70]), marks: MARKS });
   files.createFile.mockResolvedValue({ id: FILE });
   files.deleteFile.mockResolvedValue(true);
   emails.sendDocumentEmail.mockResolvedValue(undefined);
 });
 
 function expectNothingWritten() {
-  expect(pdf.buildDocumentPdf).not.toHaveBeenCalled();
+  expect(pdf.renderDocumentPdf).not.toHaveBeenCalled();
   expect(files.createFile).not.toHaveBeenCalled();
   expect(store.markSent).not.toHaveBeenCalled();
   expect(emails.sendDocumentEmail).not.toHaveBeenCalled();
@@ -103,7 +104,7 @@ describe("createDocumentFromTemplate", () => {
 describe("sendJobDocument", () => {
   it("renders the stored text, stores the PDF, sends in one statement, then emails", async () => {
     expect(await sendJobDocument({ jobId: JOB, documentId: DOC, actor: "o@x.com", now: NOW })).toEqual({ ok: true, emailed: true });
-    const [input] = pdf.buildDocumentPdf.mock.calls[0];
+    const [input] = pdf.renderDocumentPdf.mock.calls[0];
     expect(input).toMatchObject({ title: draft.title, projectNo: "PSS-1048", date: NOW, response: "acknowledge",
       client: { name: "Maria Lopez", address: "12 Palm Way", city: "Henderson", email: "maria@example.com" } });
     expect(input.blocks[0]).toEqual({ type: "heading", level: 2, inlines: [{ type: "text", text: "Scope", bold: false }] });
@@ -122,6 +123,19 @@ describe("sendJobDocument", () => {
     store.getJobDocument.mockResolvedValue({ ...draft, response: "view" });
     await sendJobDocument({ jobId: JOB, documentId: DOC, actor: "o" });
     expect(files.createFile.mock.calls[0][0].docType).toBe("other");
+  });
+  it("stores the marks with a sign document's file", async () => {
+    store.getJobDocument.mockResolvedValue({ ...draft, response: "sign" });
+    await sendJobDocument({ jobId: JOB, documentId: DOC, actor: "o@x.com", now: NOW });
+    expect(files.createFile.mock.calls[0][0]).toMatchObject({ docType: "contract", signMarks: MARKS });
+  });
+  it("stores no marks for an acknowledge or view document", async () => {
+    for (const response of ["acknowledge", "view"]) {
+      files.createFile.mockClear();
+      store.getJobDocument.mockResolvedValue({ ...draft, response });
+      await sendJobDocument({ jobId: JOB, documentId: DOC, actor: "o@x.com", now: NOW });
+      expect(files.createFile.mock.calls[0][0].signMarks).toBeNull();
+    }
   });
   it("refuses with the first blocker and stores nothing", async () => {
     store.getJobDocument.mockResolvedValue({ ...draft, body: "Deposit {{deposit}}" });

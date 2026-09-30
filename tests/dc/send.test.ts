@@ -17,7 +17,7 @@ const files = { createFile: vi.fn(), deleteFile: vi.fn() };
 vi.mock("@/lib/admin/files", () => files);
 const blob = { get: vi.fn() };
 vi.mock("@vercel/blob", () => blob);
-const pdf = { buildContractPdf: vi.fn() };
+const pdf = { renderContractPdf: vi.fn() };
 vi.mock("@/lib/dc/contract-pdf", () => pdf);
 const email = { sendContractEmail: vi.fn() };
 vi.mock("@/lib/dc/send-contract-email", () => email);
@@ -35,6 +35,7 @@ const V0 = "44444444-4444-4444-8444-444444444444";
 const FILE = "55555555-5555-4555-8555-555555555555";
 const INSTALL = "66666666-6666-4666-8666-666666666666";
 const OWNER = "owner@example.com";
+const MARKS = { initials: [{ page: 1, x: 502, y: 700, section: "4" }], signature: { page: 2, x: 154, y: 300 } };
 const parsed = parseDealerCopy(readFileSync("tests/fixtures/dc/dealer-copy-1-line.html", "utf8"));
 if (!parsed.ok) throw new Error("fixture must parse");
 const quote = parsed.quote;
@@ -62,7 +63,7 @@ beforeEach(() => {
   store.getDcSettings.mockResolvedValue({ termsPathname: "settings/terms.pdf", termsUpdatedAt: null, lastPolledAt: null });
   installs.listInstallQuotes.mockResolvedValue([install]);
   blob.get.mockImplementation(async () => ({ statusCode: 200, stream: new Response(termsBytes).body }));
-  pdf.buildContractPdf.mockResolvedValue(new Uint8Array([1]));
+  pdf.renderContractPdf.mockResolvedValue({ bytes: new Uint8Array([1]), marks: MARKS });
   files.createFile.mockResolvedValue({ id: FILE });
   files.deleteFile.mockResolvedValue(true);
   sql.mockResolvedValue([{ id: V1 }]);
@@ -187,11 +188,18 @@ describe("sendContract", () => {
     expect(sendContractEmail).toHaveBeenCalledWith(job, "Contract PSS-1042 v1.pdf");
     expect(blob.get).toHaveBeenCalledWith("settings/terms.pdf", { access: "private" });
   });
+  it("creates the contract file with the marks the renderer recorded, in the same call", async () => {
+    const review = await loadReview(JOB);
+    await sendContract({ jobId: JOB, versionId: V1, fingerprint: review!.fingerprint, actor: OWNER });
+    expect(createFile).toHaveBeenCalledWith(expect.objectContaining({ docType: "contract", signMarks: MARKS }));
+    const body = (createFile.mock.calls[0][0] as { body: Blob }).body;
+    expect(new Uint8Array(await body.arrayBuffer())).toEqual(new Uint8Array([1]));
+  });
   it("the saved figures, the contract and the review screen are one and the same", async () => {
     const review = await loadReview(JOB);
     await sendContract({ jobId: JOB, versionId: V1, fingerprint: review!.fingerprint, actor: OWNER });
     const { priced } = review!;
-    const [contract, terms] = pdf.buildContractPdf.mock.calls[0];
+    const [contract, terms] = pdf.renderContractPdf.mock.calls[0];
     expect(terms).toEqual({ pdf: termsBytes });
     expect(contract).toMatchObject({
       projectNo: "PSS-1042", version: 1,
@@ -281,7 +289,7 @@ describe("terms from the Documents page", () => {
     expect(result).toEqual({ ok: true, emailed: true });
     expect(templates.liveTemplateOfKind).toHaveBeenCalledWith("terms");
     expect(blob.get).not.toHaveBeenCalled();
-    expect(pdf.buildContractPdf.mock.calls[0][1]).toEqual({ text: "## Terms\n\nPremier Shade Solutions LLC and Test Testt, PSS-1042." });
+    expect(pdf.renderContractPdf.mock.calls[0][1]).toEqual({ text: "## Terms\n\nPremier Shade Solutions LLC and Test Testt, PSS-1042." });
   });
   it("has no terms blocker with a template and no upload", async () => {
     store.getDcSettings.mockResolvedValue({ termsPathname: null, termsUpdatedAt: null, lastPolledAt: null });
@@ -298,7 +306,7 @@ describe("terms from the Documents page", () => {
     const review = await loadReview(JOB);
     expect(await sendContract({ jobId: JOB, versionId: V1, fingerprint: review!.fingerprint, actor: OWNER }))
       .toEqual({ error: "Your contract terms have {{client_name}} with no value for this job. Fix the terms on the Documents page." });
-    expect(pdf.buildContractPdf).not.toHaveBeenCalled();
+    expect(pdf.renderContractPdf).not.toHaveBeenCalled();
     expect(createFile).not.toHaveBeenCalled();
   });
   it("shows a terms field with no value as a blocker on the review, before Send", async () => {
@@ -315,7 +323,7 @@ describe("terms from the Documents page", () => {
       const review = await loadReview(JOB);
       expect(review!.blockers).toContain(DRAFT);
       expect(await sendContract({ jobId: JOB, versionId: V1, fingerprint: review!.fingerprint, actor: OWNER })).toEqual({ error: DRAFT });
-      expect(pdf.buildContractPdf).not.toHaveBeenCalled();
+      expect(pdf.renderContractPdf).not.toHaveBeenCalled();
       expect(createFile).not.toHaveBeenCalled();
       expect(sql).not.toHaveBeenCalled();
     });
@@ -349,7 +357,7 @@ describe("terms from the Documents page", () => {
     const refusal = "Your contract terms have {{deposit}} with no value for this job. Fix the terms on the Documents page.";
     expect(review!.blockers).toContain(refusal);
     expect(await sendContract({ jobId: JOB, versionId: V1, fingerprint: review!.fingerprint, actor: OWNER })).toEqual({ error: refusal });
-    expect(pdf.buildContractPdf).not.toHaveBeenCalled();
+    expect(pdf.renderContractPdf).not.toHaveBeenCalled();
     expect(createFile).not.toHaveBeenCalled();
     expect(sql).not.toHaveBeenCalled();
   });
