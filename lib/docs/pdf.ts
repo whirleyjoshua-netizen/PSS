@@ -64,13 +64,27 @@ const plainText = (inlines: Inline[]): string =>
 
 const pageIndex = (pen: PdfPen): number => pen.doc.getPages().indexOf(pen.page);
 
+/** The "Initials" caption under the initials line: its baseline is `drop` below the line. */
+const CAPTION = { drop: 8, size: 6 } as const;
+
 /** The empty initials line at the right margin, level with the heading's first baseline (pen.y). Answers its place. */
 function drawInitialsBox(pen: PdfPen): MarkPoint {
   const x = LETTER[0] - MARGIN - INITIALS_BOX.width;
   const y = pen.y - INITIALS_BOX.lineDrop;
   pen.page.drawLine({ start: { x, y }, end: { x: x + INITIALS_BOX.width, y }, thickness: 0.5, color: INK });
-  pen.page.drawText("Initials", { x, y: y - 8, size: 6, font: pen.regular, color: INK });
+  pen.page.drawText("Initials", { x, y: y - CAPTION.drop, size: CAPTION.size, font: pen.regular, color: INK });
   return { page: pageIndex(pen), x, y };
+}
+
+/**
+ * How far below a numbered heading's first baseline the next line's baseline must sit, so that line's
+ * ascenders clear the bottom of the "Initials" caption by at least 1pt. About 20.4pt: more than one
+ * heading lead (17pt for ##, 14pt for ###), so a one-line numbered heading needs extra room after it.
+ */
+function clearOfCaption(pen: PdfPen): number {
+  const ascent = (size: number) => pen.regular.heightAtSize(size, { descender: false });
+  const captionDescent = pen.regular.heightAtSize(CAPTION.size) - ascent(CAPTION.size);
+  return INITIALS_BOX.lineDrop + CAPTION.drop + captionDescent + 1 + ascent(BODY);
 }
 
 /**
@@ -103,13 +117,20 @@ export function renderBlocks(pen: PdfPen, blocks: Block[]): void {
       // Only a PDF the client will sign initials its numbered sections (spec §3).
       const section = pen.initials ? sectionNumber(plainText(block.inlines)) : null;
       const lines = wrapRuns(segsOf(block.inlines, true), fonts, style.size, section ? WIDTH - INITIALS_GUTTER : WIDTH);
+      // The room a numbered heading leaves under itself so the next line clears its "Initials" caption.
+      const belowCaption = section && pen.initials ? Math.max(0, clearOfCaption(pen) - lines.length * style.lead) : 0;
       // A heading never sits alone at the foot of a page: it moves with room for a line of text.
       // The space above it is skipped at the top of a fresh page, where nothing sits above it.
-      const freshPage = ensure(pen, style.before + lines.length * style.lead + LEAD);
+      const freshPage = ensure(pen, style.before + lines.length * style.lead + belowCaption + LEAD);
       if (index > 0 && !freshPage) pen.y -= style.before;
       // After the page decision, so a heading that moved takes its box and its mark with it.
-      if (section && pen.initials) pen.initials.push({ ...drawInitialsBox(pen), section });
-      drawLines(pen, lines, MARGIN, style.size, style.lead);
+      if (section && pen.initials) {
+        pen.initials.push({ ...drawInitialsBox(pen), section });
+        drawLines(pen, lines, MARGIN, style.size, style.lead);
+        pen.y -= belowCaption;
+      } else {
+        drawLines(pen, lines, MARGIN, style.size, style.lead);
+      }
     } else if (block.type === "paragraph") {
       drawLines(pen, wrapRuns(segsOf(block.inlines), fonts, BODY, WIDTH), MARGIN, BODY, LEAD);
       pen.y -= GAP;

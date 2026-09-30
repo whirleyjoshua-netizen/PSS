@@ -156,6 +156,23 @@ describe("sign marks (spec §3)", () => {
     captions.forEach((caption, i) => expect(caption).toMatchObject({ x: INITIALS_X, y: marks.initials[i].y - 8, size: 6 }));
   });
 
+  it("starts the text under a numbered heading below the Initials caption, with at least 1pt to spare", async () => {
+    const helvetica = await (await PDFDocument.create()).embedFont(StandardFonts.Helvetica);
+    const ascent = (size: number) => helvetica.heightAtSize(size, { descender: false });
+    const descent = (size: number) => helvetica.heightAtSize(size) - ascent(size);
+    for (const level of [2, 3] as const) {
+      vi.restoreAllMocks();
+      const drawn = spyOnDrawText();
+      await renderDocumentPdf(input([{ type: "heading", level, inlines: [t("1. Scope")] }, { type: "paragraph", inlines: [t("Two shades.")] }], "sign"));
+      const caption = drawn.find((d) => d.text === "Initials")!;
+      const body = drawn.find((d) => d.text === "Two shades.")!;
+      expect(body.page === caption.page).toBe(true);
+      const captionBottom = caption.y - descent(caption.size);
+      const bodyTop = body.y + ascent(body.size);
+      expect(bodyTop, `level ${level}`).toBeLessThanOrEqual(captionBottom - 1);
+    }
+  });
+
   it("wraps a numbered heading 64pt narrower so it never runs under its box", async () => {
     const drawn = spyOnDrawText();
     const long = "7. Your Choices and Approvals of Every Fabric, Color, Mount and Control Before We Order";
