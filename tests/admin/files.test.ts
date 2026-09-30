@@ -72,6 +72,33 @@ describe("createFile", () => {
     })).rejects.toThrow("db down");
     expect(del).toHaveBeenCalledOnce();
   });
+
+  it("writes the sign marks in the same insert as the file, as jsonb", async () => {
+    sql.mockImplementation(async (strings: TemplateStringsArray) =>
+      strings.join("?").includes("select id from leads") ? [{ id: LEAD }] : [row],
+    );
+    const signMarks = { initials: [{ page: 1, x: 502, y: 700, section: "4" }], signature: { page: 2, x: 154, y: 300 } };
+    await files.createFile({
+      leadId: LEAD, kind: "document", name: "Contract.pdf", contentType: "application/pdf",
+      body: new Blob(["x"]), actor: "owner@example.com", docType: "contract", signMarks,
+    });
+    const insert = sql.mock.calls.find((c) => text(c).includes("insert into job_files"))!;
+    expect(text(insert)).toMatch(/doc_type, sign_marks\)/);
+    expect(text(insert)).toContain("?::jsonb");
+    expect(insert.slice(1)).toContain(JSON.stringify(signMarks));
+    // One statement: the marks cannot exist without the file, nor the file without its marks.
+    expect(sql.mock.calls.filter((c) => text(c).includes("insert into job_files"))).toHaveLength(1);
+  });
+
+  it("writes null marks for a file that has none (uploads, and anything not signed)", async () => {
+    sql.mockImplementation(async (strings: TemplateStringsArray) =>
+      strings.join("?").includes("select id from leads") ? [{ id: LEAD }] : [row],
+    );
+    await files.createFile({ leadId: LEAD, kind: "document", name: "Quote.pdf", contentType: "application/pdf", body: new Blob(["x"]), actor: "o" });
+    const insert = sql.mock.calls.find((c) => text(c).includes("insert into job_files"))!;
+    // values: id, lead, actor, kind, name, type, size, pathname, doc_type, sign_marks, then the event's actor and body.
+    expect(insert.slice(1)[9]).toBeNull();
+  });
 });
 
 describe("reading and deleting", () => {

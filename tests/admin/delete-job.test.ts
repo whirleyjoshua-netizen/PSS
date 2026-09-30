@@ -73,6 +73,17 @@ describe("listBlobPathnames", () => {
     await expect(listBlobPathnames("../etc/passwd")).resolves.toEqual([]);
     expect(sql).not.toHaveBeenCalled();
   });
+
+  it("also names the job's drawn signature images, which have no job_files row", async () => {
+    sql.mockResolvedValue([{ blob_pathname: PATH_A }, { blob_pathname: `jobs/${ID}/signatures/u-signature.png` }]);
+    await expect(listBlobPathnames(ID)).resolves.toEqual([PATH_A, `jobs/${ID}/signatures/u-signature.png`]);
+    const statement = text(sql.mock.calls[0]).replace(/\s+/g, " ");
+    expect(statement).toContain("from contract_signatures s");
+    expect(statement).toContain("unnest(array[s.signature_image_pathname, s.initials_image_pathname])");
+    expect(statement).toContain("p is not null");
+    // Both halves are limited to this job.
+    expect(sql.mock.calls[0].slice(1)).toEqual([ID, ID]);
+  });
 });
 
 describe("deleteJob", () => {
