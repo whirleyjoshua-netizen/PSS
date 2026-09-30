@@ -484,7 +484,7 @@ test("DC quote import: import, edit, send, sign and the Dealer Copy guard agains
     console.log("step 10: sign");
     const contract = await getFile(contractId);
     if (!contract) throw new Error("setup: the contract file is gone");
-    const signed = await recordSignature({ jobId: A.id, file: contract, name: "Jane Doe", email: ACTOR, ip: null, userAgent: null });
+    const signed = await recordSignature({ jobId: A.id, file: contract, name: "Jane Doe", email: ACTOR, ip: null, userAgent: null, adoption: { method: "typed", initials: null } });
     check(signed === "signed", "recordSignature answers signed", `got ${signed}`);
     const v2signed = await versionRow(v2);
     check(v2signed.status === "signed" && v2signed.signed_at !== null, "v2 is signed with signed_at",
