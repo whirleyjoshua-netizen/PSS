@@ -175,6 +175,26 @@ describe("MeasureForm", () => {
     expect(quantity).toHaveValue(13);
   });
 
+  it("puts 1 back in a quantity box left blank, so the screen shows what is saved", async () => {
+    saveMeasurement.mockResolvedValue({ ok: true });
+    const user = userEvent.setup();
+    render(<MeasureForm jobId={LEAD} window={null} defaultRoom="" />);
+    const quantity = screen.getByLabelText(/^quantity/i);
+    await user.clear(quantity);
+    await user.tab();
+    expect(quantity).toHaveValue(1);
+
+    await fillWindow(user);
+    await user.click(screen.getByRole("button", { name: /save and next window/i }));
+    await waitFor(() => expect(saveMeasurement).toHaveBeenCalledOnce());
+    expect(saveMeasurement.mock.calls[0][2].get("quantity")).toBe("1");
+  });
+
+  it("will not submit a blank quantity box", () => {
+    render(<MeasureForm jobId={LEAD} window={null} defaultRoom="" />);
+    expect(screen.getByLabelText(/^quantity/i)).toBeRequired();
+  });
+
   it("shows an existing window's quantity for editing", () => {
     render(<MeasureForm jobId={LEAD} window={{ ...existingWindow, quantity: 6 }} defaultRoom="" />);
     expect(screen.getByLabelText(/^quantity/i)).toHaveValue(6);

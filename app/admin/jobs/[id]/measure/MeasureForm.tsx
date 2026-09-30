@@ -49,8 +49,10 @@ function Quantity({ value }: { value: number }) {
       <label htmlFor="quantity" className="text-sm font-semibold">Quantity (identical windows)</label>
       <div className="flex gap-2">
         <button type="button" aria-label="One fewer" onClick={() => step(-1)} className={stepper}>−</button>
-        <input id="quantity" name="quantity" type="number" inputMode="numeric" min={1} max={MAX_QUANTITY}
-          value={quantity} onChange={(e) => setQuantity(e.target.value)} className={`${CONTROL} text-center`} />
+        <input id="quantity" name="quantity" type="number" inputMode="numeric" min={1} max={MAX_QUANTITY} required
+          value={quantity} onChange={(e) => setQuantity(e.target.value)}
+          onBlur={() => setQuantity((current) => (current.trim() === "" ? "1" : current))}
+          className={`${CONTROL} text-center`} />
         <button type="button" aria-label="One more" onClick={() => step(1)} className={stepper}>+</button>
       </div>
     </div>
