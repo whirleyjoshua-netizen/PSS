@@ -11,7 +11,8 @@ vi.mock("@/lib/payments/deposits", () => deposits);
 const create = vi.fn();
 const retrieve = vi.fn();
 const stripeClient = vi.fn(() => ({ checkout: { sessions: { create, retrieve } } }) as unknown);
-vi.mock("@/lib/payments/stripe", () => ({ stripeClient }));
+const closeCheckout = vi.fn();
+vi.mock("@/lib/payments/stripe", () => ({ stripeClient, closeCheckout }));
 const redirect = vi.fn((path: string) => { throw new Error(`NEXT_REDIRECT ${path}`); });
 vi.mock("next/navigation", () => ({ redirect }));
 
@@ -48,6 +49,7 @@ beforeEach(() => {
   create.mockReset().mockResolvedValue(open);
   retrieve.mockReset().mockResolvedValue(open);
   stripeClient.mockClear();
+  closeCheckout.mockReset().mockResolvedValue("closed");
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
 
@@ -180,6 +182,25 @@ describe("startDepositAction", () => {
     expect(deposits.pendingStripeDeposit).toHaveBeenCalledWith(VERSION);
   });
 
+  // Ruling P15: the row was expired (or the owner recorded the deposit) between the claim and the attach.
+  it("closes the new checkout and opens nothing when its row can no longer take the session", async () => {
+    deposits.attachSession.mockResolvedValue(false);
+    expect(await startDepositAction(MINE)).toBe("changed");
+    expect(deposits.attachSession).toHaveBeenCalledWith(DEPOSIT, "cs_1");
+    expect(closeCheckout).toHaveBeenCalledWith(expect.anything(), "cs_1");
+  });
+
+  it("still answers changed when closing the checkout throws", async () => {
+    deposits.attachSession.mockResolvedValue(false);
+    closeCheckout.mockRejectedValue(new Error("stripe down"));
+    expect(await startDepositAction(MINE)).toBe("changed");
+  });
+
+  it("does not close the checkout on the normal path", async () => {
+    expect(await startDepositAction(MINE)).toEqual({ url: "https://checkout.stripe.test/c/cs_1" });
+    expect(closeCheckout).not.toHaveBeenCalled();
+  });
+
   it("answers unavailable when Stripe is not configured or refuses", async () => {
     stripeClient.mockReturnValueOnce(null);
     expect(await startDepositAction(MINE)).toBe("unavailable");
@@ -192,6 +213,13 @@ describe("startDepositFormAction", () => {
   const form = (jobId: string) => { const data = new FormData(); data.set("jobId", jobId); return data; };
   it("sends the client to Stripe", async () => {
     await expect(startDepositFormAction(form(MINE))).rejects.toThrow("NEXT_REDIRECT https://checkout.stripe.test/c/cs_1");
+  });
+  it("brings the client back to the project page, not to Stripe, when the row changed meanwhile (P15)", async () => {
+    deposits.attachSession.mockResolvedValue(false);
+    await expect(startDepositFormAction(form(MINE))).rejects.toThrow(`NEXT_REDIRECT /project/${MINE}`);
+    expect(redirect).toHaveBeenCalledTimes(1);
+    expect(redirect).toHaveBeenCalledWith(`/project/${MINE}`);
+    expect(redirect).not.toHaveBeenCalledWith(expect.stringContaining("stripe"));
   });
   it("brings a refusal back to the project page as a hint", async () => {
     stripeClient.mockReturnValueOnce(null);

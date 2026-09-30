@@ -6,12 +6,13 @@ import {
   attachSession, claimStripeDeposit, depositState, expireDeposit, expireSessionlessDeposit, expireStaleDeposits, pendingStripeDeposit,
   type Deposit,
 } from "@/lib/payments/deposits";
-import { stripeClient } from "@/lib/payments/stripe";
+import { closeCheckout, stripeClient } from "@/lib/payments/stripe";
 import { portalOrigin } from "@/lib/portal/login";
 import { formatProjectNo } from "@/lib/portal/project-no";
 import { requireCustomer } from "@/lib/portal/session";
 
-export type StartDepositResult = { url: string } | "not-found" | "not-due" | "paid" | "processing" | "unavailable";
+/** "changed": the row was expired or the deposit recorded while the session opened (ruling P15); the page shows the truth. */
+export type StartDepositResult = { url: string } | "not-found" | "not-due" | "paid" | "processing" | "unavailable" | "changed";
 
 /** Stripe closes the session this long after the deposit row was created: before expireStaleDeposits' 23-hour cutoff (ruling P11a). */
 const CHECKOUT_SECONDS = 22 * 3600;
@@ -89,8 +90,15 @@ export async function startDepositAction(jobId: string): Promise<StartDepositRes
     }
     if (session.status === "complete") return "processing";
     if (session.status === "open" && session.url) {
-      await attachSession(deposit.id, session.id);
-      return { url: session.url };
+      if (await attachSession(deposit.id, session.id)) return { url: session.url };
+      // Ruling P15: the row stopped being pending meanwhile (expired, or the owner recorded the deposit).
+      // Close this session so it can never take a second payment, and send the client nowhere near it.
+      try {
+        await closeCheckout(stripe, session.id);
+      } catch (error) {
+        console.error(`Could not close Checkout Session ${session.id}`, error);
+      }
+      return "changed";
     }
     // Expired at Stripe: give the row up and claim a fresh one.
     await expireDeposit(session.id);
@@ -104,5 +112,6 @@ export async function startDepositFormAction(formData: FormData): Promise<void> 
   const result = await startDepositAction(jobId);
   // Outside any try/catch: redirect() works by throwing.
   if (typeof result === "object") redirect(result.url);
+  if (result === "changed") redirect(`/project/${encodeURIComponent(jobId)}`);
   redirect(`/project/${encodeURIComponent(jobId)}?deposit=${result}`);
 }
