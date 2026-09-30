@@ -5,8 +5,10 @@ import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { after } from "next/server";
 import { listSharedDocuments, readFile } from "@/lib/admin/files";
-import { isUuid, setStage } from "@/lib/admin/jobs";
+import { isUuid, setStage, type Job } from "@/lib/admin/jobs";
 import { isInstalled } from "@/lib/admin/stages";
+import { APPROVAL_ACTOR, approveDcQuote, offeredVersion, type OfferedVersion } from "@/lib/dc/approve";
+import { sendContract } from "@/lib/dc/send";
 import { notifyOwnersOfDocumentAcknowledgement } from "@/lib/docs/emails";
 import { acknowledgeableDocuments, acknowledgementFor, recordAcknowledgement } from "@/lib/portal/acknowledge-document";
 import { approveQuote, type ApproveResult } from "@/lib/portal/approve";
@@ -173,31 +175,33 @@ export async function acknowledgeProblemAction(
 }
 
 /**
- * Records that a customer approved their quote, moving their job to Sold.
+ * Records that a customer approved their quote.
  *
- * This is the most consequential thing a customer can do in this app: the owners order
- * materials against it. Three things are therefore settled server-side, in this order, and
- * none of them is taken from the request.
+ * Settled server-side, in this order, none of it from the request:
  *
- * 1. Ownership. The jobs are re-derived from the session on every call and a jobId that is
- *    not among them is refused with exactly the answer a job that does not exist gets — the
- *    caller learns nothing about what exists, and nothing is read or written before it passes.
- * 2. The status. A customer may cause exactly one transition, quoted → sold. The target
- *    status is a literal here; it never arrives from the browser.
- * 3. A shared quote. Approving something the customer cannot read is not consent, so the
- *    document is looked up here rather than trusted from the post. The page hides the control
- *    when there is no quote, but that is a UI nicety — this is the guard, and the name written
- *    into the timeline is the shared document's own, not a string the browser supplied.
+ * 1. Ownership. The jobs are re-derived from the session; a jobId not among them is refused with
+ *    exactly the answer a missing job gets, before anything is read or written.
+ * 2. Which quote. A Direct Connect quote the owner sent with Send quote (an `offered` version) is
+ *    approved by approveDcQuote, and its contract is then built and sent (spec §2). Otherwise an
+ *    uploaded, shared quote moves the job Quoted → Approved and the owners send paperwork by hand.
+ * 3. A shared quote. Approving something the customer cannot read is not consent: the DC path needs
+ *    the offered version's own PDF shared, the uploaded path a shared Quote document.
+ *
+ * Approving twice is a no-op answering "approved". A contract that fails after the approval is saved
+ * leaves the job Approved and tells the owners, who press Send contract on the Quote tab.
  */
 export async function approveQuoteAction(jobId: string): Promise<ApproveResult> {
   const { email, jobs } = await requireCustomer();
   const job = jobs.find((candidate) => candidate.id === jobId);
   if (!job) return "not-found";
-  // A job already at the destination is an approval that already happened, so it answers with
-  // the same success the first submission did (spec §4). It is also the honest answer: the job
-  // is sold, which is what they asked for. Nothing runs past here — no second email, no
-  // revalidation — because nothing changes.
-  if (job.status === "sold") return "approved";
+  if (job.status === "lost") return "wrong-status";
+
+  const offered = await offeredVersion(job.id);
+  if (offered) return approveOfferedQuote(job, offered, email);
+
+  // An uploaded quote. A job already at the destination is an approval that already happened (spec
+  // §4 of the portal work): same success, and nothing runs again.
+  if (job.status === "approved") return "approved";
   if (job.status !== "quoted") return "wrong-status";
 
   const documents = await listSharedDocuments(job.id);
@@ -208,9 +212,8 @@ export async function approveQuoteAction(jobId: string): Promise<ApproveResult> 
   if (result !== "approved") return result;
 
   // The job has already moved by this point, so a failed email costs only the notification.
-  // after() keeps it off the response, and the catch keeps it off the customer.
   after(() => {
-    void notifyOwnersOfApproval(job, quote.name, email).catch(console.error);
+    void notifyOwnersOfApproval(job, quote.name, email, "paperwork").catch(console.error);
   });
 
   // Both paths render the same view: /project renders ProjectView directly for a customer
@@ -218,6 +221,37 @@ export async function approveQuoteAction(jobId: string): Promise<ApproveResult> 
   revalidatePath("/project");
   revalidatePath(`/project/${job.id}`);
   return result;
+}
+
+/** Spec §2: the DC path. The approval is saved first; the contract follows, and its failure never undoes it. */
+async function approveOfferedQuote(job: Job, offered: OfferedVersion, email: string): Promise<ApproveResult> {
+  if (offered.approvedAt) return "approved";
+  const documents = await listSharedDocuments(job.id);
+  const quote = documents.find((file) => file.id === offered.quoteFileId);
+  if (!quote) return "no-quote";
+
+  const approved = await approveDcQuote(job.id, offered.id, email);
+  if (!approved) {
+    // A racing second tap approved first (its request sends the contract), or the job was lost or
+    // the quote unshared in between. Only the first is an approval that happened.
+    const again = await offeredVersion(job.id);
+    return again?.approvedAt ? "approved" : "wrong-status";
+  }
+
+  let contractSent = false;
+  try {
+    const result = await sendContract({ jobId: job.id, versionId: offered.id, actor: APPROVAL_ACTOR });
+    contractSent = "ok" in result;
+    if ("error" in result) console.error(`Quote version ${approved.version} approved but the contract was not sent: ${result.error}`);
+  } catch (error) {
+    console.error(`Quote version ${approved.version} approved but the contract could not be built or stored`, error);
+  }
+  after(() => {
+    void notifyOwnersOfApproval(job, quote.name, email, contractSent ? "contract-sent" : "contract-failed").catch(console.error);
+  });
+  revalidatePath("/project");
+  revalidatePath(`/project/${job.id}`);
+  return "approved";
 }
 
 /**

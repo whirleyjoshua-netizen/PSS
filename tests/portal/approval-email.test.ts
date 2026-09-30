@@ -68,4 +68,16 @@ describe("notifyOwnersOfApproval", () => {
     send.mockResolvedValue({ error: { message: "domain not verified" } });
     await expect(notifyOwnersOfApproval(JOB, QUOTE_NAME, EMAIL)).rejects.toThrow("domain not verified");
   });
+
+  it.each([
+    ["paperwork", "Quote approved by John Ramos — PSS-1048", "The job has moved to Approved. Send the paperwork from the job page."],
+    ["contract-sent", "Quote approved — contract sent — PSS-1048", "The job has moved to Approved and the contract was sent to the client to sign."],
+    ["contract-failed", "Quote approved — contract not sent — PSS-1048", "The job has moved to Approved, but the contract was NOT sent. Open the Quote tab and press Send contract."],
+  ] as const)("says what happened next: %s", async (outcome, subject, line) => {
+    await notifyOwnersOfApproval(JOB, QUOTE_NAME, EMAIL, outcome);
+    const sent = send.mock.calls[0][0] as { subject: string; text: string };
+    expect(sent.subject).toBe(subject);
+    expect(sent.text).toContain(line);
+    expect(sent.text).not.toContain("Sold");
+  });
 });

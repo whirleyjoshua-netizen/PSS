@@ -6,8 +6,8 @@ import { approveQuoteFormAction } from "./actions";
  * The one consequential thing a customer can do here: accept the price.
  *
  * Deliberately two steps. The <details> is closed until they open it, so the sentence about
- * what approving means is read before the button is reachable, and no stray tap can order
- * materials. Both halves are plain HTML — the reveal is the browser's, the submit is a form
+ * what approving means is read before the button is reachable, and no stray tap can
+ * accept a price. Both halves are plain HTML — the reveal is the browser's, the submit is a form
  * post — so the whole thing works with JavaScript off.
  */
 export function ApproveQuote({ jobId }: { jobId: string }) {
@@ -23,7 +23,7 @@ export function ApproveQuote({ jobId }: { jobId: string }) {
         {/* Carries the job with JavaScript off; the action still re-derives ownership itself. */}
         <input type="hidden" name="jobId" value={jobId} />
         <p className="text-sm text-ink-soft">
-          Approving tells us to go ahead and order. We will email you to arrange the details.
+          Approving accepts this quote. Your contract comes next, to read and sign.
         </p>
         <button
           type="submit"
@@ -61,22 +61,23 @@ export function ApprovalNotice({
 }) {
   if (!approved) return null;
 
-  const confirmed = approved === "1" && status === "sold";
+  // Ranked, not `=== "approved"`: an approved job does not stay at `approved`. It is signed, paid,
+  // ordered and installed, and a Direct Connect change approved on a job already past Quoted does
+  // not move the stage at all. A job at or beyond `approved` is the evidence an approval happened.
+  // stageRank is the one ordering buildSteps already uses, so a new stage cannot reopen this by
+  // being left off a list here. (`completed` arrives folded to `installed` by toPortalStage.)
+  const approvedOrLater = stageRank(status) >= stageRank("approved");
+  const confirmed = approved === "1" && approvedOrLater;
   // A flag claiming an approval the job does not show says nothing at all. There is no true
   // thing to say about an approval that did not happen, and an error would be louder than a
   // mistyped link deserves.
   if (approved === "1" && !confirmed) return null;
-  // And the refusal is re-derived just as the confirmation is. The job is at or past `sold`, so
-  // the approval plainly did happen, whatever this flag says — a back button after a refused
+  // And the refusal is re-derived just as the confirmation is. The job is at or past `approved`,
+  // so the approval plainly did happen, whatever this flag says — a back button after a refused
   // attempt, a stale bookmark or a forwarded link would otherwise tell a customer their
-  // approval failed on a job the owners have already ordered against. They would phone about
-  // something the owners cannot see. Say nothing rather than something false.
-  //
-  // Ranked, not `=== "sold"`: an approved job does not stay at `sold`, it is ordered, installed
-  // and completed, and the lie only gets worse as it moves on. stageRank is the one ordering
-  // buildSteps already uses, so a new stage cannot reopen this by being left off a list here.
-  // (`completed` arrives folded to `installed` by toPortalStage; both outrank `sold`.)
-  if (!confirmed && stageRank(status) >= stageRank("sold")) return null;
+  // approval failed on a job that is already approved. They would phone about something the
+  // owners cannot see. Say nothing rather than something false.
+  if (!confirmed && approvedOrLater) return null;
 
   return (
     <p role="status" className="border border-champagne bg-sand/60 p-4 text-sm">

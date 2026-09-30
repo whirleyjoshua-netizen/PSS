@@ -9,6 +9,20 @@ import { formatProjectNo } from "./project-no";
 /** Only the fields the email needs, so a full Job satisfies it structurally. */
 type ApprovedJob = { id: string; name: string; projectNo?: number | null };
 
+/** What happened after the approval, so the owners know whether anything is left for them to do. */
+export type ApprovalOutcome = "paperwork" | "contract-sent" | "contract-failed";
+
+const SUBJECT: Record<ApprovalOutcome, string> = {
+  paperwork: "Quote approved by",
+  "contract-sent": "Quote approved — contract sent —",
+  "contract-failed": "Quote approved — contract not sent —",
+};
+const NEXT: Record<ApprovalOutcome, string> = {
+  paperwork: "The job has moved to Approved. Send the paperwork from the job page.",
+  "contract-sent": "The job has moved to Approved and the contract was sent to the client to sign.",
+  "contract-failed": "The job has moved to Approved, but the contract was NOT sent. Open the Quote tab and press Send contract.",
+};
+
 /**
  * Tells the owners a customer approved their quote.
  *
@@ -25,6 +39,7 @@ export async function notifyOwnersOfApproval(
   job: ApprovedJob,
   quoteName: string,
   approvedBy: string,
+  outcome: ApprovalOutcome = "paperwork",
 ): Promise<void> {
   const apiKey = process.env.RESEND_API_KEY;
   const to = ownerRecipients();
@@ -47,15 +62,17 @@ export async function notifyOwnersOfApproval(
     `When:        ${formatShortDate(now)} at ${formatTime(now)}`,
     projectNo ? `Project:     ${projectNo}` : null,
     "",
-    "The job has moved to Sold.",
-    `Open in tracker: ${adminOrigin()}/admin/jobs/${job.id}`,
+    NEXT[outcome],
+    `Open in tracker: ${adminOrigin()}/admin/jobs/${job.id}${outcome === "paperwork" ? "" : "?tab=quote"}`,
   ].filter((line): line is string => line !== null).join("\n");
 
   const { error } = await new Resend(apiKey).emails.send({
     from: `${business.name} <${from}>`,
     to,
     replyTo: approvedBy,
-    subject: `Quote approved by ${job.name}${projectNo ? ` — ${projectNo}` : ""}`,
+    subject: outcome === "paperwork"
+      ? `${SUBJECT.paperwork} ${job.name}${projectNo ? ` — ${projectNo}` : ""}`
+      : `${SUBJECT[outcome]} ${projectNo ?? job.name}`,
     text,
   });
 

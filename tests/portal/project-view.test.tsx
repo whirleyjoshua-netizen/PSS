@@ -23,6 +23,8 @@ vi.mock("@/app/(site)/project/actions", () => ({
   acknowledgeInstallFormAction: vi.fn(),
   signContractFormAction: vi.fn(),
   acknowledgeDocumentFormAction: vi.fn(),
+  // Reached by the banner's approve control when there is a quote to approve.
+  approveQuoteFormAction: vi.fn(),
 }));
 const listMessages = vi.fn();
 vi.mock("@/lib/portal/messages", () => ({ listMessages }));
@@ -42,6 +44,9 @@ vi.mock("@/lib/docs/templates", () => ({ liveTemplateOfKind }));
 const depositState = vi.fn(async (_id: string) => null as unknown);
 vi.mock("@/lib/payments/deposits", () => ({ depositState }));
 vi.mock("@/app/(site)/project/deposit-actions", () => ({ startDepositFormAction: vi.fn() }));
+// No offered Direct Connect quote unless a test says otherwise.
+const offeredVersion = vi.fn(async (_id: string) => null as unknown);
+vi.mock("@/lib/dc/approve", () => ({ offeredVersion }));
 
 const { ProjectView } = await import("@/app/(site)/project/ProjectView");
 const { FilesTabs } = await import("@/app/(site)/project/FilesTabs");
@@ -76,6 +81,7 @@ beforeEach(() => {
   acknowledgementFor.mockReset().mockResolvedValue(null);
   liveTemplateOfKind.mockReset().mockResolvedValue(null);
   depositState.mockReset().mockResolvedValue(null);
+  offeredVersion.mockReset().mockResolvedValue(null);
 });
 
 describe("ProjectView header and tracker", () => {
@@ -219,7 +225,7 @@ describe("ProjectView status banner", () => {
  */
 describe("ProjectView after approving", () => {
   it("confirms the approval on the page they land back on", async () => {
-    render(await ProjectView({ job: { ...job, status: "sold" as const }, justApproved: "1" }));
+    render(await ProjectView({ job: { ...job, status: "approved" as const }, justApproved: "1" }));
     expect(screen.getByRole("status")).toHaveTextContent(
       "Thank you — we have your approval and will be in touch to arrange the details.",
     );
@@ -235,6 +241,26 @@ describe("ProjectView after approving", () => {
   it("says nothing on an ordinary visit", async () => {
     render(await ProjectView({ job: { ...job, status: "sold" as const } }));
     expect(screen.queryByRole("status")).toBeNull();
+  });
+});
+
+describe("ProjectView approval", () => {
+  const dcQuote = { id: "fq", name: "Quote PSS-1048 v2.pdf", docType: "quote" as const };
+
+  it("offers approval of the offered DC quote, linking that quote, even on a job past Quoted", async () => {
+    listSharedDocuments.mockResolvedValue([quoteDoc, dcQuote]);
+    offeredVersion.mockResolvedValue({ id: "v", version: 2, quoteFileId: "fq", approvedAt: null });
+    render(await ProjectView({ job: { ...job, status: "sold" } }));
+    const banner = screen.getByRole("region", { name: "Where your project stands" });
+    expect(within(banner).getByText("Approve this quote")).toBeInTheDocument();
+    expect(within(banner).getByRole("link", { name: "Review quote" })).toHaveAttribute("href", "/project/files/fq");
+  });
+
+  it("offers nothing once the client approved it", async () => {
+    listSharedDocuments.mockResolvedValue([dcQuote]);
+    offeredVersion.mockResolvedValue({ id: "v", version: 2, quoteFileId: "fq", approvedAt: new Date() });
+    render(await ProjectView({ job: { ...job, status: "approved" } }));
+    expect(screen.queryByText("Approve this quote")).toBeNull();
   });
 });
 
