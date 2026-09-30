@@ -62,6 +62,21 @@ describe("stampSignature", () => {
     expect(lines).toContain("When:       Sep 18, 2026 at 2:05 PM");
   });
 
+  it("draws the time with a plain space when ICU emits a no-break space", async () => {
+    vi.mocked(formatTime).mockReturnValueOnce(`2:05${String.fromCodePoint(0x00a0)}PM`);
+    const stamped = await stampSignature(await onePage(), facts, TYPED, null);
+    expect(stamped).not.toBeNull();
+    expect(await drawnLines(stamped!)).toContain("When:       Sep 18, 2026 at 2:05 PM");
+  });
+
+  it("still stamps when the account email or project number has a character the standard font cannot draw", async () => {
+    const stamped = await stampSignature(await onePage(), { ...facts, signedEmail: "łukasz@example.com", projectNo: "PSS-1012ł" }, TYPED, null);
+    expect(stamped).not.toBeNull();
+    const lines = await drawnLines(stamped!);
+    expect(lines).toContain("Account:    ?ukasz@example.com");
+    expect(lines).toContain("Project:    PSS-1012?");
+  });
+
   it("leaves the project line out when there is no project number", async () => {
     const stamped = await stampSignature(await onePage(), { ...facts, projectNo: null }, TYPED, null);
     expect((await drawnLines(stamped!)).some((l) => l.startsWith("Project:"))).toBe(false);
@@ -202,5 +217,25 @@ describe("stampSignature with sign marks (spec §5)", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     await expect(stampSignature(await threePages(), facts, { method: "drawn", signaturePng: corruptPng(600, 200), initialsPng: null }, MARKS))
       .resolves.toBeNull();
+  });
+  it("embeds each drawn image once, however many marks it is drawn at", async () => {
+    const embedPng = vi.spyOn(PDFDocument.prototype, "embedPng");
+    const stamped = await stampSignature(await threePages(), facts,
+      { method: "drawn", signaturePng: pngBytes(600, 200), initialsPng: pngBytes(200, 100) }, MARKS);
+    expect(stamped).not.toBeNull();
+    expect(MARKS.initials).toHaveLength(2);
+    expect(embedPng).toHaveBeenCalledTimes(2);
+  });
+
+  it("logs once, and leaves the initials marks empty, when a drawn adoption has no initials but the file has marks", async () => {
+    const original = await threePages();
+    const [p0, p1] = await pageRefs(original);
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { images } = spyOnDrawing();
+    const stamped = await stampSignature(original, facts, { method: "drawn", signaturePng: pngBytes(600, 200), initialsPng: null }, MARKS);
+    expect(stamped).not.toBeNull();
+    expect(error).toHaveBeenCalledTimes(1);
+    expect(String(error.mock.calls[0][0])).toMatch(/2 initials marks but the adoption has no initials/);
+    expect(images.filter((i) => i.page === p0 || i.page === p1)).toEqual([]);
   });
 });

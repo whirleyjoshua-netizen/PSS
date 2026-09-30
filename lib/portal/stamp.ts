@@ -50,6 +50,11 @@ export async function stampSignature(
     const initialsImage = adoption.method === "drawn" && adoption.initialsPng ? await pdf.embedPng(adoption.initialsPng) : null;
     const typedInitials = adoption.method === "typed" ? adoption.initials : null;
     const hasInitials = initialsImage !== null || typedInitials !== null;
+    if (!hasInitials && marks && marks.initials.length > 0) {
+      // The action refuses this (spec §6: initials exactly when the file has initial marks), so it
+      // means a caller skipped that check. The marks stay empty rather than failing the whole stamp.
+      console.error(`The file has ${marks.initials.length} initials marks but the adoption has no initials: left empty`);
+    }
     // Taken before the signature page is added: marks index the original's pages.
     const pages = pdf.getPages();
 
@@ -86,15 +91,15 @@ export async function stampSignature(
     const { height } = page.getSize();
     // Some Node/ICU builds put U+202F (or U+00A0) before AM/PM. The standard font cannot
     // encode either, so without this every stamp in that runtime would come back null.
-    const when = `${formatShortDate(facts.signedAt)} at ${formatTime(facts.signedAt)}`.replace(/[  ]/g, " ");
+    const when = `${formatShortDate(facts.signedAt)} at ${formatTime(facts.signedAt)}`.replace(/[\u202F\u00A0]/g, " ");
     const sections = initialedSections(marks);
     const lines = [
       "ELECTRONIC SIGNATURE",
       "",
       `Signed by:  ${facts.signedName}`,
-      `Account:    ${facts.signedEmail}`,
+      `Account:    ${winAnsiSafe(facts.signedEmail)}`,
       `When:       ${when}`,
-      facts.projectNo ? `Project:    ${facts.projectNo}` : null,
+      facts.projectNo ? `Project:    ${winAnsiSafe(facts.projectNo)}` : null,
       `Method:     ${adoption.method}`,
       ...(sections.length > 0 ? wrap(`Initialed sections: ${sections.join(", ")}`, font, 11, 500) : ["No numbered sections"]),
       "",
