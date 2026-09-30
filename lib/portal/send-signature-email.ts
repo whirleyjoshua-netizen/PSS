@@ -2,8 +2,11 @@ import "server-only";
 import { Resend } from "resend";
 import { business } from "@/content/business";
 import { adminOrigin } from "@/lib/admin/origin";
-import { formatShortDate, formatTime } from "@/lib/admin/time";
+import { formatCents } from "@/lib/admin/money";
+import { formatDateOnly, formatShortDate, formatTime } from "@/lib/admin/time";
+import { cancellationWindowLastDay } from "@/lib/docs/business-days";
 import { ownerRecipients } from "@/lib/leads/email";
+import { depositState } from "@/lib/payments/deposits";
 import { formatProjectNo } from "./project-no";
 
 /** Only the fields the email needs, so a full Job satisfies it structurally. */
@@ -99,6 +102,11 @@ export async function sendCustomerSignedCopy(
     throw new Error("Signed copy email is not configured");
   }
 
+  // Spec §3: the client's signed-copy email adds the deposit link once their signed job owes one.
+  // Looked up here, so signContractAction (pss-dd's) is untouched. A failed lookup only drops the line.
+  const deposit = await depositState(job.id).catch(() => null);
+  const due = deposit && deposit.jobStatus === "signed" && deposit.versionStatus === "signed" && !deposit.paid ? deposit : null;
+
   const projectNo = formatProjectNo(job.projectNo);
   const text = [
     "Thank you — we have your signature.",
@@ -110,6 +118,9 @@ export async function sendCustomerSignedCopy(
       ? "Your signed copy is attached. Keep it for your records."
       : `The signature is recorded on your project page: ${bareDomain}/project`,
     "",
+    due ? `Next: your 50% deposit of ${formatCents(due.amountCents)} confirms your order. Pay it on your project page: ${bareDomain}/project/${job.id}` : null,
+    due ? `You may cancel until the end of ${formatDateOnly(cancellationWindowLastDay(due.signedAt))} and we will refund your deposit in full.` : null,
+    due ? "" : null,
     `Questions? Call us at ${business.phone.display} or just reply to this email.`,
     "",
     business.name,

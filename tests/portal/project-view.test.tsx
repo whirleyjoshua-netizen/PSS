@@ -38,6 +38,10 @@ const acknowledgementFor = vi.fn(async () => null as { leadId: string; acknowled
 vi.mock("@/lib/portal/acknowledge-document", () => ({ acknowledgeableDocuments, acknowledgementFor }));
 const liveTemplateOfKind = vi.fn(async (_kind: string) => null as { body: string } | null);
 vi.mock("@/lib/docs/templates", () => ({ liveTemplateOfKind }));
+// No deposit picture unless a test says otherwise.
+const depositState = vi.fn(async (_id: string) => null as unknown);
+vi.mock("@/lib/payments/deposits", () => ({ depositState }));
+vi.mock("@/app/(site)/project/deposit-actions", () => ({ startDepositFormAction: vi.fn() }));
 
 const { ProjectView } = await import("@/app/(site)/project/ProjectView");
 const { FilesTabs } = await import("@/app/(site)/project/FilesTabs");
@@ -71,6 +75,7 @@ beforeEach(() => {
   acknowledgeableDocuments.mockReset().mockResolvedValue([]);
   acknowledgementFor.mockReset().mockResolvedValue(null);
   liveTemplateOfKind.mockReset().mockResolvedValue(null);
+  depositState.mockReset().mockResolvedValue(null);
 });
 
 describe("ProjectView header and tracker", () => {
@@ -533,5 +538,40 @@ describe("portal guides", () => {
   it("loads no guide a sold job with nothing booked cannot show", async () => {
     render(await ProjectView({ job: { ...job, status: "sold" as const } }));
     expect(liveTemplateOfKind).not.toHaveBeenCalled();
+  });
+});
+
+describe("ProjectView deposit", () => {
+  const signedState = { jobStatus: "signed", versionId: "v", version: 1, versionStatus: "signed", soldCents: 184833, amountCents: 92417,
+    signedAt: new Date("2026-09-28T17:00:00Z"), paid: null, pending: null, refunded: null };
+
+  it("asks a Signed job for its deposit under Needs your attention", async () => {
+    depositState.mockResolvedValue(signedState);
+    render(await ProjectView({ job: { ...job, status: "signed" as const } }));
+    const attention = screen.getByRole("region", { name: "Needs your attention" });
+    expect(within(attention).getByRole("button", { name: "Pay 50% deposit — $924.17" })).toBeInTheDocument();
+    expect(within(attention).getByText(/You may cancel until the end of Oct 1, 2026/)).toBeInTheDocument();
+    expect(screen.getByText("Action required")).toBeInTheDocument();
+  });
+
+  it("asks nothing once the deposit is paid, or on a job that is not Signed", async () => {
+    depositState.mockResolvedValue({ ...signedState, paid: { id: "d", status: "paid" } });
+    const { unmount } = render(await ProjectView({ job: { ...job, status: "signed" as const } }));
+    expect(screen.queryByRole("button", { name: /Pay 50% deposit/ })).toBeNull();
+    unmount();
+    depositState.mockResolvedValue(signedState);
+    render(await ProjectView({ job: { ...job, status: "sold" as const } }));
+    expect(screen.queryByRole("button", { name: /Pay 50% deposit/ })).toBeNull();
+  });
+
+  it("believes the payment only from the database, never from ?deposit=done", async () => {
+    depositState.mockResolvedValue(signedState);
+    const { unmount } = render(await ProjectView({ job: { ...job, status: "signed" as const }, justDeposit: "done" }));
+    expect(screen.getByText("Processing — we will email your receipt as soon as your payment is confirmed.")).toBeInTheDocument();
+    expect(screen.queryByText("Payment received — thank you.")).toBeNull();
+    unmount();
+    depositState.mockResolvedValue({ ...signedState, paid: { id: "d", status: "paid" } });
+    render(await ProjectView({ job: { ...job, status: "sold" as const }, justDeposit: "done" }));
+    expect(screen.getByText("Payment received — thank you.")).toBeInTheDocument();
   });
 });
