@@ -11,6 +11,9 @@ const checkNowAction = vi.fn();
 vi.mock("@/app/admin/jobs/[id]/quote-actions", () => ({ setLinePctAction, setChoicesAction, sendContractAction, checkNowAction }));
 const loadReview = vi.fn();
 vi.mock("@/lib/dc/send", () => ({ loadReview }));
+const depositState = vi.fn(async (_id: string) => null as unknown);
+vi.mock("@/lib/payments/deposits", () => ({ depositState }));
+vi.mock("@/app/admin/jobs/[id]/deposit-actions", () => ({ recordDepositAction: vi.fn(), cancelDepositAction: vi.fn() }));
 
 const { QuoteReview } = await import("@/app/admin/jobs/[id]/QuoteReview");
 const { DcButtons, CheckNowButton } = await import("@/app/admin/jobs/[id]/DcButtons");
@@ -384,5 +387,17 @@ describe("QuoteTab", () => {
     render(await QuoteTab({ job }));
     expect(screen.getByRole("link", { name: "Open quote 12345678 in Direct Connect" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Send contract" })).toBeInTheDocument();
+  });
+
+  // Ruling P9: QuoteTab reads no job status; whether the panel shows is decided by depositState alone.
+  it("shows the deposit panel once a contract is signed, and none before", async () => {
+    loadReview.mockResolvedValueOnce(review()).mockResolvedValueOnce(review());
+    render(await QuoteTab({ job }));
+    expect(depositState).toHaveBeenCalledWith(J);
+    expect(screen.queryByRole("region", { name: "Deposit" })).toBeNull();
+    depositState.mockResolvedValueOnce({ jobStatus: "signed", versionId: V, version: 2, versionStatus: "signed", soldCents: 184834,
+      amountCents: 92417, signedAt: new Date("2026-09-28T17:00:00Z"), paid: null, pending: null, refunded: null });
+    render(await QuoteTab({ job }));
+    expect(screen.getByRole("region", { name: "Deposit" })).toHaveTextContent("50% deposit due: $924.17 of $1,848.34.");
   });
 });
