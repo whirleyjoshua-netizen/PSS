@@ -149,6 +149,36 @@ describe("stampSignature with sign marks (spec §5)", () => {
     expect(texts.filter((t) => [p0, p1, p2].includes(t.page))).toHaveLength(2 + 3);
   });
 
+  it("fits a very long printed name to its line: shrunk to 7pt, then cut with ...", async () => {
+    const original = await threePages();
+    const p2 = (await pageRefs(original))[2];
+    const helvetica = await (await PDFDocument.create()).embedFont(StandardFonts.Helvetica);
+    const long = "Maria Guadalupe ".repeat(13).slice(0, 200);
+    expect(long).toHaveLength(200);
+    const { texts } = spyOnDrawing();
+    expect(await stampSignature(original, { ...facts, signedName: long }, TYPED, { initials: [], signature: MARKS.signature })).not.toBeNull();
+    const printed = texts.find((t) => t.page === p2 && t.font === "Helvetica" && t.y === 274)!;
+    expect(printed).toMatchObject({ x: 158, size: 7 });
+    expect(printed.text.endsWith("...")).toBe(true);
+    expect(long.startsWith(printed.text.slice(0, -3))).toBe(true);
+    expect(helvetica.widthOfTextAtSize(printed.text, printed.size)).toBeLessThanOrEqual(240 - 4);
+  });
+
+  it("shrinks a printed name that is a little too long, without cutting it", async () => {
+    const original = await threePages();
+    const p2 = (await pageRefs(original))[2];
+    const helvetica = await (await PDFDocument.create()).embedFont(StandardFonts.Helvetica);
+    const name = "Maria Guadalupe Hernandez-Villanueva de la Cruz";
+    expect(helvetica.widthOfTextAtSize(name, 11)).toBeGreaterThan(236);
+    const { texts } = spyOnDrawing();
+    await stampSignature(original, { ...facts, signedName: name }, TYPED, { initials: [], signature: MARKS.signature });
+    const printed = texts.find((t) => t.page === p2 && t.font === "Helvetica" && t.y === 274)!;
+    expect(printed.text).toBe(name);
+    expect(printed.size).toBeLessThan(11);
+    expect(printed.size).toBeGreaterThanOrEqual(7);
+    expect(helvetica.widthOfTextAtSize(printed.text, printed.size)).toBeLessThanOrEqual(236 + 1e-9);
+  });
+
   it("draws the PNGs scaled into the boxes when the adoption is drawn", async () => {
     const original = await threePages();
     const [p0, p1, p2] = await pageRefs(original);

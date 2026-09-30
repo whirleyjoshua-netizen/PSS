@@ -1,8 +1,8 @@
 import "server-only";
-import { PDFDocument, StandardFonts, type PDFImage, type PDFPage } from "pdf-lib";
+import { PDFDocument, StandardFonts, type PDFFont, type PDFImage, type PDFPage } from "pdf-lib";
 import { formatShortDate, formatTime } from "@/lib/admin/time";
 import { winAnsiSafe } from "@/lib/dc/contract-layout";
-import { drawHandwriting, embedHandwriting } from "@/lib/pdf/handwriting";
+import { HAND_MIN_SIZE, drawHandwriting, embedHandwriting } from "@/lib/pdf/handwriting";
 import { INITIALS_BOX, SIGNATURE_BLOCK, initialedSections, type SignMarks } from "@/lib/pdf/sign-marks";
 import { wrap } from "@/lib/pdf/text";
 import type { Adoption } from "./adoption";
@@ -21,6 +21,25 @@ type Box = { x: number; y: number; width: number; height: number };
 function drawImageIn(page: PDFPage, image: PDFImage, box: Box): void {
   const { width, height } = image.scaleToFit(box.width, box.height);
   page.drawImage(image, { x: box.x, y: box.y, width, height });
+}
+
+const PRINTED_SIZE = 11;
+
+/**
+ * The printed name sized to fit `maxWidth`, as drawHandwriting sizes a signature: never above 11pt,
+ * never below HAND_MIN_SIZE, and cut by code point with "..." when still too wide. The text is not
+ * made safe: a name the standard font cannot draw throws, and the stamp answers null, as before.
+ */
+function fitPrinted(font: PDFFont, name: string, maxWidth: number): { text: string; size: number } {
+  const widthAtOne = font.widthOfTextAtSize(name, 1);
+  const size = Math.max(HAND_MIN_SIZE, widthAtOne > 0 ? Math.min(PRINTED_SIZE, maxWidth / widthAtOne) : PRINTED_SIZE);
+  if (font.widthOfTextAtSize(name, size) <= maxWidth) return { text: name, size };
+  const chars = [...name];
+  for (let n = chars.length - 1; n >= 0; n--) {
+    const cut = chars.slice(0, n).join("").trimEnd() + "...";
+    if (font.widthOfTextAtSize(cut, size) <= maxWidth) return { text: cut, size };
+  }
+  return { text: "", size };
 }
 
 /**
@@ -80,7 +99,8 @@ export async function stampSignature(
       const page = at ? pages[at.page] : undefined;
       if (at && page) {
         drawSignature(page, { x: at.x, y: at.y + 1, width: SIGNATURE_BLOCK.lineWidth, height: SIGNATURE_BLOCK.signatureHeight });
-        page.drawText(facts.signedName, { x: at.x + 4, y: at.y - SIGNATURE_BLOCK.row + 4, size: 11, font });
+        const printed = fitPrinted(font, facts.signedName, SIGNATURE_BLOCK.lineWidth - 4);
+        page.drawText(printed.text, { x: at.x + 4, y: at.y - SIGNATURE_BLOCK.row + 4, size: printed.size, font });
         page.drawText(winAnsiSafe(formatShortDate(facts.signedAt)), { x: at.x + 4, y: at.y - 2 * SIGNATURE_BLOCK.row + 4, size: 11, font });
       } else if (at) {
         console.error(`Signature mark on page ${at.page} of a ${pages.length}-page PDF: skipped`);
