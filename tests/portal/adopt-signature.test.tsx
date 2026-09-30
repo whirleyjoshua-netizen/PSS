@@ -24,9 +24,20 @@ beforeAll(() => {
   }
 });
 
-const ctx = { beginPath: vi.fn(), moveTo: vi.fn(), lineTo: vi.fn(), stroke: vi.fn(), clearRect: vi.fn(), lineCap: "", lineJoin: "", strokeStyle: "", lineWidth: 0 };
+/** The pad's pixels as getImageData answers them: transparent, with ink (alpha 255) at `INK`. */
+let INK: [number, number][] = [];
+const pixels = (_x: number, _y: number, width: number, height: number) => {
+  const data = new Uint8ClampedArray(width * height * 4);
+  for (const [x, y] of INK) data[(y * width + x) * 4 + 3] = 255;
+  return { data, width, height };
+};
+const ctx = {
+  beginPath: vi.fn(), moveTo: vi.fn(), lineTo: vi.fn(), stroke: vi.fn(), clearRect: vi.fn(), drawImage: vi.fn(), getImageData: vi.fn(pixels),
+  lineCap: "", lineJoin: "", strokeStyle: "", lineWidth: 0,
+};
 beforeEach(() => {
-  for (const fn of [ctx.beginPath, ctx.moveTo, ctx.lineTo, ctx.stroke, ctx.clearRect]) fn.mockClear();
+  INK = [[300, 100], [400, 120]];
+  for (const fn of [ctx.beginPath, ctx.moveTo, ctx.lineTo, ctx.stroke, ctx.clearRect, ctx.drawImage, ctx.getImageData]) fn.mockClear();
   vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(ctx as never);
   vi.spyOn(HTMLCanvasElement.prototype, "toDataURL").mockReturnValue(URL_OK);
   vi.spyOn(HTMLCanvasElement.prototype, "getBoundingClientRect").mockReturnValue({ left: 0, top: 0, width: 300, height: 100, right: 300, bottom: 100, x: 0, y: 0, toJSON: () => ({}) });
@@ -179,6 +190,31 @@ describe("drawing", () => {
     expect(ctx.lineTo).toHaveBeenCalledWith(400, 120);
     fireEvent.pointerUp(pad, { clientX: 200, clientY: 60, pointerId: 1 });
     expect(field(form, "signatureImage")!.value).toBe(URL_OK);
+  });
+  it("posts only the ink plus 4px, copied pixel for pixel from the pad, which keeps the whole drawing", () => {
+    const { container } = render(<SignContract jobId={JOB} file={FILE} />);
+    fireEvent.click(screen.getByRole("button", { name: "Draw" }));
+    const pad = screen.getByLabelText("Signature pad") as HTMLCanvasElement;
+    draw(pad);
+    // The whole 600 x 200 bitmap is read; the ink spans (300, 100) to (400, 120).
+    expect(ctx.getImageData).toHaveBeenCalledWith(0, 0, 600, 200);
+    expect(ctx.drawImage).toHaveBeenCalledTimes(1);
+    expect(ctx.drawImage).toHaveBeenCalledWith(pad, 296, 96, 109, 29, 0, 0, 109, 29);
+    // The PNG comes from the cropped copy at the same scale, not from the pad, which is never cleared.
+    const exported = vi.mocked(HTMLCanvasElement.prototype.toDataURL).mock.contexts[0] as HTMLCanvasElement;
+    expect(exported).not.toBe(pad);
+    expect([exported.width, exported.height]).toEqual([109, 29]);
+    expect([pad.width, pad.height]).toEqual([600, 200]);
+    expect(ctx.clearRect).not.toHaveBeenCalled();
+    expect(field(container.querySelector("form")!, "signatureImage")!.value).toBe(URL_OK);
+  });
+  it("posts nothing when the pad has no ink", () => {
+    INK = [];
+    const { container } = render(<SignContract jobId={JOB} file={FILE} />);
+    fireEvent.click(screen.getByRole("button", { name: "Draw" }));
+    draw(screen.getByLabelText("Signature pad"));
+    expect(HTMLCanvasElement.prototype.toDataURL).not.toHaveBeenCalled();
+    expect(field(container.querySelector("form")!, "signatureImage")!.value).toBe("");
   });
   it("refuses a drawing too large to send, and says so", () => {
     vi.mocked(HTMLCanvasElement.prototype.toDataURL).mockReturnValue(`data:image/png;base64,${"A".repeat(PNG_DATA_URL_MAX)}`);

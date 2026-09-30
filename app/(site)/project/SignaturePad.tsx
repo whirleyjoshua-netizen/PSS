@@ -2,13 +2,34 @@
 
 import { useEffect, useRef, useState, type PointerEvent } from "react";
 import { MAX_PIXEL_RATIO, PNG_DATA_URL_MAX } from "@/lib/portal/adoption-limits";
+import { inkBounds } from "@/lib/portal/ink-bounds";
+
+/**
+ * The drawing as a PNG data URL, cropped to its ink plus a few pixels, at the pad's own scale: the
+ * pad's blank margins would otherwise shrink it in the stamp's box. The pad keeps showing the whole
+ * drawing. "" when there is no ink.
+ */
+function exportInk(pad: HTMLCanvasElement): string {
+  const ctx = pad.getContext("2d");
+  if (!ctx) return "";
+  const box = inkBounds(ctx.getImageData(0, 0, pad.width, pad.height));
+  if (!box) return "";
+  const copy = document.createElement("canvas");
+  copy.width = box.width;
+  copy.height = box.height;
+  const copyCtx = copy.getContext("2d");
+  if (!copyCtx) return "";
+  copyCtx.drawImage(pad, box.x, box.y, box.width, box.height, 0, 0, box.width, box.height);
+  return copy.toDataURL("image/png");
+}
 
 /**
  * A drawing pad (spec §4). It uses pointer events, so a finger, a pen or a mouse all draw, and
  * `touch-none` so drawing never scrolls the page. The bitmap is sized on the first stroke from the
  * pad's laid-out size, at a pixel ratio capped at 2, so the PNG stays within the server's
  * 1200 x 400. The strokes become a transparent PNG data URL, carried by a required text input: an
- * empty pad blocks the submit. Rendered only after hydration, so JavaScript-off never meets it.
+ * empty pad blocks the submit. Rendered only after hydration, so JavaScript-off never meets it. What is
+ * posted is the drawing cropped to its ink (exportInk).
  */
 export function SignaturePad({ name, label, maxWidth, maxHeight, value, onChange }: {
   name: string;
@@ -93,7 +114,7 @@ export function SignaturePad({ name, label, maxWidth, maxHeight, value, onChange
   const end = (event: PointerEvent<HTMLCanvasElement>) => {
     if (active.current !== event.pointerId || !canvas.current) return;
     active.current = null;
-    const url = canvas.current.toDataURL("image/png");
+    const url = exportInk(canvas.current);
     // The server refuses anything longer (lib/portal/adoption.ts): say so here, not after the post.
     if (url.length > PNG_DATA_URL_MAX) {
       setTooLarge(true);
