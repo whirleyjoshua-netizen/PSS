@@ -1,18 +1,33 @@
-import { describe, expect, it, vi } from "vitest";
+// @vitest-environment node
+import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const query = vi.fn(async (..._args: unknown[]) => [] as Record<string, unknown>[]);
-vi.mock("@/lib/db", () => ({ db: () => ({ query }) }));
-vi.mock("@/lib/admin/session", () => ({ requireAdmin: vi.fn(async () => ({ email: "owner@example.com" })) }));
-
+const requireAdmin = vi.fn();
+vi.mock("@/lib/admin/session", () => ({ requireAdmin }));
+const conversionsCsvNow = vi.fn();
+vi.mock("@/lib/leads/conversions-feed", () => ({ conversionsCsvNow }));
 const { GET } = await import("@/app/admin/ad-conversions/route");
 
-describe("GET /admin/ad-conversions", () => {
-  it("counts booked from Appointment booked on and sold from Sold on, from the one stage list", async () => {
-    await GET();
-    const [text, params] = query.mock.calls[0] as [string, unknown[]];
-    expect(text).toContain("e.to_status = any($2::text[])) as booked_at");
-    expect(text).toContain("e.to_status = any($3::text[])) as sold_at");
-    expect(params[1]).toEqual(["visit_booked", "quoted", "approved", "signed", "sold", "measure", "ordered", "installed", "completed"]);
-    expect(params[2]).toEqual(["sold", "measure", "ordered", "installed", "completed"]);
+const CSV = "Google Click ID,Conversion Name,Conversion Time,Conversion Value,Conversion Currency\nx,Sale,2026-09-20 18:30:00+00:00,,\n";
+
+beforeEach(() => {
+  requireAdmin.mockReset().mockResolvedValue({ email: "owner@example.com" });
+  conversionsCsvNow.mockReset().mockResolvedValue(CSV);
+});
+
+describe("admin ad-conversions download", () => {
+  it("reads nothing without an admin session", async () => {
+    requireAdmin.mockRejectedValue(new Error("NEXT_REDIRECT"));
+    await expect(GET()).rejects.toThrow("NEXT_REDIRECT");
+    expect(conversionsCsvNow).not.toHaveBeenCalled();
+  });
+
+  it("downloads the shared conversions file as an attachment", async () => {
+    const response = await GET();
+    expect(response.status).toBe(200);
+    expect(await response.text()).toBe(CSV);
+    expect(response.headers.get("content-type")).toBe("text/csv; charset=utf-8");
+    expect(response.headers.get("content-disposition")).toBe(`attachment; filename="google-ads-conversions.csv"`);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(conversionsCsvNow).toHaveBeenCalledTimes(1);
   });
 });
