@@ -282,6 +282,7 @@ describe("signContractAction adoption (spec §6)", () => {
     signableContracts.mockResolvedValue([marked]);
     expect(await signContractAction(MINE, FILE, "Jane Doe", true, TYPED_FORM)).toBe("invalid");
     expect(recordSignature).not.toHaveBeenCalled();
+    expect(pending).toHaveLength(0);
     expect(await signContractAction(MINE, FILE, "Jane Doe", true, { ...TYPED_FORM, initials: " JD " })).toBe("signed");
     expect(recordSignature).toHaveBeenCalledWith(expect.objectContaining({ adoption: { method: "typed", initials: "JD" } }));
     await runAfter();
@@ -291,6 +292,8 @@ describe("signContractAction adoption (spec §6)", () => {
   it("refuses initials for a file with no numbered sections (a document with zero sections)", async () => {
     signableContracts.mockResolvedValue([{ ...contract, signMarks: { initials: [], signature: MARKS.signature } }]);
     expect(await signContractAction(MINE, FILE, "Jane Doe", true, { ...TYPED_FORM, initials: "JD" })).toBe("invalid");
+    expect(recordSignature).not.toHaveBeenCalled();
+    expect(pending).toHaveLength(0);
     expect(await signContractAction(MINE, FILE, "Jane Doe", true, TYPED_FORM)).toBe("signed");
   });
 
@@ -316,9 +319,10 @@ describe("signContractAction adoption (spec §6)", () => {
     expect(await signContractAction(MINE, FILE, "Jane Doe", true, form)).toBe("invalid");
     expect(signableContracts).not.toHaveBeenCalled();
     expect(recordSignature).not.toHaveBeenCalled();
+    expect(pending).toHaveLength(0);
   });
 
-  it("signs with a header-valid PNG whose data is corrupt: the signature stands even if the copy cannot be made", async () => {
+  it("accepts a header-valid PNG whose data is corrupt: validation reads the header only", async () => {
     signableContracts.mockResolvedValue([marked]);
     const form = { method: "drawn", initials: "", signatureImage: pngDataUrl(corruptPng(600, 200)), initialsImage: pngDataUrl(INI) };
     expect(await signContractAction(MINE, FILE, "Jane Doe", true, form)).toBe("signed");
@@ -356,6 +360,22 @@ describe("signContractAction adoption (spec §6)", () => {
     form.set("agreed", "on");
     await expect(signContractFormAction(form)).rejects.toThrow("signed=1");
     expect(recordSignature.mock.calls[0][0].adoption.method).toBe("drawn");
+  });
+
+  it.each([
+    ["a drawn signature that is not a PNG", { signatureMethod: "drawn", signatureImage: `data:image/jpeg;base64,${SIG.toString("base64")}` }],
+    ["typed without the initials the file's sections need", { signatureMethod: "typed" }],
+  ])("redirects naming the missing field for %s, and records nothing", async (_label, fields) => {
+    signableContracts.mockResolvedValue([marked]);
+    const form = new FormData();
+    form.set("jobId", MINE);
+    form.set("fileId", FILE);
+    form.set("signedName", "Jane Doe");
+    form.set("agreed", "on");
+    for (const [key, value] of Object.entries(fields)) form.set(key, value);
+    await expect(signContractFormAction(form)).rejects.toThrow(`NEXT_REDIRECT /project/${MINE}?signed=missing&file=${FILE}`);
+    expect(recordSignature).not.toHaveBeenCalled();
+    expect(pending).toHaveLength(0);
   });
 
   it("never takes the marks from the form: a forged marks field changes nothing", async () => {
