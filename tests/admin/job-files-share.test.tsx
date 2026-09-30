@@ -175,6 +175,33 @@ describe("JobFiles on a contract generated from a quote version", () => {
   });
 });
 
+describe("JobFiles on a quote PDF Send quote shared (ruling P17)", () => {
+  const files = [
+    { ...file("q", "document", new Date(), "Quote PSS-1042 v2.pdf", "quote"), quoteFile: true },
+    file("plain", "document", null, "Plain.pdf", "quote"),
+  ];
+  const row = (name: string) => screen.getByRole("link", { name }).closest("li")!;
+
+  it("says it is the quote the client is approving and sends the owner to Send quote, with no type, share or delete control", () => {
+    render(<JobFiles jobId={JOB} measurements={[]} files={files} />);
+    const li = within(row("Quote PSS-1042 v2.pdf"));
+    expect(li.getByText("Quote · the client approves it on their project page. Use Send quote on the Quote tab to change it.")).toBeInTheDocument();
+    expect(li.queryByRole("combobox")).toBeNull();
+    expect(li.queryByRole("switch")).toBeNull();
+    expect(li.queryByRole("button", { name: "Delete" })).toBeNull();
+    expect(li.getByText("Shared")).toBeInTheDocument();
+  });
+
+  it("leaves every control on an ordinary document labelled Quote", () => {
+    render(<JobFiles jobId={JOB} measurements={[]} files={files} />);
+    const li = within(row("Plain.pdf"));
+    expect(li.queryByText(/Use Send quote/)).toBeNull();
+    expect(li.getByRole("switch", { name: "Share Plain.pdf with customer" })).toBeInTheDocument();
+    expect(li.getByRole("combobox")).toBeInTheDocument();
+    expect(li.getByRole("button", { name: "Delete" })).toBeInTheDocument();
+  });
+});
+
 describe("JobFiles on a Dealer Copy", () => {
   const files = [
     file("dealer", "document", null, "DEALER COPY 1.html", "dealer_copy"),

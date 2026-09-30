@@ -37,6 +37,15 @@ function QuoteContractLabel() {
 }
 
 /**
+ * Shown in place of the type, share and delete controls on a quote PDF Send quote shared (ruling
+ * P17). The client approves it on their project page; the server refuses unsharing, relabelling or
+ * deleting it while its version is live, and re-sharing it once superseded.
+ */
+function QuoteFileLabel() {
+  return <span className="text-sm text-ink-soft">Quote · the client approves it on their project page. Use Send quote on the Quote tab to change it.</span>;
+}
+
+/**
  * Shown in place of the type, share and delete controls on a job document's PDF. Sending shares
  * it and Void unshares it, both on the Documents tab; the server refuses the Files-tab controls.
  */
@@ -105,7 +114,7 @@ export function JobFiles({ jobId, measurements, files }: {
                     {file.sharedAt ? <> · <span className="text-xs uppercase tracking-wide text-charcoal">Shared</span></> : null}
                   </p>
                 </div>
-                {file.docType === "dealer_copy" ? <DealerCopyLabel /> : file.signed ? <SignedLabel /> : file.quoteContract ? <QuoteContractLabel /> : file.jobDocument ? <JobDocumentLabel /> : (
+                {file.docType === "dealer_copy" ? <DealerCopyLabel /> : file.signed ? <SignedLabel /> : file.quoteContract ? <QuoteContractLabel /> : file.quoteFile ? <QuoteFileLabel /> : file.jobDocument ? <JobDocumentLabel /> : (
                   <>
                     <DocTypeSelect key={file.docType ?? ""} jobId={jobId} fileId={file.id} fileName={file.name} docType={file.docType ?? null} />
                     <ShareSwitch jobId={jobId} fileId={file.id} fileName={file.name} shared={Boolean(file.sharedAt)} />
