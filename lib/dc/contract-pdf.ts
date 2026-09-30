@@ -5,30 +5,36 @@ import { formatShortDate } from "@/lib/admin/time";
 import { contractRows, winAnsiSafe, type ContractInput } from "./contract-layout";
 import { LETTER, MARGIN, wrap } from "@/lib/pdf/text";
 import { parseDocText } from "@/lib/docs/parse";
-import { renderBlocks, type PdfPen } from "@/lib/docs/pdf";
+import { drawSignatureBlock, renderBlocks, type PdfPen, type RenderedPdf } from "@/lib/docs/pdf";
+import type { InitialsMark, MarkPoint } from "@/lib/pdf/sign-marks";
 
 const COLS = { room: MARGIN, product: MARGIN + 95, qty: 430, unit: 470, total: 540 };
 
 /** The terms a contract prints: the terms template's filled text, or (legacy) the uploaded PDF. */
 export type ContractTerms = { text: string } | { pdf: Uint8Array };
 
-/** The "Terms and Conditions" pages, from a new page. Same fonts and margins as the contract; the signed PDF then carries the exact terms signed. */
-function drawTerms(doc: PDFDocument, regular: PDFFont, bold: PDFFont, text: string): void {
-  const pen: PdfPen = { doc, page: doc.addPage(LETTER), y: LETTER[1] - MARGIN, regular, bold };
+/**
+ * The "Terms and Conditions" pages, from a new page. Same fonts and margins as the contract; the
+ * signed PDF then carries the exact terms signed. Numbered sections get initials boxes, their
+ * marks pushed onto `initials`. Answers the pen, so the signature block follows the terms.
+ */
+function drawTerms(doc: PDFDocument, regular: PDFFont, bold: PDFFont, text: string, initials: InitialsMark[]): PdfPen {
+  const pen: PdfPen = { doc, page: doc.addPage(LETTER), y: LETTER[1] - MARGIN, regular, bold, initials };
   pen.page.drawText("Terms and Conditions", { x: MARGIN, y: pen.y, size: 14, font: bold, color: rgb(0.1, 0.1, 0.1) });
   pen.y -= 26;
   renderBlocks(pen, parseDocText(text));
+  return pen;
 }
 
-/** The terms pages alone, drawn exactly as buildContractPdf prints them: the terms template's Preview PDF. */
+/** The terms pages alone, drawn exactly as buildContractPdf prints them (initials boxes and signature block included): the terms template's Preview PDF. */
 export async function buildTermsPdf(text: string): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
-  drawTerms(doc, await doc.embedFont(StandardFonts.Helvetica), await doc.embedFont(StandardFonts.HelveticaBold), text);
+  drawSignatureBlock(drawTerms(doc, await doc.embedFont(StandardFonts.Helvetica), await doc.embedFont(StandardFonts.HelveticaBold), text, []));
   return doc.save();
 }
 
 /** Page 1+: the priced contract. Then the terms: drawn from the terms template, or the uploaded PDF page for page. Signing stamps it later. */
-export async function buildContractPdf(input: ContractInput, terms: ContractTerms): Promise<Uint8Array> {
+export async function renderContractPdf(input: ContractInput, terms: ContractTerms): Promise<RenderedPdf> {
   const doc = await PDFDocument.create();
   const regular = await doc.embedFont(StandardFonts.Helvetica);
   const bold = await doc.embedFont(StandardFonts.HelveticaBold);
@@ -86,12 +92,24 @@ export async function buildContractPdf(input: ContractInput, terms: ContractTerm
   y -= 16;
   text("The terms and conditions on the following pages are part of this contract.", MARGIN, 9);
 
+  const initials: InitialsMark[] = [];
+  let signature: MarkPoint;
   if ("text" in terms) {
-    drawTerms(doc, regular, bold, terms.text);
+    signature = drawSignatureBlock(drawTerms(doc, regular, bold, terms.text, initials));
   } else {
     const uploaded = await PDFDocument.load(terms.pdf);
     const copied = await doc.copyPages(uploaded, uploaded.getPageIndices());
     for (const p of copied) doc.addPage(p);
+    // Uploaded terms have no sections we can find (spec §11): the block gets a final page of its own (spec §3).
+    const pen: PdfPen = { doc, page: doc.addPage(LETTER), y: LETTER[1] - MARGIN, regular, bold };
+    pen.page.drawText("Signature", { x: MARGIN, y: pen.y, size: 14, font: bold, color: rgb(0.1, 0.1, 0.1) });
+    pen.y -= 26;
+    signature = drawSignatureBlock(pen);
   }
-  return doc.save();
+  return { bytes: await doc.save(), marks: { initials, signature } };
+}
+
+/** The contract as bytes alone, for callers that never store marks (tests, scripts). */
+export async function buildContractPdf(input: ContractInput, terms: ContractTerms): Promise<Uint8Array> {
+  return (await renderContractPdf(input, terms)).bytes;
 }

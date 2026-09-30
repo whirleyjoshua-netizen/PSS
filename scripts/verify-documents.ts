@@ -386,7 +386,7 @@ test("Documents: templates, drafts, send, acknowledge, void and sign against a r
     const signSent = await sendJobDocument({ jobId: A.id, documentId: d4, actor: ACTOR });
     const signFileId = (await docRow(d4)).file_id as string;
     check("ok" in signSent && (await fileRow(signFileId)).doc_type === "contract", "a sign document's PDF is a contract", JSON.stringify(signSent));
-    const signed = await recordSignature({ jobId: A.id, file: (await getFile(signFileId))!, name: "Pat Client", email: "pat@example.com", ip: null, userAgent: null });
+    const signed = await recordSignature({ jobId: A.id, file: (await getFile(signFileId))!, name: "Pat Client", email: "pat@example.com", ip: null, userAgent: null, adoption: { method: "typed", initials: null } });
     check(signed === "signed" && (await docRow(d4)).status === "completed", "signing completes the document in the same statement", signed);
     const [lead] = await sql`select status, sold_cents from leads where id = ${A.id}`;
     check(lead.status === "sold" && lead.sold_cents === null, "no Direct Connect version: the sale is untouched", JSON.stringify(lead));

@@ -15,6 +15,8 @@ import { notifyOwnersOfAcknowledgement } from "@/lib/portal/send-acknowledgement
 import { notifyOwnersOfApproval } from "@/lib/portal/send-approval-email";
 import { notifyOwnersOfMessage } from "@/lib/portal/send-message-email";
 import { formatProjectNo } from "@/lib/portal/project-no";
+import { hasInitialMarks } from "@/lib/pdf/sign-marks";
+import { parseAdoption, requireInitials, type AdoptionForm } from "@/lib/portal/adoption";
 import { notifyOwnersOfSignature, sendCustomerSignedCopy } from "@/lib/portal/send-signature-email";
 import { recordSignature, signableContracts, signatureFor, storeSignedCopy, type SignResult } from "@/lib/portal/sign";
 import { stampSignature } from "@/lib/portal/stamp";
@@ -248,6 +250,9 @@ export async function approveQuoteFormAction(formData: FormData): Promise<void> 
  *    so a posted id naming a quote, another job's file, a signed copy or an already-signed
  *    contract is refused exactly as a missing one is. The posted id is only a key into that list.
  * 3. The identity. The email recorded is the session's, never anything the form sent.
+ * 4. The adoption (spec §6). Its own shape (method, typed initials, drawn PNGs by header only) is
+ *    checked before anything is read. Whether initials are required is then settled by the file's
+ *    sign marks, read from the database with the file and never from the form (spec §9).
  *
  * Once recordSignature answers "signed" the signature is permanent. Stamping, storing the copy
  * and both emails then run inside after(), each failure caught and logged, so none of them can
@@ -258,6 +263,7 @@ export async function signContractAction(
   fileId: string,
   name: string,
   agreed: boolean,
+  adoptionForm: AdoptionForm,
 ): Promise<SignResult> {
   const { email, jobs } = await requireCustomer();
   const job = jobs.find((candidate) => candidate.id === jobId);
@@ -265,6 +271,9 @@ export async function signContractAction(
   if (!agreed) return "invalid";
   // The column is text and a post can carry megabytes: refuse an overlong name before reading anything.
   if (isTypedNameTooLong(name)) return "invalid";
+  // Drawn images are bounded and checked by their header here, before any file is read.
+  const posted = parseAdoption(adoptionForm);
+  if (!posted) return "invalid";
 
   const contracts = await signableContracts(job.id);
   const file = contracts.find((candidate) => candidate.id === fileId);
@@ -278,6 +287,10 @@ export async function signContractAction(
     return existing && existing.leadId === job.id ? "signed" : "not-found";
   }
 
+  // Initials exactly when the file has numbered sections: its own marks, from the database.
+  const adoption = requireInitials(posted, hasInitialMarks(file.signMarks));
+  if (!adoption) return "invalid";
+
   const headerList = await headers();
   const result = await recordSignature({
     jobId: job.id,
@@ -286,6 +299,7 @@ export async function signContractAction(
     email,
     ip: headerList.get("x-forwarded-for")?.split(",")[0]?.trim() || null,
     userAgent: headerList.get("user-agent"),
+    adoption,
   });
   // A raced second post: the first one's insert won and will send everything. This one wrote
   // nothing, so it emails nobody, but the contract is signed and the customer is told so.
@@ -308,7 +322,7 @@ export async function signContractAction(
           signedAt: signature.signedAt,
           sha256: signature.docSha256,
           projectNo: formatProjectNo(job.projectNo),
-        });
+        }, adoption, file.signMarks ?? null);
         if (pdf) await storeSignedCopy({ jobId: job.id, original: file, bytes: pdf, actor: email });
       }
     } catch (error) {
@@ -341,6 +355,14 @@ export async function signContractFormAction(formData: FormData): Promise<void> 
     fileId,
     text(formData.get("signedName")),
     formData.get("agreed") === "on",
+    {
+      // No field at all stays null, which parseAdoption reads as typed: a page opened before this
+      // feature deployed posts only the name and the box. text() would turn it into "", refused.
+      method: formData.has("signatureMethod") ? text(formData.get("signatureMethod")) : null,
+      initials: text(formData.get("signedInitials")),
+      signatureImage: text(formData.get("signatureImage")),
+      initialsImage: text(formData.get("initialsImage")),
+    },
   );
   // Outside any try/catch: redirect() works by throwing.
   // The file rides along so the notice can look up THAT contract's signature, not the job's latest.

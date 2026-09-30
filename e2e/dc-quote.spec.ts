@@ -11,6 +11,7 @@ import type { DcQuote } from "../lib/dc/types";
 import { formatProjectNo } from "../lib/portal/project-no";
 import { business } from "../content/business";
 import { pdfText } from "./fixtures/pdf-text";
+import { pdfPages } from "./fixtures/pdf-pages";
 
 const url = process.env.E2E_POSTGRES_URL;
 test.skip(!url, "Set E2E_POSTGRES_URL to a Neon branch to run the Direct Connect quote tests");
@@ -71,6 +72,18 @@ async function download(page: Page, target: string): Promise<{ status: number; h
     return { status: response.status, html: /^\s*<(!doctype|html)/i.test(body) };
   }, target);
 }
+
+/** A file's bytes, fetched with the page's own session (the cookie is Secure, see download()). */
+async function fetchBytes(page: Page, target: string): Promise<Buffer> {
+  const base64 = await page.evaluate(async (href) => {
+    const buffer = new Uint8Array(await (await fetch(href)).arrayBuffer());
+    let binary = "";
+    for (const byte of buffer) binary += String.fromCharCode(byte);
+    return btoa(binary);
+  }, target);
+  return Buffer.from(base64, "base64");
+}
+const isHand = (font: string) => !font.startsWith("Helvetica");
 
 async function lead(name: string, email: string, status: string): Promise<{ id: string; projectNo: number }> {
   const [row] = await sql()`insert into leads (name, phone, email, city, source, status)
@@ -390,8 +403,17 @@ test.describe("send, sign and the release gate", () => {
     await expect(details).toHaveCount(1);
     await details.locator("summary").click();
     const form = details.locator("form");
+    // Before signing: the contract the client reads shows an empty initials box beside every
+    // numbered section, and an empty signature block (spec §3).
+    const [sent] = await sql()`select contract_file_id from dc_quote_versions where id = ${versionId}`;
+    const unsigned = pdfText(await fetchBytes(customer, `/project/files/${sent.contract_file_id}`));
+    const sections = unsigned.filter((text) => /^\d+\. /.test(text)).length;
+    expect(sections).toBeGreaterThan(0);
+    expect(unsigned.filter((text) => text === "Initials")).toHaveLength(sections);
+    expect(unsigned).toContain("Client signature");
     await form.getByLabel("Your full name").fill("Pat Buyer");
-    await form.getByLabel("I agree to sign this contract electronically").check();
+    await form.getByLabel("Your initials").fill("PB");
+    await form.getByLabel("I agree to sign this contract electronically and to initial every numbered section").check();
     await form.getByRole("button", { name: "Sign this contract" }).click();
     await expect(customer.getByRole("status")).toContainText("Thank you — your contract was signed on");
     await expect(customer.getByRole("heading", { name: "Documents to sign" })).toHaveCount(0);
@@ -404,6 +426,22 @@ test.describe("send, sign and the release gate", () => {
       const [signature] = await sql()`select signed_file_id from contract_signatures where lead_id = ${job.id}`;
       return signature?.signed_file_id ?? null;
     }, { timeout: 20_000 }).not.toBeNull();
+    const [adopted] = await sql()`select signature_method, signed_initials, signed_file_id from contract_signatures where lead_id = ${job.id}`;
+    expect(adopted).toMatchObject({ signature_method: "typed", signed_initials: "PB" });
+    const pages = await pdfPages(await fetchBytes(customer, `/project/files/${adopted.signed_file_id}`));
+    const body = pages.slice(0, -1);
+    const hand = body.flatMap((page) => page.runs.filter((run) => isHand(run.font)).map((run) => run.text));
+    // The initials once per numbered section, and the signature once, in the handwriting font (spec §10).
+    expect(hand.filter((text) => text === "PB")).toHaveLength(sections);
+    expect(hand.filter((text) => text === "Pat Buyer")).toHaveLength(1);
+    const blockPage = body.find((page) => page.runs.some((run) => run.text === "Client signature"))!;
+    const typedRuns = blockPage.runs.filter((run) => !isHand(run.font)).map((run) => run.text);
+    expect(typedRuns).toContain("Pat Buyer");
+    expect(typedRuns.some((text) => /^[A-Z][a-z]{2} \d{1,2}, \d{4}$/.test(text))).toBe(true);
+    const record = pages.at(-1)!.runs.map((run) => run.text).join("\n");
+    expect(record).toContain("ELECTRONIC SIGNATURE");
+    expect(record).toContain("Method:     typed");
+    expect(record).toMatch(/Initialed sections: 1, 2, 3/);
     const [row] = await sql()`select status, sold_cents from leads where id = ${job.id}`;
     expect(row).toEqual({ status: "sold", sold_cents: waivedTotal() });
 

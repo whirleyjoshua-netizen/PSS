@@ -211,6 +211,7 @@ test("contract signing: record, stamp, freeze and cascade against a real databas
     console.log("step 3");
     const first = await recordSignature({
       jobId: leadA, file: contract, name: "  Jane Doe  ", email: ACTOR, ip: "127.0.0.1", userAgent: "verify",
+      adoption: { method: "typed", initials: null },
     });
     check(first === "signed", "recordSignature answers signed", `got ${first}`);
     const sigs = await sql`select * from contract_signatures where file_id = ${contractId}`;
@@ -232,6 +233,7 @@ test("contract signing: record, stamp, freeze and cascade against a real databas
     console.log("step 4");
     const second = await recordSignature({
       jobId: leadA, file: contract, name: "Someone Else", email: ACTOR, ip: null, userAgent: null,
+      adoption: { method: "typed", initials: null },
     });
     check(second === "already-signed", "a second signature is already-signed", `got ${second}`);
     const sigs2 = await sql`select count(*)::int as n from contract_signatures where file_id = ${contractId}`;
@@ -317,6 +319,7 @@ test("contract signing: record, stamp, freeze and cascade against a real databas
       `got ${duplicate}`);
     const signedC = await recordSignature({
       jobId: leadC, file: contractC, name: "Jane Doe", email: ACTOR, ip: null, userAgent: null,
+      adoption: { method: "typed", initials: null },
     });
     check(signedC === "signed", "recordSignature answers signed on a generated contract", `got ${signedC}`);
     const vC = (await sql`select status, signed_at from dc_quote_versions where id = ${versionC}`)[0];
@@ -333,6 +336,7 @@ test("contract signing: record, stamp, freeze and cascade against a real databas
       "exactly one stage event, quoted -> sold", `got ${JSON.stringify(stC)}`);
     const againC = await recordSignature({
       jobId: leadC, file: contractC, name: "Jane Doe", email: ACTOR, ip: null, userAgent: null,
+      adoption: { method: "typed", initials: null },
     });
     const stC2 = await stageEvents(leadC);
     check(againC === "already-signed" && stC2.length === 1, "signing again moves nothing more",
@@ -343,6 +347,7 @@ test("contract signing: record, stamp, freeze and cascade against a real databas
     await newVersion(leadD, 1, "sent", contractD.id, 222222);
     const signedD = await recordSignature({
       jobId: leadD, file: contractD, name: "Jane Doe", email: ACTOR, ip: null, userAgent: null,
+      adoption: { method: "typed", initials: null },
     });
     const lD = await leadRow(leadD);
     check(signedD === "signed" && lD.status === "ordered" && lD.sold_cents === 222222,

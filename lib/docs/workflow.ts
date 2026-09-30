@@ -7,7 +7,7 @@ import { fieldValues, fillFields } from "./fill";
 import { getJobDocument, insertDraft, markSent, type JobDocument } from "./job-documents";
 import { isClientDocKind } from "./kinds";
 import { parseDocText, remainingMarkers } from "./parse";
-import { buildDocumentPdf } from "./pdf";
+import { renderDocumentPdf } from "./pdf";
 import { getTemplate } from "./templates";
 import { TITLE_MAX } from "./validate";
 
@@ -67,15 +67,17 @@ export async function sendJobDocument(input: {
   const blockers = documentSendBlockers(doc, job);
   if (blockers.length > 0) return { error: blockers[0] };
 
-  const pdf = await buildDocumentPdf({
+  const rendered = await renderDocumentPdf({
     title: doc.title, projectNo: formatProjectNo(job.projectNo), date: input.now ?? new Date(),
     client: { name: job.name, address: job.address, city: job.city, email: job.email },
     blocks: parseDocText(doc.body), response: doc.response,
   });
   const file = await createFile({
     leadId: job.id, kind: "document", name: `${doc.title}.pdf`, contentType: "application/pdf",
-    body: new Blob([new Uint8Array(pdf)], { type: "application/pdf" }), actor: input.actor,
+    body: new Blob([new Uint8Array(rendered.bytes)], { type: "application/pdf" }), actor: input.actor,
     docType: doc.response === "sign" ? "contract" : "other",
+    // Only a document the client signs has places for their marks (spec §3).
+    signMarks: doc.response === "sign" ? rendered.marks : null,
   });
   if (!file) return { error: "This job no longer exists." };
 
