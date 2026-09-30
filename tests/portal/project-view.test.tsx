@@ -86,11 +86,11 @@ describe("ProjectView header and tracker", () => {
     render(await ProjectView({ job }));
     const tracker = screen.getByRole("region", { name: "Your project" });
     // Ordered with no install booked: In Production is the furthest step reached, so it is the
-    // current one, Order Confirmed behind it reads done, and Ready to Install is still ahead.
+    // current one, Deposit Paid behind it reads done, and Ready to Install is still ahead.
     const current = within(tracker).getByText("In Production").closest("li")!;
     expect(current).toHaveAttribute("aria-current", "step");
     expect(within(current).getByText("Sep 20, 2025")).toBeInTheDocument();
-    expect(within(tracker).getByText("Order Confirmed").closest("li")!).not.toHaveAttribute("aria-current");
+    expect(within(tracker).getByText("Deposit Paid").closest("li")!).not.toHaveAttribute("aria-current");
     expect(within(tracker).getByText("Ready to Install").closest("li")!).not.toHaveAttribute("aria-current");
   });
 
@@ -370,7 +370,7 @@ describe("ProjectView details and updates", () => {
   it("lists updates from fixed labels, never an event body", async () => {
     render(await ProjectView({ job }));
     const updates = screen.getByRole("region", { name: "Project updates" });
-    expect(within(updates).getByText("Your order was confirmed.")).toBeInTheDocument();
+    expect(within(updates).getByText("Your deposit was received.")).toBeInTheDocument();
     expect(within(updates).getByText("Sep 18, 2025")).toBeInTheDocument();
   });
 });

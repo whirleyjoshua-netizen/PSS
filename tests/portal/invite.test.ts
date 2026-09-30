@@ -87,7 +87,7 @@ describe("autoInvite", () => {
     expect(claim).toContain("status = any($2::text[])");
     expect(claim).toContain("and portal_auto_invite");
     expect(claim).toContain("portal_invited_at::text as claimed_at");
-    expect(params).toEqual([JOB, ["quoted", "sold", "ordered", "installed", "completed"]]);
+    expect(params).toEqual([JOB, ["quoted", "approved", "signed", "sold", "measure", "ordered", "installed", "completed"]]);
     expect(send).toHaveBeenCalledTimes(1);
   });
 

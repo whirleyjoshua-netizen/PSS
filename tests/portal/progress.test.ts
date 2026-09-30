@@ -6,11 +6,11 @@ import {
 
 describe("portal stages", () => {
   it("are quoted through installed, in order", () => {
-    expect(PORTAL_STAGES).toEqual(["quoted", "sold", "ordered", "installed"]);
+    expect(PORTAL_STAGES).toEqual(["quoted", "approved", "signed", "sold", "measure", "ordered", "installed"]);
   });
 
   it("show a customer quoted through completed, never earlier stages or lost", () => {
-    expect(PORTAL_STATUSES).toEqual(["quoted", "sold", "ordered", "installed", "completed"]);
+    expect(PORTAL_STATUSES).toEqual(["quoted", "approved", "signed", "sold", "measure", "ordered", "installed", "completed"]);
     for (const stage of ["new", "visit_booked", "lost"] as const) expect(isPortalStatus(stage)).toBe(false);
     for (const stage of PORTAL_STATUSES) expect(isPortalStatus(stage)).toBe(true);
   });
@@ -26,26 +26,26 @@ const dates = (steps: ReturnType<typeof buildSteps>) => steps.map((s) => s.on);
 const step = (steps: ReturnType<typeof buildSteps>, key: string) => steps.find((s) => s.key === key)!;
 
 describe("buildSteps", () => {
-  it("uses the mockup's seven labels, in order", () => {
+  it("uses the spec's nine labels, in order", () => {
     expect(buildSteps({ status: "quoted" }).map((s) => s.label)).toEqual([
-      "Consultation", "Measurements", "Quote Ready", "Order Confirmed",
+      "Consultation", "Measurements", "Quote Ready", "Contract Signed", "Deposit Paid", "Final Measure",
       "In Production", "Ready to Install", "Installed",
     ]);
     expect(buildSteps({ status: "quoted" }).map((s) => s.key)).toEqual([
-      "consultation", "measurements", "quote", "order", "production", "ready", "installed",
+      "consultation", "measurements", "quote", "signed", "deposit", "measure", "production", "ready", "installed",
     ]);
   });
 
   it("leaves a brand-new job with every step upcoming and no dates", () => {
     const steps = buildSteps({ status: "new" });
-    expect(states(steps)).toEqual(["upcoming", "upcoming", "upcoming", "upcoming", "upcoming", "upcoming", "upcoming"]);
-    expect(dates(steps)).toEqual([null, null, null, null, null, null, null]);
+    expect(states(steps)).toEqual(["upcoming", "upcoming", "upcoming", "upcoming", "upcoming", "upcoming", "upcoming", "upcoming", "upcoming"]);
+    expect(dates(steps)).toEqual([null, null, null, null, null, null, null, null, null]);
   });
 
   it("renders with no measurements, no appointments and no stage events", () => {
     const steps = buildSteps({ status: "quoted" });
-    expect(steps).toHaveLength(7);
-    expect(dates(steps)).toEqual([null, null, null, null, null, null, null]);
+    expect(steps).toHaveLength(9);
+    expect(dates(steps)).toEqual([null, null, null, null, null, null, null, null, null]);
     // Corrected: a quoted job stands AT Quote Ready — the last step it has reached.
     expect(step(steps, "quote").state).toBe("current");
   });
@@ -75,12 +75,12 @@ describe("buildSteps", () => {
     expect(step(steps, "measurements").state).toBe("current");
     expect(step(steps, "measurements").on).toBe("Sep 13");
     expect(step(steps, "quote").state).toBe("upcoming");
-    expect(step(steps, "order").state).toBe("upcoming");
+    expect(step(steps, "deposit").state).toBe("upcoming");
   });
 
-  // Corrected: a sold job has reached Order Confirmed and nothing further, so that is where
+  // Corrected: a sold job has reached Deposit Paid and nothing further, so that is where
   // it stands. It is not "in production" until it has actually been ordered.
-  it("shows a sold job standing at Order Confirmed", () => {
+  it("shows a sold job standing at Deposit Paid", () => {
     const steps = buildSteps({
       status: "sold",
       stageDates: {
@@ -90,10 +90,34 @@ describe("buildSteps", () => {
     });
     expect(step(steps, "quote").state).toBe("done");
     expect(step(steps, "quote").on).toBe("Sep 10");
-    expect(step(steps, "order").state).toBe("current");
-    expect(step(steps, "order").on).toBe("Sep 14");
+    expect(step(steps, "deposit").state).toBe("current");
+    expect(step(steps, "deposit").on).toBe("Sep 14");
     expect(step(steps, "production").state).toBe("upcoming");
     expect(step(steps, "ready").state).toBe("upcoming");
+  });
+
+  it("shows an approved job still at Quote Ready, and a signed job at Contract Signed", () => {
+    expect(step(buildSteps({ status: "approved" }), "quote").state).toBe("current");
+    const signed = buildSteps({
+      status: "signed",
+      stageDates: { quoted: new Date("2026-09-10T17:00:00Z"), signed: new Date("2026-09-12T17:00:00Z") },
+    });
+    expect(step(signed, "signed").state).toBe("current");
+    expect(step(signed, "signed").on).toBe("Sep 12");
+    expect(step(signed, "deposit").state).toBe("upcoming");
+    expect(step(signed, "deposit").on).toBeNull();
+  });
+
+  it("shows an Official measure job at Final Measure, dated when the measure was confirmed", () => {
+    const steps = buildSteps({
+      status: "measure",
+      stageDates: { sold: new Date("2026-09-14T17:00:00Z"), measure: new Date("2026-09-16T17:00:00Z") },
+    });
+    expect(step(steps, "deposit").state).toBe("done");
+    expect(step(steps, "deposit").on).toBe("Sep 14");
+    expect(step(steps, "measure").state).toBe("current");
+    expect(step(steps, "measure").on).toBe("Sep 16");
+    expect(step(steps, "production").state).toBe("upcoming");
   });
 
   it("dates In Production from the order date", () => {
@@ -135,7 +159,7 @@ describe("buildSteps", () => {
         installed: new Date("2026-10-20T17:00:00Z"),
       },
     });
-    expect(states(steps)).toEqual(["done", "done", "done", "done", "done", "done", "done"]);
+    expect(states(steps)).toEqual(["done", "done", "done", "done", "done", "done", "done", "done", "done"]);
     expect(step(steps, "installed").on).toBe("Oct 13");
   });
 
@@ -151,16 +175,16 @@ describe("buildSteps", () => {
     const steps = buildSteps({ status: "sold" });
     expect(step(steps, "measurements").state).toBe("done");
     expect(step(steps, "measurements").on).toBeNull();
-    // Corrected: the job stands at Order Confirmed, the last step reached; In Production is
+    // Corrected: the job stands at Deposit Paid, the last step reached; In Production is
     // still ahead of it.
-    expect(step(steps, "order").state).toBe("current");
+    expect(step(steps, "deposit").state).toBe("current");
     expect(step(steps, "production").state).toBe("upcoming");
   });
 
   it("dates steps by the Las Vegas day, not the UTC one", () => {
     // 9pm Pacific on Sep 13 is already Sep 14 in UTC.
     const lateEvening = new Date("2026-09-14T04:00:00Z");
-    expect(step(buildSteps({ status: "sold", stageDates: { sold: lateEvening } }), "order").on).toBe("Sep 13");
+    expect(step(buildSteps({ status: "sold", stageDates: { sold: lateEvening } }), "deposit").on).toBe("Sep 13");
     expect(step(buildSteps({ status: "quoted", lastMeasuredAt: lateEvening }), "measurements").on).toBe("Sep 13");
   });
 
@@ -218,11 +242,11 @@ describe("a booked install never speaks for the job's status", () => {
 
     // Quote Ready is the furthest reached, so it is where the job stands.
     expect(step(steps, "quote").state).toBe("current");
-    for (const key of ["order", "production", "ready"]) {
+    for (const key of ["signed", "deposit", "measure", "production", "ready"]) {
       expect(step(steps, key).state).not.toBe("done");
       expect(step(steps, key).state).not.toBe("current");
     }
-    expect(step(steps, "order").state).toBe("upcoming");
+    expect(step(steps, "deposit").state).toBe("upcoming");
     expect(step(steps, "ready").on).toBeNull();
   });
 
@@ -233,7 +257,7 @@ describe("a booked install never speaks for the job's status", () => {
       installAppointmentAt: new Date("2026-10-13T17:00:00Z"),
     });
 
-    expect(step(steps, "order").state).toBe("current");
+    expect(step(steps, "deposit").state).toBe("current");
     expect(step(steps, "production").state).not.toBe("done");
     expect(step(steps, "ready").state).not.toBe("done");
   });
@@ -276,6 +300,8 @@ describe("the minStage gate, over every step and every portal status", () => {
     installAppointmentAt: new Date("2026-10-13T17:00:00Z"),
     stageDates: {
       quoted: new Date("2026-09-05T17:00:00Z"),
+      signed: new Date("2026-09-07T17:00:00Z"),
+      measure: new Date("2026-09-09T17:00:00Z"),
       sold: new Date("2026-09-08T17:00:00Z"),
       installed: new Date("2026-10-20T17:00:00Z"),
     },
@@ -297,7 +323,9 @@ describe("the minStage gate, over every step and every portal status", () => {
   }
 
   it("lists the steps in stage order, so no step gates lower than one before it", () => {
-    const ranks = STEP_KEYS.map((key) => stageRank(STEP_MIN_STAGE[key]));
+    // Read in the order buildSteps lays the steps out (SPECS order), not STEP_KEYS order, so a
+    // step listed out of place in SPECS is caught here even while STEP_KEYS stays correct.
+    const ranks = buildSteps({ status: "new" }).map((s) => stageRank(STEP_MIN_STAGE[s.key]));
     expect(ranks).toEqual([...ranks].sort((a, b) => a - b));
   });
 });
@@ -333,6 +361,6 @@ describe("reached, as distinct from behind you", () => {
       installOn: "2026-10-13",
       installAppointmentAt: new Date("2026-10-13T17:00:00Z"),
     });
-    expect(steps.map((s) => s.reached)).toEqual([true, true, true, true, true, true, true]);
+    expect(steps.map((s) => s.reached)).toEqual([true, true, true, true, true, true, true, true, true]);
   });
 });

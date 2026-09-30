@@ -66,7 +66,7 @@ export async function confirmSchedule(appointmentId: string, jobId: string): Pro
   const job = await getJob(jobId);
   // Booking the consultation is what moves a new lead along; the later kinds follow their own stages.
   if (confirmed.kind === "consultation" && job?.status === "new") await setStage(jobId, "visit_booked", email);
-  // Spec ง5: a confirmed measure appointment on a Sold job is the Official measure. Ordered stays manual.
+  // Spec ยง5: a confirmed measure appointment on a Sold job is the Official measure. Ordered stays manual.
   if (confirmed.kind === "measure" && job?.status === "sold") {
     await setStage(jobId, "measure", email, { body: "Measure appointment confirmed" });
   }

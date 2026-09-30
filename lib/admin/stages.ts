@@ -42,7 +42,7 @@ export const stageIndex = (stage: Stage): number => STAGES.findIndex((s) => s.va
 
 /** Reaching any of these counts as a booked visit (Google Ads' "booked" conversion). */
 export const BOOKED_OR_LATER: readonly Stage[] = STAGES.slice(stageIndex("visit_booked")).map((s) => s.value);
-/** Reaching any of these counts as a sale. Signed is not: the sale is the paid deposit (spec ง4). */
+/** Reaching any of these counts as a sale. Signed is not: the sale is the paid deposit (spec ยง4). */
 export const SOLD_OR_LATER: readonly Stage[] = STAGES.slice(stageIndex("sold")).map((s) => s.value);
 
 export const WORKING_STAGES = ["new", "visit_booked", "quoted", "approved", "signed", "sold", "measure", "ordered", "installed", "completed"] as const;

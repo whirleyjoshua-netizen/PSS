@@ -242,7 +242,7 @@ test("a mid-flow job shows the right current step with its dates", async ({ brow
 
   const steps = page.getByRole("listitem");
   await expect(steps.filter({ hasText: "Quote Ready" })).toContainText("Sep 2");
-  await expect(steps.filter({ hasText: "Order Confirmed" })).toContainText("Sep 8");
+  await expect(steps.filter({ hasText: "Deposit Paid" })).toContainText("Sep 8");
   await expect(steps.filter({ hasText: "In Production" })).toContainText("Sep 10");
   // A step the job has not reached carries no date.
   await expect(steps.filter({ hasText: "Installed" })).not.toContainText("Sep");

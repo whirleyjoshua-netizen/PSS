@@ -2,7 +2,7 @@ import { STAGES, type Stage } from "@/lib/admin/stages";
 import { formatDateOnly, formatMonthDay, lasVegasDate } from "@/lib/admin/time";
 
 /** The stages a customer can see, in order. Earlier stages and Lost are never shown. */
-export const PORTAL_STAGES = ["quoted", "sold", "ordered", "installed"] as const;
+export const PORTAL_STAGES = ["quoted", "approved", "signed", "sold", "measure", "ordered", "installed"] as const;
 export type PortalStage = (typeof PORTAL_STAGES)[number];
 
 /** The statuses whose jobs a customer may see. Completed shows as the Installed step. */
@@ -15,9 +15,9 @@ export const isPortalStatus = (status: Stage): boolean =>
 export const toPortalStage = (status: Stage): PortalStage =>
   status === "completed" ? "installed" : (status as PortalStage);
 
-/** The customer's seven steps, in order. The keys are stable; the labels are what they read. */
+/** The customer's nine steps, in order. The keys are stable; the labels are what they read. */
 export const STEP_KEYS = [
-  "consultation", "measurements", "quote", "order", "production", "ready", "installed",
+  "consultation", "measurements", "quote", "signed", "deposit", "measure", "production", "ready", "installed",
 ] as const;
 export type StepKey = (typeof STEP_KEYS)[number];
 
@@ -53,7 +53,7 @@ export const currentStep = (steps: ProjectStep[]): ProjectStep =>
   steps[0];
 
 /**
- * Everything the seven steps are derived from. Dates only — no event body ever
+ * Everything the nine steps are derived from. Dates only — no event body ever
  * reaches here, so nothing internal can be rendered from a step.
  */
 export type StepInput = {
@@ -139,8 +139,17 @@ const SPECS: readonly StepSpec[] = [
     on: (i) => onInstant(i.stageDates?.quoted),
   },
   {
-    key: "order", label: "Order Confirmed", minStage: "sold",
+    key: "signed", label: "Contract Signed", minStage: "signed",
+    on: (i) => onInstant(i.stageDates?.signed),
+  },
+  {
+    // The sale is the paid deposit (spec §4): Sold is reached when the deposit is in.
+    key: "deposit", label: "Deposit Paid", minStage: "sold",
     on: (i) => onInstant(i.stageDates?.sold),
+  },
+  {
+    key: "measure", label: "Final Measure", minStage: "measure",
+    on: (i) => onInstant(i.stageDates?.measure),
   },
   {
     key: "production", label: "In Production", minStage: "ordered",
@@ -170,12 +179,12 @@ export const STEP_MIN_STAGE = Object.fromEntries(
 export const stageRank = (status: Stage): number => rank(status);
 
 /**
- * The seven steps for one job. Pure, given `today`: everything else it needs is passed in,
+ * The nine steps for one job. Pure, given `today`: everything else it needs is passed in,
  * and `today` falls back to the current Las Vegas day only when a caller omits it.
  *
  * The spec's rule (§5): **the current step is the last one actually reached**. Everything
  * before it is done and everything after it is upcoming, so a job at `quoted` reads
- * "Quote Ready" as current and never "Order Confirmed". A step the job skipped (no
+ * "Quote Ready" as current and never "Deposit Paid". A step the job skipped (no
  * measurements were saved, say) is behind the customer either way, and a tracker that went
  * backwards would only confuse.
  *
