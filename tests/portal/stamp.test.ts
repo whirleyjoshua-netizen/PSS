@@ -179,6 +179,24 @@ describe("stampSignature with sign marks (spec §5)", () => {
     expect(helvetica.widthOfTextAtSize(printed.text, printed.size)).toBeLessThanOrEqual(236 + 1e-9);
   });
 
+  it("fits a very long name's Signed by line to the signature page's text width: 7pt, then cut with ...", async () => {
+    const original = await threePages();
+    const refs = await pageRefs(original);
+    const helvetica = await (await PDFDocument.create()).embedFont(StandardFonts.Helvetica);
+    const long = "Maria Guadalupe ".repeat(13).slice(0, 200);
+    const { texts } = spyOnDrawing();
+    const stamped = await stampSignature(original, { ...facts, signedName: long }, TYPED, null);
+    expect(stamped).not.toBeNull();
+    const pageWidth = (await PDFDocument.load(stamped!)).getPage(3).getWidth();
+    const line = texts.find((t) => !refs.includes(t.page) && t.text.startsWith("Signed by:"))!;
+    expect(line).toMatchObject({ x: 56, size: 7 });
+    expect(line.text.endsWith("...")).toBe(true);
+    expect(`Signed by:  ${long}`.startsWith(line.text.slice(0, -3))).toBe(true);
+    expect(helvetica.widthOfTextAtSize(line.text, line.size)).toBeLessThanOrEqual(pageWidth - 2 * 56);
+    // The other lines keep their size.
+    expect(texts.find((t) => !refs.includes(t.page) && t.text === "ELECTRONIC SIGNATURE")!.size).toBe(11);
+  });
+
   it("draws the PNGs scaled into the boxes when the adoption is drawn", async () => {
     const original = await threePages();
     const [p0, p1, p2] = await pageRefs(original);

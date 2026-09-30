@@ -26,9 +26,10 @@ function drawImageIn(page: PDFPage, image: PDFImage, box: Box): void {
 const PRINTED_SIZE = 11;
 
 /**
- * The printed name sized to fit `maxWidth`, as drawHandwriting sizes a signature: never above 11pt,
- * never below HAND_MIN_SIZE, and cut by code point with "..." when still too wide. The text is not
- * made safe: a name the standard font cannot draw throws, and the stamp answers null, as before.
+ * A line holding the signer's name (the printed name, and "Signed by:" on the signature page) sized
+ * to fit `maxWidth`, as drawHandwriting sizes a signature: never above 11pt, never below
+ * HAND_MIN_SIZE, and cut by code point with "..." when still too wide. The text is not made safe: a
+ * name the standard font cannot draw throws, and the stamp answers null, as before.
  */
 function fitPrinted(font: PDFFont, name: string, maxWidth: number): { text: string; size: number } {
   const widthAtOne = font.widthOfTextAtSize(name, 1);
@@ -108,7 +109,8 @@ export async function stampSignature(
     }
 
     const page = pdf.addPage();
-    const { height } = page.getSize();
+    const { width: pageWidth, height } = page.getSize();
+    const signedBy = fitPrinted(font, `Signed by:  ${facts.signedName}`, pageWidth - 2 * 56);
     // Some Node/ICU builds put U+202F (or U+00A0) before AM/PM. The standard font cannot
     // encode either, so without this every stamp in that runtime would come back null.
     const when = `${formatShortDate(facts.signedAt)} at ${formatTime(facts.signedAt)}`.replace(/[\u202F\u00A0]/g, " ");
@@ -116,7 +118,7 @@ export async function stampSignature(
     const lines = [
       "ELECTRONIC SIGNATURE",
       "",
-      `Signed by:  ${facts.signedName}`,
+      signedBy,
       `Account:    ${winAnsiSafe(facts.signedEmail)}`,
       `When:       ${when}`,
       facts.projectNo ? `Project:    ${winAnsiSafe(facts.projectNo)}` : null,
@@ -125,10 +127,11 @@ export async function stampSignature(
       "",
       "Document fingerprint (SHA-256):",
       facts.sha256,
-    ].filter((line): line is string => line !== null);
+    ].filter((line) => line !== null);
 
     lines.forEach((line, index) => {
-      page.drawText(line, { x: 56, y: height - 80 - index * 18, size: 11, font });
+      const { text, size } = typeof line === "string" ? { text: line, size: 11 } : line;
+      page.drawText(text, { x: 56, y: height - 80 - index * 18, size, font });
     });
 
     let y = height - 80 - lines.length * 18 - 24;
