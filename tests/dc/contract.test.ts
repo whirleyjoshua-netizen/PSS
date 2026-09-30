@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { PDFDocument, PDFPage, StandardFonts, type PDFFont } from "pdf-lib";
 import { contractRows, keyDetails, winAnsiSafe, type ContractInput } from "@/lib/dc/contract-layout";
-import { buildContractPdf, buildTermsPdf } from "@/lib/dc/contract-pdf";
+import { buildContractPdf, buildTermsPdf, renderContractPdf } from "@/lib/dc/contract-pdf";
 
 const input: ContractInput = {
   projectNo: "PSS-1042", version: 1, date: new Date("2026-09-28T12:00:00Z"),
@@ -219,5 +219,39 @@ describe("buildContractPdf", () => {
       expect(right, text).toBeLessThanOrEqual(612 - 54 + 0.001);
       expect(encodes(font, text), text).toBe(true);
     }
+  });
+  it("records an initials mark per numbered terms section and ends the terms with the signature block", async () => {
+    const drawn = spyOnDrawText();
+    const { bytes, marks } = await renderContractPdf(input, { text: "## 4. Your Right to Cancel\n\nCancel.\n\n## Notes\n\nx\n\n## 5. Pricing\n\nGood for 30 days." });
+    expect(marks.initials.map((m) => [m.section, m.page, m.x])).toEqual([["4", 1, 502], ["5", 1, 502]]);
+    // Each mark sits level with its heading: 3pt below the heading's baseline.
+    expect(marks.initials.map((m) => m.y)).toEqual(
+      ["4. Your Right to Cancel", "5. Pricing"].map((heading) => drawn.find((d) => d.text === heading)!.y - 3));
+    const texts = drawn.map((d) => d.text);
+    expect(texts.filter((text) => text === "Initials")).toHaveLength(2);
+    // The block follows the terms: nothing of the terms is drawn after it.
+    expect(texts.indexOf("Client signature")).toBeGreaterThan(texts.indexOf("Good for 30 days."));
+    const label = drawn.find((d) => d.text === "Client signature")!;
+    expect(marks.signature).toEqual({ page: (await PDFDocument.load(bytes)).getPageCount() - 1, x: 154, y: label.y - 2 });
+  });
+  it("puts the signature block on a final page of its own after uploaded terms, with no initials", async () => {
+    const terms = await PDFDocument.create();
+    terms.addPage(); terms.addPage();
+    const drawn = spyOnDrawText();
+    const { bytes, marks } = await renderContractPdf(input, { pdf: await terms.save() });
+    const count = (await PDFDocument.load(bytes)).getPageCount();
+    expect(marks.initials).toEqual([]);
+    expect(marks.signature?.page).toBe(count - 1);
+    const heading = drawn.find((d) => d.text === "Signature")!;
+    expect(heading.y).toBe(792 - 54);
+    expect(drawn.find((d) => d.text === "Client signature")!.y).toBeLessThan(heading.y);
+  });
+  it("keeps buildContractPdf's bytes-only answer for its existing callers", async () => {
+    await expect(buildContractPdf(input, { text: "## 1. A\n\nB" })).resolves.toBeInstanceOf(Uint8Array);
+  });
+  it("previews the terms with their initials boxes and the signature block", async () => {
+    const drawn = spyOnDrawText();
+    await buildTermsPdf("## 4. Your Right to Cancel\n\nCancel.");
+    expect(drawn.map((d) => d.text)).toEqual(expect.arrayContaining(["Initials", "Client signature", "Printed name", "Date"]));
   });
 });

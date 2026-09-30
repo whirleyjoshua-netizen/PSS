@@ -1,15 +1,15 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { PDFDocument, PDFPage, StandardFonts } from "pdf-lib";
 import { business } from "@/content/business";
-import { SIGN_CLOSING, buildDocumentPdf, type DocumentPdfInput } from "@/lib/docs/pdf";
+import { buildDocumentPdf, renderDocumentPdf, type DocumentPdfInput } from "@/lib/docs/pdf";
 import type { Block, Inline } from "@/lib/docs/types";
 
 /** Every string drawn, with where and in which font, captured before pdf-lib encodes it. */
 function spyOnDrawText() {
-  const drawn: { text: string; x: number; y: number; font: string; page: PDFPage }[] = [];
+  const drawn: { text: string; x: number; y: number; size: number; font: string; page: PDFPage }[] = [];
   const original = PDFPage.prototype.drawText;
   vi.spyOn(PDFPage.prototype, "drawText").mockImplementation(function (this: PDFPage, text, options) {
-    drawn.push({ text, x: options?.x ?? 0, y: options?.y ?? 0, font: options?.font?.name ?? "", page: this });
+    drawn.push({ text, x: options?.x ?? 0, y: options?.y ?? 0, size: options?.size ?? 0, font: options?.font?.name ?? "", page: this });
     return original.call(this, text, options);
   });
   return drawn;
@@ -70,14 +70,15 @@ describe("buildDocumentPdf", () => {
     const font = await (await PDFDocument.create()).embedFont(StandardFonts.Helvetica);
     for (const { text } of drawn) expect(() => font.encodeText(text), text).not.toThrow();
   });
-  it("ends a sign document with the signing line, and only a sign document", async () => {
+  it("ends a sign document with the signature block, and only a sign document (spec §3)", async () => {
     let drawn = spyOnDrawText();
     await buildDocumentPdf(input([{ type: "paragraph", inlines: [t("Body")] }], "sign"));
-    expect(drawn.map((d) => d.text)).toContain(SIGN_CLOSING);
+    for (const label of ["Client signature", "Printed name", "Date"]) expect(drawn.filter((d) => d.text === label)).toHaveLength(1);
+    expect(drawn.map((d) => d.text)).not.toContain("Signed electronically on the client's project page.");
     vi.restoreAllMocks();
     drawn = spyOnDrawText();
     await buildDocumentPdf(input([{ type: "paragraph", inlines: [t("Body")] }], "acknowledge"));
-    expect(drawn.map((d) => d.text)).not.toContain(SIGN_CLOSING);
+    expect(drawn.map((d) => d.text)).not.toContain("Client signature");
   });
 });
 
@@ -126,6 +127,107 @@ describe("page breaks with headings and bullets", () => {
       expect(bullets[i].y).toBe(line[0].y);
       expect(line[0].y).toBeGreaterThanOrEqual(54);
     });
+  });
+});
+
+const INITIALS_X = 612 - 54 - 56;
+/** The order pages were first drawn on is the order of the pages. */
+const pageIndexOf = (drawn: ReturnType<typeof spyOnDrawText>, page: PDFPage) => [...new Set(drawn.map((d) => d.page))].indexOf(page);
+
+describe("sign marks (spec §3)", () => {
+  const numbered: Block[] = [
+    { type: "heading", level: 2, inlines: [t("1. Scope")] },
+    { type: "paragraph", inlines: [t("Two shades.")] },
+    { type: "heading", level: 2, inlines: [t("Notes")] },
+    { type: "heading", level: 3, inlines: [t("2.", true), t(" Payment")] },
+    { type: "paragraph", inlines: [t("On install.")] },
+  ];
+
+  it("records an initials mark level with each numbered heading, and draws its empty box", async () => {
+    const drawn = spyOnDrawText();
+    const { marks } = await renderDocumentPdf(input(numbered, "sign"));
+    expect(marks.initials.map((m) => m.section)).toEqual(["1", "2"]);
+    for (const [mark, heading] of [[marks.initials[0], "1. Scope"], [marks.initials[1], "2. Payment"]] as const) {
+      const line = drawn.find((d) => d.text === heading)!;
+      expect(mark).toMatchObject({ page: pageIndexOf(drawn, line.page), x: INITIALS_X, y: line.y - 3 });
+    }
+    const captions = drawn.filter((d) => d.text === "Initials");
+    expect(captions).toHaveLength(2);
+    captions.forEach((caption, i) => expect(caption).toMatchObject({ x: INITIALS_X, y: marks.initials[i].y - 8, size: 6 }));
+  });
+
+  it("wraps a numbered heading 64pt narrower so it never runs under its box", async () => {
+    const drawn = spyOnDrawText();
+    const long = "7. Your Choices and Approvals of Every Fabric, Color, Mount and Control Before We Order";
+    const { marks } = await renderDocumentPdf(input([{ type: "heading", level: 2, inlines: [t(long)] }], "sign"));
+    const bold = await (await PDFDocument.create()).embedFont(StandardFonts.HelveticaBold);
+    const lines = drawn.filter((d) => d.font === "Helvetica-Bold" && d.size === 13 && long.includes(d.text));
+    expect(lines.length).toBeGreaterThan(1);
+    // The box sits level with the heading's first line, not its last.
+    expect(marks.initials[0].y).toBe(lines[0].y - 3);
+    for (const line of lines) expect(line.x + bold.widthOfTextAtSize(line.text, 13)).toBeLessThanOrEqual(612 - 54 - 64);
+  });
+
+  it("records the signature block's mark at its signature line", async () => {
+    const drawn = spyOnDrawText();
+    const { marks } = await renderDocumentPdf(input(numbered, "sign"));
+    const label = drawn.find((d) => d.text === "Client signature")!;
+    expect(marks.signature).toEqual({ page: pageIndexOf(drawn, label.page), x: 54 + 100, y: label.y - 2 });
+    expect(drawn.find((d) => d.text === "Printed name")!.y).toBe(label.y - 30);
+    expect(drawn.find((d) => d.text === "Date")!.y).toBe(label.y - 60);
+  });
+
+  it("a sign document with no numbered sections has the block and no initials", async () => {
+    const drawn = spyOnDrawText();
+    const { marks } = await renderDocumentPdf(input([{ type: "heading", level: 2, inlines: [t("Change")] }, { type: "paragraph", inlines: [t("One more shade.")] }], "sign"));
+    expect(marks.initials).toEqual([]);
+    expect(marks.signature).not.toBeNull();
+    expect(drawn.map((d) => d.text)).not.toContain("Initials");
+  });
+
+  it("an acknowledge or view document draws no boxes and records no marks, even with numbered sections", async () => {
+    for (const response of ["acknowledge", "view"] as const) {
+      vi.restoreAllMocks();
+      const drawn = spyOnDrawText();
+      const { marks } = await renderDocumentPdf(input(numbered, response));
+      expect(marks).toEqual({ initials: [], signature: null });
+      expect(drawn.map((d) => d.text)).not.toContain("Initials");
+      expect(drawn.map((d) => d.text)).not.toContain("Client signature");
+    }
+  });
+
+  it("a numbered heading pushed to the next page takes its box and its mark with it", async () => {
+    let moved = 0;
+    for (let n = 20; n < 70; n++) {
+      vi.restoreAllMocks();
+      const drawn = spyOnDrawText();
+      const { marks } = await renderDocumentPdf(input([...filler(n), { type: "heading", level: 2, inlines: [t("3. Warranty")] },
+        { type: "paragraph", inlines: [t("After the heading.")] }], "sign"));
+      const heading = drawn.find((d) => d.text === "3. Warranty")!;
+      const caption = drawn.find((d) => d.text === "Initials")!;
+      expect(caption.page === heading.page, `n=${n}`).toBe(true);
+      // A numbered heading, wrapped narrower, still never sits last on a page: its text follows it.
+      expect(drawn.find((d) => d.text === "After the heading.")!.page === heading.page, `n=${n} next`).toBe(true);
+      expect(marks.initials[0], `n=${n}`).toEqual({ page: pageIndexOf(drawn, heading.page), x: INITIALS_X, y: heading.y - 3, section: "3" });
+      expect(caption.y, `n=${n}`).toBeGreaterThanOrEqual(54);
+      if (pageIndexOf(drawn, heading.page) > 0 && heading.y === TOP) moved++;
+    }
+    expect(moved).toBeGreaterThan(0);
+  });
+
+  it("keeps the whole signature block on one page, inside the margin, wherever the text ends", async () => {
+    let newPage = 0;
+    for (let n = 20; n < 70; n++) {
+      vi.restoreAllMocks();
+      const drawn = spyOnDrawText();
+      const { marks } = await renderDocumentPdf(input(filler(n), "sign"));
+      const block = ["Client signature", "Printed name", "Date"].map((label) => drawn.find((d) => d.text === label)!);
+      expect(new Set(block.map((d) => d.page)).size, `n=${n}`).toBe(1);
+      for (const d of block) expect(d.y, `n=${n}`).toBeGreaterThanOrEqual(54 + 2);
+      expect(marks.signature!.page, `n=${n}`).toBe(pageIndexOf(drawn, block[0].page));
+      if (drawn.filter((d) => d.page === block[0].page).length === 3) newPage++;
+    }
+    expect(newPage).toBeGreaterThan(0);
   });
 });
 
