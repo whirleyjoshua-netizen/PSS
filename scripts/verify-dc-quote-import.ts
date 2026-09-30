@@ -36,7 +36,7 @@
  *   7. a second send of v2 is refused and leaves exactly one contract file;
  *   8. after a markup rule change, loadReview of the sent v2 returns the frozen figures;
  *   9. a second 'sent' version on the same contract file violates the unique index (23505);
- *  10. sign: recordSignature on the contract signs v2, sells A with sold_cents = the total;
+ *  10. sign: recordSignature on the contract signs v2, moves A to signed with sold_cents = the total;
  *  11. a raw `update job_files set shared_at = now()` on the Dealer Copy is a check violation;
  *  11b. a generated contract: listFiles marks v2's contract quoteContract; setDocType on it answers
  *      false; re-sharing the contract of a superseded version answers false and leaves it
@@ -493,11 +493,11 @@ test("DC quote import: import, edit, send, sign and the Dealer Copy guard agains
     check(v2signed.status === "signed" && v2signed.signed_at !== null, "v2 is signed with signed_at",
       `row ${JSON.stringify(v2signed)}`);
     const aSold = await leadRow(A.id);
-    check(aSold.status === "sold" && aSold.sold_cents === expected.clientTotalCents,
-      `A is sold with sold_cents = ${expected.clientTotalCents}`, `row ${JSON.stringify(aSold)}`);
+    check(aSold.status === "signed" && aSold.sold_cents === expected.clientTotalCents,
+      `A is signed with sold_cents = ${expected.clientTotalCents}`, `row ${JSON.stringify(aSold)}`);
     const soldStages = await stageEvents(A.id);
-    check(soldStages.length === 2 && soldStages[1].from_status === "quoted" && soldStages[1].to_status === "sold",
-      "one more stage event, quoted -> sold", `got ${JSON.stringify(soldStages)}`);
+    check(soldStages.length === 2 && soldStages[1].from_status === "quoted" && soldStages[1].to_status === "signed",
+      "one more stage event, quoted -> signed", `got ${JSON.stringify(soldStages)}`);
 
     console.log("step 11: the Dealer Copy can never be shared");
     const shareCopy = await sql`update job_files set shared_at = now() where id = ${dealerCopyId}`

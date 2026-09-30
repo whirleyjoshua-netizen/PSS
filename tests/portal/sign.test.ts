@@ -144,7 +144,7 @@ describe("recordSignature", () => {
     expect(query.mock.calls[0][0].join("")).not.toContain("Jane Doe");
   });
 
-  it("in the SAME statement, marks a generated contract's version signed and moves the job to Sold", async () => {
+  it("in the SAME statement, marks a generated contract's version signed and moves the job to Signed", async () => {
     vi.mocked(readFile).mockResolvedValue({ stream: new Response("pdf bytes").body!, contentType: "application/pdf" });
     query.mockResolvedValue([{ id: "s1", lead_id: JOB, file_id: FILE, signed_name: "A", signed_email: "a@x", signed_at: new Date(), doc_sha256: "x", signed_file_id: null }]);
     await recordSignature({ jobId: JOB, file: doc(FILE, "Contract PSS-1042 v1.pdf", "contract"), name: "A", email: "a@x", ip: null, userAgent: null, adoption: TYPED });
@@ -152,8 +152,12 @@ describe("recordSignature", () => {
     const s = (query.mock.calls[0][0] as TemplateStringsArray).join("?").replace(/\s+/g, " ");
     expect(s).toContain("update dc_quote_versions set status = 'signed'");
     expect(s).toContain("contract_file_id = (select file_id from signed)");
-    expect(s).toContain("sold_cents");
-    expect(s).toContain("status in ('new','visit_booked','quoted')");
+    expect(s).toContain("sold_cents = (select client_total_cents from version)");
+    // Spec §3: Signed, not Sold — the sale is the paid deposit. Approved is a stage before Signed.
+    expect(s).toContain("status = case when status in ('new','visit_booked','quoted','approved') then 'signed' else status end");
+    expect(s).toContain("'stage', prev.status, 'signed', 'Signed contract version ' || version.version");
+    expect(s).toContain("where prev.status in ('new','visit_booked','quoted','approved')");
+    expect(s).not.toContain("then 'sold'");
     // The stage event is attributed to the signer, bound once more before the timeline body.
     expect(query.mock.calls[0].slice(1).slice(-3)).toEqual([
       "a@x", "a@x", 'Signed "Contract PSS-1042 v1.pdf" from their project page',
