@@ -1,7 +1,20 @@
 import { describe, it, expect } from "vitest";
 import {
   MAX_EIGHTHS, toEighths, splitEighths, formatEighths, EIGHTH_OPTIONS, ROOMS, REQUIREMENTS, requirementLabel,
+  windowCount, oneOf,
 } from "@/lib/admin/measure-units";
+
+describe("quantity", () => {
+  it("counts windows, not saved lines", () => {
+    expect(windowCount([{ quantity: 10 }, { quantity: 1 }, { quantity: 2 }])).toBe(13);
+    expect(windowCount([])).toBe(0);
+  });
+
+  it("says a window is one of several only when it is", () => {
+    expect(oneOf(1)).toBe("");
+    expect(oneOf(10)).toBe(" (one of 10)");
+  });
+});
 
 describe("eighths", () => {
   it("stores inches and eighths as one integer", () => {

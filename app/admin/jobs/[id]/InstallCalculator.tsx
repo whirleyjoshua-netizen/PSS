@@ -17,7 +17,7 @@ import { saveInstallQuoteAction } from "./install-actions";
 /** Only what filling from measurements reads, so callers and tests need not build whole rows. */
 export type MeasuredWindow = Pick<
   WindowMeasurement,
-  "id" | "room" | "label" | "widthEighths" | "heightEighths" | "requirements"
+  "id" | "room" | "label" | "widthEighths" | "heightEighths" | "requirements" | "quantity"
 >;
 
 const LABEL = new Map(TREATMENT_TYPES.map((type) => [type.key, type.label]));
@@ -140,13 +140,13 @@ export function InstallCalculator({ jobId, rates, settings, saved, measurements 
     });
   };
 
-  // One line per measured window. A line holds a single width and height, so
-  // merging windows of different sizes would misprice anything sold by the foot.
+  // One line per measured line, carrying its quantity of identical windows. A line holds a single
+  // width and height, so merging windows of different sizes would misprice anything sold by the foot.
   const fillFromMeasurements = () =>
     setLines(measurements.map((window) => ({
       key: nextKey.current++,
       treatment: fillTreatment,
-      count: 1,
+      count: window.quantity,
       widthEighths: window.widthEighths,
       heightEighths: window.heightEighths,
       hardSurface: window.requirements.includes("hard_surface"),

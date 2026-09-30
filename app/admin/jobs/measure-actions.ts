@@ -10,7 +10,7 @@ import type { FormState } from "./actions";
 
 const FIELDS = [
   "room", "label", "widthIn", "widthEighth", "heightIn", "heightEighth",
-  "depthIn", "depthEighth", "mount", "requirements", "notes", "photoFileId",
+  "depthIn", "depthEighth", "mount", "requirements", "notes", "photoFileId", "quantity",
 ];
 
 function captureValues(formData: FormData): Record<string, string | string[]> {

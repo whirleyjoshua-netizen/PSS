@@ -20,6 +20,8 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const describe = (input: { room: string; label: string | null }) =>
   input.label ? `${input.room}, ${input.label}` : input.room;
 
+const windows = (quantity: number) => (quantity > 1 ? `${quantity} windows` : "window");
+
 function toMeasurement(row: Record<string, unknown>): WindowMeasurement {
   return {
     id: row.id as string,
@@ -34,6 +36,7 @@ function toMeasurement(row: Record<string, unknown>): WindowMeasurement {
     requirements: (row.requirements as Requirement[]) ?? [],
     notes: (row.notes as string | null) ?? null,
     photoFileId: (row.photo_file_id as string | null) ?? null,
+    quantity: Number(row.quantity),
     measuredBy: row.measured_by as string,
     createdAt: new Date(row.created_at as string),
     updatedAt: new Date(row.updated_at as string),
@@ -63,17 +66,17 @@ export async function addMeasurement(leadId: string, input: MeasurementInput, ac
     photo as (select id from job_files where id = ${input.photoFileId} and lead_id = ${leadId} and kind = 'photo'),
     created as (
       insert into window_measurements (lead_id, measured_by, position, room, label, width_eighths,
-        height_eighths, depth_eighths, mount, requirements, notes, photo_file_id)
+        height_eighths, depth_eighths, mount, requirements, notes, photo_file_id, quantity)
       select job.id, ${actor},
         (select coalesce(max(position), 0) + 1 from window_measurements where lead_id = ${leadId}),
         ${input.room}, ${input.label}, ${input.widthEighths}, ${input.heightEighths}, ${input.depthEighths},
-        ${input.mount}, ${input.requirements}, ${input.notes}, (select id from photo)
+        ${input.mount}, ${input.requirements}, ${input.notes}, (select id from photo), ${input.quantity}
       from job
       returning id, lead_id
     ),
     logged as (
       insert into job_events (lead_id, actor, kind, body)
-      select lead_id, ${actor}, 'measure', ${`Added window: ${describe(input)}`} from created
+      select lead_id, ${actor}, 'measure', ${`Added ${windows(input.quantity)}: ${describe(input)}`} from created
     )
     select id from created`;
   return (rows[0]?.id as string | undefined) ?? null;
@@ -89,20 +92,23 @@ export async function updateMeasurement(
 ): Promise<boolean> {
   if (!UUID.test(leadId) || !UUID.test(windowId)) return false;
   const rows = await db()`
-    with previous as (select photo_file_id from window_measurements where id = ${windowId} and lead_id = ${leadId}),
+    with previous as (select photo_file_id, quantity from window_measurements where id = ${windowId} and lead_id = ${leadId}),
     photo as (select id from job_files where id = ${input.photoFileId} and lead_id = ${leadId} and kind = 'photo'),
     changed as (
       update window_measurements set
         room = ${input.room}, label = ${input.label}, width_eighths = ${input.widthEighths},
         height_eighths = ${input.heightEighths}, depth_eighths = ${input.depthEighths}, mount = ${input.mount},
-        requirements = ${input.requirements}, notes = ${input.notes},
+        requirements = ${input.requirements}, notes = ${input.notes}, quantity = ${input.quantity},
         photo_file_id = coalesce((select id from photo), photo_file_id), updated_at = now()
       where id = ${windowId} and lead_id = ${leadId}
       returning id, lead_id, photo_file_id
     ),
     logged as (
       insert into job_events (lead_id, actor, kind, body)
-      select lead_id, ${actor}, 'measure', ${`Edited window: ${describe(input)}`} from changed
+      select changed.lead_id, ${actor}, 'measure',
+        case when previous.quantity = ${input.quantity} then ${`Edited ${windows(input.quantity)}: ${describe(input)}`}
+        else ${`Edited ${describe(input)}: `} || previous.quantity::text || ${` → ${input.quantity} ${input.quantity > 1 ? "windows" : "window"}`} end
+      from changed, previous
     )
     select changed.id, previous.photo_file_id as previous_photo_id, changed.photo_file_id as new_photo_id
     from changed, previous`;
@@ -119,12 +125,12 @@ export async function deleteMeasurement(leadId: string, windowId: string, actor:
   const rows = await db()`
     with removed as (
       delete from window_measurements where id = ${windowId} and lead_id = ${leadId}
-      returning lead_id, room, label, photo_file_id
+      returning lead_id, room, label, photo_file_id, quantity
     ),
     logged as (
       insert into job_events (lead_id, actor, kind, body)
       select lead_id, ${actor}, 'measure',
-        'Deleted window: ' || room || coalesce(', ' || label, '') from removed
+        case when quantity > 1 then 'Deleted ' || quantity::text || ' windows: ' else 'Deleted window: ' end || room || coalesce(', ' || label, '') from removed
     )
     select photo_file_id from removed`;
   if (!rows[0]) return false;

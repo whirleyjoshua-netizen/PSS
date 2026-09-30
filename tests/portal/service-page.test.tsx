@@ -159,6 +159,12 @@ describe("/project/[jobId]/service", () => {
     render(await open());
     expect(screen.getByRole("option", { name: "Dining Room, left window" })).toBeInTheDocument();
   });
+
+  it("says a measured line of identical windows is one of several", async () => {
+    listMeasurements.mockResolvedValue([{ id: WINDOW, room: "Den", label: null, quantity: 10 }]);
+    render(await open());
+    expect(screen.getByRole("option", { name: "Den (one of 10)" })).toBeInTheDocument();
+  });
 });
 
 describe("ServiceForm", () => {

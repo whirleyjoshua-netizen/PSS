@@ -3,12 +3,12 @@ import { removeMeasurement } from "@/app/admin/jobs/measure-actions";
 import { ButtonLink } from "@/components/ui/Button";
 import type { JobFile } from "@/lib/admin/files";
 import type { WindowMeasurement } from "@/lib/admin/measurements";
-import { formatEighths, requirementLabel } from "@/lib/admin/measure-units";
+import { formatEighths, requirementLabel, windowCount } from "@/lib/admin/measure-units";
 import { DeleteButton } from "./DeleteButton";
 import { ShareSwitch } from "./ShareSwitch";
 import { HEADING } from "./ui";
 
-const COLUMNS = ["Room", "Window", "Width", "Height", "Depth", "Mount", "Notes", "Photo"];
+const COLUMNS = ["Room", "Window", "Qty", "Width", "Height", "Depth", "Mount", "Notes", "Photo"];
 const CELL = "px-3 py-3";
 
 export function MeasurementsTab({ jobId, measurements, files }: {
@@ -22,7 +22,7 @@ export function MeasurementsTab({ jobId, measurements, files }: {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className={HEADING}>Measurements · {measurements.length}</h2>
+        <h2 className={HEADING}>Measurements · {windowCount(measurements)}</h2>
         <ButtonLink href={`/admin/jobs/${jobId}/measure`} variant="solid">Add measurement</ButtonLink>
       </div>
 
@@ -42,6 +42,7 @@ export function MeasurementsTab({ jobId, measurements, files }: {
                 <tr key={m.id} className="align-top">
                   <th scope="row" className={`${CELL} font-semibold`}>{m.room}</th>
                   <td className={CELL}>{m.label ?? "—"}</td>
+                  <td className={CELL}>{m.quantity}</td>
                   <td className={CELL}>{formatEighths(m.widthEighths)}</td>
                   <td className={CELL}>{formatEighths(m.heightEighths)}</td>
                   <td className={CELL}>{formatEighths(m.depthEighths)}</td>

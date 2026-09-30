@@ -7,7 +7,7 @@ import type { FormState } from "@/app/admin/jobs/actions";
 import { removeFile, saveMeasurement } from "@/app/admin/jobs/measure-actions";
 import { postFile, resizePhoto } from "@/lib/admin/client-upload";
 import type { WindowMeasurement } from "@/lib/admin/measurements";
-import { EIGHTH_OPTIONS, REQUIREMENTS, ROOMS, splitEighths } from "@/lib/admin/measure-units";
+import { EIGHTH_OPTIONS, MAX_QUANTITY, REQUIREMENTS, ROOMS, splitEighths } from "@/lib/admin/measure-units";
 
 const CONTROL = "min-h-12 w-full border border-rule bg-ivory px-3 text-base";
 
@@ -28,6 +28,37 @@ function Dimension({ name, label, value }: { name: "width" | "height" | "depth";
         </select>
       </div>
     </fieldset>
+  );
+}
+
+/**
+ * How many identical windows this line stands for. The buttons are for a thumb on site; the box
+ * still takes a typed number, and the server is the one that refuses anything out of range.
+ */
+function Quantity({ value }: { value: number }) {
+  const [quantity, setQuantity] = useState(String(value));
+  // Steps only a box of plain digits, the only kind the server accepts. A blank box counts as the
+  // 1 it would be saved as; anything else ("1e1") is left as typed, for the server to refuse.
+  const step = (by: number) =>
+    setQuantity((current) => {
+      const typed = current.trim();
+      if (typed !== "" && !/^\d+$/.test(typed)) return current;
+      const now = typed === "" ? 1 : Number(typed);
+      return String(Math.min(MAX_QUANTITY, Math.max(1, now + by)));
+    });
+  const stepper = "min-h-12 w-12 shrink-0 border border-rule text-xl";
+  return (
+    <div className="flex flex-col gap-2">
+      <label htmlFor="quantity" className="text-sm font-semibold">Quantity (identical windows)</label>
+      <div className="flex gap-2">
+        <button type="button" aria-label="One fewer" onClick={() => step(-1)} className={stepper}>−</button>
+        <input id="quantity" name="quantity" type="number" inputMode="numeric" min={1} max={MAX_QUANTITY} required
+          value={quantity} onChange={(e) => setQuantity(e.target.value)}
+          onBlur={() => setQuantity((current) => (current.trim() === "" ? "1" : current))}
+          className={`${CONTROL} text-center`} />
+        <button type="button" aria-label="One more" onClick={() => step(1)} className={stepper}>+</button>
+      </div>
+    </div>
   );
 }
 
@@ -120,6 +151,8 @@ export function MeasureForm({ jobId, window, defaultRoom }: {
         <label htmlFor="label" className="text-sm font-semibold">Window label (optional)</label>
         <input id="label" name="label" defaultValue={window?.label ?? ""} placeholder="e.g. Left of fireplace" className={CONTROL} />
       </div>
+
+      <Quantity value={window?.quantity ?? 1} />
 
       <Dimension name="width" label="Width" value={window?.widthEighths ?? null} />
       <Dimension name="height" label="Height" value={window?.heightEighths ?? null} />

@@ -3,6 +3,7 @@ import { listAppointments } from "@/lib/admin/appointments";
 import { getEvents, getJob } from "@/lib/admin/jobs";
 import { listFiles } from "@/lib/admin/files";
 import { listMeasurements } from "@/lib/admin/measurements";
+import { windowCount } from "@/lib/admin/measure-units";
 import { requireAdmin } from "@/lib/admin/session";
 import { listTeam } from "@/lib/admin/team";
 import { listReferrals } from "@/lib/referrals/db";
@@ -49,7 +50,7 @@ export default async function JobPage({ params, searchParams }: {
     <div className="mx-auto flex max-w-6xl flex-col gap-6">
       <JobHeader job={job} now={now} team={team} defaultMinutes={routeSettings.minutes} parent={parent}
         deleteBlocked={isDeleteBlocked(query.delete)} />
-      <JobTabs jobId={job.id} active={tab} counts={{ measurements: measurements.length, files: files.length }} />
+      <JobTabs jobId={job.id} active={tab} counts={{ measurements: windowCount(measurements), files: files.length }} />
       {tab === "overview" ? (
         <OverviewTab job={job} editing={editing} now={now} measurements={measurements} files={files}
           events={events} referrals={referrals} referrer={referrer} appointments={appointments}

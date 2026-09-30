@@ -22,7 +22,7 @@ const file = (
 const measurement = {
   id: "m1", leadId: JOB, createdAt: new Date(), updatedAt: new Date(), measuredBy: "owner@example.com",
   position: 1, room: "Kitchen", label: null, widthEighths: 280, heightEighths: 384, depthEighths: null,
-  mount: "inside" as const, requirements: [], notes: null, photoFileId: "window-photo",
+  mount: "inside" as const, requirements: [], notes: null, photoFileId: "window-photo", quantity: 1,
 };
 
 beforeEach(() => {

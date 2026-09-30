@@ -4,6 +4,7 @@ import type { AppointmentKind } from "@/lib/admin/appointment-kinds";
 import type { JobFile } from "@/lib/admin/files";
 import type { Job, JobEvent } from "@/lib/admin/jobs";
 import type { WindowMeasurement } from "@/lib/admin/measurements";
+import { windowCount } from "@/lib/admin/measure-units";
 import { editDetailsHref } from "@/lib/admin/next-action";
 import { STAGES } from "@/lib/admin/stages";
 import { formatDateOnly, formatWhen } from "@/lib/admin/time";
@@ -62,7 +63,7 @@ export function OverviewTab({ job, editing, now, measurements, files, events, re
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:col-span-3 lg:grid-cols-4">
           <div className="grid sm:col-span-2"><AppointmentsCard jobId={job.id} appointments={appointments} defaultMinutes={defaultMinutes} /></div>
-          <StatusCard title="Measurements" value={measurements.length ? plural(measurements.length, "window") : null}
+          <StatusCard title="Measurements" value={measurements.length ? plural(windowCount(measurements), "window") : null}
             detail={lastMeasured ? `Updated ${formatWhen(lastMeasured)}` : undefined} empty="No windows measured yet"
             actions={[
               { label: "Add measurement", href: `/admin/jobs/${job.id}/measure` },
