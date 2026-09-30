@@ -16,6 +16,12 @@ import { closeCheckout, stripeClient, verifyWebhook } from "@/lib/payments/strip
  * Stripe retry.
  */
 export async function POST(request: Request) {
+  // Ruling P13: without the secret nothing can verify. That is our misconfiguration, not a bad sender:
+  // answer 500 so Stripe keeps retrying until it is set. The variable is named, its value never logged.
+  if (!process.env.STRIPE_WEBHOOK_SECRET) {
+    console.error("STRIPE_WEBHOOK_SECRET is not set");
+    return new Response("Webhook is not configured", { status: 500 });
+  }
   const body = await request.text();
   let event: Stripe.Event;
   try {
@@ -62,6 +68,7 @@ async function settle(session: Stripe.Checkout.Session): Promise<void> {
     if (paid.otherSessionIds.length > 0) {
       after(async () => {
         const stripe = stripeClient();
+        if (!stripe) console.error("STRIPE_SECRET_KEY is not set: the other open checkouts of this deposit were not closed in Stripe");
         for (const other of paid.otherSessionIds) await closeCheckout(stripe, other).catch(console.error);
       });
     }

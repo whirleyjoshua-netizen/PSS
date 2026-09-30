@@ -66,6 +66,23 @@ describe("POST /api/stripe/webhook", () => {
     expect(deposits.expireDeposit).not.toHaveBeenCalled();
   });
 
+  it("answers 500 without verifying or writing when STRIPE_WEBHOOK_SECRET is not set, naming only the variable (P13)", async () => {
+    vi.stubEnv("STRIPE_WEBHOOK_SECRET", "");
+    const body = event("checkout.session.completed", session());
+    expect((await post(body, signed(body))).status).toBe(500);
+    expect(deposits.markStripeDepositPaid).not.toHaveBeenCalled();
+    expect(console.error).toHaveBeenCalledWith("STRIPE_WEBHOOK_SECRET is not set");
+  });
+
+  it("logs the missing STRIPE_SECRET_KEY instead of silently skipping the close of other checkouts", async () => {
+    stripeCalls.stripeClient.mockReturnValue(null);
+    deposits.markStripeDepositPaid.mockResolvedValue(marked({ otherSessionIds: ["cs_other_1"] }));
+    expect((await post(event("checkout.session.completed", session()))).status).toBe(200);
+    await runAfter();
+    expect(console.error).toHaveBeenCalledWith(expect.stringContaining("STRIPE_SECRET_KEY is not set"));
+    expect(emails.sendDepositReceipts).toHaveBeenCalledTimes(1);
+  });
+
   it("marks the deposit paid for a completed, paid checkout, then sends the receipts after answering", async () => {
     const response = await post(event("checkout.session.completed", session()));
     expect(response.status).toBe(200);

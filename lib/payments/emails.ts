@@ -55,12 +55,17 @@ export async function sendDepositReceipts(leadId: string, options: { stageBefore
   if (to) {
     sends.push(emailClient(to, `Payment received — ${projectNo}`, [
       greeting(job), "",
-      "Payment received — thank you. Your order is confirmed.", "",
+      // Ruling P12: a job that was not Signed is under the owners' review, so nothing is promised.
+      wasSigned
+        ? "Payment received — thank you. Your order is confirmed."
+        : `We received your deposit of ${formatCents(deposit.amountCents)} — ${business.name} will be in touch.`, "",
       `Contract total:   ${formatCents(state.soldCents)}`,
       `Deposit paid:     ${formatCents(deposit.amountCents)} ${how} on ${formatShortDate(deposit.paidAt ?? new Date())}`,
       `Balance due at installation: ${formatCents(state.soldCents - deposit.amountCents)}`, "",
-      "Next, we will call you to book your final measure.",
-      `You may cancel until the end of ${lastDay}. If you do, we refund your deposit in full.`, "",
+      ...(wasSigned
+        ? ["Next, we will call you to book your final measure.",
+          `You may cancel until the end of ${lastDay}. If you do, we refund your deposit in full.`, ""]
+        : []),
       `Questions? Call us at ${business.phone.display} or just reply to this email.`, "", business.name,
     ].join("\n")));
   }

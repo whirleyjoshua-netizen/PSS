@@ -58,6 +58,15 @@ describe("sendDepositReceipts", () => {
     expect(sent()[0].text).toContain("Deposit paid:     $924.17 by card on Sep 29, 2026");
   });
 
+  it("promises the client nothing when the job was not Signed: no confirmation, no measure, no cancel window (P12)", async () => {
+    await sendDepositReceipts(LEAD, { stageBefore: "lost" });
+    const client = sent()[0];
+    expect(client.text).not.toContain("Your order is confirmed");
+    expect(client.text).toContain("We received your deposit of $924.17 — Premier Shade Solutions will be in touch.");
+    expect(client.text).not.toContain("final measure");
+    expect(client.text).not.toContain("You may cancel");
+  });
+
   it("says the job moved to Sold when it was Signed", async () => {
     await sendDepositReceipts(LEAD, { stageBefore: "signed" });
     expect(sent()[1].text).toContain("The job has moved to Sold. Book the official measure.");
