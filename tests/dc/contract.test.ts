@@ -224,6 +224,9 @@ describe("buildContractPdf", () => {
     const drawn = spyOnDrawText();
     const { bytes, marks } = await renderContractPdf(input, { text: "## 4. Your Right to Cancel\n\nCancel.\n\n## Notes\n\nx\n\n## 5. Pricing\n\nGood for 30 days." });
     expect(marks.initials.map((m) => [m.section, m.page, m.x])).toEqual([["4", 1, 502], ["5", 1, 502]]);
+    // Each mark sits level with its heading: 3pt below the heading's baseline.
+    expect(marks.initials.map((m) => m.y)).toEqual(
+      ["4. Your Right to Cancel", "5. Pricing"].map((heading) => drawn.find((d) => d.text === heading)!.y - 3));
     const texts = drawn.map((d) => d.text);
     expect(texts.filter((text) => text === "Initials")).toHaveLength(2);
     // The block follows the terms: nothing of the terms is drawn after it.

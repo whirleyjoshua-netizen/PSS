@@ -159,10 +159,12 @@ describe("sign marks (spec §3)", () => {
   it("wraps a numbered heading 64pt narrower so it never runs under its box", async () => {
     const drawn = spyOnDrawText();
     const long = "7. Your Choices and Approvals of Every Fabric, Color, Mount and Control Before We Order";
-    await renderDocumentPdf(input([{ type: "heading", level: 2, inlines: [t(long)] }], "sign"));
+    const { marks } = await renderDocumentPdf(input([{ type: "heading", level: 2, inlines: [t(long)] }], "sign"));
     const bold = await (await PDFDocument.create()).embedFont(StandardFonts.HelveticaBold);
     const lines = drawn.filter((d) => d.font === "Helvetica-Bold" && d.size === 13 && long.includes(d.text));
     expect(lines.length).toBeGreaterThan(1);
+    // The box sits level with the heading's first line, not its last.
+    expect(marks.initials[0].y).toBe(lines[0].y - 3);
     for (const line of lines) expect(line.x + bold.widthOfTextAtSize(line.text, 13)).toBeLessThanOrEqual(612 - 54 - 64);
   });
 
@@ -204,6 +206,8 @@ describe("sign marks (spec §3)", () => {
       const heading = drawn.find((d) => d.text === "3. Warranty")!;
       const caption = drawn.find((d) => d.text === "Initials")!;
       expect(caption.page === heading.page, `n=${n}`).toBe(true);
+      // A numbered heading, wrapped narrower, still never sits last on a page: its text follows it.
+      expect(drawn.find((d) => d.text === "After the heading.")!.page === heading.page, `n=${n} next`).toBe(true);
       expect(marks.initials[0], `n=${n}`).toEqual({ page: pageIndexOf(drawn, heading.page), x: INITIALS_X, y: heading.y - 3, section: "3" });
       expect(caption.y, `n=${n}`).toBeGreaterThanOrEqual(54);
       if (pageIndexOf(drawn, heading.page) > 0 && heading.y === TOP) moved++;
