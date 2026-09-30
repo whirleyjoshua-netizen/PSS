@@ -178,6 +178,7 @@ describe("signContractAction recording", () => {
     await expect(signContractFormAction(form)).rejects.toThrow(`NEXT_REDIRECT /project/${MINE}?signed=1&file=${FILE}`);
     expect(recordSignature).toHaveBeenCalledWith({
       jobId: MINE, file: contract, name: "Jane Doe", email: EMAIL, ip: "203.0.113.9", userAgent: "TestBrowser/1",
+      adoption: { method: "typed", initials: null },
     });
   });
 
@@ -226,7 +227,7 @@ describe("signContractAction recording", () => {
     await runAfter();
     expect(stampSignature).toHaveBeenCalledWith(Buffer.from("pdf bytes"), {
       signedName: "Jane Doe", signedEmail: EMAIL, signedAt: SIGNED_AT, sha256: "abc", projectNo: "PSS-1048",
-    });
+    }, { method: "typed", initials: null }, null);
     expect(storeSignedCopy).toHaveBeenCalledWith({ jobId: MINE, original: contract, bytes: STAMPED, actor: EMAIL });
     expect(notifyOwnersOfSignature).toHaveBeenCalledWith(job, contract.name, EMAIL, true, SIGNED_AT, null);
     expect(sendCustomerSignedCopy).toHaveBeenCalledWith(EMAIL, job, contract.name, STAMPED);

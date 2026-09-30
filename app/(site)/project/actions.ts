@@ -286,6 +286,7 @@ export async function signContractAction(
     email,
     ip: headerList.get("x-forwarded-for")?.split(",")[0]?.trim() || null,
     userAgent: headerList.get("user-agent"),
+    adoption: { method: "typed", initials: null },
   });
   // A raced second post: the first one's insert won and will send everything. This one wrote
   // nothing, so it emails nobody, but the contract is signed and the customer is told so.
@@ -308,7 +309,7 @@ export async function signContractAction(
           signedAt: signature.signedAt,
           sha256: signature.docSha256,
           projectNo: formatProjectNo(job.projectNo),
-        });
+        }, { method: "typed", initials: null }, null);
         if (pdf) await storeSignedCopy({ jobId: job.id, original: file, bytes: pdf, actor: email });
       }
     } catch (error) {
