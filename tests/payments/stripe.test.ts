@@ -32,6 +32,10 @@ describe("stripeApiOverride", () => {
   it("ignores anything else, so a stray variable can never send payments elsewhere", () => {
     vi.stubEnv("STRIPE_API_URL", "https://api.example.com");
     expect(stripeApiOverride()).toBeNull();
+    vi.stubEnv("STRIPE_API_URL", "http://localhost@evil.com");
+    expect(stripeApiOverride()).toBeNull();
+    vi.stubEnv("STRIPE_API_URL", "http://127.0.0.1@evil.com:3198");
+    expect(stripeApiOverride()).toBeNull();
     vi.stubEnv("STRIPE_API_URL", "not a url");
     expect(stripeApiOverride()).toBeNull();
     vi.stubEnv("STRIPE_API_URL", "");

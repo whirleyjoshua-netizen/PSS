@@ -113,6 +113,12 @@ describe("claimStripeDeposit", () => {
   it("answers null when nothing may be claimed", async () => {
     expect(await d.claimStripeDeposit({ leadId: LEAD, versionId: VERSION, amountCents: 92417 })).toBeNull();
   });
+  it("answers null without a query for a zero, negative or fractional amount (a $0 total), never tripping deposits_amount_check", async () => {
+    expect(await d.claimStripeDeposit({ leadId: LEAD, versionId: VERSION, amountCents: 0 })).toBeNull();
+    expect(await d.claimStripeDeposit({ leadId: LEAD, versionId: VERSION, amountCents: -5 })).toBeNull();
+    expect(await d.claimStripeDeposit({ leadId: LEAD, versionId: VERSION, amountCents: 10.5 })).toBeNull();
+    expect(sql).not.toHaveBeenCalled();
+  });
 });
 
 describe("attachSession / expireDeposit / expireStaleDeposits", () => {
@@ -142,13 +148,40 @@ describe("markStripeDepositPaid", () => {
     const s = text(sql.mock.calls[0]);
     for (const part of [
       "update deposits set status = 'paid', paid_at = now(), stripe_session_id = ?, stripe_payment_intent_id = ?",
-      "where id = ? and method = 'stripe' and status = 'pending'",
-      "and (stripe_session_id = ? or stripe_session_id is null)", "and amount_cents = ?",
+      "where id = ? and method = 'stripe' and ((status = 'pending' and (stripe_session_id = ? or stripe_session_id is null)) or (status = 'expired' and stripe_session_id = ?))",
+      "and amount_cents = ?",
       "not exists (select 1 from deposits d where d.dc_quote_version_id = deposits.dc_quote_version_id and d.status = 'paid')",
       "deposit_cents = (select amount_cents from paid)", "status = case when status = 'signed' then 'sold' else status end",
       "'payment'", "'stage', prev.status, 'sold', 'Deposit paid'", "where prev.status = 'signed'",
     ]) expect(s).toContain(part);
     expect(values(sql.mock.calls[0])).toEqual(expect.arrayContaining(["cs_1", "pi_1", DEPOSIT, 92417, "Stripe", "Deposit $924.17 paid by card"]));
+  });
+  it("marks paid an EXPIRED card deposit whose Checkout Session completed, so real money is never dropped (P11b)", async () => {
+    sql.mockResolvedValueOnce([{ lead_id: LEAD }]);
+    expect(await d.markStripeDepositPaid(input)).toEqual({ leadId: LEAD });
+    const s = text(sql.mock.calls[0]);
+    const paid = s.slice(s.indexOf("with paid as ("), s.indexOf("others_expired as ("));
+    // Only with the session Stripe completed: an expired row never takes a session it did not hold.
+    expect(paid).toContain("or (status = 'expired' and stripe_session_id = ?)");
+    expect(paid).toContain("returning lead_id, amount_cents, dc_quote_version_id");
+    expect(values(sql.mock.calls[0]).filter((value) => value === "cs_1").length).toBe(3);
+  });
+  it("in the same statement expires any OTHER pending card deposit of the version, so no open checkout outlives the payment", async () => {
+    await d.markStripeDepositPaid(input);
+    expect(sql).toHaveBeenCalledTimes(1);
+    const s = text(sql.mock.calls[0]);
+    expect(s).toContain(
+      "others_expired as ( update deposits set status = 'expired' where dc_quote_version_id = (select dc_quote_version_id from paid) and status = 'pending' and id <> ? returning id )",
+    );
+    expect(values(sql.mock.calls[0]).filter((value) => value === DEPOSIT).length).toBe(2);
+  });
+  it("still refuses when the version already has a paid deposit, and never re-marks a paid row", async () => {
+    expect(await d.markStripeDepositPaid(input)).toBeNull();
+    const s = text(sql.mock.calls[0]);
+    const paid = s.slice(s.indexOf("with paid as ("), s.indexOf("others_expired as ("));
+    expect(paid).toContain("and not exists (select 1 from deposits d where d.dc_quote_version_id = deposits.dc_quote_version_id and d.status = 'paid')");
+    // The accepted statuses are exactly pending and expired.
+    expect(paid.match(/status = '(\w+)' and/g)).toEqual(["status = 'pending' and", "status = 'expired' and"]);
   });
   it("answers null when no pending deposit matched (a duplicate delivery, or one recorded by hand)", async () => {
     expect(await d.markStripeDepositPaid(input)).toBeNull();
@@ -207,10 +240,24 @@ describe("cancelDeposit", () => {
     for (const part of [
       "update deposits set status = 'refunded', refunded_at = now() where id = ? and lead_id = ? and status = 'paid' and amount_cents = ?",
       "update dc_quote_versions set status = 'cancelled', cancelled_at = now()", "and status = 'signed'",
-      "status = 'lost', lost_reason = ?, deposit_cents = null", "follow_up_at = null", "and status <> 'lost'",
-      "'payment'", "'stage', prev.status, 'lost'",
+      "update leads set deposit_cents = null, status = 'lost', lost_reason = case when status <> 'lost' then ? else lost_reason end",
+      "follow_up_at = case when status <> 'lost' then null else follow_up_at end",
+      "'payment'", "'stage', prev.status, 'lost'", "where prev.status <> 'lost'",
     ]) expect(s).toContain(part);
     expect(values(sql.mock.calls[0])).toEqual(expect.arrayContaining(["Cancelled — deposit refunded", "Deposit $924.17 refunded to the client's card"]));
+  });
+  it("clears deposit_cents on a job already Lost, in the same statement: the leads update is gated on the refunded row, not the stage", async () => {
+    sql.mockResolvedValueOnce([{ lead_id: LEAD }]);
+    expect(await d.cancelDeposit({ leadId: LEAD, deposit: paid, actor: "o@x" })).toBe(true);
+    expect(sql).toHaveBeenCalledTimes(1);
+    const s = text(sql.mock.calls[0]);
+    const lost = s.slice(s.indexOf("lost as ("), s.indexOf("payment_logged as ("));
+    expect(lost).toContain("deposit_cents = null");
+    expect(lost).toContain("where id = (select lead_id from refunded) returning id");
+    expect(lost).not.toContain("and status <> 'lost'");
+    // A Lost job keeps its own reason and stage date, and gets no second stage event.
+    expect(lost).toContain("stage_changed_at = case when status <> 'lost' then now() else stage_changed_at end");
+    expect(s.slice(s.indexOf("stage_logged as ("))).toContain("where prev.status <> 'lost'");
   });
   it("words a recorded deposit as one the owner returns", async () => {
     await d.cancelDeposit({ leadId: LEAD, deposit: { ...paid, method: "cash" }, actor: "o@x" });

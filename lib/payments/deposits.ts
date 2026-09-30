@@ -127,6 +127,8 @@ export async function expireStaleDeposits(versionId: string): Promise<number> {
  */
 export async function claimStripeDeposit(input: { leadId: string; versionId: string; amountCents: number }): Promise<Deposit | null> {
   if (!isUuid(input.leadId) || !isUuid(input.versionId)) return null;
+  // A $0 total has no deposit to take; deposits_amount_check would refuse the insert.
+  if (!Number.isInteger(input.amountCents) || input.amountCents <= 0) return null;
   const rows = await db()`
     with inserted as (
       insert into deposits (id, lead_id, dc_quote_version_id, amount_cents, method, status)
@@ -167,10 +169,13 @@ export async function attachSession(depositId: string, sessionId: string): Promi
 }
 
 /**
- * Spec §4, the verified webhook's write. One statement, idempotent: it acts only on this pending card
- * deposit, for exactly the amount charged, while no deposit of the version is paid. deposit_cents is
- * written and a Signed job moves to Sold; a job the owner moved elsewhere keeps its stage, and the
- * payment is still recorded. A duplicate delivery matches nothing and answers null.
+ * Spec §4, the verified webhook's write. One statement, idempotent: it acts only on this card deposit,
+ * for exactly the amount charged, while no deposit of the version is paid. The row may be pending, or
+ * EXPIRED with the very session Stripe completed (ruling P11b): Stripe's verified completion is the
+ * truth, so money actually taken is never dropped. Any OTHER pending card deposit of the version is
+ * expired in the same statement. deposit_cents is written and a Signed job moves to Sold; a job the
+ * owner moved elsewhere keeps its stage, and the payment is still recorded. A duplicate delivery finds
+ * the row already paid, matches nothing and answers null.
  */
 export async function markStripeDepositPaid(input: {
   depositId: string; sessionId: string; paymentIntentId: string | null; amountCents: number;
@@ -180,11 +185,17 @@ export async function markStripeDepositPaid(input: {
     with paid as (
       update deposits set status = 'paid', paid_at = now(), stripe_session_id = ${input.sessionId},
         stripe_payment_intent_id = ${input.paymentIntentId}
-      where id = ${input.depositId} and method = 'stripe' and status = 'pending'
-        and (stripe_session_id = ${input.sessionId} or stripe_session_id is null)
+      where id = ${input.depositId} and method = 'stripe'
+        and ((status = 'pending' and (stripe_session_id = ${input.sessionId} or stripe_session_id is null))
+          or (status = 'expired' and stripe_session_id = ${input.sessionId}))
         and amount_cents = ${input.amountCents}
         and not exists (select 1 from deposits d where d.dc_quote_version_id = deposits.dc_quote_version_id and d.status = 'paid')
-      returning lead_id, amount_cents
+      returning lead_id, amount_cents, dc_quote_version_id
+    ),
+    others_expired as (
+      update deposits set status = 'expired'
+      where dc_quote_version_id = (select dc_quote_version_id from paid) and status = 'pending' and id <> ${input.depositId}
+      returning id
     ),
     prev as (select l.status from leads l join paid on l.id = paid.lead_id),
     moved as (
@@ -267,7 +278,10 @@ export async function expireDeposit(sessionId: string): Promise<boolean> {
 /**
  * Cancel & refund (spec §4), after any Stripe refund succeeded. One statement: the paid deposit →
  * refunded (only at the amount the owner saw), its version signed → cancelled, the job → Lost with
- * deposit_cents cleared, and a 'payment' and a 'stage' event.
+ * deposit_cents cleared, and a 'payment' and a 'stage' event. The leads update is gated on the refunded
+ * row only, so a job the owner had already moved to Lost still has deposit_cents cleared; it keeps its
+ * own lost reason, follow-up and stage date, and gets no second stage event. (One update, not two
+ * CTEs on the same row: Postgres applies only one of two updates to a row in one statement.)
  */
 export async function cancelDeposit(input: { leadId: string; deposit: Deposit; actor: string }): Promise<boolean> {
   if (!isUuid(input.leadId) || !isUuid(input.deposit.id)) return false;
@@ -288,9 +302,13 @@ export async function cancelDeposit(input: { leadId: string; deposit: Deposit; a
     ),
     prev as (select l.status from leads l join refunded r on l.id = r.lead_id),
     lost as (
-      update leads set status = 'lost', lost_reason = ${CANCEL_REASON}, deposit_cents = null,
-        follow_up_at = null, follow_up_note = null, stage_changed_at = now(), updated_at = now()
-      where id = (select lead_id from refunded) and status <> 'lost'
+      update leads set deposit_cents = null, status = 'lost',
+        lost_reason = case when status <> 'lost' then ${CANCEL_REASON} else lost_reason end,
+        follow_up_at = case when status <> 'lost' then null else follow_up_at end,
+        follow_up_note = case when status <> 'lost' then null else follow_up_note end,
+        stage_changed_at = case when status <> 'lost' then now() else stage_changed_at end,
+        updated_at = now()
+      where id = (select lead_id from refunded)
       returning id
     ),
     payment_logged as (
@@ -300,6 +318,7 @@ export async function cancelDeposit(input: { leadId: string; deposit: Deposit; a
     stage_logged as (
       insert into job_events (lead_id, actor, kind, from_status, to_status, body)
       select lost.id, ${input.actor}, 'stage', prev.status, 'lost', ${CANCEL_REASON} from lost, prev
+      where prev.status <> 'lost'
     )
     select lead_id from refunded`;
   return rows.length > 0;
