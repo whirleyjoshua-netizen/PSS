@@ -94,8 +94,8 @@ The existing components are reused and reordered; copy changes; one section is n
   >
   > **Shade found the design side.** With Josh's encouragement she started designing, and she fell
   > in love with it — not just the fabrics and the finishes, but the people: sitting down in
-  > someone's home, listening, and helping them get it exactly right. She became one of the
-  > designers clients asked for by name, first in Ohio and now here in Las Vegas.
+  > someone's home, listening, and helping them get it exactly right. She became a top
+  > designer, first in Ohio and now here in Las Vegas.
   >
   > **Now it's our family's business.** Shade designs, Josh installs, and our kids are growing up
   > around it the way Josh did. When you invite us into your home, you're working with us — not a
@@ -103,8 +103,8 @@ The existing components are reused and reordered; copy changes; one section is n
   >
   > **You let us into your home. We let you into our family.**
 
-  ("one of the designers clients asked for by name" stands in for "top designer" until the owner
-  confirms the wording; the 4.9-from-44-surveys past-work figure stays where it already is.)
+  (Owner approved "top designer" on 2026-09-30. The 4.9-from-44-surveys past-work figure stays
+  where it already is.)
 - Then the existing `ReviewSpotlight`, "How a job goes" steps and `ConsultationCta` (button text
   "Invite Us Over").
 
