@@ -107,7 +107,8 @@ const discardBlobs = (pathnames: (string | null)[]) =>
 /**
  * Spec §6: a drawn adoption's PNGs are stored in private Blob BEFORE the signature statement, so the
  * row can name them. Answers their pathnames (both null for a typed adoption), or null when storing
- * failed. Anything already stored is then removed.
+ * failed. Every path a put was ATTEMPTED on is then removed, not only the confirmed ones: a put can
+ * reject after the object was written (a timeout, say).
  */
 async function storeAdoptionImages(jobId: string, adoption: Adoption): Promise<{ signature: string | null; initials: string | null } | null> {
   if (adoption.method === "typed") return { signature: null, initials: null };
@@ -115,18 +116,18 @@ async function storeAdoptionImages(jobId: string, adoption: Adoption): Promise<{
   const signature = `jobs/${jobId}/signatures/${id}-signature.png`;
   const initials = adoption.initialsPng ? `jobs/${jobId}/signatures/${id}-initials.png` : null;
   const options = { access: "private", contentType: "image/png", addRandomSuffix: false } as const;
-  const stored: string[] = [];
+  const attempted: string[] = [];
   try {
+    attempted.push(signature);
     await put(signature, adoption.signaturePng, options);
-    stored.push(signature);
     if (initials && adoption.initialsPng) {
+      attempted.push(initials);
       await put(initials, adoption.initialsPng, options);
-      stored.push(initials);
     }
     return { signature, initials };
   } catch (error) {
     console.error("Could not store the drawn signature", error);
-    await discardBlobs(stored);
+    await discardBlobs(attempted);
     return null;
   }
 }

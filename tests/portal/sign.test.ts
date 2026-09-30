@@ -379,16 +379,31 @@ describe("recordSignature stores the adoption (spec §6)", () => {
     vi.mocked(put).mockResolvedValue(undefined as never);
     vi.spyOn(console, "error").mockImplementation(() => {});
     await expect(recordSignature({ ...base, adoption: { method: "drawn", signaturePng: SIG, initialsPng: INI } })).rejects.toThrow("db down");
-    expect(del).toHaveBeenCalledTimes(2);
+    expect(put).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(del).mock.calls.map(([path]) => path)).toEqual(vi.mocked(put).mock.calls.map(([path]) => path));
   });
 
+  // A put can reject after the object was written (a timeout, say), so every ATTEMPTED path is removed.
   it("answers not-found, writes no row, and leaves nothing behind when a PNG cannot be stored", async () => {
     served();
     vi.spyOn(console, "error").mockImplementation(() => {});
     vi.mocked(put).mockResolvedValueOnce(undefined as never).mockRejectedValueOnce(new Error("blob down"));
     expect(await recordSignature({ ...base, adoption: { method: "drawn", signaturePng: SIG, initialsPng: INI } })).toBe("not-found");
     expect(query).not.toHaveBeenCalled();
-    expect(del).toHaveBeenCalledWith(vi.mocked(put).mock.calls[0][0]);
+    expect(put).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(del).mock.calls.map(([path]) => path)).toEqual(vi.mocked(put).mock.calls.map(([path]) => path));
+  });
+
+  it("removes the signature path when its own put rejects, and never attempts the initials", async () => {
+    served();
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(put).mockRejectedValueOnce(new Error("timeout"));
+    expect(await recordSignature({ ...base, adoption: { method: "drawn", signaturePng: SIG, initialsPng: INI } })).toBe("not-found");
+    expect(query).not.toHaveBeenCalled();
+    expect(put).toHaveBeenCalledTimes(1);
+    const [[sigPath]] = vi.mocked(put).mock.calls;
+    expect(sigPath).toMatch(/-signature\.png$/);
+    expect(vi.mocked(del).mock.calls.map(([path]) => path)).toEqual([sigPath]);
   });
 
   it("stores nothing for an empty name or unreadable bytes", async () => {
