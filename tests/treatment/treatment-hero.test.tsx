@@ -61,10 +61,10 @@ describe("TreatmentHero", () => {
     expect(document.getElementById("book-name")).not.toBeNull();
   });
 
-  it("keeps the photo short and the lead hidden on a phone, fills the section from lg up, with the slow zoom", () => {
+  it("keeps the photo short and the lead hidden on a phone, taller on a tablet, fills the section from lg up, with the slow zoom", () => {
     const { container } = hero();
     const frame = container.querySelector("section#book img")!.parentElement!;
-    expect(frame.className).toContain("aspect-[32/9]");
+    expect(frame.className.split(" ")).toEqual(expect.arrayContaining(["aspect-[32/9]", "sm:aspect-[16/7]", "lg:aspect-auto"]));
     expect(frame.className).toContain("overflow-hidden");
     expect(frame.className).toContain("lg:absolute");
     expect(container.querySelector("img")!.className).toContain("animate-slow-zoom");
