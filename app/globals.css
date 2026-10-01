@@ -125,7 +125,7 @@ h1, h2, h3, h4 {
   mask-image: linear-gradient(90deg, transparent, black 5%, black 95%, transparent);
 }
 
-/* Booking block (components/booking/BookingBlock.tsx): the photo eases in a few percent. */
+/* Booking block and treatment hero (components/booking/BookingBlock.tsx, components/treatment/TreatmentHero.tsx): the photo eases in a few percent. */
 @keyframes slow-zoom {
   from { transform: scale(1); }
   to { transform: scale(1.07); }
