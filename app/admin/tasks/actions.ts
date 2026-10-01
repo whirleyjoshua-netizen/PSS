@@ -56,7 +56,7 @@ export async function createTaskAction(_prev: TaskFormState, formData: FormData)
   return withNotice({ ok: "Task added." }, notice);
 }
 
-/** `values` is returned on success too: the edit form shows what was saved, not a reset. */
+/** `values` is returned on success too, built from what was stored, so the edit form shows exactly that. */
 export async function updateTaskAction(id: string, _prev: TaskFormState, formData: FormData): Promise<TaskFormState> {
   const admin = await requireAdmin();
   const values = readForm(formData);
@@ -65,10 +65,11 @@ export async function updateTaskAction(id: string, _prev: TaskFormState, formDat
   const updated = await updateTask(id, parsed.data);
   if (updated === "missing") return { error: MISSING, values };
   if (updated === "not-assignable") return { error: NOT_ASSIGNABLE, values };
-  const { title, notes, dueOn, assignee } = parsed.data;
+  const { title, notes, dueOn, assignee, status } = parsed.data;
   const notice = await notifyAssignee({ id, title, notes, dueOn, assigneeEmail: assignee }, admin.email, updated.previousAssignee);
   refresh();
-  return withNotice({ ok: "Saved.", values }, notice);
+  const saved: TaskFormValues = { title, notes: notes ?? "", assignee: assignee ?? "", dueOn: dueOn ?? "", status };
+  return withNotice({ ok: "Saved.", values: saved }, notice);
 }
 
 export async function moveTaskAction(id: string, formData: FormData): Promise<void> {
@@ -99,7 +100,12 @@ export async function remindTaskAction(id: string, _prev: RemindState, _formData
   const { claim } = result;
   const to = claim.task.assigneeEmail as string;
   if (!(await sendTaskEmail(to, reminderEmail(claim.task, admin.email, new Date()), admin.email))) {
-    await releaseReminder(id, claim);
+    try {
+      await releaseReminder(id, claim);
+    } catch (error) {
+      // The send failure is what the person needs to hear; the stuck claim clears after the cooldown.
+      console.error("Couldn't release the reminder claim", error);
+    }
     return { error: "The reminder didn't send. Try again." };
   }
   refresh();

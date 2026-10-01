@@ -79,9 +79,24 @@ describe("updateTaskAction", () => {
     await actions.updateTaskAction(ID, {}, form(edit));
     expect(sendTaskEmail).toHaveBeenCalledTimes(1);
   });
+  it("returns the saved, normalized values so the remounted form shows what was stored", async () => {
+    store.updateTask.mockResolvedValue({ previousAssignee: "shade@x.com" });
+    const padded = { title: "  Finish new flyers  ", notes: "  ", assignee: " Shade@X.com ", dueOn: " 2026-10-09 ", status: "doing" };
+    expect(await actions.updateTaskAction(ID, {}, form(padded))).toEqual({
+      ok: "Saved.",
+      values: { title: "Finish new flyers", notes: "", assignee: "shade@x.com", dueOn: "2026-10-09", status: "doing" },
+    });
+  });
   it("reports a deleted task", async () => {
     store.updateTask.mockResolvedValue("missing");
     expect((await actions.updateTaskAction(ID, {}, form(edit))).error).toBe("That task was deleted.");
+  });
+  it("reports a refused assignee without emailing", async () => {
+    store.updateTask.mockResolvedValue("not-assignable");
+    expect(await actions.updateTaskAction(ID, {}, form(edit))).toEqual({
+      error: "That person no longer has access. Pick someone from the list.", values: edit,
+    });
+    expect(sendTaskEmail).not.toHaveBeenCalled();
   });
 });
 
@@ -111,6 +126,15 @@ describe("remindTaskAction", () => {
     expect(await actions.remindTaskAction(ID, {}, form({}))).toEqual({ error: "The reminder didn't send. Try again." });
     expect(store.releaseReminder).toHaveBeenCalledWith(ID, claim);
   });
+  it("still reports the failed send when giving the claim back also fails", async () => {
+    store.claimReminder.mockResolvedValue({ claim });
+    sendTaskEmail.mockResolvedValue(false);
+    store.releaseReminder.mockRejectedValue(new Error("db down"));
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    await expect(actions.remindTaskAction(ID, {}, form({}))).resolves.toEqual({ error: "The reminder didn't send. Try again." });
+    expect(consoleError).toHaveBeenCalled();
+    consoleError.mockRestore();
+  });
   it("explains each refusal without sending", async () => {
     store.claimReminder.mockResolvedValueOnce({ refused: "recent", lastAt: new Date("2026-10-01T17:42:00Z") });
     expect(await actions.remindTaskAction(ID, {}, form({}))).toEqual({ error: "Already reminded at 10:42 AM." });
@@ -123,6 +147,7 @@ describe("remindTaskAction", () => {
     store.claimReminder.mockResolvedValueOnce({ refused: "missing", lastAt: null });
     expect(await actions.remindTaskAction(ID, {}, form({}))).toEqual({ error: "That task was deleted." });
     expect(sendTaskEmail).not.toHaveBeenCalled();
+    expect(store.releaseReminder).not.toHaveBeenCalled();
   });
 });
 
@@ -131,5 +156,27 @@ describe("deleteTaskAction", () => {
     await expect(actions.deleteTaskAction(ID)).rejects.toThrow("NEXT_REDIRECT");
     expect(store.deleteTask).toHaveBeenCalledWith(ID);
     expect(redirect).toHaveBeenCalledWith("/admin/tasks");
+  });
+});
+
+describe("every action checks the session first", () => {
+  beforeEach(() => { requireAdmin.mockRejectedValue(new Error("NEXT_REDIRECT")); });
+  it("updateTaskAction", async () => {
+    await expect(actions.updateTaskAction(ID, {}, form({ ...filled, status: "doing" }))).rejects.toThrow("NEXT_REDIRECT");
+    expect(store.updateTask).not.toHaveBeenCalled();
+  });
+  it("moveTaskAction", async () => {
+    await expect(actions.moveTaskAction(ID, form({ status: "done" }))).rejects.toThrow("NEXT_REDIRECT");
+    expect(store.setTaskStatus).not.toHaveBeenCalled();
+  });
+  it("remindTaskAction", async () => {
+    await expect(actions.remindTaskAction(ID, {}, form({}))).rejects.toThrow("NEXT_REDIRECT");
+    expect(store.claimReminder).not.toHaveBeenCalled();
+    expect(sendTaskEmail).not.toHaveBeenCalled();
+  });
+  it("deleteTaskAction", async () => {
+    await expect(actions.deleteTaskAction(ID)).rejects.toThrow("NEXT_REDIRECT");
+    expect(store.deleteTask).not.toHaveBeenCalled();
+    expect(redirect).not.toHaveBeenCalled();
   });
 });
