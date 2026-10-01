@@ -38,6 +38,23 @@ describe("KeepOfficialBox", () => {
     setKeptOfficialAction.mockResolvedValue({ error: "An official measure is already recorded, so the designer measure can’t be kept as official." });
     render(<KeepOfficialBox jobId={JOB} kept={false} blocked={false} />);
     fireEvent.click(screen.getByLabelText("Keep as official measure"));
-    expect(await screen.findByRole("alert")).toHaveTextContent("can’t be kept as official");
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("can’t be kept as official");
+    expect(alert).toHaveClass("text-overdue");
+    // The screen must equal what's saved: once the action settles, the refused tick has snapped back.
+    await waitFor(() => expect(screen.getByLabelText("Keep as official measure")).toBeEnabled());
+    expect(screen.getByLabelText("Keep as official measure")).not.toBeChecked();
+  });
+
+  it("after a refusal and refresh, says why once (the static line, not the alert too)", async () => {
+    setKeptOfficialAction.mockResolvedValue({ error: "An official measure is already recorded, so the designer measure can’t be kept as official." });
+    const { rerender } = render(<KeepOfficialBox jobId={JOB} kept={false} blocked={false} />);
+    fireEvent.click(screen.getByLabelText("Keep as official measure"));
+    await screen.findByRole("alert");
+    await waitFor(() => expect(refresh).toHaveBeenCalled());
+    // router.refresh() brings the official window the server saw: the box is now blocked.
+    rerender(<KeepOfficialBox jobId={JOB} kept={false} blocked={true} />);
+    expect(screen.getByText("An official measure is already recorded.")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 });
