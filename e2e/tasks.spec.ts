@@ -59,6 +59,8 @@ test("create, assign, move, remind, filter and delete a task", async ({ page }) 
   await card.getByRole("button", { name: `Remind now: ${TITLE}` }).click();
   await expect(card.getByRole("alert")).toHaveText("The reminder didn't send. Try again.");
   await page.reload();
+  // The card must be on the page, or "not containing Reminded" would pass vacuously.
+  await expect(card).toBeVisible();
   await expect(card).not.toContainText("Reminded");
 
   // A reminder from a moment ago blocks another for 10 minutes.
