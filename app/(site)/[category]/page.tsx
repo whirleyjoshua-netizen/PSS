@@ -59,7 +59,7 @@ export default async function CategoryPage({
   const trail = [{ name: found.name, url: `/${found.slug}` }];
 
   const [heroPhoto, storyPhoto, ...cardPhotos] = uniquePhotos([
-    found.bookingPhoto ?? consultationPhoto,
+    found.heroVideo?.poster ?? found.bookingPhoto ?? consultationPhoto,
     found.image,
     ...children.map((product) => product.image),
   ]);
@@ -69,6 +69,7 @@ export default async function CategoryPage({
       <JsonLd schema={breadcrumbSchema(trail)} />
       <TreatmentHero
         photo={heroPhoto!}
+        video={found.heroVideo?.src}
         trail={trail}
         eyebrow={found.tagline}
         title={`${found.name} in Las Vegas`}

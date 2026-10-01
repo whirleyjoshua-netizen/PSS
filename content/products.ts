@@ -56,6 +56,11 @@ export type Category = {
    * hero so the page never repeats `image`. Unset means the consultation photo.
    */
   bookingPhoto?: Photo;
+  /**
+   * A short silent loop that plays in the hero instead of the still photo. Its
+   * poster is the hero's photo for search, alt text and reduced-motion visitors.
+   */
+  heroVideo?: { src: string; poster: Photo };
   /** Exactly four; product pages reuse their category's row. */
   highlights: Highlight[];
   story: CategoryStory;
@@ -222,6 +227,14 @@ export const categories: Category[] = [
       "Motorization stopped being a luxury the moment it stopped requiring an electrician. Modern shades run on a rechargeable battery tube, pair to an app or a wall remote, and install in the same visit as a manual shade.",
       "It earns its keep in three places: windows nobody can reach, whole rooms that should move together, and schedules that beat the sun to the window — a shade that closes at 2pm every summer afternoon protects your floors and your thermostat whether or not anyone is home.",
     ],
+    // A stand-in until the owners film shades moving on their own (owner, 2026-10-01).
+    heroVideo: {
+      src: "/video/motorization-nook-pan.mp4",
+      poster: {
+        src: "/video/motorization-nook-pan-poster.webp",
+        alt: "White cellular shades raised on the windows of a breakfast nook, looking out over a backyard pool with a rock waterfall.",
+      },
+    },
     highlights: [
       { label: "App & remote", icon: "phone" },
       { label: "Schedules", icon: "clock" },

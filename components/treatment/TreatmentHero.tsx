@@ -20,6 +20,7 @@ import type { Photo } from "@/content/products";
  */
 export function TreatmentHero({
   photo,
+  video,
   trail,
   eyebrow,
   title,
@@ -27,6 +28,8 @@ export function TreatmentHero({
   treatment,
 }: {
   photo: Photo;
+  /** A silent looping clip shown over the photo (see Category.heroVideo). */
+  video?: string;
   trail: Crumb[];
   eyebrow: string;
   title: string;
@@ -45,6 +48,21 @@ export function TreatmentHero({
           sizes="100vw"
           className="animate-slow-zoom object-cover"
         />
+        {video ? (
+          // Silent, looping and decorative: the photo under it carries the alt
+          // text and is all that reduced-motion visitors see.
+          <video
+            src={video}
+            poster={photo.src}
+            autoPlay
+            muted
+            loop
+            playsInline
+            preload="metadata"
+            aria-hidden="true"
+            className="absolute inset-0 size-full object-cover motion-reduce:hidden"
+          />
+        ) : null}
       </div>
 
       <Container className="relative">

@@ -39,12 +39,30 @@ describe("category page redesign", () => {
     expect(new Set(all).size).toBe(all.length);
   });
 
-  it("Motorization: consultation photo in the hero, fabric panel in the story, no Explore grid", async () => {
+  it("Motorization: a silent looping video in the hero over its still, fabric panel in the story, no Explore grid", async () => {
     const { container } = await renderCategory("motorization");
-    expect(srcs(container.querySelector("section#book")!)[0]).toContain(consultationPhoto.src);
+    const hero = container.querySelector("section#book")!;
+    const video = category("motorization").heroVideo!;
+    expect(srcs(hero)).toEqual([expect.stringContaining(video.poster.src)]);
+    const player = hero.querySelector("video")!;
+    expect(player.getAttribute("src")).toBe(video.src);
+    expect(player.muted).toBe(true);
+    expect(player.autoplay).toBe(true);
+    expect(player.loop).toBe(true);
+    expect(player.hasAttribute("playsinline")).toBe(true);
+    expect(player).toHaveAttribute("aria-hidden", "true");
+    expect(player.className).toContain("motion-reduce:hidden");
     expect(screen.queryByRole("heading", { level: 2, name: /Explore/ })).toBeNull();
     const story = screen.getByRole("heading", { level: 2, name: category("motorization").story.heading }).closest("section")!;
     expect(story.querySelector("img")).toBeNull();
+  });
+
+  it("only Motorization has a hero video", async () => {
+    for (const c of categories.filter((c) => c.slug !== "motorization")) {
+      const { container, unmount } = await renderCategory(c.slug);
+      expect(container.querySelector("video"), c.slug).toBeNull();
+      unmount();
+    }
   });
 
   it("Blinds: product photos already used above become fabric panels on the cards", async () => {
