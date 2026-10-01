@@ -3,7 +3,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Section } from "@/components/ui/Section";
 import { PageHero, ConsultationCta } from "@/components/product/ProductParts";
+import { BookingBlock } from "@/components/booking/BookingBlock";
 import { JsonLd } from "@/components/seo/JsonLd";
+import { consultationPhoto } from "@/content/gallery";
 import { breadcrumbSchema, productSchema } from "@/lib/seo/schema";
 import {
   allProductPaths,
@@ -65,6 +67,7 @@ export default async function ProductPage({
         title={`${found.name} in Las Vegas`}
         trail={trail}
       />
+      <BookingBlock photo={found.image ?? consultationPhoto} />
 
       <Section tone="ivory">
         {/* Columns are sized to their content and left-aligned so the body

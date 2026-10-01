@@ -7,7 +7,9 @@ import {
   ProductCardList,
   ConsultationCta,
 } from "@/components/product/ProductParts";
+import { BookingBlock } from "@/components/booking/BookingBlock";
 import { JsonLd } from "@/components/seo/JsonLd";
+import { consultationPhoto } from "@/content/gallery";
 import { breadcrumbSchema } from "@/lib/seo/schema";
 import { categories } from "@/content/products";
 import { getCategory, getProductsIn } from "@/lib/content/products";
@@ -62,6 +64,7 @@ export default async function CategoryPage({
         title={`${found.name} in Las Vegas`}
         trail={trail}
       />
+      <BookingBlock photo={consultationPhoto} />
 
       <Section tone="ivory">
         <div
