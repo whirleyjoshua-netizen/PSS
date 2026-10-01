@@ -188,6 +188,8 @@ describe("measurements", () => {
     const statement = (strings as TemplateStringsArray).join("?");
     expect(statement).toMatch(/insert into window_measurements \(lead_id, kind,/);
     expect(statement).toContain("designer_kept_official_at is null");
+    // The insert reads from the guarded CTE, so a kept job really refuses the official window.
+    expect(statement).toMatch(/insert into window_measurements[\s\S]*?select allowed\.id[\s\S]*?from allowed/);
     expect(values).toContain("official");
     expect(values).toContain("Added window (official): Kitchen, Left of sink");
   });
@@ -279,6 +281,8 @@ describe("setKeptOfficial", () => {
     // The refusal lives in the update's own where clause, not just in a CTE nobody consults.
     const where = statement.match(/update leads set[\s\S]*?\bwhere\b([\s\S]*?)\breturning\b/)?.[1];
     expect(where).toMatch(/not \?::boolean or not exists \(select 1 from official\)/);
+    // Asking for what the job already says updates nothing (no new at/by, no second event).
+    expect(where).toContain("and (designer_kept_official_at is not null) <> ?::boolean");
     expect(statement).toContain("insert into job_events");
     expect(values).toContain("Designer measure kept as official");
   });
