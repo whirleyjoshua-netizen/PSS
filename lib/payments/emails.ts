@@ -72,7 +72,10 @@ export async function sendDepositReceipts(leadId: string, options: { stageBefore
   sends.push(notifyOwners({
     subject: `Deposit paid: ${projectNo} — ${formatCents(deposit.amountCents)}`,
     text: [
-      `${job.name} paid the 50% deposit of ${formatCents(deposit.amountCents)} ${how}.`, "",
+      // An owner may record a different amount than the 50%: then the line states what was recorded.
+      deposit.amountCents === state.amountCents
+        ? `${job.name} paid the 50% deposit of ${formatCents(deposit.amountCents)} ${how}.`
+        : `${job.name} paid a deposit of ${formatCents(deposit.amountCents)} ${how}. The 50% deposit is ${formatCents(state.amountCents)}.`, "",
       `Project:  ${projectNo}`,
       `Contract: ${formatCents(state.soldCents)}`,
       deposit.recordedBy ? `Recorded by: ${deposit.recordedBy}` : null, "",

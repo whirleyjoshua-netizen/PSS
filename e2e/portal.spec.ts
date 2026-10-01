@@ -816,7 +816,7 @@ test("a customer reports a fault: a service job appears, the original stays Inst
  *       ?? { ...jobs[0], id: jobId, status: "quoted" as const };
  *
  * With that in place the approval is carried out against the bystander's job: the shared quote
- * is found on it, setStage moves it to `sold`, and THIS TEST GOES RED on the status assertion.
+ * is found on it, setStage moves it to `approved`, and THIS TEST GOES RED on the status assertion.
  * Restore the line and it goes green again. The controller runs that mutation on a Neon branch
  * before trusting this gate.
  *

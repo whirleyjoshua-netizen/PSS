@@ -26,8 +26,8 @@ describe("offeredVersion", () => {
 
 describe("approveDcQuote", () => {
   it("in ONE statement stamps the approval once, only on a shared offered quote of a job that is not Lost, and moves Quoted to Approved", async () => {
-    sql.mockResolvedValueOnce([{ version: 2 }]);
-    expect(await approveDcQuote(JOB, V, "maria@example.com")).toEqual({ version: 2 });
+    sql.mockResolvedValueOnce([{ version: 2, moved: true }]);
+    expect(await approveDcQuote(JOB, V, "maria@example.com")).toEqual({ version: 2, moved: true });
     expect(sql).toHaveBeenCalledTimes(1);
     const s = text(sql.mock.calls[0]);
     for (const part of [
@@ -39,6 +39,11 @@ describe("approveDcQuote", () => {
       "'stage', prev.status, 'approved', 'Approved quote version ' || approved.version",
       "'quote', 'Approved quote version ' || version || ' from their project page' from approved where not exists (select 1 from moved)",
     ]) expect(s).toContain(part);
+  });
+  it("says whether the job's stage moved, from the same statement: a change order past Quoted does not", async () => {
+    sql.mockResolvedValueOnce([{ version: 3, moved: false }]);
+    expect(await approveDcQuote(JOB, V, "maria@example.com")).toEqual({ version: 3, moved: false });
+    expect(text(sql.mock.calls[0])).toContain("select version, exists (select 1 from moved) as moved from approved");
   });
   it("answers null for a second approval, which changes nothing", async () => {
     expect(await approveDcQuote(JOB, V, "maria@example.com")).toBeNull();

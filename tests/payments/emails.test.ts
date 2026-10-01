@@ -43,6 +43,16 @@ describe("sendDepositReceipts", () => {
     expect(owners.text).toContain(`https://admin.example.com/admin/jobs/${LEAD}?tab=quote`);
   });
 
+  // The owner may record a different amount than the 50% (Payment received lets them type it).
+  it("states the amount recorded, not 'the 50% deposit', when it differs from the 50%", async () => {
+    deposits.depositState.mockResolvedValue({ ...state, paid: { ...paid, method: "check", amountCents: 50000, recordedBy: "owner@example.com" } });
+    await sendDepositReceipts(LEAD);
+    const owners = sent()[1];
+    expect(owners.text).toContain("Maria Lopez paid a deposit of $500 by check. The 50% deposit is $924.17.");
+    expect(owners.text).not.toContain("paid the 50% deposit");
+    expect(owners.subject).toBe("Deposit paid: PSS-1048 — $500");
+  });
+
   it("names the owner who recorded a hand payment", async () => {
     deposits.depositState.mockResolvedValue({ ...state, paid: { ...paid, method: "check", recordedBy: "owner@example.com" } });
     await sendDepositReceipts(LEAD);

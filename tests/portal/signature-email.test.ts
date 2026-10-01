@@ -91,6 +91,17 @@ describe("sendCustomerSignedCopy", () => {
     expect(text).toContain("You may cancel until the end of Oct 1, 2026 and we will refund your deposit in full.");
   });
 
+  it("logs a failed deposit lookup with the job id, and still sends the copy without a deposit line", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const failure = new Error("db down");
+    depositState.mockRejectedValue(failure);
+    await sendCustomerSignedCopy("jane@example.com", job, "Contract.pdf", null);
+    expect(error).toHaveBeenCalledWith(expect.stringContaining(job.id), failure);
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(send.mock.calls[0][0].text).not.toContain("deposit");
+    error.mockRestore();
+  });
+
   it("says nothing about a deposit that is paid, or when there is none", async () => {
     depositState.mockResolvedValue({ jobStatus: "sold", versionStatus: "signed", amountCents: 92417, paid: { id: "d" },
       signedAt: new Date("2026-09-28T17:00:00Z") });

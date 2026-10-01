@@ -48,8 +48,14 @@ export async function POST(request: Request) {
  * automatically: the owners are emailed to check it in Stripe (ruling P11b).
  */
 async function settle(session: Stripe.Checkout.Session): Promise<void> {
+  // Every PSS deposit checkout carries both depositId and leadId (startDepositAction). One without them
+  // is another checkout on the same Stripe account: logged by its session id only, never emailed about.
+  if (!session.metadata?.depositId || !session.metadata?.leadId) {
+    console.log(`Stripe checkout ${session.id} is not a PSS deposit; ignored`);
+    return;
+  }
   if (session.payment_status !== "paid") return;
-  const depositId = session.metadata?.depositId ?? "";
+  const depositId = session.metadata.depositId;
   const amountCents = session.amount_total;
   const paymentIntentId = typeof session.payment_intent === "string" ? session.payment_intent : session.payment_intent?.id ?? null;
   const alert = (reason: string) =>

@@ -321,7 +321,7 @@ describe("a Direct Connect quote (spec §2)", () => {
 
   beforeEach(() => {
     dcApprove.offeredVersion.mockResolvedValue(offered);
-    dcApprove.approveDcQuote.mockResolvedValue({ version: 2 });
+    dcApprove.approveDcQuote.mockResolvedValue({ version: 2, moved: true });
     dcSend.sendContract.mockResolvedValue({ ok: true, emailed: true });
     SHARED = [dcQuote];
     vi.spyOn(console, "error").mockImplementation(() => {});
@@ -336,6 +336,15 @@ describe("a Direct Connect quote (spec §2)", () => {
     // approveDcQuote's own statement moved the job; setStage is not used on this path.
     expect(query).not.toHaveBeenCalled();
     expect(revalidatePath).toHaveBeenCalledWith(`/project/${MINE}`);
+  });
+
+  it("tells the owners a change order was approved, not that the job moved, when the stage stayed put", async () => {
+    dcApprove.approveDcQuote.mockResolvedValue({ version: 3, moved: false });
+    await expect(approveQuoteAction(MINE)).resolves.toBe("approved");
+    expect(notifyOwnersOfApproval).toHaveBeenLastCalledWith(expect.objectContaining({ id: MINE }), "Quote PSS-1048 v2.pdf", EMAIL, "change-contract-sent");
+    dcSend.sendContract.mockRejectedValueOnce(new Error("Blob put failed"));
+    await expect(approveQuoteAction(MINE)).resolves.toBe("approved");
+    expect(notifyOwnersOfApproval).toHaveBeenLastCalledWith(expect.anything(), "Quote PSS-1048 v2.pdf", EMAIL, "change-contract-failed");
   });
 
   it("keeps the approval when the contract throws or is refused, and tells the owners it was not sent", async () => {

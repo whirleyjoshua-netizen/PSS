@@ -247,7 +247,11 @@ async function approveOfferedQuote(job: Job, offered: OfferedVersion, email: str
     console.error(`Quote version ${approved.version} approved but the contract could not be built or stored`, error);
   }
   after(() => {
-    void notifyOwnersOfApproval(job, quote.name, email, contractSent ? "contract-sent" : "contract-failed").catch(console.error);
+    // A change order on a job past Quoted leaves the stage alone, so the email must not say it moved.
+    const outcome = approved.moved
+      ? (contractSent ? "contract-sent" : "contract-failed")
+      : (contractSent ? "change-contract-sent" : "change-contract-failed");
+    void notifyOwnersOfApproval(job, quote.name, email, outcome).catch(console.error);
   });
   revalidatePath("/project");
   revalidatePath(`/project/${job.id}`);

@@ -22,10 +22,18 @@ export function toDepositView(state: DepositState, now: Date): DepositView {
   };
 }
 
+/**
+ * Whether the Deposit panel has anything to say: a deposit paid or refunded, or a Signed job owing one.
+ * A legacy job moved past Signed by hand with no deposit would otherwise show an empty heading.
+ */
+export const depositPanelShows = (view: DepositView): boolean =>
+  view.paid !== null || view.refunded !== null || view.jobStatus === "signed";
+
 export async function QuoteTab({ job }: { job: Pick<Job, "id" | "projectNo"> }) {
   const [review, deposit] = await Promise.all([loadReview(job.id), depositState(job.id)]);
   const projectNo = formatProjectNo(job.projectNo);
   const now = new Date();
+  const depositView = deposit ? toDepositView(deposit, now) : null;
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -39,7 +47,7 @@ export async function QuoteTab({ job }: { job: Pick<Job, "id" | "projectNo"> }) 
           No Direct Connect quote yet. Put {projectNo ?? "the job's PSS number"} in PO Reference and email the Dealer Copy with Owner and Include dealer costs ticked.
         </p>
       )}
-      {deposit ? <DepositPanel jobId={job.id} view={toDepositView(deposit, now)} /> : null}
+      {depositView && depositPanelShows(depositView) ? <DepositPanel jobId={job.id} view={depositView} /> : null}
     </div>
   );
 }

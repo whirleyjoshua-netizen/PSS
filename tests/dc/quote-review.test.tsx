@@ -425,4 +425,22 @@ describe("QuoteTab", () => {
     render(await QuoteTab({ job }));
     expect(screen.getByRole("region", { name: "Deposit" })).toHaveTextContent("50% deposit due: $924.17 of $1,848.34.");
   });
+
+  // A legacy job moved past Signed by hand, with no deposit ever taken: the panel would be an empty heading.
+  it("shows no deposit panel when there is no deposit and the job is not Signed, and keeps it for a paid or refunded one", async () => {
+    const base = { versionId: V, version: 2, versionStatus: "signed", soldCents: 184834, amountCents: 92417,
+      signedAt: new Date("2026-09-28T17:00:00Z"), paid: null, pending: null, refunded: null };
+    loadReview.mockResolvedValue(review());
+    depositState.mockResolvedValueOnce({ ...base, jobStatus: "ordered" });
+    const { unmount } = render(await QuoteTab({ job }));
+    expect(screen.queryByRole("region", { name: "Deposit" })).toBeNull();
+    unmount();
+    depositState.mockResolvedValueOnce({ ...base, jobStatus: "ordered", paid: { id: "d1", amountCents: 92417, method: "check", paidAt: new Date("2026-09-29T17:00:00Z") } });
+    const second = render(await QuoteTab({ job }));
+    expect(screen.getByRole("region", { name: "Deposit" })).toHaveTextContent("Deposit $924.17 paid by check");
+    second.unmount();
+    depositState.mockResolvedValueOnce({ ...base, jobStatus: "lost", versionStatus: "cancelled", refunded: { id: "d1", amountCents: 92417, refundedAt: new Date("2026-09-30T17:00:00Z") } });
+    render(await QuoteTab({ job }));
+    expect(screen.getByRole("region", { name: "Deposit" })).toHaveTextContent("Deposit $924.17 refunded");
+  });
 });

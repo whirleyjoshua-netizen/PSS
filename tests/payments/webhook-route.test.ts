@@ -199,8 +199,27 @@ describe("POST /api/stripe/webhook", () => {
     }));
   });
 
-  it("alerts, without writing, when a paid checkout names no deposit", async () => {
-    await post(event("checkout.session.completed", session({ metadata: {} })));
+  // A checkout PSS never created (another product on the same Stripe account) carries no deposit metadata:
+  // it is logged by session id only and acknowledged, with no write and no email to the owners.
+  it.each([
+    ["no metadata", {}],
+    ["no depositId", { leadId: LEAD }],
+    ["no leadId", { depositId: DEPOSIT }],
+  ])("ignores an unrelated paid checkout (%s): 200, logged by session id, no write, no email", async (_label, metadata) => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    expect((await post(event("checkout.session.completed", session({ metadata, customer_email: "someone@example.com" })))).status).toBe(200);
+    await runAfter();
+    expect(deposits.markStripeDepositPaid).not.toHaveBeenCalled();
+    expect(deposits.depositBySession).not.toHaveBeenCalled();
+    expect(emails.alertUnmatchedPayment).not.toHaveBeenCalled();
+    expect(emails.sendDepositReceipts).not.toHaveBeenCalled();
+    expect(log).toHaveBeenCalledWith("Stripe checkout cs_test_1 is not a PSS deposit; ignored");
+    expect(JSON.stringify(log.mock.calls)).not.toContain("someone@example.com");
+    log.mockRestore();
+  });
+
+  it("still alerts when a checkout names a deposit PSS cannot read", async () => {
+    await post(event("checkout.session.completed", session({ metadata: { depositId: "not-a-uuid", leadId: LEAD } })));
     await runAfter();
     expect(deposits.markStripeDepositPaid).not.toHaveBeenCalled();
     expect(emails.alertUnmatchedPayment).toHaveBeenCalledWith(expect.objectContaining({ depositId: null }));

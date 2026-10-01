@@ -104,7 +104,10 @@ export async function sendCustomerSignedCopy(
 
   // Spec §3: the client's signed-copy email adds the deposit link once their signed job owes one.
   // Looked up here, so signContractAction (pss-dd's) is untouched. A failed lookup only drops the line.
-  const deposit = await depositState(job.id).catch(() => null);
+  const deposit = await depositState(job.id).catch((error: unknown) => {
+    console.error(`Could not read the deposit for job ${job.id}; the signed-copy email goes without the deposit line`, error);
+    return null;
+  });
   const due = deposit && deposit.jobStatus === "signed" && deposit.versionStatus === "signed" && !deposit.paid ? deposit : null;
 
   const projectNo = formatProjectNo(job.projectNo);

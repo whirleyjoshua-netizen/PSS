@@ -26,9 +26,10 @@ export async function offeredVersion(leadId: string): Promise<OfferedVersion | n
  * Spec §2, the client's approval of a DC quote. One statement: stamps approved_at once (a second
  * approval matches nothing and answers null), only on this job's offered version whose quote PDF is
  * shared and only while the job is not Lost; moves Quoted to Approved with a 'stage' event, or — for a
- * change to a job already past Quoted — logs a 'quote' event and leaves the stage alone.
+ * change to a job already past Quoted — logs a 'quote' event and leaves the stage alone. `moved` says
+ * which, from the same statement, so the owners' email never claims a move that did not happen.
  */
-export async function approveDcQuote(leadId: string, versionId: string, actor: string): Promise<{ version: number } | null> {
+export async function approveDcQuote(leadId: string, versionId: string, actor: string): Promise<{ version: number; moved: boolean } | null> {
   if (!isUuid(leadId) || !isUuid(versionId)) return null;
   const rows = await db()`
     with approved as (
@@ -54,6 +55,6 @@ export async function approveDcQuote(leadId: string, versionId: string, actor: s
       select ${leadId}, ${actor}, 'quote', 'Approved quote version ' || version || ' from their project page' from approved
       where not exists (select 1 from moved)
     )
-    select version from approved`;
-  return rows[0] ? { version: Number(rows[0].version) } : null;
+    select version, exists (select 1 from moved) as moved from approved`;
+  return rows[0] ? { version: Number(rows[0].version), moved: rows[0].moved === true } : null;
 }
