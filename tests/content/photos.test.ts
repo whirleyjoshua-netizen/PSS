@@ -33,6 +33,23 @@ describe("photos in the content model", () => {
     }
   });
 
+  it("gives Blinds, Shades and Shutters their own booking photo, from our gallery, in that category", () => {
+    const booking = Object.fromEntries(
+      categories.filter((category) => category.bookingPhoto).map((category) => [category.slug, category.bookingPhoto!.src]),
+    );
+    expect(booking).toEqual({
+      blinds: "/gallery/sheer-vertical-patio-slider.webp",
+      shades: "/gallery/roller-shades-curved-bay.webp",
+      shutters: "/gallery/plantation-shutters-french-doors.webp",
+    });
+    for (const category of categories) {
+      if (!category.bookingPhoto) continue;
+      const match = gallery.find((item) => item.src === category.bookingPhoto!.src);
+      expect(match?.treatment, category.slug).toBe(category.slug);
+      expect(category.bookingPhoto.alt).toBe(match!.alt);
+    }
+  });
+
   it("gives Blinds the faux wood photo beside its intro", () => {
     expect(categories.find((category) => category.slug === "blinds")?.image?.src).toBe(
       "/gallery/faux-wood-blinds-living-room.webp",

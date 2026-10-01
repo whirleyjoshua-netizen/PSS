@@ -52,9 +52,19 @@ describe.each(categories.map((category) => [category.slug, category] as const))(
     expectClosingButtonToBook();
   });
 
-  it("shows the consultation photo in the booking block", async () => {
+  it("shows its own booking photo in the booking block, or the consultation photo when it has none", async () => {
     const { container } = await renderCategory(slug);
-    expect(imageSrcs(container).some((src) => src.includes(consultationPhoto.src))).toBe(true);
+    const inBlock = Array.from(container.querySelectorAll("section#book img")).map((img) =>
+      decodeURIComponent(img.getAttribute("src") ?? ""),
+    );
+    expect(inBlock).toHaveLength(1);
+    expect(inBlock[0]).toContain((category.bookingPhoto ?? consultationPhoto).src);
+  });
+
+  it("never shows the same photo twice on the page", async () => {
+    const { container } = await renderCategory(slug);
+    const srcs = imageSrcs(container);
+    expect(new Set(srcs).size).toBe(srcs.length);
   });
 });
 

@@ -64,7 +64,7 @@ export default async function CategoryPage({
         title={`${found.name} in Las Vegas`}
         trail={trail}
       />
-      <BookingBlock photo={consultationPhoto} treatment={found.name} />
+      <BookingBlock photo={found.bookingPhoto ?? consultationPhoto} treatment={found.name} />
 
       <Section tone="ivory">
         <div

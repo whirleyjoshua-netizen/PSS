@@ -36,6 +36,11 @@ export type Category = {
   intro: string[];
   /** A photo of our own install, shown beside the intro. */
   image?: Photo;
+  /**
+   * A different photo of this category, shown in the booking block under the
+   * hero so the page never repeats `image`. Unset means the consultation photo.
+   */
+  bookingPhoto?: Photo;
   seo: Seo;
 };
 
@@ -70,6 +75,10 @@ export const categories: Category[] = [
       src: "/gallery/faux-wood-blinds-living-room.webp",
       alt: "White faux wood blinds with wide slats on two windows above a grey sofa with patterned pillows.",
     },
+    bookingPhoto: {
+      src: "/gallery/sheer-vertical-patio-slider.webp",
+      alt: "Floor-to-ceiling sheer vertical blinds drawn across a patio slider in a living room, with the backyard visible through the fabric vanes.",
+    },
     seo: {
       title: "Blinds in Las Vegas, NV | Premier Shade Solutions",
       description:
@@ -89,6 +98,10 @@ export const categories: Category[] = [
       src: "/gallery/cellular-shades-cabin-dining-room.webp",
       alt: "White cellular shades on the tall windows of a wood-paneled great room, above a dining table set with candles",
     },
+    bookingPhoto: {
+      src: "/gallery/roller-shades-curved-bay.webp",
+      alt: "Roller shades raised to different heights across a curved bay of five windows, with trees visible below and clear transoms above.",
+    },
     seo: {
       title: "Window Shades in Las Vegas, NV | Premier Shade Solutions",
       description:
@@ -107,6 +120,10 @@ export const categories: Category[] = [
     image: {
       src: "/gallery/plantation-shutters-kitchen-sink.webp",
       alt: "White plantation shutters with open louvers over a farmhouse kitchen sink and marble countertop",
+    },
+    bookingPhoto: {
+      src: "/gallery/plantation-shutters-french-doors.webp",
+      alt: "White plantation shutters mounted on a pair of French doors and on the tall window beside them.",
     },
     seo: {
       title: "Plantation Shutters in Las Vegas, NV | Premier Shade",
