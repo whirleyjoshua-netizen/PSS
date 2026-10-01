@@ -112,9 +112,9 @@ export const gallery: GalleryItem[] = [
   },
   {
     src: "/gallery/shades-open-living-room.webp",
-    alt: "Light window shades on every window and on a pair of French doors in an open-plan living room with a large sectional sofa.",
+    alt: "Dark woven wood shades on a pair of French doors, light fabric shades under a grey woven valance on two windows, and a white plantation shutter on a side window, in a living room with a large sectional sofa.",
     treatment: "shades",
-    caption: "Coordinated shades across every opening in an open-plan living room, French doors included.",
+    caption: "Woven wood shades on the French doors, light shades on the windows behind the sofa and a plantation shutter on the side window.",
   },
   {
     src: "/gallery/cellular-shades-entry-sidelights.webp",
@@ -135,10 +135,15 @@ export const gallery: GalleryItem[] = [
  *
  * A stand-in: the owners are taking a consultation photo (Shade with a
  * homeowner, samples, a window in view). When it exists, put it in
- * public/gallery/ and change this one constant. It must never be a photo
- * with the children in it; they appear only on the About page.
+ * public/gallery/, add it to `gallery` above, and change the src here. It
+ * must never be a photo with the children in it; they appear only on the
+ * About page.
  */
-export const consultationPhoto: Photo = {
-  src: "/gallery/shades-open-living-room.webp",
-  alt: "Light window shades on every window and on a pair of French doors in an open-plan living room with a large sectional sofa.",
-};
+export const consultationPhoto: Photo = galleryPhoto("/gallery/shades-open-living-room.webp");
+
+/** A gallery photo's src and reviewed alt text; throws at module load if the gallery lacks it. */
+function galleryPhoto(src: string): Photo {
+  const entry = gallery.find((item) => item.src === src);
+  if (!entry) throw new Error(`content/gallery: no gallery entry for ${src}`);
+  return { src: entry.src, alt: entry.alt };
+}

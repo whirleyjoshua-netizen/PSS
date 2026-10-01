@@ -51,6 +51,12 @@ describe("photos in the content model", () => {
     }
   });
 
+  it("takes the consultation photo's alt text from its reviewed gallery entry", () => {
+    const match = gallery.find((item) => item.src === consultationPhoto.src);
+    expect(match).toBeDefined();
+    expect(consultationPhoto).toEqual({ src: match!.src, alt: match!.alt });
+  });
+
   it("never uses a family photo as the consultation stand-in", () => {
     expect(consultationPhoto.src).not.toMatch(/^\/brand\//);
   });
