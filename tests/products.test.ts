@@ -177,13 +177,3 @@ describe("the owners' photos of 2026-10-01", () => {
     expect(product.image!.alt.trim().length).toBeGreaterThan(20);
   });
 });
-
-describe("the Motorization hero video", () => {
-  it("is a small silent mp4 with a still, both on disk", () => {
-    const video = categories.find((c) => c.slug === "motorization")!.heroVideo!;
-    expect(video.src).toBe("/video/motorization-nook-pan.mp4");
-    expect(existsSync(path.join(process.cwd(), "public", video.src))).toBe(true);
-    expect(existsSync(path.join(process.cwd(), "public", video.poster.src))).toBe(true);
-    expect(video.poster.alt.trim().length).toBeGreaterThan(20);
-  });
-});

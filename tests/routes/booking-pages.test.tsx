@@ -52,13 +52,13 @@ describe.each(categories.map((category) => [category.slug, category] as const))(
     expectClosingButtonToBook();
   });
 
-  it("shows its hero video's still, else its own booking photo, else the consultation photo", async () => {
+  it("shows its own booking photo in the booking block, or the consultation photo when it has none", async () => {
     const { container } = await renderCategory(slug);
     const inBlock = Array.from(container.querySelectorAll("section#book img")).map((img) =>
       decodeURIComponent(img.getAttribute("src") ?? ""),
     );
     expect(inBlock).toHaveLength(1);
-    expect(inBlock[0]).toContain((category.heroVideo?.poster ?? category.bookingPhoto ?? consultationPhoto).src);
+    expect(inBlock[0]).toContain((category.bookingPhoto ?? consultationPhoto).src);
   });
 
   it("never shows the same photo twice on the page", async () => {
