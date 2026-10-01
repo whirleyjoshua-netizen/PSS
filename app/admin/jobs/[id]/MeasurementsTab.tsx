@@ -31,7 +31,7 @@ export function MeasurementsTab({ jobId, set, files }: {
         empty={set.kept ? null : "No official measure yet."} canAdd={!set.kept}
         extra={set.kept ? (
           <p className="text-sm">
-            Using the designer measure, kept as official by {set.kept.by} {formatWhen(set.kept.at)}.
+            Using the designer measure (kept as official by {set.kept.by}, {formatWhen(set.kept.at)}).
           </p>
         ) : null} />
     </div>

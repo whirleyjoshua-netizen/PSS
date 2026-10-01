@@ -2,6 +2,7 @@ import { render, screen, within } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 import type { JobFile } from "@/lib/admin/files";
 import type { WindowMeasurement } from "@/lib/admin/measurements";
+import { formatWhen } from "@/lib/admin/time";
 
 vi.mock("@/app/admin/jobs/measure-actions", () => ({ removeMeasurement: vi.fn(), removeFile: vi.fn(), setFileShared: vi.fn() }));
 vi.mock("@/app/admin/jobs/[id]/KeepOfficialBox", () => ({ KeepOfficialBox: ({ kept, blocked }: { kept: boolean; blocked: boolean }) => <p>box kept={String(kept)} blocked={String(blocked)}</p> }));
@@ -86,7 +87,7 @@ describe("MeasurementsTab", () => {
     const kept = { at: new Date("2026-10-01T15:00:00Z"), by: "owner@example.com" };
     render(<MeasurementsTab jobId={JOB} set={{ windows: [m], kept }} files={[photo]} />);
     const off = screen.getByRole("region", { name: /Official measure/ });
-    expect(off).toHaveTextContent("Using the designer measure, kept as official by owner@example.com");
+    expect(off).toHaveTextContent(`Using the designer measure (kept as official by owner@example.com, ${formatWhen(kept.at)}).`);
     expect(within(off).queryByRole("link", { name: "Add to official measure" })).toBeNull();
     expect(screen.getByText("box kept=true blocked=false")).toBeInTheDocument();
   });

@@ -235,6 +235,7 @@ test("a designer measure kept as official, then a separate official measure", as
   // Designer measure, kept as official.
   await page.getByRole("link", { name: "Add measurement" }).click();
   await page.getByRole("link", { name: /Designer measure/ }).click();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Designer measure");
   await page.getByRole("button", { name: "Kitchen" }).click();
   await page.getByLabel("Width inches").fill("35");
   await page.getByLabel("Height inches").fill("48");
@@ -242,11 +243,12 @@ test("a designer measure kept as official, then a separate official measure", as
   await page.getByRole("button", { name: "Save and next window" }).click();
   await expect(page.getByRole("status")).toContainText("Saved");
   await page.getByLabel("Keep as official measure").check();
+  await expect(page.getByLabel("Keep as official measure")).toBeEnabled();
   await expect(page.getByLabel("Keep as official measure")).toBeChecked();
   await page.getByRole("link", { name: "Finish" }).click();
 
   const official = page.getByRole("region", { name: /Official measure/ });
-  await expect(official).toContainText("Using the designer measure, kept as official");
+  await expect(official).toContainText("Using the designer measure (kept as official");
   await expect(official.getByRole("link", { name: "Add to official measure" })).toHaveCount(0);
 
   // A stale official link lands on the chooser's reason, not a form.
