@@ -3,6 +3,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const send = vi.fn();
 vi.mock("resend", () => ({ Resend: class { emails = { send }; } }));
 vi.mock("@/lib/leads/email", () => ({ ownerRecipients: () => ["owner@example.com"] }));
+// Hoisted with vi.mock: the static import below runs the factory before any plain const would exist.
+const { depositState } = vi.hoisted(() => ({ depositState: vi.fn(async (_id: string) => null as unknown) }));
+vi.mock("@/lib/payments/deposits", () => ({ depositState }));
 
 import { STAMP_REASONS, notifyOwnersOfSignature, sendCustomerSignedCopy } from "@/lib/portal/send-signature-email";
 
@@ -11,6 +14,7 @@ const AT = new Date("2026-09-18T17:00:00Z");
 
 beforeEach(() => {
   send.mockReset().mockResolvedValue({ error: null });
+  depositState.mockReset().mockResolvedValue(null);
   process.env.RESEND_API_KEY = "test-key";
 });
 
@@ -76,5 +80,32 @@ describe("sendCustomerSignedCopy", () => {
     await sendCustomerSignedCopy("jane@example.com", job, "Contract.pdf", null);
     expect(send.mock.calls[0][0].attachments).toBeUndefined();
     expect(send.mock.calls[0][0].text as string).toContain("your project page");
+  });
+
+  it("adds the deposit and where to pay it once the signed job owes one", async () => {
+    depositState.mockResolvedValue({ jobStatus: "signed", versionStatus: "signed", amountCents: 92417, paid: null,
+      signedAt: new Date("2026-09-28T17:00:00Z") });
+    await sendCustomerSignedCopy("jane@example.com", job, "Contract PSS-1012 v1.pdf", null);
+    const text = send.mock.calls[0][0].text as string;
+    expect(text).toContain(`Next: your 50% deposit of $924.17 confirms your order. Pay it on your project page: premiershadesolutions.com/project/${job.id}`);
+    expect(text).toContain("You may cancel until the end of Oct 1, 2026 and we will refund your deposit in full.");
+  });
+
+  it("logs a failed deposit lookup with the job id, and still sends the copy without a deposit line", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const failure = new Error("db down");
+    depositState.mockRejectedValue(failure);
+    await sendCustomerSignedCopy("jane@example.com", job, "Contract.pdf", null);
+    expect(error).toHaveBeenCalledWith(expect.stringContaining(job.id), failure);
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(send.mock.calls[0][0].text).not.toContain("deposit");
+    error.mockRestore();
+  });
+
+  it("says nothing about a deposit that is paid, or when there is none", async () => {
+    depositState.mockResolvedValue({ jobStatus: "sold", versionStatus: "signed", amountCents: 92417, paid: { id: "d" },
+      signedAt: new Date("2026-09-28T17:00:00Z") });
+    await sendCustomerSignedCopy("jane@example.com", job, "Contract.pdf", null);
+    expect(send.mock.calls[0][0].text).not.toContain("deposit");
   });
 });

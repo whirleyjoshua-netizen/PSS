@@ -1,10 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { STAGES, ALL_STAGES, isStage, stageLabel, nextStage, WORKING_STAGES, STAGE_STYLE, parseWorkingStage, BOARD_STAGES, INSTALLED_STATUSES, isInstalled, LIST_FILTERS, parseListFilter } from "@/lib/admin/stages";
+import { STAGES, ALL_STAGES, isStage, stageLabel, nextStage, WORKING_STAGES, STAGE_STYLE, parseWorkingStage, BOARD_STAGES, INSTALLED_STATUSES, isInstalled, LIST_FILTERS, parseListFilter, stageIndex, BOOKED_OR_LATER, SOLD_OR_LATER } from "@/lib/admin/stages";
 
 describe("stages", () => {
   it("runs from new lead to completed, in order", () => {
     expect(STAGES.map((s) => s.value)).toEqual([
-      "new", "visit_booked", "quoted", "sold", "ordered", "installed", "completed",
+      "new", "visit_booked", "quoted", "approved", "signed", "sold", "measure", "ordered", "installed", "completed",
     ]);
   });
 
@@ -15,6 +15,10 @@ describe("stages", () => {
 
   it("advances one stage at a time and stops at completed", () => {
     expect(nextStage("new")).toBe("visit_booked");
+    expect(nextStage("quoted")).toBe("approved");
+    expect(nextStage("signed")).toBe("sold");
+    expect(nextStage("sold")).toBe("measure");
+    expect(nextStage("measure")).toBe("ordered");
     expect(nextStage("ordered")).toBe("installed");
     expect(nextStage("installed")).toBe("completed");
     expect(nextStage("completed")).toBeNull();
@@ -24,6 +28,9 @@ describe("stages", () => {
   it("labels stages the way the owners read them", () => {
     expect(stageLabel("new")).toBe("New lead");
     expect(stageLabel("visit_booked")).toBe("Appointment booked");
+    expect(stageLabel("approved")).toBe("Approved");
+    expect(stageLabel("signed")).toBe("Signed");
+    expect(stageLabel("measure")).toBe("Official measure");
     expect(stageLabel("completed")).toBe("Completed");
     expect(stageLabel("lost")).toBe("Lost");
   });
@@ -66,7 +73,7 @@ describe("working stages and styles", () => {
 
 describe("board and installed stages", () => {
   it("puts only current work on the board", () => {
-    expect([...BOARD_STAGES]).toEqual(["new", "visit_booked", "quoted", "sold", "ordered", "installed"]);
+    expect([...BOARD_STAGES]).toEqual(["new", "visit_booked", "quoted", "approved", "signed", "sold", "measure", "ordered", "installed"]);
   });
 
   it("counts installed and completed as installed", () => {
@@ -87,7 +94,7 @@ describe("board and installed stages", () => {
 describe("job list filter", () => {
   it("offers all jobs, every stage in order, then lost", () => {
     expect(LIST_FILTERS.map((f) => f.label)).toEqual([
-      "All jobs", "New lead", "Appointment booked", "Quoted", "Sold", "Ordered", "Installed", "Completed", "Lost",
+      "All jobs", "New lead", "Appointment booked", "Quoted", "Approved", "Signed", "Sold", "Official measure", "Ordered", "Installed", "Completed", "Lost",
     ]);
     expect(LIST_FILTERS[0].value).toBe("");
   });
@@ -97,5 +104,25 @@ describe("job list filter", () => {
     expect(parseListFilter("lost")).toBe("lost");
     expect(parseListFilter("nope")).toBeNull();
     expect(parseListFilter(undefined)).toBeNull();
+  });
+});
+
+describe("stage order helpers", () => {
+  it("gives each stage its place and lost none", () => {
+    expect(stageIndex("new")).toBe(0);
+    expect(stageIndex("signed")).toBeLessThan(stageIndex("sold"));
+    expect(stageIndex("measure")).toBeLessThan(stageIndex("ordered"));
+    expect(stageIndex("lost")).toBe(-1);
+  });
+
+  it("counts a job booked from Appointment booked on, and sold only from Sold on (Signed is not yet a sale)", () => {
+    expect([...BOOKED_OR_LATER]).toEqual(["visit_booked", "quoted", "approved", "signed", "sold", "measure", "ordered", "installed", "completed"]);
+    expect([...SOLD_OR_LATER]).toEqual(["sold", "measure", "ordered", "installed", "completed"]);
+  });
+
+  it("styles the three new stages with their own tokens", () => {
+    expect(STAGE_STYLE.approved.edge).toBe("border-t-stage-approved");
+    expect(STAGE_STYLE.signed.tint).toBe("text-stage-signed");
+    expect(STAGE_STYLE.measure.left).toBe("border-l-stage-measure");
   });
 });

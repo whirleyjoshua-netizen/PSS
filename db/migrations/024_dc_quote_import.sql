@@ -22,7 +22,7 @@ create table if not exists dc_quote_versions (
   source_file_id        uuid not null references job_files(id),
   source_sha256         text not null,
   message_id            text references ingested_messages(message_id),
-  status                text not null check (status in ('draft','sent','signed','superseded')),
+  status                text not null check (status in ('draft','offered','sent','signed','superseded','cancelled')),
   dealer_subtotal_cents integer not null,
   handling_fee_cents    integer not null,
   oversized_fee_cents   integer not null,
@@ -109,5 +109,5 @@ alter table job_files add constraint job_files_dealer_copy_never_shared check (
 alter table job_events drop constraint if exists job_events_kind_check;
 
 alter table job_events add constraint job_events_kind_check check (
-  kind in ('stage','note','edit','email','reward','measure','file','contact','message','service','signature','quote','document')
+  kind in ('stage','note','edit','email','reward','measure','file','contact','message','service','signature','quote','document','payment')
 );

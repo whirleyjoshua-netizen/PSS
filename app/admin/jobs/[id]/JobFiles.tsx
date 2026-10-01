@@ -37,6 +37,16 @@ function QuoteContractLabel() {
 }
 
 /**
+ * Shown in place of the type, share and delete controls on the quote PDF of an offered, sent or signed
+ * version (ruling P17). The client approves it on their project page; the server refuses unsharing,
+ * relabelling or deleting it while its version is live. A retired one (T8) has no label: it keeps its
+ * type and delete controls and loses only the Share switch, since re-sharing it is refused.
+ */
+function QuoteFileLabel() {
+  return <span className="text-sm text-ink-soft">Quote · the client approves it on their project page. Use Send quote on the Quote tab to change it.</span>;
+}
+
+/**
  * Shown in place of the type, share and delete controls on a job document's PDF. Sending shares
  * it and Void unshares it, both on the Documents tab; the server refuses the Files-tab controls.
  */
@@ -105,10 +115,11 @@ export function JobFiles({ jobId, measurements, files }: {
                     {file.sharedAt ? <> · <span className="text-xs uppercase tracking-wide text-charcoal">Shared</span></> : null}
                   </p>
                 </div>
-                {file.docType === "dealer_copy" ? <DealerCopyLabel /> : file.signed ? <SignedLabel /> : file.quoteContract ? <QuoteContractLabel /> : file.jobDocument ? <JobDocumentLabel /> : (
+                {file.docType === "dealer_copy" ? <DealerCopyLabel /> : file.signed ? <SignedLabel /> : file.quoteContract ? <QuoteContractLabel /> : file.quoteFile ? <QuoteFileLabel /> : file.jobDocument ? <JobDocumentLabel /> : (
                   <>
                     <DocTypeSelect key={file.docType ?? ""} jobId={jobId} fileId={file.id} fileName={file.name} docType={file.docType ?? null} />
-                    <ShareSwitch jobId={jobId} fileId={file.id} fileName={file.name} shared={Boolean(file.sharedAt)} />
+                    {/* T8: a superseded or cancelled version's quote cannot be shared again (setShared refuses it). */}
+                    {file.retiredQuote ? null : <ShareSwitch jobId={jobId} fileId={file.id} fileName={file.name} shared={Boolean(file.sharedAt)} />}
                     <form action={removeFile.bind(null, jobId, file.id)}>
                       <DeleteButton />
                     </form>

@@ -17,18 +17,22 @@ const setVersionChoices = vi.fn(async (..._args: unknown[]) => {
   return true;
 });
 vi.mock("@/lib/dc/store", () => ({ setLineOverride, setVersionChoices }));
+const sendQuote = vi.fn(async (..._args: unknown[]): Promise<{ ok: true; emailed: boolean } | { error: string }> => {
+  order.push("send");
+  return { ok: true, emailed: true };
+});
 const sendContract = vi.fn(async (..._args: unknown[]): Promise<{ ok: true; emailed: boolean } | { error: string }> => {
   order.push("send");
   return { ok: true, emailed: true };
 });
-vi.mock("@/lib/dc/send", () => ({ sendContract }));
+vi.mock("@/lib/dc/send", () => ({ sendQuote, sendContract }));
 const pollMailbox = vi.fn(async (): Promise<{ seen: number; results: { messageId: string; outcome: string }[] }> => {
   order.push("poll");
   return { seen: 0, results: [] };
 });
 vi.mock("@/lib/dc/import", () => ({ pollMailbox }));
 
-const { setLinePctAction, setChoicesAction, sendContractAction, checkNowAction } = await import("@/app/admin/jobs/[id]/quote-actions");
+const { setLinePctAction, setChoicesAction, sendQuoteAction, sendContractAction, checkNowAction } = await import("@/app/admin/jobs/[id]/quote-actions");
 
 const J = "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c";
 const V = "7a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
@@ -87,43 +91,61 @@ describe("setChoicesAction", () => {
   });
 });
 
-describe("sendContractAction", () => {
+describe("sendQuoteAction", () => {
   // Surrounding spaces included: "untouched" means not even trimmed.
   const FP = ' {"lines":[[1,60,39300,39300]],"total":123} ';
 
   it("checks the admin first and passes the fingerprint through untouched", async () => {
-    expect(await sendContractAction(J, V, FP)).toEqual({ ok: true, emailed: true });
+    expect(await sendQuoteAction(J, V, FP)).toEqual({ ok: true, emailed: true });
     expect(order).toEqual(["auth", "send"]);
-    expect(sendContract).toHaveBeenCalledWith({ jobId: J, versionId: V, fingerprint: FP, actor: "o@x.com" });
+    expect(sendQuote).toHaveBeenCalledWith({ jobId: J, versionId: V, fingerprint: FP, actor: "o@x.com" });
     expect(revalidatePath).toHaveBeenCalledWith(`/admin/jobs/${J}`);
   });
 
   it("answers emailed false when the client email failed", async () => {
-    sendContract.mockResolvedValueOnce({ ok: true, emailed: false });
-    expect(await sendContractAction(J, V, FP)).toEqual({ ok: true, emailed: false });
+    sendQuote.mockResolvedValueOnce({ ok: true, emailed: false });
+    expect(await sendQuoteAction(J, V, FP)).toEqual({ ok: true, emailed: false });
   });
 
   it("returns Send's error verbatim", async () => {
-    sendContract.mockResolvedValueOnce({ error: "Prices changed since you opened this page. Review them and send again." });
-    expect(await sendContractAction(J, V, FP)).toEqual({ error: "Prices changed since you opened this page. Review them and send again." });
+    sendQuote.mockResolvedValueOnce({ error: "Prices changed since you opened this page. Review them and send again." });
+    expect(await sendQuoteAction(J, V, FP)).toEqual({ error: "Prices changed since you opened this page. Review them and send again." });
     expect(revalidatePath).not.toHaveBeenCalled();
   });
 
   it("an unexpected failure inside Send (Blob, pdf-lib) is logged and answered plainly, not thrown", async () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
-    sendContract.mockRejectedValueOnce(new Error("Blob put failed"));
-    expect(await sendContractAction(J, V, FP)).toEqual({
-      error: "The contract could not be sent. Try again, and if it keeps failing, contact support.",
+    sendQuote.mockRejectedValueOnce(new Error("Blob put failed"));
+    expect(await sendQuoteAction(J, V, FP)).toEqual({
+      error: "The quote could not be sent. Try again, and if it keeps failing, contact support.",
     });
-    expect(error).toHaveBeenCalledWith("Sending the contract failed", expect.any(Error));
+    expect(error).toHaveBeenCalledWith("Sending the quote failed", expect.any(Error));
     expect(revalidatePath).not.toHaveBeenCalled();
     error.mockRestore();
   });
 
   it("refuses a fingerprint that is not a string or is huge", async () => {
-    expect(await sendContractAction(J, V, 5 as unknown as string)).toEqual({ error: "Reload the page and try again." });
-    expect(await sendContractAction(J, V, "x".repeat(50_001))).toEqual({ error: "Reload the page and try again." });
-    expect(sendContract).not.toHaveBeenCalled();
+    expect(await sendQuoteAction(J, V, 5 as unknown as string)).toEqual({ error: "Reload the page and try again." });
+    expect(await sendQuoteAction(J, V, "x".repeat(50_001))).toEqual({ error: "Reload the page and try again." });
+    expect(sendQuote).not.toHaveBeenCalled();
+  });
+});
+
+describe("sendContractAction", () => {
+  it("checks the admin first and sends the approved version's contract as the owner", async () => {
+    expect(await sendContractAction(J, V)).toEqual({ ok: true, emailed: true });
+    expect(order).toEqual(["auth", "send"]);
+    expect(sendContract).toHaveBeenCalledWith({ jobId: J, versionId: V, actor: "o@x.com" });
+    expect(revalidatePath).toHaveBeenCalledWith(`/admin/jobs/${J}`);
+  });
+  it("returns the refusal verbatim, and answers a failure plainly", async () => {
+    sendContract.mockResolvedValueOnce({ error: "The client has not approved this quote yet." });
+    expect(await sendContractAction(J, V)).toEqual({ error: "The client has not approved this quote yet." });
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    sendContract.mockRejectedValueOnce(new Error("Blob put failed"));
+    expect(await sendContractAction(J, V)).toEqual({ error: "The contract could not be sent. Try again, and if it keeps failing, contact support." });
+    expect(error).toHaveBeenCalledWith("Sending the contract failed", expect.any(Error));
+    error.mockRestore();
   });
 });
 

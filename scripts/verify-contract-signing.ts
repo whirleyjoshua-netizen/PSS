@@ -25,8 +25,8 @@
  *   9. deleteJob(A) succeeds and takes its signatures and files with it;
  *  10. a generated contract (a 'sent' dc_quote_versions row whose contract_file_id is the shared
  *      contract) on a 'quoted' lead C: signing marks the version signed with signed_at, moves C
- *      to 'sold' with sold_cents = the version's client_total_cents, and logs exactly one
- *      quoted -> sold 'stage' event. A signed change order on a lead D already at 'ordered'
+ *      to 'signed' with sold_cents = the version's client_total_cents, and logs exactly one
+ *      quoted -> signed 'stage' event. A signed change order on a lead D already at 'ordered'
  *      updates sold_cents but leaves the status alone and logs no stage event. (Step 3 is the
  *      hand-uploaded case: lead A stays 'quoted', sold_cents unset, no stage event.)
  *  11. deletes everything it wrote, even on failure.
@@ -329,11 +329,11 @@ test("contract signing: record, stamp, freeze and cascade against a real databas
     check(dC.status === "draft" && dC.signed_at === null, "a draft version is left alone",
       `row ${JSON.stringify(dC)}`);
     const lC = await leadRow(leadC);
-    check(lC.status === "sold" && lC.sold_cents === 123456, "lead C is sold with sold_cents 123456",
+    check(lC.status === "signed" && lC.sold_cents === 123456, "lead C is signed with sold_cents 123456",
       `row ${JSON.stringify(lC)}`);
     const stC = await stageEvents(leadC);
-    check(stC.length === 1 && stC[0].from_status === "quoted" && stC[0].to_status === "sold",
-      "exactly one stage event, quoted -> sold", `got ${JSON.stringify(stC)}`);
+    check(stC.length === 1 && stC[0].from_status === "quoted" && stC[0].to_status === "signed",
+      "exactly one stage event, quoted -> signed", `got ${JSON.stringify(stC)}`);
     const againC = await recordSignature({
       jobId: leadC, file: contractC, name: "Jane Doe", email: ACTOR, ip: null, userAgent: null,
       adoption: { method: "typed", initials: null },

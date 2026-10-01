@@ -1,5 +1,6 @@
 import "server-only";
 import { db } from "@/lib/db";
+import { BOOKED_OR_LATER, SOLD_OR_LATER } from "@/lib/admin/stages";
 import { ATTRIBUTION_DAYS } from "./attribution";
 import { conversionsCsv, type ConversionRow } from "./conversions";
 
@@ -12,18 +13,19 @@ import { conversionsCsv, type ConversionRow } from "./conversions";
  */
 export async function conversionsCsvNow(): Promise<string> {
   // Reaching a stage counts from its first stage entry, so a job that skipped
-  // ahead (booked straight to ordered) still reports when it was won.
+  // ahead (booked straight to ordered) still reports when it was won. Both lists
+  // come from the one stage definition, so a new stage counts without editing this.
   const rows = await db().query(
     `select l.gclid, l.created_at, l.sold_cents,
        (select min(e.created_at) from job_events e where e.lead_id = l.id and e.kind = 'stage'
-          and e.to_status in ('visit_booked', 'quoted', 'sold', 'ordered', 'installed', 'completed')) as booked_at,
+          and e.to_status = any($2::text[])) as booked_at,
        (select min(e.created_at) from job_events e where e.lead_id = l.id and e.kind = 'stage'
-          and e.to_status in ('sold', 'ordered', 'installed', 'completed')) as sold_at
+          and e.to_status = any($3::text[])) as sold_at
      from leads l
      where l.gclid is not null
        and coalesce(l.ad_clicked_at, l.created_at) > now() - make_interval(days => $1)
      order by l.created_at`,
-    [ATTRIBUTION_DAYS],
+    [ATTRIBUTION_DAYS, [...BOOKED_OR_LATER], [...SOLD_OR_LATER]],
   );
 
   return conversionsCsv(

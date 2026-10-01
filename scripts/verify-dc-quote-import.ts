@@ -4,14 +4,14 @@
  *
  * THIS IS NOT AUTOMATED COVERAGE. It is a script you run by hand, it is in no suite, and CI
  * does not execute it. If you change importVersion, setLineOverride, setVersionChoices,
- * importDealerCopy, loadReview, sendContract's freeze statement, recordSignature's `version` /
- * `sold` CTEs, or migration 024's constraints, run it yourself — and if you cannot, call that SQL
+ * importDealerCopy, loadReview, sendQuote's and sendContract's statements, approveDcQuote,
+ * recordSignature's `version` / `sold` CTEs, or migration 024's constraints, run it yourself — and if you cannot, call that SQL
  * unverified. This feature moves money.
  *
  * Why it exists: the unit tests mock db(), so they prove SQL *text* only. This script calls the
  * real functions against a real Postgres. The mocks are @vercel/blob (put/get/del, in memory —
- * there is no blob token here) and, for Send, the contract PDF builder and the client email
- * (neither touches the database). Every statement reaches the database for real.
+ * there is no blob token here) and, for Send, the quote and contract PDF builders and the client
+ * emails (none touches the database). Every statement reaches the database for real.
  *
  * What it does, against a throwaway database:
  *   1. import: two leads A and B (project numbers from the sequence). importDealerCopy on the
@@ -26,21 +26,28 @@
  *      version 2, which stores that name;
  *   4. draft-only edits: setLineOverride / setVersionChoices on v2 answer true; with v2 marked
  *      'sent' by hand they answer false and the rows are unchanged;
- *   5. races: sendContract on v2 while (a) another send marks it sent, (b) a line's % of MSRP
+ *   5. races: sendQuote on v2 while (a) another send marks it offered, (b) a line's % of MSRP
  *      changes, (c) waive-handling changes, (d) no-install changes — each between the review and
  *      the freeze (injected from inside the PDF build). Each answers "changed while you were
- *      sending", leaves no contract file, v2 still a draft with unpriced lines, A untouched;
- *   6. send: sendContract freezes v2 at priceVersion's figures (computed here independently),
- *      supersedes v1, shares the contract, sets A's quote_cents and moves A from visit_booked to
- *      quoted with one stage event. The client email is called once;
- *   7. a second send of v2 is refused and leaves exactly one contract file;
+ *      sending", leaves no quote file, v2 still a draft with unpriced lines, A untouched;
+ *   6. send: sendQuote freezes v2 (offered) at priceVersion's figures (computed here independently),
+ *      supersedes v1, shares the quote PDF, sets A's quote_cents and moves A from visit_booked to
+ *      quoted with one stage event;
+ *   6b. approveDcQuote approves v2 once (a second call answers null), moves A to approved, and
+ *      sendContract moves v2 to sent with a shared contract at the same total;
+ *   7. a second Send quote and a second contract are both refused and leave one quote and one
+ *      contract file;
  *   8. after a markup rule change, loadReview of the sent v2 returns the frozen figures;
  *   9. a second 'sent' version on the same contract file violates the unique index (23505);
- *  10. sign: recordSignature on the contract signs v2, sells A with sold_cents = the total;
+ *  10. sign: recordSignature on the contract signs v2, moves A from approved to signed with sold_cents = the total;
  *  11. a raw `update job_files set shared_at = now()` on the Dealer Copy is a check violation;
  *  11b. a generated contract: listFiles marks v2's contract quoteContract; setDocType on it answers
  *      false; re-sharing the contract of a superseded version answers false and leaves it
  *      unshared, while unsharing it and sharing a plain document (positive control) answer true;
+ *  11c. change orders on the signed job: v4 is sent (offered), then v5 is sent — superseding the offered v4
+ *      and offering v5 in ONE statement, which the deferred dc_quote_versions_one_offered accepts. The quote
+ *      PDF guards (ruling P17): the signed v2's and offered v5's quotes cannot be unshared, relabelled or
+ *      deleted; the superseded v4's cannot be re-shared, and deleting it (positive control) succeeds;
  *  12. deletes everything it wrote (leads by name prefix, their rows, its messages) and puts back
  *      the markup rules and dc_settings it changed, even on failure.
  *
@@ -59,7 +66,7 @@
  *   npx vitest run --config scripts/verify-dc-quote-import.config.mts
  *
  * To watch it fail (which is the only way to know it works): delete `and status = 'draft'` from
- * the `frozen` CTE in sendContract (lib/dc/send.ts) and run it again. Step 5(a) must fail (the
+ * the `offered` CTE in sendQuote (lib/dc/send.ts) and run it again. Step 5(a) must fail (the
  * freeze then re-sends a version another send already took). Put it back. Likewise the
  * `not exists (... pct_override is distinct from ...)` clause for 5(b) and the
  * `waive_handling = ...` comparison for 5(c).
@@ -72,7 +79,7 @@ import { test, vi } from "vitest";
 // The mocks: stored bytes kept in memory, and Send's two non-database side effects.
 const blobs = vi.hoisted(() => new Map<string, Buffer>());
 const hooks = vi.hoisted(() => ({
-  /** Runs inside the PDF build: after sendContract's review, before its freeze. */
+  /** Runs inside the PDF build: after sendQuote's review, before its freeze. */
   duringBuild: null as null | (() => Promise<void>),
   emails: [] as string[],
 }));
@@ -103,17 +110,29 @@ vi.mock("../lib/dc/contract-pdf", () => ({
     };
   },
 }));
+vi.mock("../lib/dc/quote-pdf", () => ({
+  buildQuotePdf: async (input: { projectNo: string; version: number }) => {
+    if (hooks.duringBuild) await hooks.duringBuild();
+    return new Uint8Array(Buffer.from(`%PDF-1.4 verify quote ${input.projectNo} v${input.version}`));
+  },
+}));
+vi.mock("../lib/dc/send-quote-email", () => ({
+  sendQuoteEmail: async (_job: unknown, fileName: string) => {
+    hooks.emails.push(fileName);
+  },
+}));
 vi.mock("../lib/dc/send-contract-email", () => ({
   sendContractEmail: async (_job: unknown, fileName: string) => {
     hooks.emails.push(fileName);
   },
 }));
 
-import { createFile, getFile, listFiles, setDocType, setShared } from "../lib/admin/files";
+import { createFile, deleteFile, getFile, listFiles, setDocType, setShared } from "../lib/admin/files";
 import { importDealerCopy, quoteSha256 } from "../lib/dc/import";
 import { parseDealerCopy } from "../lib/dc/parse";
 import { priceVersion } from "../lib/dc/pricing";
-import { loadReview, sendContract } from "../lib/dc/send";
+import { approveDcQuote } from "../lib/dc/approve";
+import { loadReview, sendContract, sendQuote } from "../lib/dc/send";
 import { importVersion, listMarkupRules, listVersions, saveMarkupRule, setLineOverride, setVersionChoices } from "../lib/dc/store";
 import { recordSignature } from "../lib/portal/sign";
 import { formatProjectNo } from "../lib/portal/project-no";
@@ -208,7 +227,7 @@ const footprint = async (leadId: string) => {
 
 const versionRow = async (id: string) =>
   (await sql`select status, waive_handling, no_install, install_quote_id, install_cents, products_cents,
-                    client_total_cents, contract_file_id, sent_at, sent_by, signed_at
+                    client_total_cents, contract_file_id, sent_at, sent_by, signed_at, quote_file_id, offered_at, offered_by, approved_at
              from dc_quote_versions where id = ${id}`)[0];
 
 const lineRows = async (versionId: string) =>
@@ -220,6 +239,9 @@ const leadRow = async (id: string) =>
 
 const contractFiles = async (leadId: string) =>
   await sql`select id, shared_at, doc_type from job_files where lead_id = ${leadId} and doc_type = 'contract'`;
+
+const quoteFiles = async (leadId: string) =>
+  await sql`select id, shared_at, doc_type from job_files where lead_id = ${leadId} and doc_type = 'quote'`;
 
 const stageEvents = async (id: string) =>
   await sql`select from_status, to_status from job_events where lead_id = ${id} and kind = 'stage' order by created_at`;
@@ -360,19 +382,19 @@ test("DC quote import: import, edit, send, sign and the Dealer Copy guard agains
     const race = async (label: string, change: () => Promise<void>, undo: () => Promise<void>) => {
       const fresh = await loadReview(A.id);
       hooks.duringBuild = change;
-      let answer: Awaited<ReturnType<typeof sendContract>>;
+      let answer: Awaited<ReturnType<typeof sendQuote>>;
       try {
-        answer = await sendContract({ jobId: A.id, versionId: v2, fingerprint: fresh!.fingerprint, actor: ACTOR });
+        answer = await sendQuote({ jobId: A.id, versionId: v2, fingerprint: fresh!.fingerprint, actor: ACTOR });
       } finally {
         hooks.duringBuild = null;
       }
-      check("error" in answer && answer.error === RACE, `${label}: sendContract answers the race error`,
+      check("error" in answer && answer.error === RACE, `${label}: sendQuote answers the race error`,
         `got ${JSON.stringify(answer)}`);
-      const left = await contractFiles(A.id);
-      check(left.length === 0, `${label}: no contract file is left`, `got ${JSON.stringify(left)}`);
+      const left = await quoteFiles(A.id);
+      check(left.length === 0, `${label}: no quote file is left`, `got ${JSON.stringify(left)}`);
       await undo();
       const row = await versionRow(v2);
-      check(row.status === "draft" && row.contract_file_id === null && row.client_total_cents === null,
+      check(row.status === "draft" && row.quote_file_id === null && row.client_total_cents === null,
         `${label}: v2 is still an unfrozen draft`, `row ${JSON.stringify(row)}`);
       check(JSON.stringify(await lineRows(v2)) === unsent.lines, `${label}: v2's lines are unpriced`,
         JSON.stringify(await lineRows(v2)));
@@ -383,7 +405,7 @@ test("DC quote import: import, edit, send, sign and the Dealer Copy guard agains
 
     console.log("step 5: races between review and freeze");
     await race("(a) another send took it",
-      async () => { await sql`update dc_quote_versions set status = 'sent' where id = ${v2}`; },
+      async () => { await sql`update dc_quote_versions set status = 'offered' where id = ${v2}`; },
       async () => { await sql`update dc_quote_versions set status = 'draft' where id = ${v2}`; });
     await race("(b) a line's % of MSRP changed",
       async () => { if (!(await setLineOverride(A.id, v2, 1, 175, ACTOR))) throw new Error("setup: override refused"); },
@@ -408,14 +430,15 @@ test("DC quote import: import, edit, send, sign and the Dealer Copy guard agains
     check(expected.clientTotalCents !== null && expected.blockers.length === 0, "setup: priceVersion prices every line",
       JSON.stringify(expected.blockers));
     const fresh = await loadReview(A.id);
-    const sent = await sendContract({ jobId: A.id, versionId: v2, fingerprint: fresh!.fingerprint, actor: ACTOR });
-    check(same(sent, { ok: true, emailed: true }), "sendContract answers ok, emailed", `got ${JSON.stringify(sent)}`);
+    const sent = await sendQuote({ jobId: A.id, versionId: v2, fingerprint: fresh!.fingerprint, actor: ACTOR });
+    check(same(sent, { ok: true, emailed: true }), "sendQuote answers ok, emailed", `got ${JSON.stringify(sent)}`);
     const v2sent = await versionRow(v2);
     check(
-      v2sent.status === "sent" && v2sent.client_total_cents === expected.clientTotalCents &&
+      v2sent.status === "offered" && v2sent.client_total_cents === expected.clientTotalCents &&
         v2sent.products_cents === expected.productsCents && v2sent.install_cents === 25000 &&
-        v2sent.install_quote_id === installQuoteId && v2sent.sent_at !== null && v2sent.sent_by === ACTOR,
-      `v2 is sent, frozen at priceVersion's total ${expected.clientTotalCents}`,
+        v2sent.install_quote_id === installQuoteId && v2sent.offered_at !== null && v2sent.offered_by === ACTOR &&
+        v2sent.quote_file_id !== null && v2sent.contract_file_id === null && v2sent.approved_at === null,
+      `v2 is offered, frozen at priceVersion's total ${expected.clientTotalCents}, with a quote and no contract`,
       `row ${JSON.stringify(v2sent)}, expected ${JSON.stringify(expected)}`,
     );
     const frozenLines = (await lineRows(v2)).map((l) => [l.position, Number(l.markup_pct), l.sell_unit_cents, l.markup_overridden]);
@@ -423,31 +446,55 @@ test("DC quote import: import, edit, send, sign and the Dealer Copy guard agains
     check(same(frozenLines, expectedLines), "v2's lines hold priceVersion's % and sell price",
       `got ${JSON.stringify(frozenLines)}, want ${JSON.stringify(expectedLines)}`);
     check((await versionRow(v1)).status === "superseded", "v1 is superseded", JSON.stringify(await versionRow(v1)));
-    const contracts = await contractFiles(A.id);
-    check(contracts.length === 1 && contracts[0].id === v2sent.contract_file_id && contracts[0].shared_at !== null &&
-        contracts[0].doc_type === "contract",
-      "one shared contract file, the one v2 points at", `got ${JSON.stringify(contracts)}`);
-    const contractId = contracts[0].id as string;
+    const quotes = await quoteFiles(A.id);
+    check(quotes.length === 1 && quotes[0].id === v2sent.quote_file_id && quotes[0].shared_at !== null,
+      "one shared quote file, the one v2 points at", `got ${JSON.stringify(quotes)}`);
+    check((await contractFiles(A.id)).length === 0, "no contract before the approval", JSON.stringify(await contractFiles(A.id)));
     const aSent = await leadRow(A.id);
     check(aSent.status === "quoted" && aSent.quote_cents === expected.clientTotalCents,
       "A is quoted with quote_cents = the client total", `row ${JSON.stringify(aSent)}`);
     const stages = await stageEvents(A.id);
     check(stages.length === 1 && stages[0].from_status === "visit_booked" && stages[0].to_status === "quoted",
       "one stage event, visit_booked -> quoted", `got ${JSON.stringify(stages)}`);
-    check(hooks.emails.length === 1, "the client email was sent once", `got ${JSON.stringify(hooks.emails)}`);
+    check(hooks.emails.length === 1, "the quote email was sent once", `got ${JSON.stringify(hooks.emails)}`);
     const dealerCopies = await sql`select shared_at from job_files where lead_id = ${A.id} and doc_type = 'dealer_copy'`;
     check(dealerCopies.length === 2 && dealerCopies.every((f) => f.shared_at === null),
       "both Dealer Copies are still unshared", `got ${JSON.stringify(dealerCopies)}`);
 
+    console.log("step 6b: approve, then the contract");
+    const approved = await approveDcQuote(A.id, v2, ACTOR);
+    check(same(approved, { version: 2, moved: true }), "approveDcQuote answers version 2 and that it moved A", `got ${JSON.stringify(approved)}`);
+    check((await approveDcQuote(A.id, v2, ACTOR)) === null, "approving again answers null", "not null");
+    const aApproved = await leadRow(A.id);
+    check(aApproved.status === "approved", "A is approved", `row ${JSON.stringify(aApproved)}`);
+    const approvedStages = await stageEvents(A.id);
+    check(approvedStages.length === 2 && approvedStages[1].from_status === "quoted" && approvedStages[1].to_status === "approved",
+      "one more stage event, quoted -> approved, and none for the second approval", `got ${JSON.stringify(approvedStages)}`);
+    const contracted = await sendContract({ jobId: A.id, versionId: v2, actor: ACTOR });
+    check(same(contracted, { ok: true, emailed: true }), "sendContract answers ok, emailed", `got ${JSON.stringify(contracted)}`);
+    const v2contract = await versionRow(v2);
+    check(v2contract.status === "sent" && v2contract.contract_file_id !== null && v2contract.sent_by === ACTOR &&
+        v2contract.client_total_cents === expected.clientTotalCents && v2contract.approved_at !== null,
+      "v2 is sent with its contract, at the same total", `row ${JSON.stringify(v2contract)}`);
+    const contracts = await contractFiles(A.id);
+    check(contracts.length === 1 && contracts[0].id === v2contract.contract_file_id && contracts[0].shared_at !== null &&
+        contracts[0].doc_type === "contract",
+      "one shared contract file, the one v2 points at", `got ${JSON.stringify(contracts)}`);
+    const contractId = contracts[0].id as string;
+    check(hooks.emails.length === 2, "the contract email was sent once", `got ${JSON.stringify(hooks.emails)}`);
+
     console.log("step 7: a second send");
-    // A fresh, matching fingerprint, so the only thing that can refuse it is the version being sent.
     const resend = await loadReview(A.id);
-    const again = await sendContract({ jobId: A.id, versionId: v2, fingerprint: resend!.fingerprint, actor: ACTOR });
+    const again = await sendQuote({ jobId: A.id, versionId: v2, fingerprint: resend!.fingerprint, actor: ACTOR });
     check(same(again, { error: "This version has already been sent." }),
-      "sending v2 again is refused: This version has already been sent.", `got ${JSON.stringify(again)}`);
-    check((await contractFiles(A.id)).length === 1 && (await versionRow(v2)).contract_file_id === contractId,
-      "still exactly one contract file, still v2's", JSON.stringify(await contractFiles(A.id)));
-    check(hooks.emails.length === 1, "no second client email", `got ${JSON.stringify(hooks.emails)}`);
+      "sending v2's quote again is refused: This version has already been sent.", `got ${JSON.stringify(again)}`);
+    const againContract = await sendContract({ jobId: A.id, versionId: v2, actor: ACTOR });
+    check(same(againContract, { error: "This quote's contract has already been sent, or the quote was never sent." }),
+      "sending v2's contract again is refused", `got ${JSON.stringify(againContract)}`);
+    check((await contractFiles(A.id)).length === 1 && (await versionRow(v2)).contract_file_id === contractId &&
+        (await quoteFiles(A.id)).length === 1,
+      "still exactly one contract and one quote file, v2's", JSON.stringify(await contractFiles(A.id)));
+    check(hooks.emails.length === 2, "no further client email", `got ${JSON.stringify(hooks.emails)}`);
 
     console.log("step 8: a sent version keeps its figures when a rule changes");
     await saveMarkupRule("Duette", 300, ACTOR);
@@ -493,11 +540,11 @@ test("DC quote import: import, edit, send, sign and the Dealer Copy guard agains
     check(v2signed.status === "signed" && v2signed.signed_at !== null, "v2 is signed with signed_at",
       `row ${JSON.stringify(v2signed)}`);
     const aSold = await leadRow(A.id);
-    check(aSold.status === "sold" && aSold.sold_cents === expected.clientTotalCents,
-      `A is sold with sold_cents = ${expected.clientTotalCents}`, `row ${JSON.stringify(aSold)}`);
+    check(aSold.status === "signed" && aSold.sold_cents === expected.clientTotalCents,
+      `A is signed with sold_cents = ${expected.clientTotalCents}`, `row ${JSON.stringify(aSold)}`);
     const soldStages = await stageEvents(A.id);
-    check(soldStages.length === 2 && soldStages[1].from_status === "quoted" && soldStages[1].to_status === "sold",
-      "one more stage event, quoted -> sold", `got ${JSON.stringify(soldStages)}`);
+    check(soldStages.length === 3 && soldStages[2].from_status === "approved" && soldStages[2].to_status === "signed",
+      "one more stage event, approved -> signed", `got ${JSON.stringify(soldStages)}`);
 
     console.log("step 11: the Dealer Copy can never be shared");
     const shareCopy = await sql`update job_files set shared_at = now() where id = ${dealerCopyId}`
@@ -529,6 +576,59 @@ test("DC quote import: import, edit, send, sign and the Dealer Copy guard agains
       body: new Blob(["%PDF-1.4 plain"]), actor: ACTOR, docType: "contract" });
     if (!plain) throw new Error("setup: could not create the plain file");
     check((await setShared(A.id, plain.id, true, ACTOR)) === true, "positive control: sharing a contract no version names answers true", "false");
+
+    console.log("step 11c: a change order sent over an offered one, and the quote PDF guards (ruling P17)");
+    const v2QuoteId = (await versionRow(v2)).quote_file_id as string;
+    check((await setShared(A.id, v2QuoteId, false, ACTOR)) === false, "unsharing the signed v2's quote answers false", "true");
+    check((await setDocType(A.id, v2QuoteId, "other", ACTOR)) === false, "relabelling the signed v2's quote answers false", "true");
+    check((await deleteFile(v2QuoteId, ACTOR)) === false, "deleting the signed v2's quote answers false", "true");
+    const sendChange = async (n: number, client: string) => {
+      const changed = html.replace("<b>Client:</b></td><td>Test<", `<b>Client:</b></td><td>${client}<`);
+      const imported = await importDealerCopy({ internetMessageId: message(n), receivedAt: new Date(), html: changed });
+      if (imported.outcome !== "imported") throw new Error(`setup: the change order did not import: ${JSON.stringify(imported)}`);
+      const newest = (await listVersions(A.id))[0];
+      const review = await loadReview(A.id);
+      if (!review || review.version.id !== newest.id) throw new Error("setup: loadReview does not offer the change order");
+      const answer = await sendQuote({ jobId: A.id, versionId: newest.id, fingerprint: review.fingerprint, actor: ACTOR });
+      check(same(answer, { ok: true, emailed: true }), `sendQuote offers change order version ${newest.version}`, `got ${JSON.stringify(answer)}`);
+      return newest.id;
+    };
+    const v4 = await sendChange(5, "Test Change One");
+    check((await versionRow(v4)).status === "offered" && (await versionRow(v2)).status === "signed",
+      "v4 is offered and the signed v2 stays signed", JSON.stringify([await versionRow(v4), await versionRow(v2)]));
+    const v5 = await sendChange(6, "Test Change Two");
+    const v4row = await versionRow(v4);
+    const v5row = await versionRow(v5);
+    check(v4row.status === "superseded" && v5row.status === "offered",
+      "sending v5 supersedes the offered v4 and offers v5 in one statement (the deferred one-offered constraint accepts it)",
+      JSON.stringify([v4row.status, v5row.status]));
+    const offeredNow = await sql`select id from dc_quote_versions where lead_id = ${A.id} and status = 'offered'`;
+    check(offeredNow.length === 1 && offeredNow[0].id === v5, "exactly one offered version, v5", JSON.stringify(offeredNow));
+    const shares = await sql`select id, (shared_at is not null) as shared from job_files where id = any(${[v4row.quote_file_id, v5row.quote_file_id]})`;
+    const sharedOf = (id: unknown) => shares.find((f) => f.id === id)?.shared;
+    check(sharedOf(v4row.quote_file_id) === false && sharedOf(v5row.quote_file_id) === true,
+      "v4's quote was unshared and v5's is shared", JSON.stringify(shares));
+    const listedQuotes = await listFiles(A.id);
+    // A superseded version's quote is retired, not live (b5d06fa): listFiles marks it retiredQuote, never quoteFile.
+    check([v2QuoteId, v5row.quote_file_id].every((id) => listedQuotes.find((f) => f.id === id)?.quoteFile === true) &&
+        listedQuotes.filter((f) => f.quoteFile).length === 2,
+      "listFiles marks the signed v2's and offered v5's quote PDFs, and only them, as quote files",
+      JSON.stringify(listedQuotes.map((f) => [f.name, f.quoteFile, f.retiredQuote])));
+    const listedV4 = listedQuotes.find((f) => f.id === v4row.quote_file_id);
+    check(listedV4?.retiredQuote === true && listedV4.quoteFile === false && listedQuotes.filter((f) => f.retiredQuote).length === 1,
+      "listFiles marks the superseded v4's quote PDF, and only it, as a retired quote",
+      JSON.stringify(listedQuotes.map((f) => [f.name, f.quoteFile, f.retiredQuote])));
+    const liveQuote = v5row.quote_file_id as string;
+    check((await setShared(A.id, liveQuote, false, ACTOR)) === false, "unsharing the offered v5's quote answers false", "true");
+    check((await setDocType(A.id, liveQuote, "other", ACTOR)) === false, "relabelling the offered v5's quote answers false", "true");
+    check((await deleteFile(liveQuote, ACTOR)) === false, "deleting the offered v5's quote answers false", "true");
+    const liveRow = (await sql`select (shared_at is not null) as shared, doc_type from job_files where id = ${liveQuote}`)[0];
+    check(liveRow?.shared === true && liveRow.doc_type === "quote", "v5's quote is still shared, labelled quote", JSON.stringify(liveRow));
+    const oldQuote = v4row.quote_file_id as string;
+    check((await setShared(A.id, oldQuote, true, ACTOR)) === false, "re-sharing the superseded v4's quote answers false", "true");
+    check((await sql`select shared_at from job_files where id = ${oldQuote}`)[0].shared_at === null, "v4's quote is still unshared", "shared");
+    check((await deleteFile(oldQuote, ACTOR)) === true, "positive control: deleting the superseded v4's quote answers true", "false");
+    check((await versionRow(v4)).quote_file_id === null, "v4's quote_file_id is set null by the delete", JSON.stringify(await versionRow(v4)));
     check(same(await footprint(B.id), bBefore), "B still has no new rows at the end", "B changed");
 
     console.log("\nPASSED: the DC quote import holds against a real database. Manual run, not coverage.\n");

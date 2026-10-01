@@ -7,7 +7,7 @@ const statements = source.split("\n").filter((line) => !line.trim().startsWith("
   .split(";").map((s) => s.replace(/\s+/g, " ").trim()).filter(Boolean);
 const find = (text: string) => statements.find((s) => s.includes(text));
 const list = (values: readonly string[]) => values.map((v) => `'${v}'`).join(",");
-const KINDS = "'stage','note','edit','email','reward','measure','file','contact','message','service','signature','quote','document'";
+const KINDS = "'stage','note','edit','email','reward','measure','file','contact','message','service','signature','quote','document','payment'";
 
 describe("migration 026", () => {
   it("never puts a semicolon inside a comment", () => {

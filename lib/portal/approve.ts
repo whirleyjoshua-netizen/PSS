@@ -8,7 +8,8 @@ import { setStage } from "@/lib/admin/jobs";
 export type ApproveResult = "approved" | "not-found" | "wrong-status" | "no-quote";
 
 /**
- * Records that a customer approved their quote, moving the job to Sold.
+ * Records that a customer approved an uploaded quote, moving the job to Approved; the owners then send
+ * the paperwork by hand. A Direct Connect quote is approved by approveDcQuote (lib/dc/approve.ts) instead.
  *
  * This function does NOT check ownership or the job's status — it trusts the caller, exactly
  * as sendMessage does. Every caller must first re-derive the customer's own jobs from the
@@ -32,7 +33,7 @@ export async function approveQuote(
   if (!name) return "no-quote";
 
   // The customer's own address is the actor: this is their act, not an owner's.
-  const moved = await setStage(jobId, "sold", actor, {
+  const moved = await setStage(jobId, "approved", actor, {
     body: `Approved "${name}" from their project page`,
   });
   // reason is Lost's alone and writes lost_reason; an approval never sets it.

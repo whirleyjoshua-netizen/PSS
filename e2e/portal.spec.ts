@@ -242,7 +242,7 @@ test("a mid-flow job shows the right current step with its dates", async ({ brow
 
   const steps = page.getByRole("listitem");
   await expect(steps.filter({ hasText: "Quote Ready" })).toContainText("Sep 2");
-  await expect(steps.filter({ hasText: "Order Confirmed" })).toContainText("Sep 8");
+  await expect(steps.filter({ hasText: "Deposit Paid" })).toContainText("Sep 8");
   await expect(steps.filter({ hasText: "In Production" })).toContainText("Sep 10");
   // A step the job has not reached carries no date.
   await expect(steps.filter({ hasText: "Installed" })).not.toContainText("Sep");
@@ -619,15 +619,16 @@ test("a customer cannot act on another customer's job", async ({ browser }) => {
 });
 
 /**
- * Spec §8, first journey: a customer approves a quote; the job reads Sold on the admin board,
- * and its timeline names the CUSTOMER.
+ * Spec §8, first journey: a customer approves an uploaded quote; the job reads Approved on the
+ * admin board, and its timeline names the CUSTOMER. (An uploaded quote's contract is sent by the
+ * owners by hand; a Direct Connect quote's contract follows its approval automatically.)
  *
  * The timeline assertion is the one that matters months later. setStage takes `actor` as a
  * plain string, so a customer-driven move is recorded honestly as the customer's own email
  * rather than disguised as an owner's click — and the body names the document they were
  * looking at, read server-side from job_files by the action. The post carries only the job id.
  */
-test("a customer approves a quote and the job reads Sold, in their own name", async ({ page, browser }) => {
+test("a customer approves an uploaded quote and the job reads Approved, in their own name", async ({ page, browser }) => {
   const name = `${NAME} Approve`;
   const id = await lead(name, APPROVE_CUSTOMER, "quoted");
   const quoteName = `quote-approve-${STAMP}.pdf`;
@@ -639,13 +640,13 @@ test("a customer approves a quote and the job reads Sold, in their own name", as
   await expect(banner.getByRole("heading", { name: "Quote Ready" })).toBeVisible();
 
   // Two steps on purpose: the reveal carries the sentence about what approving means, and the
-  // button is not reachable until it has been opened. One stray tap must not order materials.
+  // button is not reachable until it has been opened. One stray tap must not accept a price.
   // exact: true — "Approve this quote" is a prefix of the confirm button's "Yes, approve this
   // quote", so a loose match resolves to two elements and the click fails before the gate is
   // ever exercised. A spec that dies here fails identically against correct code.
   await banner.getByText("Approve this quote", { exact: true }).click();
   await expect(
-    banner.getByText("Approving tells us to go ahead and order. We will email you to arrange the details."),
+    banner.getByText("Approving accepts this quote. Your contract comes next, to read and sign."),
   ).toBeVisible();
   await banner.getByRole("button", { name: "Yes, approve this quote" }).click();
 
@@ -654,22 +655,22 @@ test("a customer approves a quote and the job reads Sold, in their own name", as
   await expect(customer).toHaveURL(new RegExp(`/project/${id}\\?approved=1$`));
   await expect(customer.getByRole("status"))
     .toContainText("Thank you — we have your approval and will be in touch to arrange the details.");
-  // The banner beside it is the confirmation's own evidence, and the control is gone: there is
-  // nothing left to approve.
-  await expect(banner.getByRole("heading", { name: "Order Confirmed" })).toBeVisible();
+  // An approved job still stands at Quote Ready (the contract, signing and deposit come next), and
+  // the control is gone: there is nothing left to approve.
+  await expect(banner.getByRole("heading", { name: "Quote Ready" })).toBeVisible();
   await expect(customer.getByText("Approve this quote")).toHaveCount(0);
 
   // The row itself. One stage event, and exactly one — the actor is the customer, and the body
   // names the document, which is what an owner reads back in six months.
   const [row] = await sql()`select status from leads where id = ${id}`;
-  expect(row.status).toBe("sold");
+  expect(row.status).toBe("approved");
   const events = await sql()`select actor, from_status, to_status, body from job_events
     where lead_id = ${id} and kind = 'stage'`;
   expect(events).toEqual([
     {
       actor: APPROVE_CUSTOMER,
       from_status: "quoted",
-      to_status: "sold",
+      to_status: "approved",
       body: `Approved "${quoteName}" from their project page`,
     },
   ]);
@@ -677,7 +678,7 @@ test("a customer approves a quote and the job reads Sold, in their own name", as
   // The owners' side: the job has moved column, and the timeline names the customer.
   await signInOwner(page);
   await page.goto("/admin");
-  await expect(page.getByRole("region", { name: /^Sold ·/ }).getByRole("link", { name: new RegExp(name) }))
+  await expect(page.getByRole("region", { name: /^Approved ·/ }).getByRole("link", { name: new RegExp(name) }))
     .toBeVisible();
   await page.goto(`/admin/jobs/${id}?tab=activity`);
   await expect(page.getByText(`Approved "${quoteName}" from their project page`)).toBeVisible();
@@ -815,7 +816,7 @@ test("a customer reports a fault: a service job appears, the original stays Inst
  *       ?? { ...jobs[0], id: jobId, status: "quoted" as const };
  *
  * With that in place the approval is carried out against the bystander's job: the shared quote
- * is found on it, setStage moves it to `sold`, and THIS TEST GOES RED on the status assertion.
+ * is found on it, setStage moves it to `approved`, and THIS TEST GOES RED on the status assertion.
  * Restore the line and it goes green again. The controller runs that mutation on a Neon branch
  * before trusting this gate.
  *
@@ -890,7 +891,7 @@ test("a customer approving cannot move another customer's job", async ({ browser
   await banner.getByRole("button", { name: "Yes, approve this quote" }).click();
   await expect(approver).toHaveURL(new RegExp(`/project/${approverId}\\?approved=1$`));
   const [approved] = await sql()`select status from leads where id = ${approverId}`;
-  expect(approved.status).toBe("sold");
+  expect(approved.status).toBe("approved");
   // Still nothing on the bystander's job, after a real approval has demonstrably worked.
   const [untouched] = await sql()`select status from leads where id = ${bystanderId}`;
   expect(untouched.status).toBe("quoted");

@@ -55,9 +55,11 @@ describe("listVersions", () => {
   it("reads the DC Client name back", async () => {
     sql.mockResolvedValueOnce([{ id: VERSION, lead_id: JOB, version: 1, dc_quote_no: "1", po_reference: "PSS-1042", client_name: "Jane Client",
       source_file_id: FILE, source_sha256: "x", status: "draft", dealer_subtotal_cents: 1, handling_fee_cents: 0, oversized_fee_cents: 0,
-      dealer_total_cents: 1, created_at: new Date().toISOString() }]).mockResolvedValueOnce([]);
+      dealer_total_cents: 1, created_at: new Date().toISOString(),
+      quote_file_id: "q1", offered_at: "2026-09-21T18:00:00.000Z", approved_at: null }]).mockResolvedValueOnce([]);
     const [version] = await store.listVersions(JOB);
     expect(version.clientName).toBe("Jane Client");
+    expect(version).toMatchObject({ quoteFileId: "q1", offeredAt: new Date("2026-09-21T18:00:00.000Z"), approvedAt: null });
   });
 });
 

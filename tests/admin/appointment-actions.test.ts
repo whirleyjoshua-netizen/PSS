@@ -190,6 +190,30 @@ describe("confirmSchedule", () => {
     expect(syncJobCalendar).toHaveBeenCalledWith(JOB, [kind]);
   });
 
+  it("moves a Sold job to Official measure when its measure appointment is confirmed", async () => {
+    appointments.confirmAppointment.mockResolvedValue(confirmed({ kind: "measure" }));
+    jobs.getJob.mockResolvedValue(job({ status: "sold" }));
+    expect(await actions.confirmSchedule(APPT, JOB)).toEqual({ ok: true });
+    expect(jobs.setStage).toHaveBeenCalledWith(JOB, "measure", "owner@example.com", { body: "Measure appointment confirmed" });
+  });
+
+  it.each(["quoted", "approved", "signed", "measure", "ordered", "lost"])(
+    "leaves a %s job where it is when a measure appointment is confirmed",
+    async (status) => {
+      appointments.confirmAppointment.mockResolvedValue(confirmed({ kind: "measure" }));
+      jobs.getJob.mockResolvedValue(job({ status }));
+      await actions.confirmSchedule(APPT, JOB);
+      expect(jobs.setStage).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(["install", "service"])("never moves a Sold job for a confirmed %s appointment", async (kind) => {
+    appointments.confirmAppointment.mockResolvedValue(confirmed({ kind }));
+    jobs.getJob.mockResolvedValue(job({ status: "sold" }));
+    await actions.confirmSchedule(APPT, JOB);
+    expect(jobs.setStage).not.toHaveBeenCalled();
+  });
+
   it("sends no second email for an appointment already confirmed", async () => {
     appointments.confirmAppointment.mockResolvedValue("already");
     expect(await actions.confirmSchedule(APPT, JOB)).toEqual({ ok: true });

@@ -23,6 +23,8 @@ vi.mock("@/app/(site)/project/actions", () => ({
   acknowledgeInstallFormAction: vi.fn(),
   signContractFormAction: vi.fn(),
   acknowledgeDocumentFormAction: vi.fn(),
+  // Reached by the banner's approve control when there is a quote to approve.
+  approveQuoteFormAction: vi.fn(),
 }));
 const listMessages = vi.fn();
 vi.mock("@/lib/portal/messages", () => ({ listMessages }));
@@ -38,6 +40,13 @@ const acknowledgementFor = vi.fn(async () => null as { leadId: string; acknowled
 vi.mock("@/lib/portal/acknowledge-document", () => ({ acknowledgeableDocuments, acknowledgementFor }));
 const liveTemplateOfKind = vi.fn(async (_kind: string) => null as { body: string } | null);
 vi.mock("@/lib/docs/templates", () => ({ liveTemplateOfKind }));
+// No deposit picture unless a test says otherwise.
+const depositState = vi.fn(async (_id: string) => null as unknown);
+vi.mock("@/lib/payments/deposits", () => ({ depositState }));
+vi.mock("@/app/(site)/project/deposit-actions", () => ({ startDepositFormAction: vi.fn() }));
+// No offered Direct Connect quote unless a test says otherwise.
+const offeredVersion = vi.fn(async (_id: string) => null as unknown);
+vi.mock("@/lib/dc/approve", () => ({ offeredVersion }));
 
 const { ProjectView } = await import("@/app/(site)/project/ProjectView");
 const { FilesTabs } = await import("@/app/(site)/project/FilesTabs");
@@ -71,6 +80,8 @@ beforeEach(() => {
   acknowledgeableDocuments.mockReset().mockResolvedValue([]);
   acknowledgementFor.mockReset().mockResolvedValue(null);
   liveTemplateOfKind.mockReset().mockResolvedValue(null);
+  depositState.mockReset().mockResolvedValue(null);
+  offeredVersion.mockReset().mockResolvedValue(null);
 });
 
 describe("ProjectView header and tracker", () => {
@@ -86,11 +97,11 @@ describe("ProjectView header and tracker", () => {
     render(await ProjectView({ job }));
     const tracker = screen.getByRole("region", { name: "Your project" });
     // Ordered with no install booked: In Production is the furthest step reached, so it is the
-    // current one, Order Confirmed behind it reads done, and Ready to Install is still ahead.
+    // current one, Deposit Paid behind it reads done, and Ready to Install is still ahead.
     const current = within(tracker).getByText("In Production").closest("li")!;
     expect(current).toHaveAttribute("aria-current", "step");
     expect(within(current).getByText("Sep 20, 2025")).toBeInTheDocument();
-    expect(within(tracker).getByText("Order Confirmed").closest("li")!).not.toHaveAttribute("aria-current");
+    expect(within(tracker).getByText("Deposit Paid").closest("li")!).not.toHaveAttribute("aria-current");
     expect(within(tracker).getByText("Ready to Install").closest("li")!).not.toHaveAttribute("aria-current");
   });
 
@@ -214,7 +225,7 @@ describe("ProjectView status banner", () => {
  */
 describe("ProjectView after approving", () => {
   it("confirms the approval on the page they land back on", async () => {
-    render(await ProjectView({ job: { ...job, status: "sold" as const }, justApproved: "1" }));
+    render(await ProjectView({ job: { ...job, status: "approved" as const }, justApproved: "1" }));
     expect(screen.getByRole("status")).toHaveTextContent(
       "Thank you — we have your approval and will be in touch to arrange the details.",
     );
@@ -230,6 +241,53 @@ describe("ProjectView after approving", () => {
   it("says nothing on an ordinary visit", async () => {
     render(await ProjectView({ job: { ...job, status: "sold" as const } }));
     expect(screen.queryByRole("status")).toBeNull();
+  });
+});
+
+describe("ProjectView approval", () => {
+  const dcQuote = { id: "fq", name: "Quote PSS-1048 v2.pdf", docType: "quote" as const };
+
+  it("offers approval of the offered DC quote, linking that quote, even on a job past Quoted", async () => {
+    listSharedDocuments.mockResolvedValue([quoteDoc, dcQuote]);
+    offeredVersion.mockResolvedValue({ id: "v", version: 2, quoteFileId: "fq", approvedAt: null });
+    render(await ProjectView({ job: { ...job, status: "sold" } }));
+    const banner = screen.getByRole("region", { name: "Where your project stands" });
+    expect(within(banner).getByText("Approve this quote")).toBeInTheDocument();
+    expect(within(banner).getByRole("link", { name: "Review quote" })).toHaveAttribute("href", "/project/files/fq");
+  });
+
+  // T9: the approve action takes the DC path whenever a version is offered, and refuses when that version's
+  // own PDF is not shared. So the page must not fall back to another shared quote, nor offer Approve.
+  it("offers no approval, and links no other quote, while the offered version's own PDF is not shared", async () => {
+    listSharedDocuments.mockResolvedValue([quoteDoc]);
+    offeredVersion.mockResolvedValue({ id: "v", version: 2, quoteFileId: "fq", approvedAt: null });
+    render(await ProjectView({ job: { ...job, status: "quoted" } }));
+    const banner = screen.getByRole("region", { name: "Where your project stands" });
+    expect(within(banner).queryByText("Approve this quote")).toBeNull();
+    expect(within(banner).queryByRole("link", { name: "Review quote" })).toBeNull();
+    expect(within(screen.getByRole("region", { name: "Next step" })).queryByText("Action required")).toBeNull();
+  });
+
+  // Ruling P18: "Action required" means there is a quote to approve, so only a Quoted job with one.
+  it("shows Action required on a Quoted job with a shared quote", async () => {
+    listSharedDocuments.mockResolvedValue([quoteDoc]);
+    render(await ProjectView({ job: { ...job, status: "quoted" } }));
+    const next = screen.getByRole("region", { name: "Next step" });
+    expect(within(next).getByText("Action required")).toBeInTheDocument();
+  });
+
+  it("shows no Action required once an uploaded quote's job is Approved", async () => {
+    listSharedDocuments.mockResolvedValue([quoteDoc]);
+    render(await ProjectView({ job: { ...job, status: "approved" } }));
+    const next = screen.getByRole("region", { name: "Next step" });
+    expect(within(next).queryByText("Action required")).toBeNull();
+  });
+
+  it("offers nothing once the client approved it", async () => {
+    listSharedDocuments.mockResolvedValue([dcQuote]);
+    offeredVersion.mockResolvedValue({ id: "v", version: 2, quoteFileId: "fq", approvedAt: new Date() });
+    render(await ProjectView({ job: { ...job, status: "approved" } }));
+    expect(screen.queryByText("Approve this quote")).toBeNull();
   });
 });
 
@@ -370,7 +428,7 @@ describe("ProjectView details and updates", () => {
   it("lists updates from fixed labels, never an event body", async () => {
     render(await ProjectView({ job }));
     const updates = screen.getByRole("region", { name: "Project updates" });
-    expect(within(updates).getByText("Your order was confirmed.")).toBeInTheDocument();
+    expect(within(updates).getByText("Your deposit was received.")).toBeInTheDocument();
     expect(within(updates).getByText("Sep 18, 2025")).toBeInTheDocument();
   });
 });
@@ -533,5 +591,40 @@ describe("portal guides", () => {
   it("loads no guide a sold job with nothing booked cannot show", async () => {
     render(await ProjectView({ job: { ...job, status: "sold" as const } }));
     expect(liveTemplateOfKind).not.toHaveBeenCalled();
+  });
+});
+
+describe("ProjectView deposit", () => {
+  const signedState = { jobStatus: "signed", versionId: "v", version: 1, versionStatus: "signed", soldCents: 184833, amountCents: 92417,
+    signedAt: new Date("2026-09-28T17:00:00Z"), paid: null, pending: null, refunded: null };
+
+  it("asks a Signed job for its deposit under Needs your attention", async () => {
+    depositState.mockResolvedValue(signedState);
+    render(await ProjectView({ job: { ...job, status: "signed" as const } }));
+    const attention = screen.getByRole("region", { name: "Needs your attention" });
+    expect(within(attention).getByRole("button", { name: "Pay 50% deposit — $924.17" })).toBeInTheDocument();
+    expect(within(attention).getByText(/You may cancel until the end of Oct 1, 2026/)).toBeInTheDocument();
+    expect(screen.getByText("Action required")).toBeInTheDocument();
+  });
+
+  it("asks nothing once the deposit is paid, or on a job that is not Signed", async () => {
+    depositState.mockResolvedValue({ ...signedState, paid: { id: "d", status: "paid" } });
+    const { unmount } = render(await ProjectView({ job: { ...job, status: "signed" as const } }));
+    expect(screen.queryByRole("button", { name: /Pay 50% deposit/ })).toBeNull();
+    unmount();
+    depositState.mockResolvedValue(signedState);
+    render(await ProjectView({ job: { ...job, status: "sold" as const } }));
+    expect(screen.queryByRole("button", { name: /Pay 50% deposit/ })).toBeNull();
+  });
+
+  it("believes the payment only from the database, never from ?deposit=done", async () => {
+    depositState.mockResolvedValue(signedState);
+    const { unmount } = render(await ProjectView({ job: { ...job, status: "signed" as const }, justDeposit: "done" }));
+    expect(screen.getByText("Processing — we will email your receipt as soon as your payment is confirmed.")).toBeInTheDocument();
+    expect(screen.queryByText("Payment received — thank you.")).toBeNull();
+    unmount();
+    depositState.mockResolvedValue({ ...signedState, paid: { id: "d", status: "paid" } });
+    render(await ProjectView({ job: { ...job, status: "sold" as const }, justDeposit: "done" }));
+    expect(screen.getByText("Payment received — thank you.")).toBeInTheDocument();
   });
 });

@@ -6,7 +6,10 @@ import { lasVegasDate } from "./time";
 export const OVERDUE_DAYS: Partial<Record<Stage, number>> = {
   new: 1,
   quoted: 7,
+  approved: 2,
+  signed: 2,
   sold: 3,
+  measure: 7,
   ordered: 21,
 };
 

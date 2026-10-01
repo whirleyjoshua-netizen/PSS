@@ -15,7 +15,7 @@ const { StatusBanner } = await import("@/app/(site)/project/StatusBanner");
 const THANKS = "Thank you — we have your approval and will be in touch to arrange the details.";
 
 const JOB = "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c";
-const REVEAL = "Approving tells us to go ahead and order. We will email you to arrange the details.";
+const REVEAL = "Approving accepts this quote. Your contract comes next, to read and sign.";
 
 const quoteStep = {
   key: "quote" as const,
@@ -56,12 +56,26 @@ describe("ApproveQuote", () => {
  */
 describe("ApprovalNotice", () => {
   it("confirms an approval the job agrees with", () => {
-    render(<ApprovalNotice approved="1" status="sold" />);
+    render(<ApprovalNotice approved="1" status="approved" />);
     expect(screen.getByRole("status")).toHaveTextContent(THANKS);
   });
 
+  /**
+   * An approval does not stay at `approved`: the contract follows it, and a Direct Connect change
+   * can be approved on a job already Sold, where the stage does not move at all. The job being at
+   * or beyond Approved is the evidence the approval happened, so the flag is believed there too.
+   * Ranked with stageRank, the ordering buildSteps uses, not a list of names.
+   */
+  it.each(["approved", "signed", "sold", "measure", "ordered", "installed"] as const)(
+    "confirms the approval when the job is %s, at or beyond Approved",
+    (status) => {
+      render(<ApprovalNotice approved="1" status={status} />);
+      expect(screen.getByRole("status")).toHaveTextContent(THANKS);
+    },
+  );
+
   it("says nothing on an ordinary visit", () => {
-    render(<ApprovalNotice approved={null} status="sold" />);
+    render(<ApprovalNotice approved={null} status="approved" />);
     expect(screen.queryByRole("status")).toBeNull();
   });
 
@@ -71,8 +85,9 @@ describe("ApprovalNotice", () => {
    * an approval on the strength of the URL alone would tell a customer their order was placed
    * when nothing had happened. The job's own status is the only thing believed.
    */
-  it("confirms nothing when the job is not sold, whatever the URL says", () => {
-    for (const status of ["quoted", "ordered", "installed"] as const) {
+  it("confirms nothing when the job is not approved, whatever the URL says", () => {
+    // `quoted` is the one portal stage below Approved: the only status that proves no approval.
+    for (const status of ["quoted"] as const) {
       const { unmount } = render(<ApprovalNotice approved="1" status={status} />);
       expect(screen.queryByRole("status")).toBeNull();
       expect(screen.queryByText(THANKS)).toBeNull();
@@ -92,22 +107,22 @@ describe("ApprovalNotice", () => {
    * I1. The refusal must be re-derived too, not just the confirmation.
    *
    * `?approved=` is the customer's own URL, and anything that is not "1" currently prints the
-   * failure line — including on a job that is already sold. A customer who taps back after a
+   * failure line — including on a job that is already approved. A customer who taps back after a
    * refused attempt, or opens a stale or forwarded link, is then told their approval failed on
-   * a job the owners have already ordered against. They phone; the owners cannot see what they
+   * a job that is already approved. They phone; the owners cannot see what they
    * are describing. When the job's own status says the approval happened, there is no true
    * refusal to report, so the notice says nothing.
    */
   /**
-   * F1: every status AT OR BEYOND `sold`, not `sold` alone.
+   * F1: every status AT OR BEYOND `approved`, not `approved` alone.
    *
-   * An approval that landed does not stay at `sold` — the owners order, install and complete the
-   * job. A stale or forwarded `?approved=no` revisited after the job moved on would otherwise
+   * An approval that landed does not stay at `approved` — it is signed, paid, ordered, installed
+   * and completed. A stale or forwarded `?approved=no` revisited after the job moved on would otherwise
    * tell the customer their approval failed on a job that is demonstrably past it, which is the
    * same lie I1 named, just later. `completed` reaches this component folded to `installed`, so
    * covering `installed` covers it.
    */
-  it.each(["sold", "ordered", "installed"] as const)(
+  it.each(["approved", "signed", "sold", "measure", "ordered", "installed"] as const)(
     "says nothing about a failure once the job is %s, whatever the URL says",
     (status) => {
       for (const approved of ["no", "0", "", "anything"]) {
@@ -126,7 +141,7 @@ describe("ApprovalNotice", () => {
   // no-JS regression. What it really pins is that the sentence needs no client boundary — the
   // actual no-JS guarantee is the plain <form>/<details>, covered by the e2e.
   it("renders its sentence server-side, with no client boundary", () => {
-    expect(renderToStaticMarkup(<ApprovalNotice approved="1" status="sold" />)).toContain(THANKS);
+    expect(renderToStaticMarkup(<ApprovalNotice approved="1" status="approved" />)).toContain(THANKS);
     expect(renderToStaticMarkup(<ApprovalNotice approved="no" status="quoted" />)).toContain(
       business.phone.display,
     );

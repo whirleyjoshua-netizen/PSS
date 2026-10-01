@@ -6,9 +6,12 @@ import { listSharedDocuments, listSharedPhotos } from "@/lib/admin/files";
 import { isUuid } from "@/lib/admin/ids";
 import { isInstalled } from "@/lib/admin/stages";
 import { formatDateOnly, formatMonthDay, formatShortDate, formatTime, lasVegasDate } from "@/lib/admin/time";
+import { offeredVersion } from "@/lib/dc/approve";
+import { cancellationWindowLastDay } from "@/lib/docs/business-days";
 import { parseDocText } from "@/lib/docs/parse";
 import { liveTemplateOfKind } from "@/lib/docs/templates";
 import { acknowledgeableDocuments, acknowledgementFor } from "@/lib/portal/acknowledge-document";
+import { depositState } from "@/lib/payments/deposits";
 import { toProject } from "@/lib/portal/access";
 import { guidesToShow } from "@/lib/portal/guides";
 import { currentStep } from "@/lib/portal/progress";
@@ -26,6 +29,7 @@ import { AcknowledgeInstall, AcknowledgeNotice } from "./AcknowledgeInstall";
 import { AfterWork } from "./AfterWork";
 import { ApprovalNotice, ApproveQuote } from "./ApproveQuote";
 import { CopyLinkButton } from "./CopyLinkButton";
+import { DepositCard, DepositNotice } from "./DepositCard";
 import { DetailsCard } from "./DetailsCard";
 import { FilesTabs } from "./FilesTabs";
 import { MessageForm } from "./MessageForm";
@@ -50,6 +54,7 @@ export async function ProjectView({
   justSigned,
   justSignedFile,
   justDocAck,
+  justDeposit,
 }: {
   job: Job;
   /** Set only on the hop back from a service request, to name its new project number. */
@@ -73,10 +78,12 @@ export async function ProjectView({
   justSignedFile?: string | null;
   /** The `?docAck=` flag from the hop back after acknowledging. Unvalidated: DocumentAcknowledgedNotice checks it. */
   justDocAck?: string | null;
+  /** The `?deposit=` flag from the hop back from Stripe. Unvalidated — DepositNotice asks the database whether it is paid. */
+  justDeposit?: string | null;
 }) {
   // Request-cached, so this costs no extra round trip: the page's own guard already ran it.
   const { email } = await requireCustomer();
-  const [photos, documents, code, referred, dates, measuredAt, installAt, messages, serviceAt, contracts, signatures, acknowledgeable] = await Promise.all([
+  const [photos, documents, code, referred, dates, measuredAt, installAt, messages, serviceAt, contracts, signatures, acknowledgeable, deposit, offered] = await Promise.all([
     listSharedPhotos(job.id),
     listSharedDocuments(job.id),
     ensureReferralCode(job.id),
@@ -92,6 +99,10 @@ export async function ProjectView({
     listSignatures(job.id),
     // The same helper the acknowledge action re-derives from.
     acknowledgeableDocuments(job.id),
+    // The deposit picture: the card below and the notice after the hop back from Stripe.
+    depositState(job.id),
+    // Spec §2: the Direct Connect quote the owner sent, if any; the approve action re-derives it.
+    offeredVersion(job.id),
   ]);
   // Only the guides this stage shows are loaded; the acknowledgement is looked up only on the
   // hop back, and only believed when it is this job's.
@@ -110,7 +121,15 @@ export async function ProjectView({
   const place = [project.address, project.city].filter(Boolean).join(", ");
 
   const current = currentStep(project.steps);
-  const quote = documents.find((file) => file.docType === "quote");
+  // Spec §2: a Direct Connect quote the owner sent and the client has not approved yet — offered at any
+  // stage but Lost, so a change sent after the contract can be approved too (Review Focus 5).
+  const awaitingOffer = Boolean(offered && !offered.approvedAt && job.status !== "lost");
+  const offeredQuote = awaitingOffer ? documents.find((file) => file.id === offered?.quoteFileId) ?? null : null;
+  // T9: while a version is offered, the approve action takes the DC path and needs THAT version's own PDF
+  // shared. Unshared, there is nothing to review or approve: no fallback to another shared quote.
+  const quote = awaitingOffer ? offeredQuote : documents.find((file) => file.docType === "quote");
+  // Spec §3: a Signed job owes its deposit until one is paid. The action re-checks every part of this.
+  const depositDue = job.status === "signed" && deposit?.versionStatus === "signed" && deposit.jobStatus === "signed" && !deposit.paid ? deposit : null;
   const installLabel = project.installOn
     ? formatDateOnly(project.installOn)
     : installAt
@@ -132,7 +151,7 @@ export async function ProjectView({
 
       {/* Spec §7: everything waiting on the customer, at the top. The two lists come from the same
           helpers the sign and acknowledge actions re-derive from, so the page and the guards agree. */}
-      {contracts.length > 0 || acknowledgeable.length > 0 ? (
+      {contracts.length > 0 || acknowledgeable.length > 0 || depositDue ? (
         <section className="flex flex-col gap-4" aria-labelledby="attention-heading">
           <h2 id="attention-heading" className={heading}>Needs your attention</h2>
           {contracts.length > 0 ? (
@@ -147,12 +166,19 @@ export async function ProjectView({
               {acknowledgeable.map((doc) => <AcknowledgeDocument key={doc.id} jobId={job.id} document={doc} />)}
             </div>
           ) : null}
+          {depositDue ? (
+            <div className="flex flex-col gap-3">
+              <h3 className="font-semibold">Deposit</h3>
+              <DepositCard jobId={job.id} amountCents={depositDue.amountCents} lastCancellableDay={cancellationWindowLastDay(depositDue.signedAt)} />
+            </div>
+          ) : null}
         </section>
       ) : null}
 
       {/* The quote is already loaded above, so the approve control costs no extra query. It
-          appears only when there is a quote to read and the job is still waiting on it; the
-          action re-checks both regardless. */}
+          appears only when there is a quote to read and the job is still waiting on it: an offered
+          Direct Connect quote not yet approved, or an uploaded quote on a Quoted job. The action
+          re-checks both regardless. */}
       {/* The acknowledgement keys on the job's RAW status, not the project's. toPortalStage
           folds `completed` into `installed` so the customer never reads the word Completed,
           which means project.status cannot tell a confirmed installation from an unconfirmed
@@ -161,11 +187,12 @@ export async function ProjectView({
       <StatusBanner
         step={current}
         quoteHref={quote ? `/project/files/${quote.id}` : null}
-        approve={quote && project.status === "quoted" ? <ApproveQuote jobId={job.id} /> : null}
+        approve={offeredQuote || (!awaitingOffer && quote && project.status === "quoted") ? <ApproveQuote jobId={job.id} /> : null}
         acknowledge={job.status === "installed" ? <AcknowledgeInstall jobId={job.id} /> : null}
       />
-      {/* Sits under the banner it answers: the customer's eye is already there, and the banner
-          beside it now reads Order Confirmed, which is the confirmation's own evidence. */}
+      {/* Sits under the banner it answers: the customer's eye is already there, and the approve
+          control beside it is gone, which is the confirmation's own evidence. An approved job still
+          reads Quote Ready: the contract, signing and deposit come next. */}
       <ApprovalNotice approved={justApproved ?? null} status={project.status} />
       <AcknowledgeNotice acknowledged={justAcknowledged ?? null} status={job.status} />
       {/* The notice speaks about the one contract the redirect names, looked up among THIS job's
@@ -175,6 +202,7 @@ export async function ProjectView({
         signature={signatures.find((signature) => signature.fileId === justSignedFile) ?? null}
       />
       <DocumentAcknowledgedNotice flag={justDocAck ?? null} acknowledgement={acknowledgement} />
+      <DepositNotice flag={justDeposit ?? null} paid={Boolean(deposit?.paid)} />
       {/* A lasting record, not the one-time notice: only a recorded signature produces a line, and
           it still reads Signed when no stamped copy exists — the link appears only when one does. */}
       {signatures.length > 0 ? (
@@ -212,7 +240,9 @@ export async function ProjectView({
 
       <section className="flex flex-col gap-2" aria-labelledby="next-heading">
         <h2 id="next-heading" className={heading}>Next step</h2>
-        {quote && current.key === "quote" ? (
+        {/* Ruling P18: only while the job is Quoted with something to approve (a shared uploaded quote or
+            an offered DC version's PDF). An Approved job waits on the owners or its contract, not here. */}
+        {(job.status === "quoted" && quote) || depositDue ? (
           <p className="font-display text-xs uppercase tracking-[0.2em] text-charcoal">Action required</p>
         ) : null}
         <p>{STEP_NEXT[current.key]}</p>

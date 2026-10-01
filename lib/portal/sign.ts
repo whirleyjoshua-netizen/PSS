@@ -147,8 +147,8 @@ async function storeAdoptionImages(jobId: string, adoption: Adoption): Promise<{
  * A generated contract (a `dc_quote_versions` row in 'sent' points at this file through
  * contract_file_id) is also closed in the same statement: the version becomes 'signed', the job's
  * sold_cents becomes that version's client_total_cents (even past Sold, so a signed change order
- * updates the sold amount), and a job still at new/visit_booked/quoted moves to Sold with one
- * 'stage' event. A hand-uploaded contract matches no version, so `version` is empty and nothing
+ * updates the sold amount), and a job still at new/visit_booked/quoted/approved moves to Signed
+ * with one 'stage' event (Sold waits for the paid deposit). A hand-uploaded contract matches no version, so `version` is empty and nothing
  * but the signature and its event is written, exactly as before.
  *
  * A sign job document (lib/docs/job-documents.ts) whose PDF is this file, still 'sent', becomes
@@ -202,20 +202,21 @@ export async function recordSignature(input: {
         returning lead_id, version, client_total_cents
       ),
       prev as (select l.status from leads l join version v on l.id = v.lead_id),
-      -- ('new','visit_booked','quoted') mirrors the pre-Sold stages in lib/admin/stages.ts.
+      -- ('new','visit_booked','quoted','approved') mirrors the stages before Signed in lib/admin/stages.ts.
+      -- Spec §3: signing moves the job to Signed. Sold waits for the paid deposit (lib/payments/deposits.ts).
       sold as (
         update leads set sold_cents = (select client_total_cents from version),
-          status = case when status in ('new','visit_booked','quoted') then 'sold' else status end,
-          stage_changed_at = case when status in ('new','visit_booked','quoted') then now() else stage_changed_at end,
+          status = case when status in ('new','visit_booked','quoted','approved') then 'signed' else status end,
+          stage_changed_at = case when status in ('new','visit_booked','quoted','approved') then now() else stage_changed_at end,
           updated_at = now()
         where id = (select lead_id from version)
         returning id
       ),
       stage_logged as (
         insert into job_events (lead_id, actor, kind, from_status, to_status, body)
-        select sold.id, ${input.email}, 'stage', prev.status, 'sold', 'Signed contract version ' || version.version
+        select sold.id, ${input.email}, 'stage', prev.status, 'signed', 'Signed contract version ' || version.version
         from sold, prev, version
-        where prev.status in ('new','visit_booked','quoted')
+        where prev.status in ('new','visit_booked','quoted','approved')
       ),
       document as (
         update job_documents set status = 'completed', completed_at = now(), updated_at = now()

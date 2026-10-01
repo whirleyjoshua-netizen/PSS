@@ -7,7 +7,7 @@ update leads set status = 'new' where status = 'contacted';
 alter table leads drop constraint if exists leads_status_check;
 
 alter table leads add constraint leads_status_check check (
-  status in ('new','visit_booked','quoted','sold','ordered','installed','completed','lost')
+  status in ('new','visit_booked','quoted','approved','signed','sold','measure','ordered','installed','completed','lost')
 );
 
 -- Every migration that defines job_events_kind_check lists the CURRENT FULL set of kinds
@@ -16,5 +16,5 @@ alter table leads add constraint leads_status_check check (
 alter table job_events drop constraint if exists job_events_kind_check;
 
 alter table job_events add constraint job_events_kind_check check (
-  kind in ('stage','note','edit','email','reward','measure','file','contact','message','service','signature','quote','document')
+  kind in ('stage','note','edit','email','reward','measure','file','contact','message','service','signature','quote','document','payment')
 );

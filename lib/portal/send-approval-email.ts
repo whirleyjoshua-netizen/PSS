@@ -10,21 +10,45 @@ import { formatProjectNo } from "./project-no";
 type ApprovedJob = { id: string; name: string; projectNo?: number | null };
 
 /**
+ * What happened after the approval, so the owners know whether anything is left for them to do. The
+ * change-* outcomes are a change order approved on a job already past Quoted: its stage did not move.
+ */
+export type ApprovalOutcome = "paperwork" | "contract-sent" | "contract-failed" | "change-contract-sent" | "change-contract-failed";
+
+const SUBJECT: Record<ApprovalOutcome, string> = {
+  paperwork: "Quote approved by",
+  "contract-sent": "Quote approved — contract sent —",
+  "contract-failed": "Quote approved — contract not sent —",
+  "change-contract-sent": "Change approved — contract sent —",
+  "change-contract-failed": "Change approved — contract not sent —",
+};
+const UNMOVED = "This is a change to a job already past Quoted, so its stage did not move.";
+const NEXT: Record<ApprovalOutcome, string> = {
+  paperwork: "The job has moved to Approved. Send the paperwork from the job page.",
+  "contract-sent": "The job has moved to Approved and the contract was sent to the client to sign.",
+  "contract-failed": "The job has moved to Approved, but the contract was NOT sent. Open the Quote tab and press Send contract.",
+  "change-contract-sent": `${UNMOVED} The contract for the change was sent to the client to sign.`,
+  "change-contract-failed": `${UNMOVED} The contract was NOT sent. Open the Quote tab and press Send contract.`,
+};
+
+/**
  * Tells the owners a customer approved their quote.
  *
- * This is the most consequential thing a customer can do here — the owners order materials
- * against it — so the email says all four things they will want in six months: who approved,
- * which document, when, and where to open the job.
+ * This is the most consequential thing a customer can do here — it is the go-ahead for the contract
+ * (sent automatically on the Direct Connect path, or by the owners from the job page) — so the email
+ * says all four things they will want in six months: who approved, which document, when, and where to
+ * open the job. Materials are ordered only after the contract is signed and the deposit paid.
  *
  * Plain text for the same reasons as the lead notification, and replyTo is the address the
  * customer is actually signed in as, so hitting Reply reaches the person who approved.
  *
- * Always called after the job has already moved: this may fail without losing the approval.
+ * Always called after the approval is saved: this may fail without losing the approval.
  */
 export async function notifyOwnersOfApproval(
   job: ApprovedJob,
   quoteName: string,
   approvedBy: string,
+  outcome: ApprovalOutcome = "paperwork",
 ): Promise<void> {
   const apiKey = process.env.RESEND_API_KEY;
   const to = ownerRecipients();
@@ -47,15 +71,17 @@ export async function notifyOwnersOfApproval(
     `When:        ${formatShortDate(now)} at ${formatTime(now)}`,
     projectNo ? `Project:     ${projectNo}` : null,
     "",
-    "The job has moved to Sold.",
-    `Open in tracker: ${adminOrigin()}/admin/jobs/${job.id}`,
+    NEXT[outcome],
+    `Open in tracker: ${adminOrigin()}/admin/jobs/${job.id}${outcome === "paperwork" ? "" : "?tab=quote"}`,
   ].filter((line): line is string => line !== null).join("\n");
 
   const { error } = await new Resend(apiKey).emails.send({
     from: `${business.name} <${from}>`,
     to,
     replyTo: approvedBy,
-    subject: `Quote approved by ${job.name}${projectNo ? ` — ${projectNo}` : ""}`,
+    subject: outcome === "paperwork"
+      ? `${SUBJECT.paperwork} ${job.name}${projectNo ? ` — ${projectNo}` : ""}`
+      : `${SUBJECT[outcome]} ${projectNo ?? job.name}`,
     text,
   });
 

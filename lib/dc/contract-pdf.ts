@@ -33,11 +33,12 @@ export async function buildTermsPdf(text: string): Promise<Uint8Array> {
   return doc.save();
 }
 
-/** Page 1+: the priced contract. Then the terms: drawn from the terms template, or the uploaded PDF page for page. Signing stamps it later. */
-export async function renderContractPdf(input: ContractInput, terms: ContractTerms): Promise<RenderedPdf> {
-  const doc = await PDFDocument.create();
-  const regular = await doc.embedFont(StandardFonts.Helvetica);
-  const bold = await doc.embedFont(StandardFonts.HelveticaBold);
+/**
+ * Page 1+: the letterhead, the client, the priced lines and the totals under `heading`, ending with the
+ * `closing` sentence. The contract and the quote both print through this, so the quote the client
+ * approves and the contract they sign show the same figures in the same places.
+ */
+export function drawPricedPages(doc: PDFDocument, regular: PDFFont, bold: PDFFont, input: ContractInput, heading: string, closing: string): void {
   const { rows, totals } = contractRows(input);
   const fullWidth = LETTER[0] - 2 * MARGIN;
 
@@ -51,7 +52,7 @@ export async function renderContractPdf(input: ContractInput, terms: ContractTer
   text(business.legalName, MARGIN, 14, bold); y -= 16;
   text(`${business.phone.display} · ${business.email}`, MARGIN, 9); y -= 26;
   const date = formatShortDate(input.date);
-  const title = wrap(`Contract ${input.projectNo} \u00b7 Version ${input.version}`, bold, 16, fullWidth - regular.widthOfTextAtSize(winAnsiSafe(date), 10) - 16);
+  const title = wrap(heading, bold, 16, fullWidth - regular.widthOfTextAtSize(winAnsiSafe(date), 10) - 16);
   right(date, LETTER[0] - MARGIN, 10);
   title.forEach((l, i) => { if (i) y -= 18; text(l, MARGIN, 16, bold); }); y -= 20;
   for (const l of wrap(input.client.name, bold, 11, fullWidth)) { text(l, MARGIN, 11, bold); y -= 13; }
@@ -90,7 +91,16 @@ export async function renderContractPdf(input: ContractInput, terms: ContractTer
   }
   need(40);
   y -= 16;
-  text("The terms and conditions on the following pages are part of this contract.", MARGIN, 9);
+  text(closing, MARGIN, 9);
+}
+
+/** Page 1+: the priced contract. Then the terms: drawn from the terms template, or the uploaded PDF page for page. Signing stamps it later. */
+export async function renderContractPdf(input: ContractInput, terms: ContractTerms): Promise<RenderedPdf> {
+  const doc = await PDFDocument.create();
+  const regular = await doc.embedFont(StandardFonts.Helvetica);
+  const bold = await doc.embedFont(StandardFonts.HelveticaBold);
+  drawPricedPages(doc, regular, bold, input, `Contract ${input.projectNo} · Version ${input.version}`,
+    "The terms and conditions on the following pages are part of this contract.");
 
   const initials: InitialsMark[] = [];
   let signature: MarkPoint;

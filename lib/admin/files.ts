@@ -33,6 +33,18 @@ export type JobFile = {
    */
   quoteContract?: boolean;
   /**
+   * True when an offered, sent or signed Direct Connect quote version names this file as its quote PDF
+   * (Send quote shared it): the client is approving it, or approved it. Only listFiles computes it.
+   * Such a quote is managed from the Quote tab: setShared(false), setDocType and deleteFile refuse it.
+   */
+  quoteFile?: boolean;
+  /**
+   * True when a superseded or cancelled quote version names this file as its quote PDF (T8). Only
+   * listFiles computes it. setShared(true) refuses it, so the admin list offers no Share switch; its
+   * type and delete controls stay, as the server allows them once no live version names it.
+   */
+  retiredQuote?: boolean;
+  /**
    * True when a job document (lib/docs/job-documents.ts) names this file as its PDF. Only
    * listFiles computes it. Such a file is managed from the Documents tab: sharing is Send's,
    * unsharing is Void's, and setShared, setDocType and deleteFile refuse it.
@@ -58,6 +70,8 @@ export function toFile(row: Record<string, unknown>): JobFile {
     // Absent, not false, when the query never computed it: false would claim "not signed".
     signed: "signed" in row ? row.signed === true : undefined,
     quoteContract: "quote_contract" in row ? row.quote_contract === true : undefined,
+    quoteFile: "quote_file" in row ? row.quote_file === true : undefined,
+    retiredQuote: "retired_quote" in row ? row.retired_quote === true : undefined,
     jobDocument: "job_document" in row ? row.job_document === true : undefined,
   };
 }
@@ -72,6 +86,10 @@ export async function listFiles(leadId: string): Promise<JobFile[]> {
     ) as signed, exists (
       select 1 from dc_quote_versions v where v.contract_file_id = job_files.id
     ) as quote_contract, exists (
+      select 1 from dc_quote_versions q where q.quote_file_id = job_files.id and q.status in ('offered','sent','signed')
+    ) as quote_file, exists (
+      select 1 from dc_quote_versions r where r.quote_file_id = job_files.id and r.status in ('superseded','cancelled')
+    ) as retired_quote, exists (
       select 1 from job_documents d where d.file_id = job_files.id
     ) as job_document
     from job_files where lead_id = ${leadId} order by created_at desc`;
@@ -167,6 +185,10 @@ export async function createFile(input: {
  * contract (contract_file_id) — is refused the same way. Those foreign keys have no on-delete
  * action, so without the second `not exists` the delete would raise instead of returning false.
  *
+ * The quote PDF of a version that is offered, sent or signed is refused too (ruling P17): the
+ * client is approving it, or approved it. quote_file_id is on-delete set null, so this clause is
+ * what keeps it; a superseded or cancelled version's quote may go.
+ *
  * A file a job document names, and an acknowledged file, are refused the same way (spec §4
  * Freezing): job_documents.file_id has no on-delete action, so without the clause a delete would
  * raise instead of returning false.
@@ -184,6 +206,9 @@ export async function deleteFile(fileId: string, actor: string): Promise<boolean
         and not exists (
           select 1 from dc_quote_versions v
           where v.source_file_id = job_files.id or v.contract_file_id = job_files.id
+        )
+        and not exists (
+          select 1 from dc_quote_versions q where q.quote_file_id = job_files.id and q.status in ('offered','sent','signed')
         )
         and not exists (
           select 1 from job_documents d where d.file_id = job_files.id
@@ -236,6 +261,10 @@ export async function readFile(file: JobFile) {
  * A contract a superseded quote version names cannot be shared again: the client could sign it,
  * but signing a superseded version never moves the job. Unsharing it stays allowed.
  *
+ * A quote PDF Send quote shared is managed from the Quote tab too (ruling P17): while its version
+ * is offered, sent or signed it cannot be unshared (the client approves it on their project page),
+ * and once its version is superseded or cancelled it cannot be shared again.
+ *
  * A file a job document names is managed from the Documents tab (spec §4 Freezing): Send shares
  * it and Void unshares it, so this refuses it in both directions. An acknowledged file can be
  * shared again but never unshared, as for a signed contract.
@@ -254,6 +283,12 @@ export async function setShared(jobId: string, fileId: string, shared: boolean, 
         ))
         and (not ${shared} or not exists (
           select 1 from dc_quote_versions v where v.contract_file_id = job_files.id and v.status = 'superseded'
+        ))
+        and (${shared} or not exists (
+          select 1 from dc_quote_versions q where q.quote_file_id = job_files.id and q.status in ('offered','sent','signed')
+        ))
+        and (not ${shared} or not exists (
+          select 1 from dc_quote_versions q where q.quote_file_id = job_files.id and q.status in ('superseded','cancelled')
         ))
         and not exists (
           select 1 from job_documents d where d.file_id = job_files.id
@@ -285,7 +320,8 @@ export async function setShared(jobId: string, fileId: string, shared: boolean, 
  * 'dealer_copy' is refused as a new label before any query, since the value arrives from a
  * form through a Server Action and its type is not enforced at runtime.
  *
- * A contract any quote version names keeps its label too: it is managed from the Quote tab.
+ * A contract any quote version names keeps its label too: it is managed from the Quote tab. So
+ * does the quote PDF of an offered, sent or signed version (ruling P17).
  *
  * A file a job document names, and an acknowledged file, keep their label as well (spec §4
  * Freezing): they are managed from the Documents tab.
@@ -306,6 +342,9 @@ export async function setDocType(
         )
         and not exists (
           select 1 from dc_quote_versions v where v.contract_file_id = job_files.id
+        )
+        and not exists (
+          select 1 from dc_quote_versions q where q.quote_file_id = job_files.id and q.status in ('offered','sent','signed')
         )
         and not exists (
           select 1 from job_documents d where d.file_id = job_files.id

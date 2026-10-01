@@ -36,7 +36,7 @@ describe("visibleJobs", () => {
     const [text, params] = query.mock.calls[0];
     expect(text).toContain("lower(trim(email)) = $1");
     expect(text).toContain("status = any($2::text[])");
-    expect(params).toEqual(["maria@example.com", ["quoted", "sold", "ordered", "installed", "completed"]]);
+    expect(params).toEqual(["maria@example.com", ["quoted", "approved", "signed", "sold", "measure", "ordered", "installed", "completed"]]);
     expect(jobs.map((j) => j.id)).toEqual(["3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c"]);
   });
 
@@ -62,7 +62,9 @@ describe("toProject", () => {
         { key: "consultation", label: "Consultation", reached: true, state: "done", on: null, future: false },
         { key: "measurements", label: "Measurements", reached: false, state: "done", on: null, future: false },
         { key: "quote", label: "Quote Ready", reached: true, state: "current", on: null, future: false },
-        { key: "order", label: "Order Confirmed", reached: false, state: "upcoming", on: null, future: false },
+        { key: "signed", label: "Contract Signed", reached: false, state: "upcoming", on: null, future: false },
+        { key: "deposit", label: "Deposit Paid", reached: false, state: "upcoming", on: null, future: false },
+        { key: "measure", label: "Final Measure", reached: false, state: "upcoming", on: null, future: false },
         { key: "production", label: "In Production", reached: false, state: "upcoming", on: null, future: false },
         { key: "ready", label: "Ready to Install", reached: false, state: "upcoming", on: null, future: false },
         { key: "installed", label: "Installed", reached: false, state: "upcoming", on: null, future: false },
@@ -89,9 +91,9 @@ describe("toProject", () => {
     const byKey = Object.fromEntries(project.steps.map((s) => [s.key, s]));
     expect(byKey.measurements.on).toBe("Sep 13");
     expect(byKey.quote.on).toBe("Sep 10");
-    // The job is sold, so Order Confirmed is the furthest step reached: it is the current one.
-    expect(byKey.order).toEqual({
-      key: "order", label: "Order Confirmed", reached: true, state: "current", on: "Sep 14", future: false,
+    // The job is sold, so Deposit Paid is the furthest step reached: it is the current one.
+    expect(byKey.deposit).toEqual({
+      key: "deposit", label: "Deposit Paid", reached: true, state: "current", on: "Sep 14", future: false,
     });
     // The job is only sold, so a booked install does not tick Ready to Install — and cannot
     // drag In Production done with it. The date still reaches the page's Installation section.

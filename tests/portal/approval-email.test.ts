@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 /**
- * The notification the owners act on. They order materials against it, so the four facts it
+ * The notification the owners act on. They send the contract or paperwork from it, so the four facts it
  * carries — who approved, which document, when, and where to open the job — are what this
  * pins. Resend is mocked away: nothing here may send a real email.
  */
@@ -67,5 +67,30 @@ describe("notifyOwnersOfApproval", () => {
   it("raises a send Resend refused", async () => {
     send.mockResolvedValue({ error: { message: "domain not verified" } });
     await expect(notifyOwnersOfApproval(JOB, QUOTE_NAME, EMAIL)).rejects.toThrow("domain not verified");
+  });
+
+  it.each([
+    ["paperwork", "Quote approved by John Ramos — PSS-1048", "The job has moved to Approved. Send the paperwork from the job page."],
+    ["contract-sent", "Quote approved — contract sent — PSS-1048", "The job has moved to Approved and the contract was sent to the client to sign."],
+    ["contract-failed", "Quote approved — contract not sent — PSS-1048", "The job has moved to Approved, but the contract was NOT sent. Open the Quote tab and press Send contract."],
+  ] as const)("says what happened next: %s", async (outcome, subject, line) => {
+    await notifyOwnersOfApproval(JOB, QUOTE_NAME, EMAIL, outcome);
+    const sent = send.mock.calls[0][0] as { subject: string; text: string };
+    expect(sent.subject).toBe(subject);
+    expect(sent.text).toContain(line);
+    expect(sent.text).not.toContain("Sold");
+  });
+
+  // A change order approved on a job already past Quoted: approveDcQuote leaves the stage alone.
+  it.each([
+    ["change-contract-sent", "Change approved — contract sent — PSS-1048", "This is a change to a job already past Quoted, so its stage did not move. The contract for the change was sent to the client to sign."],
+    ["change-contract-failed", "Change approved — contract not sent — PSS-1048", "This is a change to a job already past Quoted, so its stage did not move. The contract was NOT sent. Open the Quote tab and press Send contract."],
+  ] as const)("never claims the job moved to Approved for a change order: %s", async (outcome, subject, line) => {
+    await notifyOwnersOfApproval(JOB, QUOTE_NAME, EMAIL, outcome);
+    const sent = send.mock.calls[0][0] as { subject: string; text: string };
+    expect(sent.subject).toBe(subject);
+    expect(sent.text).toContain(line);
+    expect(sent.text).not.toContain("moved to Approved");
+    expect(sent.text).toContain(`https://admin.example.com/admin/jobs/${JOB.id}?tab=quote`);
   });
 });

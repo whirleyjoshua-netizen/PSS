@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/admin/session";
 import { pollMailbox } from "@/lib/dc/import";
-import { sendContract } from "@/lib/dc/send";
+import { sendContract, sendQuote } from "@/lib/dc/send";
 import { setLineOverride, setVersionChoices } from "@/lib/dc/store";
 
 const PCT = /^\d{1,4}(\.\d{1,2})?$/;
@@ -33,15 +33,30 @@ export async function setChoicesAction(jobId: string, versionId: string, choices
   return {};
 }
 
-/** Sends the contract the owner reviewed. The fingerprint is passed through untouched for Send to compare. */
-export async function sendContractAction(jobId: string, versionId: string, fingerprint: string): Promise<{ error?: string; ok?: boolean; emailed?: boolean }> {
+/** Send quote (spec §2). The fingerprint is passed through untouched for Send quote to compare. */
+export async function sendQuoteAction(jobId: string, versionId: string, fingerprint: string): Promise<{ error?: string; ok?: boolean; emailed?: boolean }> {
   const admin = await requireAdmin();
   if (typeof fingerprint !== "string" || fingerprint.length > 50_000) return { error: "Reload the page and try again." };
-  let result: Awaited<ReturnType<typeof sendContract>>;
+  let result: Awaited<ReturnType<typeof sendQuote>>;
   try {
-    result = await sendContract({ jobId, versionId, fingerprint, actor: admin.email });
+    result = await sendQuote({ jobId, versionId, fingerprint, actor: admin.email });
   } catch (error) {
     // Blob or pdf-lib can throw. The owner gets a plain answer, not the error page.
+    console.error("Sending the quote failed", error);
+    return { error: "The quote could not be sent. Try again, and if it keeps failing, contact support." };
+  }
+  if ("error" in result) return { error: result.error };
+  refresh(jobId);
+  return { ok: true, emailed: result.emailed };
+}
+
+/** Send contract (spec §2): the recovery when the client approved but the contract did not go out. */
+export async function sendContractAction(jobId: string, versionId: string): Promise<{ error?: string; ok?: boolean; emailed?: boolean }> {
+  const admin = await requireAdmin();
+  let result: Awaited<ReturnType<typeof sendContract>>;
+  try {
+    result = await sendContract({ jobId, versionId, actor: admin.email });
+  } catch (error) {
     console.error("Sending the contract failed", error);
     return { error: "The contract could not be sent. Try again, and if it keeps failing, contact support." };
   }

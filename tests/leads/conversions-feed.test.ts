@@ -25,7 +25,26 @@ describe("conversionsCsvNow", () => {
     const [text, params] = query.mock.calls[0];
     expect(text).toContain("l.gclid is not null");
     expect(text).toContain("coalesce(l.ad_clicked_at, l.created_at) > now() - make_interval(days => $1)");
-    expect(params).toEqual([90]);
+    expect(params[0]).toBe(90);
+  });
+
+  it("counts booked from Appointment booked on and sold from Sold on, from the one stage list", async () => {
+    query.mockResolvedValue([]);
+    await conversionsCsvNow();
+    const [text, params] = query.mock.calls[0] as [string, unknown[]];
+    expect(text).toContain("e.to_status = any($2::text[])) as booked_at");
+    expect(text).toContain("e.to_status = any($3::text[])) as sold_at");
+    expect(text).not.toMatch(/to_status in \(/);
+    expect(params).toEqual([
+      90,
+      ["visit_booked", "quoted", "approved", "signed", "sold", "measure", "ordered", "installed", "completed"],
+      ["sold", "measure", "ordered", "installed", "completed"],
+    ]);
+    // The new stages count: approved, signed and measure are booked; measure is sold; signed is not sold.
+    const [booked, sold] = [params[1] as string[], params[2] as string[]];
+    for (const stage of ["approved", "signed", "measure"]) expect(booked).toContain(stage);
+    expect(sold).toContain("measure");
+    expect(sold).not.toContain("signed");
   });
 
   it("writes just the header when there are no ad-click leads", async () => {

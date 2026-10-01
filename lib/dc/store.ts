@@ -9,11 +9,13 @@ export type StoredVersion = {
   id: string; leadId: string; version: number; dcQuoteNo: string; poReference: string;
   /** DC's "Client:" name as printed, "" when blank. Shown so a quote on the wrong household stands out. */
   clientName: string;
-  sourceFileId: string; sourceSha256: string; status: "draft" | "sent" | "signed" | "superseded";
+  sourceFileId: string; sourceSha256: string; status: "draft" | "offered" | "sent" | "signed" | "superseded" | "cancelled";
   subtotalCents: number; handlingFeeCents: number; oversizedFeeCents: number; dealerTotalCents: number;
   waiveHandling: boolean; noInstall: boolean;
   installQuoteId: string | null; installCents: number | null; productsCents: number | null; clientTotalCents: number | null;
   contractFileId: string | null; sentAt: Date | null; signedAt: Date | null; createdAt: Date; lines: StoredLine[];
+  /** The quote PDF Send quote shared, when the quote was offered and when the client approved it (migration 030). */
+  quoteFileId: string | null; offeredAt: Date | null; approvedAt: Date | null;
 };
 export type DcSettings = { termsPathname: string | null; termsUpdatedAt: Date | null; lastPolledAt: Date | null };
 
@@ -123,6 +125,7 @@ export async function listVersions(leadId: string): Promise<StoredVersion[]> {
     productsCents: num(v.products_cents), clientTotalCents: num(v.client_total_cents),
     contractFileId: (v.contract_file_id as string | null) ?? null, sentAt: date(v.sent_at), signedAt: date(v.signed_at),
     createdAt: new Date(v.created_at as string),
+    quoteFileId: (v.quote_file_id as string | null) ?? null, offeredAt: date(v.offered_at), approvedAt: date(v.approved_at),
     lines: lines.filter((l) => l.version_id === v.id).map(toLine),
   }));
 }
