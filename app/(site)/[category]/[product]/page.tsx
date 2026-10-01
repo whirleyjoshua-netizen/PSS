@@ -3,14 +3,13 @@ import { notFound } from "next/navigation";
 import { ConsultationCta } from "@/components/product/ProductParts";
 import { TreatmentHero } from "@/components/treatment/TreatmentHero";
 import { PromiseRow } from "@/components/booking/PromiseRow";
-import { FEATURED_REVIEW } from "@/components/booking/FeaturedReview";
+import { spotlightReviewsExceptFeatured } from "@/components/booking/FeaturedReview";
 import { IconRow } from "@/components/treatment/IconRow";
 import { StorySection } from "@/components/treatment/StorySection";
 import { PhotoCardGrid } from "@/components/treatment/PhotoCardGrid";
 import { DetailsBand } from "@/components/treatment/DetailsBand";
 import { Section } from "@/components/ui/Section";
 import { ReviewSpotlight } from "@/components/reviews/ReviewSpotlight";
-import { pastReviews } from "@/content/reviews";
 import { uniquePhotos } from "@/lib/content/page-photos";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { consultationPhoto } from "@/content/gallery";
@@ -108,7 +107,7 @@ export default async function ProductPage({
           }))}
         />
       ) : null}
-      <ReviewSpotlight reviews={pastReviews.filter((review) => review.spotlight && review !== FEATURED_REVIEW)} />
+      <ReviewSpotlight reviews={spotlightReviewsExceptFeatured} />
       <ConsultationCta
         title={`Thinking about ${found.name.toLowerCase()}?`}
         body="We bring samples to your windows, measure every opening, and quote before we leave. No charge and no obligation."

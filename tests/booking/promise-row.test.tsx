@@ -1,8 +1,8 @@
 import { render, screen } from "@testing-library/react";
 import { describe, it, expect } from "vitest";
 import { PromiseRow, PROMISES, FAMILY_LINE } from "@/components/booking/PromiseRow";
-import { FeaturedReviewCard, FEATURED_REVIEW } from "@/components/booking/FeaturedReview";
-import { pastWork } from "@/content/reviews";
+import { FeaturedReviewCard, FEATURED_REVIEW, spotlightReviewsExceptFeatured } from "@/components/booking/FeaturedReview";
+import { pastReviews, pastWork } from "@/content/reviews";
 
 describe("PromiseRow", () => {
   it("lists the three promises and the family line", () => {
@@ -27,5 +27,14 @@ describe("FeaturedReviewCard", () => {
     expect(screen.getByText(new RegExp(FEATURED_REVIEW!.quote.slice(0, 30)))).toBeInTheDocument();
     expect(screen.getByText(new RegExp(`From our years with ${pastWork.source}, before we opened Premier Shade Solutions`))).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Read every review" })).toHaveAttribute("href", "/reviews");
+  });
+});
+
+describe("spotlightReviewsExceptFeatured", () => {
+  it("holds every spotlight review except the featured one, so no quote shows twice on a page", () => {
+    const expected = pastReviews.filter((review) => review.spotlight && review !== FEATURED_REVIEW);
+    expect(spotlightReviewsExceptFeatured).toEqual(expected);
+    expect(spotlightReviewsExceptFeatured).not.toContain(FEATURED_REVIEW);
+    expect(spotlightReviewsExceptFeatured.length).toBeGreaterThan(0);
   });
 });

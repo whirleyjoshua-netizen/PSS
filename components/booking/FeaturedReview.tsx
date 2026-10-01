@@ -6,6 +6,11 @@ import { pastReviews, pastWork } from "@/content/reviews";
 /** The first About-page spotlight quote; a fixed pick so the page is the same for every visitor. */
 export const FEATURED_REVIEW = pastReviews.filter((review) => review.spotlight)[0];
 
+/** The other spotlight reviews, for a page's reviews band under the featured card: no quote shows twice. */
+export const spotlightReviewsExceptFeatured = pastReviews.filter(
+  (review) => review.spotlight && review !== FEATURED_REVIEW,
+);
+
 /** One past-work review on a card with stars, labelled as from before Premier Shade Solutions (FTC). */
 export function FeaturedReviewCard({ className }: { className?: string }) {
   if (!FEATURED_REVIEW) return null;

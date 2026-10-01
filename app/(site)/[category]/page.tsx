@@ -3,13 +3,12 @@ import { notFound } from "next/navigation";
 import { ConsultationCta } from "@/components/product/ProductParts";
 import { TreatmentHero } from "@/components/treatment/TreatmentHero";
 import { PromiseRow } from "@/components/booking/PromiseRow";
-import { FEATURED_REVIEW } from "@/components/booking/FeaturedReview";
+import { spotlightReviewsExceptFeatured } from "@/components/booking/FeaturedReview";
 import { IconRow } from "@/components/treatment/IconRow";
 import { StorySection } from "@/components/treatment/StorySection";
 import { PhotoCardGrid } from "@/components/treatment/PhotoCardGrid";
 import { Section } from "@/components/ui/Section";
 import { ReviewSpotlight } from "@/components/reviews/ReviewSpotlight";
-import { pastReviews } from "@/content/reviews";
 import { uniquePhotos } from "@/lib/content/page-photos";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { consultationPhoto } from "@/content/gallery";
@@ -100,7 +99,7 @@ export default async function CategoryPage({
           }))}
         />
       ) : null}
-      <ReviewSpotlight reviews={pastReviews.filter((review) => review.spotlight && review !== FEATURED_REVIEW)} />
+      <ReviewSpotlight reviews={spotlightReviewsExceptFeatured} />
       <ConsultationCta href="#book" />
     </>
   );
