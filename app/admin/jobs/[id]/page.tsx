@@ -2,7 +2,8 @@ import { notFound } from "next/navigation";
 import { listAppointments } from "@/lib/admin/appointments";
 import { getEvents, getJob } from "@/lib/admin/jobs";
 import { listFiles } from "@/lib/admin/files";
-import { listMeasurements } from "@/lib/admin/measurements";
+import { getMeasureSet } from "@/lib/admin/measurements";
+import { workingSource, workingWindows } from "@/lib/admin/measure-kinds";
 import { windowCount } from "@/lib/admin/measure-units";
 import { requireAdmin } from "@/lib/admin/session";
 import { listTeam } from "@/lib/admin/team";
@@ -30,18 +31,19 @@ export default async function JobPage({ params, searchParams }: {
   const { id } = await params;
   const job = await getJob(id);
   if (!job) notFound();
-  const [query, events, referrals, referrer, parent, measurements, files, team, appointments, routeSettings] = await Promise.all([
+  const [query, events, referrals, referrer, parent, measureSet, files, team, appointments, routeSettings] = await Promise.all([
     searchParams,
     getEvents(id),
     listReferrals(id),
     job.referredBy ? getJob(job.referredBy) : Promise.resolve(null),
     job.parentJobId ? getJob(job.parentJobId) : Promise.resolve(null),
-    listMeasurements(id),
+    getMeasureSet(id),
     listFiles(id),
     listTeam(),
     listAppointments(id),
     getRouteSettings(),
   ]);
+  const working = workingWindows(measureSet);
   const tab = parseJobTab(query.tab);
   const editing = tab === "overview" && firstParam(query.edit) === "details";
   const now = new Date();
@@ -50,24 +52,25 @@ export default async function JobPage({ params, searchParams }: {
     <div className="mx-auto flex max-w-6xl flex-col gap-6">
       <JobHeader job={job} now={now} team={team} defaultMinutes={routeSettings.minutes} parent={parent}
         deleteBlocked={isDeleteBlocked(query.delete)} />
-      <JobTabs jobId={job.id} active={tab} counts={{ measurements: windowCount(measurements), files: files.length }} />
+      <JobTabs jobId={job.id} active={tab} counts={{ measurements: windowCount(working), files: files.length }} />
       {tab === "overview" ? (
-        <OverviewTab job={job} editing={editing} now={now} measurements={measurements} files={files}
+        <OverviewTab job={job} editing={editing} now={now} measurements={working} allWindows={measureSet.windows}
+          measureSource={workingSource(measureSet)} files={files}
           events={events} referrals={referrals} referrer={referrer} appointments={appointments}
           defaultMinutes={routeSettings.minutes} />
       ) : null}
-      {tab === "measurements" ? <MeasurementsTab jobId={job.id} measurements={measurements} files={files} /> : null}
+      {tab === "measurements" ? <MeasurementsTab jobId={job.id} set={measureSet} files={files} /> : null}
       {tab === "files" ? (
         <div className="flex flex-col gap-4">
           <h2 className={HEADING}>Files</h2>
-          <JobFiles jobId={job.id} measurements={measurements} files={files} />
+          <JobFiles jobId={job.id} measurements={measureSet.windows} files={files} />
         </div>
       ) : null}
       {tab === "documents" ? (
         <DocumentsTab job={job} selectedId={firstParam(query.doc) ?? null} sentNotice={parseSentNotice(query.sent)} />
       ) : null}
       {tab === "quote" ? <QuoteTab job={job} /> : null}
-      {tab === "install" ? <InstallTab jobId={job.id} measurements={measurements} /> : null}
+      {tab === "install" ? <InstallTab jobId={job.id} measurements={working} /> : null}
       {tab === "activity" ? <ActivityTab jobId={job.id} events={events} now={now} /> : null}
     </div>
   );

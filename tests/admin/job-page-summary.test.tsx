@@ -12,8 +12,8 @@ vi.mock("@/lib/admin/jobs", () => ({ getJob, getEvents }));
 const listFiles = vi.fn(async () => []);
 vi.mock("@/lib/admin/files", () => ({ listFiles }));
 
-const listMeasurements = vi.fn(async () => []);
-vi.mock("@/lib/admin/measurements", () => ({ listMeasurements }));
+const getMeasureSet = vi.fn(async () => ({ windows: [], kept: null }));
+vi.mock("@/lib/admin/measurements", () => ({ getMeasureSet }));
 
 const listReferrals = vi.fn(async () => []);
 vi.mock("@/lib/referrals/db", () => ({ listReferrals }));
