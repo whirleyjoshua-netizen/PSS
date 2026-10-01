@@ -154,7 +154,7 @@ describe("/project/[jobId]/service", () => {
     });
   });
 
-  it("lists the windows the owners measured, in their own words", async () => {
+  it("lists the working windows (official, else designer), in their own words", async () => {
     listWorkingWindows.mockResolvedValue([{ id: WINDOW, room: "Dining Room", label: "left window" }]);
     render(await open());
     expect(screen.getByRole("option", { name: "Dining Room, left window" })).toBeInTheDocument();

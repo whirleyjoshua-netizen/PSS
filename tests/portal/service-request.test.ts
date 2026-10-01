@@ -157,7 +157,7 @@ describe("what it creates", () => {
     expect(notes).toContain("It started after the storm.");
   });
 
-  it("names the window the owners measured, through describe()", async () => {
+  it("names the working window (official, else designer), through describe()", async () => {
     listWorkingWindows.mockResolvedValue([{ id: WINDOW, room: "Dining Room", label: "left window" }]);
     await requestService(MINE, form({ windowId: WINDOW, windowText: undefined }));
     expect(listWorkingWindows).toHaveBeenCalledWith(MINE);
