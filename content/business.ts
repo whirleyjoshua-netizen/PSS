@@ -43,6 +43,7 @@ export const business = {
 } as const;
 
 export type Business = typeof business;
+export type ServiceCity = (typeof business.serviceArea)[number];
 
 /**
  * How long production typically takes, shown on the customer's project page while

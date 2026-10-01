@@ -127,7 +127,7 @@ test("a referral link attributes the friend and the reward can be paid", async (
   await page.getByLabel("Name", { exact: true }).fill(friendName);
   await page.getByLabel("Phone", { exact: true }).fill("(702) 555-0101");
   await page.getByLabel("Email", { exact: true }).fill("e2e-friend@example.com");
-  await page.getByRole("button", { name: /request free consultation/i }).click();
+  await page.getByRole("button", { name: /invite us over/i }).click();
   await expect(page).toHaveURL(/\/thank-you$/);
 
   await signIn(page);

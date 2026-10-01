@@ -6,6 +6,10 @@ const cities: readonly string[] = business.serviceArea;
 
 export const WINDOW_COUNTS = ["1-5", "6-10", "11-20", "20+"] as const;
 
+/** Every public form that creates a lead. The lead email and the admin show which one. */
+export const LEAD_SOURCES = ["hero", "contact", "booking"] as const;
+export type LeadSource = (typeof LEAD_SOURCES)[number];
+
 /**
  * Shared by the client forms and the route handler, so a payload that passes
  * in the browser passes on the server. Validation lives in exactly one place.
@@ -38,7 +42,7 @@ export const consultationSchema = z.object({
    */
   referralCode: z.string().trim().max(20).optional().catch(undefined),
 
-  source: z.enum(["hero", "contact"]),
+  source: z.enum(LEAD_SOURCES),
 
   /** The ad click that brought the visitor, if any. Malformed never fails the lead. */
   attribution: attributionSchema.optional().catch(undefined),

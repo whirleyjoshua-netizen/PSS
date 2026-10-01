@@ -1,4 +1,5 @@
 import { sendGAEvent } from "@next/third-parties/google";
+import type { LeadSource } from "@/lib/leads/schema";
 
 /**
  * The GA4 events Google Ads imports as conversions once GA4 is linked to the
@@ -20,7 +21,7 @@ function send(name: string, params: Record<string, string>) {
   }
 }
 
-export const trackLead = (form: "hero" | "contact") => send(EVENTS.lead, { form });
+export const trackLead = (form: LeadSource) => send(EVENTS.lead, { form });
 
 /** Counts a click that landed on, or inside, a tel: link. Anything else is ignored. */
 export function trackPhoneClick(event: Event, pathname: string): void {

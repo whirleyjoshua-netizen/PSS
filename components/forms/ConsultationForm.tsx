@@ -169,9 +169,12 @@ export function ConsultationForm() {
       />
 
       {state !== "success" ? (
-        <Button type="submit" disabled={state === "submitting"} className="w-full sm:w-auto">
-          {state === "submitting" ? "Sending…" : "Request Free Consultation"}
-        </Button>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-5">
+          <Button type="submit" disabled={state === "submitting"} className="w-full sm:w-auto">
+            {state === "submitting" ? "Sending…" : "Invite Us Over"}
+          </Button>
+          <p className="text-sm text-ink-soft">Free in-home consultation. No charge, no obligation.</p>
+        </div>
       ) : null}
     </form>
   );

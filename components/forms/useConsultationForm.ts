@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { consultationSchema } from "@/lib/leads/schema";
+import { consultationSchema, type LeadSource } from "@/lib/leads/schema";
 import { recallAttribution } from "@/lib/leads/attribution";
 import { trackLead } from "@/lib/analytics/events";
 
@@ -15,7 +15,7 @@ export type FormState = "idle" | "submitting" | "success" | "error";
  * a mistyped phone number is caught before it ever costs a round trip — and
  * the message the visitor sees is the same one the server would have sent.
  */
-export function useConsultationForm(source: "hero" | "contact") {
+export function useConsultationForm(source: LeadSource) {
   const router = useRouter();
   const [state, setState] = useState<FormState>("idle");
   const [error, setError] = useState<string | null>(null);

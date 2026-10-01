@@ -34,7 +34,7 @@ test("a new lead answers the questionnaire and the owner sees it", async ({ page
   await page.getByLabel("Street address").fill("12 Sample St");
   await page.getByLabel("City", { exact: true }).selectOption("Henderson");
   await page.getByLabel("Approximate number of windows").selectOption("6-10");
-  await page.getByRole("button", { name: /request free consultation/i }).click();
+  await page.getByRole("button", { name: /invite us over/i }).click();
   await expect(page).toHaveURL(/\/thank-you$/);
 
   const card = page.getByRole("region", { name: "Help us come prepared" });

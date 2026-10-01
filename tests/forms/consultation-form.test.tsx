@@ -35,7 +35,7 @@ describe("HeroForm", () => {
     render(<HeroForm />);
 
     await fillHero(user, "555");
-    await user.click(screen.getByRole("button", { name: /consultation/i }));
+    await user.click(screen.getByRole("button", { name: /invite us over/i }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(/10-digit/i);
     expect(fetch).not.toHaveBeenCalled();
@@ -46,7 +46,7 @@ describe("HeroForm", () => {
     render(<HeroForm />);
 
     await fillHero(user);
-    await user.click(screen.getByRole("button", { name: /consultation/i }));
+    await user.click(screen.getByRole("button", { name: /invite us over/i }));
 
     await waitFor(() => expect(fetch).toHaveBeenCalledOnce());
     await waitFor(() => expect(push).toHaveBeenCalledWith("/thank-you"));
@@ -62,7 +62,7 @@ describe("HeroForm", () => {
     render(<HeroForm />);
 
     await fillHero(user);
-    await user.click(screen.getByRole("button", { name: /consultation/i }));
+    await user.click(screen.getByRole("button", { name: /invite us over/i }));
 
     await screen.findByRole("alert");
     expect(push).not.toHaveBeenCalled();
@@ -74,7 +74,7 @@ describe("HeroForm", () => {
     render(<HeroForm />);
 
     await fillHero(user);
-    await user.click(screen.getByRole("button", { name: /consultation/i }));
+    await user.click(screen.getByRole("button", { name: /invite us over/i }));
 
     await waitFor(() => expect(fetch).toHaveBeenCalledOnce());
     const [, init] = (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls[0];
@@ -90,7 +90,7 @@ describe("HeroForm", () => {
     render(<HeroForm />);
 
     await fillHero(user);
-    await user.click(screen.getByRole("button", { name: /consultation/i }));
+    await user.click(screen.getByRole("button", { name: /invite us over/i }));
 
     await waitFor(() => expect(fetch).toHaveBeenCalledOnce());
     const [, init] = (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls[0];
@@ -112,7 +112,7 @@ describe("HeroForm", () => {
     render(<HeroForm />);
 
     await fillHero(user);
-    await user.click(screen.getByRole("button", { name: /consultation/i }));
+    await user.click(screen.getByRole("button", { name: /invite us over/i }));
 
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent(/call/i);
@@ -125,7 +125,7 @@ describe("HeroForm", () => {
     render(<HeroForm />);
 
     await fillHero(user);
-    await user.click(screen.getByRole("button", { name: /consultation/i }));
+    await user.click(screen.getByRole("button", { name: /invite us over/i }));
 
     expect(await screen.findByRole("alert")).toBeInTheDocument();
   });
@@ -150,6 +150,28 @@ describe("HeroForm", () => {
       expect(container.querySelector(`label[for="${input.getAttribute("id")}"]`)).not.toBeNull();
     }
   });
+
+  it("submits the booking source and the city it was given, with its own field ids", async () => {
+    const user = userEvent.setup();
+    render(<HeroForm idPrefix="book" source="booking" city="Henderson" />);
+
+    expect(document.getElementById("book-name")).not.toBeNull();
+    expect(document.getElementById("hero-name")).toBeNull();
+
+    await fillHero(user);
+    await user.click(screen.getByRole("button", { name: /invite us over/i }));
+
+    await waitFor(() => expect(fetch).toHaveBeenCalled());
+    const body = JSON.parse((vi.mocked(fetch).mock.calls[0][1] as RequestInit).body as string);
+    expect(body.source).toBe("booking");
+    expect(body.city).toBe("Henderson");
+  });
+
+  it("says plainly that the button books a free in-home consultation", () => {
+    render(<HeroForm />);
+    expect(screen.getByRole("heading", { name: /free in-home consultation/i })).toBeInTheDocument();
+    expect(screen.getByText(/no charge, no obligation/i)).toBeInTheDocument();
+  });
 });
 
 describe("ConsultationForm", () => {
@@ -173,12 +195,18 @@ describe("ConsultationForm", () => {
     await user.type(screen.getByLabelText(/phone/i), "7025550134");
     await user.type(screen.getByLabelText(/email/i), "dana@example.com");
     await user.click(screen.getByRole("checkbox", { name: /shades/i }));
-    await user.click(screen.getByRole("button", { name: /consultation/i }));
+    await user.click(screen.getByRole("button", { name: /invite us over/i }));
 
     await waitFor(() => expect(fetch).toHaveBeenCalledOnce());
     const [, init] = (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls[0];
     const body = JSON.parse(init.body as string);
     expect(body.source).toBe("contact");
     expect(body.treatments).toContain("Shades");
+  });
+
+  it("labels its submit Invite Us Over with the free consultation line beside it", () => {
+    render(<ConsultationForm />);
+    expect(screen.getByRole("button", { name: /invite us over/i })).toBeInTheDocument();
+    expect(screen.getByText(/free in-home consultation\. no charge, no obligation\./i)).toBeInTheDocument();
   });
 });

@@ -39,7 +39,7 @@ describe("Home", () => {
 
   it("puts a consultation form above the fold", () => {
     render(<Home />);
-    expect(screen.getByRole("button", { name: /request consultation/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /invite us over/i })).toBeInTheDocument();
   });
 
   it("renders no testimonial section while there are no real testimonials", () => {

@@ -19,7 +19,7 @@ test("a visitor can request a consultation from the homepage hero", async ({ pag
   await page.getByLabel("Name", { exact: true }).fill("Dana Reyes");
   await page.getByLabel("Phone", { exact: true }).fill("(702) 555-0134");
   await page.getByLabel("Email", { exact: true }).fill("dana@example.com");
-  await page.getByRole("button", { name: /request consultation/i }).click();
+  await page.getByRole("button", { name: /invite us over/i }).click();
 
   await expect(page).toHaveURL(/\/thank-you$/);
   await expect(page.getByRole("heading", { level: 1 })).toContainText(/thank you/i);
@@ -48,7 +48,7 @@ test("the full contact form submits with treatments and city", async ({ page }) 
   await page
     .getByLabel(/anything else/i)
     .fill("West-facing living room, brutal afternoon sun.");
-  await page.getByRole("button", { name: /request free consultation/i }).click();
+  await page.getByRole("button", { name: /invite us over/i }).click();
 
   await expect(page).toHaveURL(/\/thank-you$/);
   expect(submitted).toMatchObject({
@@ -69,7 +69,7 @@ test("a bad phone number is caught before any network request", async ({ page })
   await page.getByLabel("Name", { exact: true }).fill("Dana Reyes");
   await page.getByLabel("Phone", { exact: true }).fill("555");
   await page.getByLabel("Email", { exact: true }).fill("dana@example.com");
-  await page.getByRole("button", { name: /request consultation/i }).click();
+  await page.getByRole("button", { name: /invite us over/i }).click();
 
   // Scope to the form: Next injects its own role="alert" route announcer.
   await expect(page.locator("form").getByRole("alert")).toContainText(/10-digit/i);
@@ -88,7 +88,7 @@ test("a server failure offers the phone number as a fallback", async ({ page }) 
   await page.getByLabel("Name", { exact: true }).fill("Dana Reyes");
   await page.getByLabel("Phone", { exact: true }).fill("7025550134");
   await page.getByLabel("Email", { exact: true }).fill("dana@example.com");
-  await page.getByRole("button", { name: /request consultation/i }).click();
+  await page.getByRole("button", { name: /invite us over/i }).click();
 
   const alert = page.locator("form").getByRole("alert");
   await expect(alert).toContainText(/call/i);

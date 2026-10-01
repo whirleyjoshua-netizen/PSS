@@ -115,14 +115,17 @@ export function ConsultationCta({
           </h2>
           <p className="max-w-xl text-sand/75">{body}</p>
         </div>
-        <div className="flex flex-wrap gap-4">
-          <ButtonLink href="/contact">Book a consultation</ButtonLink>
-          <a
-            href={business.phone.href}
-            className="inline-flex min-h-11 items-center whitespace-nowrap border border-ivory/40 px-6 py-3 font-display text-sm uppercase tracking-[0.14em] text-ivory transition-colors hover:bg-ivory hover:text-charcoal"
-          >
-            {business.phone.display}
-          </a>
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-wrap gap-4">
+            <ButtonLink href="/contact">Invite Us Over</ButtonLink>
+            <a
+              href={business.phone.href}
+              className="inline-flex min-h-11 items-center whitespace-nowrap border border-ivory/40 px-6 py-3 font-display text-sm uppercase tracking-[0.14em] text-ivory transition-colors hover:bg-ivory hover:text-charcoal"
+            >
+              {business.phone.display}
+            </a>
+          </div>
+          <p className="text-sm text-sand/75">Free in-home consultation. No charge, no obligation.</p>
         </div>
       </div>
     </Section>
