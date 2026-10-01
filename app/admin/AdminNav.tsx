@@ -9,6 +9,7 @@ import { signOut } from "./actions";
 const LINKS: readonly { href: string; label: string; icon: IconName }[] = [
   { href: "/admin", label: "Jobs", icon: "jobs" },
   { href: "/admin/schedule", label: "Schedule", icon: "calendar" },
+  { href: "/admin/tasks", label: "Tasks", icon: "check" },
   { href: "/admin/documents", label: "Documents", icon: "document" },
   { href: "/admin/settings", label: "Settings", icon: "settings" },
 ];
