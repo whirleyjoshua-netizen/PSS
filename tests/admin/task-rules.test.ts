@@ -29,9 +29,10 @@ describe("isTaskStatus", () => {
 });
 
 describe("addDays", () => {
-  it("crosses month, year and daylight-saving boundaries", () => {
+  it("crosses month and year boundaries", () => {
     expect(addDays("2026-10-31", 1)).toBe("2026-11-01");
-    expect(addDays("2026-11-01", 1)).toBe("2026-11-02"); // Pacific DST ends Nov 1, 2026
+    // Plain calendar boundaries: the math runs at noon UTC, so no time zone or DST change can reach it.
+    expect(addDays("2026-11-01", 1)).toBe("2026-11-02");
     expect(addDays("2026-12-31", 1)).toBe("2027-01-01");
     expect(addDays("2026-10-01", -1)).toBe("2026-09-30");
   });

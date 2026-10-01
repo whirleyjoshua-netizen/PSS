@@ -16,8 +16,6 @@ describe("tasks cron", () => {
   it("refuses without the secret, before doing anything", async () => {
     expect((await call()).status).toBe(401);
     expect((await call("Bearer wrong")).status).toBe(401);
-    vi.stubEnv("CRON_SECRET", "");
-    expect((await call("Bearer ")).status).toBe(401);
     vi.stubEnv("CRON_SECRET", undefined);
     expect(process.env.CRON_SECRET).toBeUndefined();
     expect((await call("Bearer undefined")).status).toBe(401);

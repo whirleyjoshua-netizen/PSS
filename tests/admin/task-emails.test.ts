@@ -1,6 +1,7 @@
 // tests/admin/task-emails.test.ts
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Task } from "@/lib/admin/task-rules";
+import { business } from "@/content/business";
 
 const listDigestTasks = vi.fn();
 vi.mock("@/lib/admin/tasks", () => ({ listDigestTasks }));
@@ -65,6 +66,19 @@ describe("digestEmails", () => {
     });
     expect(emails[0].email.text).toBe(["Due tomorrow", "- Soon", "  https://pss.test/admin/tasks/c"].join("\n"));
   });
+  it("leaves out done, unassigned, undated and later tasks", () => {
+    const emails = digestEmails([
+      task({ id: "done", title: "Done", status: "done", dueOn: "2026-10-01" }),
+      task({ id: "nobody", title: "Nobody", assigneeEmail: null, dueOn: "2026-10-01" }),
+      task({ id: "undated", title: "Undated", dueOn: null }),
+      task({ id: "later", title: "Later", dueOn: "2026-10-03" }),
+      task({ id: "in", title: "Included", dueOn: "2026-10-01" }),
+    ], now);
+    expect(emails).toEqual([{
+      to: "shade@x.com",
+      email: { subject: "Your tasks for Thu, Oct 1, 2026: 1", text: ["Due today", "- Included", "  https://pss.test/admin/tasks/in"].join("\n") },
+    }]);
+  });
   it("uses the Pacific day late at night, after daylight saving ends", () => {
     const lateNight = new Date("2026-11-02T07:30:00Z"); // 11:30 PM PST Sun Nov 1; already Nov 2 in UTC
     const [only] = digestEmails([task({ dueOn: "2026-11-02" })], lateNight);
@@ -73,9 +87,14 @@ describe("digestEmails", () => {
 });
 
 describe("sendTaskEmail", () => {
-  it("sends plain text with an optional reply-to", async () => {
+  it("sends plain text from the business with an optional reply-to", async () => {
+    vi.stubEnv("LEAD_FROM_EMAIL", undefined);
     expect(await sendTaskEmail("shade@x.com", { subject: "S", text: "T" }, "joshua@x.com")).toBe(true);
-    expect(send.mock.calls[0][0]).toMatchObject({ to: "shade@x.com", subject: "S", text: "T", replyTo: "joshua@x.com" });
+    expect(send.mock.calls[0][0]).toEqual({
+      from: `${business.name} <leads@premiershadesolutions.com>`, to: "shade@x.com", subject: "S", text: "T", replyTo: "joshua@x.com",
+    });
+    expect(await sendTaskEmail("shade@x.com", { subject: "S", text: "T" })).toBe(true);
+    expect(send.mock.calls[1][0]).not.toHaveProperty("replyTo");
   });
   it("is false, never a throw, when unconfigured, rejected or down", async () => {
     vi.stubEnv("RESEND_API_KEY", "");
