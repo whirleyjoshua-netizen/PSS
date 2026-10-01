@@ -99,8 +99,8 @@ export const categories: Category[] = [
       alt: "White cellular shades on the tall windows of a wood-paneled great room, above a dining table set with candles",
     },
     bookingPhoto: {
-      src: "/gallery/roller-shades-curved-bay.webp",
-      alt: "Roller shades raised to different heights across a curved bay of five windows, with trees visible below and clear transoms above.",
+      src: "/gallery/roller-shades-bay-closeup.webp",
+      alt: "Close view of light grey roller shades in a white-trimmed bay window, one raised to show trees below, with clear transom windows above.",
     },
     seo: {
       title: "Window Shades in Las Vegas, NV | Premier Shade Solutions",
@@ -242,8 +242,8 @@ export const products: Product[] = [
     ],
     bestFor: "Bedrooms, media rooms, and any room wanting a clean modern line.",
     image: {
-      src: "/gallery/roller-shades-bay-window.webp",
-      alt: "Light roller shades lowered in each window of a bay, with gridded transom windows left uncovered above.",
+      src: "/gallery/roller-shades-transom-closeup.webp",
+      alt: "Grey roller shades lowered in three bay windows beneath gridded transom windows, with white orchids in the foreground.",
     },
     seo: {
       title: "Roller Shades in Las Vegas, NV | Premier Shade Solutions",

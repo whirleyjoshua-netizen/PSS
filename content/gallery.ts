@@ -105,6 +105,18 @@ export const gallery: GalleryItem[] = [
     caption: "Individual roller shades on a curved five-window bay, each set to its own height.",
   },
   {
+    src: "/gallery/roller-shades-bay-closeup.webp",
+    alt: "Close view of light grey roller shades in a white-trimmed bay window, one raised to show trees below, with clear transom windows above.",
+    treatment: "shades",
+    caption: "Roller shades fitted inside each window of a bay, with the transoms left clear for daylight.",
+  },
+  {
+    src: "/gallery/roller-shades-transom-closeup.webp",
+    alt: "Grey roller shades lowered in three bay windows beneath gridded transom windows, with white orchids in the foreground.",
+    treatment: "shades",
+    caption: "Roller shades lowered for privacy in a bay, the gridded transoms above left uncovered.",
+  },
+  {
     src: "/gallery/cellular-shades-top-down-bedroom.webp",
     alt: "Top-down bottom-up cellular shades covering the lower half of two wood-trimmed windows in a bedroom, with sky visible above.",
     treatment: "shades",

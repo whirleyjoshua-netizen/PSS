@@ -10,7 +10,7 @@ const onDisk = (src: string) => existsSync(path.join(process.cwd(), "public", sr
 const PRODUCT_PHOTOS: Record<string, string> = {
   "vertical-blinds": "/gallery/sheer-vertical-patio-slider.webp",
   "wood-blinds": "/gallery/faux-wood-blinds-living-room.webp",
-  "roller-shades": "/gallery/roller-shades-bay-window.webp",
+  "roller-shades": "/gallery/roller-shades-transom-closeup.webp",
   "cellular-shades": "/gallery/cellular-shades-great-room.webp",
   "transitional-shades": "/gallery/transitional-shades-slider-wall.webp",
   "plantation-shutters": "/gallery/plantation-shutters-dining-room.webp",
@@ -39,7 +39,7 @@ describe("photos in the content model", () => {
     );
     expect(booking).toEqual({
       blinds: "/gallery/sheer-vertical-patio-slider.webp",
-      shades: "/gallery/roller-shades-curved-bay.webp",
+      shades: "/gallery/roller-shades-bay-closeup.webp",
       shutters: "/gallery/plantation-shutters-french-doors.webp",
     });
     for (const category of categories) {
