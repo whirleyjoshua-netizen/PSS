@@ -1,6 +1,8 @@
 import { defineConfig, devices } from "@playwright/test";
 
-const PORT = 3100;
+// E2E_PORT moves the app server off 3100 when another checkout's server holds it: reuseExistingServer
+// would otherwise run this checkout's specs against that server's build and database.
+const PORT = Number(process.env.E2E_PORT ?? 3100);
 const baseURL = `http://127.0.0.1:${PORT}`;
 
 // The e2e specs write to and delete from whatever database this names, so it must be the Neon test
@@ -69,6 +71,11 @@ export default defineConfig({
           NEXT_PUBLIC_GOOGLE_MAPS_KEY: "",
           NEXT_PUBLIC_GOOGLE_MAP_ID: "",
           GOOGLE_GEOCODING_KEY: "",
+          // Stripe goes to the local stub dc-quote.spec.ts starts (e2e/fixtures/stripe-stub.ts), never to Stripe.
+          // The same three values are exported by the stub; card payments are proved by signed test webhooks.
+          STRIPE_SECRET_KEY: "sk_test_e2e",
+          STRIPE_WEBHOOK_SECRET: "whsec_e2e_test_secret",
+          STRIPE_API_URL: "http://127.0.0.1:3198",
         }
       : {},
   },

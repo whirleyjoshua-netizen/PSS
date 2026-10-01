@@ -1,5 +1,5 @@
 import path from "node:path";
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import { neon } from "@neondatabase/serverless";
 import { createHash, randomBytes } from "node:crypto";
 
@@ -59,6 +59,15 @@ test.afterAll(async () => {
   }
 });
 
+/**
+ * The job header's "More actions" menu is a <details> that stays open after Set, and its panel
+ * overlays the page below the header (a link or button there cannot be clicked). Close it, as the
+ * owner would, before reaching past it.
+ */
+async function closeMoreActions(page: Page) {
+  await page.locator("details", { has: page.getByLabel("More actions") }).evaluate((menu) => { (menu as HTMLDetailsElement).open = false; });
+}
+
 test("an admin page without a session goes to sign-in", async ({ page }) => {
   await page.goto("/admin");
   await expect(page).toHaveURL(/\/admin\/sign-in$/);
@@ -101,6 +110,7 @@ test("an owner adds a job, advances it, and leaves a note", async ({ page }) => 
   await page.getByLabel("Set stage").selectOption("visit_booked");
   await page.getByRole("button", { name: "Set", exact: true }).click();
   await expect(page.getByRole("list", { name: "Stage" }).locator('[aria-current="step"]')).toContainText("Appointment booked");
+  await closeMoreActions(page);
 
   await page.getByRole("link", { name: "Activity", exact: true }).click();
   await page.getByLabel("Add a note").fill("Call back after 5pm");
@@ -143,6 +153,7 @@ test("a referral link attributes the friend and the reward can be paid", async (
   await page.getByLabel("Set stage").selectOption("installed");
   await page.getByRole("button", { name: "Set", exact: true }).click();
   await expect(page.getByRole("list", { name: "Stage" }).locator('[aria-current="step"]')).toContainText("Installed");
+  await closeMoreActions(page);
 
   await page.getByRole("link", { name: referrerName }).click();
   await page.getByRole("button", { name: "Mark paid" }).click();

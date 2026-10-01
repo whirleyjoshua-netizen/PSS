@@ -44,6 +44,10 @@
  *  11b. a generated contract: listFiles marks v2's contract quoteContract; setDocType on it answers
  *      false; re-sharing the contract of a superseded version answers false and leaves it
  *      unshared, while unsharing it and sharing a plain document (positive control) answer true;
+ *  11c. change orders on the signed job: v4 is sent (offered), then v5 is sent — superseding the offered v4
+ *      and offering v5 in ONE statement, which the deferred dc_quote_versions_one_offered accepts. The quote
+ *      PDF guards (ruling P17): the signed v2's and offered v5's quotes cannot be unshared, relabelled or
+ *      deleted; the superseded v4's cannot be re-shared, and deleting it (positive control) succeeds;
  *  12. deletes everything it wrote (leads by name prefix, their rows, its messages) and puts back
  *      the markup rules and dc_settings it changed, even on failure.
  *
@@ -123,7 +127,7 @@ vi.mock("../lib/dc/send-contract-email", () => ({
   },
 }));
 
-import { createFile, getFile, listFiles, setDocType, setShared } from "../lib/admin/files";
+import { createFile, deleteFile, getFile, listFiles, setDocType, setShared } from "../lib/admin/files";
 import { importDealerCopy, quoteSha256 } from "../lib/dc/import";
 import { parseDealerCopy } from "../lib/dc/parse";
 import { priceVersion } from "../lib/dc/pricing";
@@ -572,6 +576,53 @@ test("DC quote import: import, edit, send, sign and the Dealer Copy guard agains
       body: new Blob(["%PDF-1.4 plain"]), actor: ACTOR, docType: "contract" });
     if (!plain) throw new Error("setup: could not create the plain file");
     check((await setShared(A.id, plain.id, true, ACTOR)) === true, "positive control: sharing a contract no version names answers true", "false");
+
+    console.log("step 11c: a change order sent over an offered one, and the quote PDF guards (ruling P17)");
+    const v2QuoteId = (await versionRow(v2)).quote_file_id as string;
+    check((await setShared(A.id, v2QuoteId, false, ACTOR)) === false, "unsharing the signed v2's quote answers false", "true");
+    check((await setDocType(A.id, v2QuoteId, "other", ACTOR)) === false, "relabelling the signed v2's quote answers false", "true");
+    check((await deleteFile(v2QuoteId, ACTOR)) === false, "deleting the signed v2's quote answers false", "true");
+    const sendChange = async (n: number, client: string) => {
+      const changed = html.replace("<b>Client:</b></td><td>Test<", `<b>Client:</b></td><td>${client}<`);
+      const imported = await importDealerCopy({ internetMessageId: message(n), receivedAt: new Date(), html: changed });
+      if (imported.outcome !== "imported") throw new Error(`setup: the change order did not import: ${JSON.stringify(imported)}`);
+      const newest = (await listVersions(A.id))[0];
+      const review = await loadReview(A.id);
+      if (!review || review.version.id !== newest.id) throw new Error("setup: loadReview does not offer the change order");
+      const answer = await sendQuote({ jobId: A.id, versionId: newest.id, fingerprint: review.fingerprint, actor: ACTOR });
+      check(same(answer, { ok: true, emailed: true }), `sendQuote offers change order version ${newest.version}`, `got ${JSON.stringify(answer)}`);
+      return newest.id;
+    };
+    const v4 = await sendChange(5, "Test Change One");
+    check((await versionRow(v4)).status === "offered" && (await versionRow(v2)).status === "signed",
+      "v4 is offered and the signed v2 stays signed", JSON.stringify([await versionRow(v4), await versionRow(v2)]));
+    const v5 = await sendChange(6, "Test Change Two");
+    const v4row = await versionRow(v4);
+    const v5row = await versionRow(v5);
+    check(v4row.status === "superseded" && v5row.status === "offered",
+      "sending v5 supersedes the offered v4 and offers v5 in one statement (the deferred one-offered constraint accepts it)",
+      JSON.stringify([v4row.status, v5row.status]));
+    const offeredNow = await sql`select id from dc_quote_versions where lead_id = ${A.id} and status = 'offered'`;
+    check(offeredNow.length === 1 && offeredNow[0].id === v5, "exactly one offered version, v5", JSON.stringify(offeredNow));
+    const shares = await sql`select id, (shared_at is not null) as shared from job_files where id = any(${[v4row.quote_file_id, v5row.quote_file_id]})`;
+    const sharedOf = (id: unknown) => shares.find((f) => f.id === id)?.shared;
+    check(sharedOf(v4row.quote_file_id) === false && sharedOf(v5row.quote_file_id) === true,
+      "v4's quote was unshared and v5's is shared", JSON.stringify(shares));
+    const listedQuotes = await listFiles(A.id);
+    check([v2QuoteId, v4row.quote_file_id, v5row.quote_file_id].every((id) => listedQuotes.find((f) => f.id === id)?.quoteFile === true) &&
+        listedQuotes.filter((f) => f.quoteFile).length === 3,
+      "listFiles marks the three quote PDFs, and only them, as quote files", JSON.stringify(listedQuotes.map((f) => [f.name, f.quoteFile])));
+    const liveQuote = v5row.quote_file_id as string;
+    check((await setShared(A.id, liveQuote, false, ACTOR)) === false, "unsharing the offered v5's quote answers false", "true");
+    check((await setDocType(A.id, liveQuote, "other", ACTOR)) === false, "relabelling the offered v5's quote answers false", "true");
+    check((await deleteFile(liveQuote, ACTOR)) === false, "deleting the offered v5's quote answers false", "true");
+    const liveRow = (await sql`select (shared_at is not null) as shared, doc_type from job_files where id = ${liveQuote}`)[0];
+    check(liveRow?.shared === true && liveRow.doc_type === "quote", "v5's quote is still shared, labelled quote", JSON.stringify(liveRow));
+    const oldQuote = v4row.quote_file_id as string;
+    check((await setShared(A.id, oldQuote, true, ACTOR)) === false, "re-sharing the superseded v4's quote answers false", "true");
+    check((await sql`select shared_at from job_files where id = ${oldQuote}`)[0].shared_at === null, "v4's quote is still unshared", "shared");
+    check((await deleteFile(oldQuote, ACTOR)) === true, "positive control: deleting the superseded v4's quote answers true", "false");
+    check((await versionRow(v4)).quote_file_id === null, "v4's quote_file_id is set null by the delete", JSON.stringify(await versionRow(v4)));
     check(same(await footprint(B.id), bBefore), "B still has no new rows at the end", "B changed");
 
     console.log("\nPASSED: the DC quote import holds against a real database. Manual run, not coverage.\n");

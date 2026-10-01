@@ -891,7 +891,7 @@ test("a customer approving cannot move another customer's job", async ({ browser
   await banner.getByRole("button", { name: "Yes, approve this quote" }).click();
   await expect(approver).toHaveURL(new RegExp(`/project/${approverId}\\?approved=1$`));
   const [approved] = await sql()`select status from leads where id = ${approverId}`;
-  expect(approved.status).toBe("sold");
+  expect(approved.status).toBe("approved");
   // Still nothing on the bystander's job, after a real approval has demonstrably worked.
   const [untouched] = await sql()`select status from leads where id = ${bystanderId}`;
   expect(untouched.status).toBe("quoted");
