@@ -128,13 +128,14 @@ test("a visitor can book from the booking block on a product page", async ({ pag
     await route.fulfill({ status: 201, contentType: "application/json", body: JSON.stringify({ ok: true }) });
   });
 
-  await page.goto("/motorization");
+  await page.goto("/shutters/plantation-shutters");
   const block = page.locator("section#book");
   await block.getByLabel("Name", { exact: true }).fill("Dana Reyes");
   await block.getByLabel("Phone", { exact: true }).fill("7025550134");
   await block.getByLabel("Email", { exact: true }).fill("dana@example.com");
   await block.getByRole("button", { name: /invite us over/i }).click();
 
+  await expect(page).toHaveURL(/\/thank-you$/);
   await expect(page.getByRole("heading", { level: 1 })).toContainText(/thank you/i);
-  expect(posted).toMatchObject({ source: "booking" });
+  expect(posted).toMatchObject({ source: "booking", treatments: ["Shutters"] });
 });
