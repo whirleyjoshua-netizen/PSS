@@ -119,6 +119,7 @@ export default async function CityPage({
       <ConsultationCta
         title={`Serving ${found.name} and the rest of the valley`}
         body="If you are nearby but not listed, call anyway — we will tell you honestly whether we can get to you."
+        href="#book"
       />
     </>
   );

@@ -17,6 +17,13 @@ describe.each(cities.map((city) => [city.slug, city] as const))("/service-area/%
     ).toBeInTheDocument();
     expect(screen.getByRole("img", { name: consultationPhoto.alt })).toBeInTheDocument();
   });
+
+  it("sends the closing Invite Us Over to the booking form on this page", async () => {
+    render(await CityPage({ params: Promise.resolve({ city: slug }) }));
+    const links = screen.getAllByRole("link", { name: /invite us over/i });
+    expect(links).toHaveLength(1);
+    expect(links[0]).toHaveAttribute("href", "#book");
+  });
 });
 
 describe("/reviews", () => {

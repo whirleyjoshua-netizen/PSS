@@ -101,7 +101,7 @@ export default async function CategoryPage({
         ) : null}
       </Section>
 
-      <ConsultationCta />
+      <ConsultationCta href="#book" />
     </>
   );
 }

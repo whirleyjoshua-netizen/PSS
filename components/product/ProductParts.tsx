@@ -102,9 +102,12 @@ export function ProductCardList({
 export function ConsultationCta({
   title = "Not sure which is right for your windows?",
   body = "That is exactly what the free in-home consultation is for. We look at the exposure, the room, and what you actually need it to do — then tell you honestly.",
+  href = "/contact",
 }: {
   title?: string;
   body?: string;
+  /** "#book" on pages that carry a BookingBlock, so the button scrolls to the short form. */
+  href?: string;
 }) {
   return (
     <Section tone="charcoal">
@@ -117,7 +120,7 @@ export function ConsultationCta({
         </div>
         <div className="flex flex-col gap-3">
           <div className="flex flex-wrap gap-4">
-            <ButtonLink href="/contact">Invite Us Over</ButtonLink>
+            <ButtonLink href={href}>Invite Us Over</ButtonLink>
             <a
               href={business.phone.href}
               className="inline-flex min-h-11 items-center whitespace-nowrap border border-ivory/40 px-6 py-3 font-display text-sm uppercase tracking-[0.14em] text-ivory transition-colors hover:bg-ivory hover:text-charcoal"
