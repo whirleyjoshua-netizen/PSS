@@ -42,6 +42,12 @@ anything goes live.
    - Overlapping the photo's bottom edge: the featured past-work review card (stars, quote, name,
      date, the "before we opened" label, "Read every review").
    - **Phone order:** photo with title, then the form, then the review card.
+   - **As built:** on a phone the photo is a short 32/9 band (16/7 from `sm`), then the title,
+     the form and the review card stacked on sand; the H1 is `text-3xl` on a phone. The lead line
+     (`seo.description`) is hidden below `sm` so the form's "Invite Us Over" button stays above a
+     390×844 fold — the family-brand spec (2026-09-30 §8, every ad page a booking page) outranks
+     the lead line; the meta description is unaffected. From `lg` the photo fills the section, the title
+     panel sits left, the form right, and the review card sits under the title on the photo.
 2. **Promise row:** the three badges (Free consultation · Family-run · No obligation) and the
    family line, centred under the hero.
 3. **Icon row:** four line icons with two-or-three-word labels, per category (§5).
@@ -119,6 +125,8 @@ the Blinds intro, "15–20° cooler" from the Outdoor intro).
   decorative, `aria-hidden`.
 - **Motion:** the existing slow zoom on the hero photo and `Reveal` on scroll, both respecting
   reduced motion.
+- **As built:** `.heading-serif` is also on the product page's "Details" H2 and on the card H3s
+  (Explore / Other cards), as in the mockup.
 
 ## 8. Components
 
@@ -132,6 +140,10 @@ New, in `components/treatment/` (used only by category and product pages):
 - `PhotoCard` / `PhotoCardGrid` — the Explore / Other cards.
 - `FabricPanel` — the no-photo stand-in.
 - `DetailsBand` — the product checklist.
+
+**As built:** `PromiseRow` and `FeaturedReviewCard` live in `components/booking/`, not
+`components/treatment/`, because `BookingBlock` owns them (city and reviews pages use them through
+it); `TreatmentHero` and the category and product pages import them from there.
 
 Content: `content/products.ts` gains `highlights` (4 × {label, icon}), `story` ({eyebrow,
 heading, caption: {eyebrow, line}}) on categories, and optional `storyPhoto` on products.
