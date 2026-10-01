@@ -463,7 +463,7 @@ test("DC quote import: import, edit, send, sign and the Dealer Copy guard agains
 
     console.log("step 6b: approve, then the contract");
     const approved = await approveDcQuote(A.id, v2, ACTOR);
-    check(same(approved, { version: 2 }), "approveDcQuote answers version 2", `got ${JSON.stringify(approved)}`);
+    check(same(approved, { version: 2, moved: true }), "approveDcQuote answers version 2 and that it moved A", `got ${JSON.stringify(approved)}`);
     check((await approveDcQuote(A.id, v2, ACTOR)) === null, "approving again answers null", "not null");
     const aApproved = await leadRow(A.id);
     check(aApproved.status === "approved", "A is approved", `row ${JSON.stringify(aApproved)}`);
@@ -609,9 +609,15 @@ test("DC quote import: import, edit, send, sign and the Dealer Copy guard agains
     check(sharedOf(v4row.quote_file_id) === false && sharedOf(v5row.quote_file_id) === true,
       "v4's quote was unshared and v5's is shared", JSON.stringify(shares));
     const listedQuotes = await listFiles(A.id);
-    check([v2QuoteId, v4row.quote_file_id, v5row.quote_file_id].every((id) => listedQuotes.find((f) => f.id === id)?.quoteFile === true) &&
-        listedQuotes.filter((f) => f.quoteFile).length === 3,
-      "listFiles marks the three quote PDFs, and only them, as quote files", JSON.stringify(listedQuotes.map((f) => [f.name, f.quoteFile])));
+    // A superseded version's quote is retired, not live (b5d06fa): listFiles marks it retiredQuote, never quoteFile.
+    check([v2QuoteId, v5row.quote_file_id].every((id) => listedQuotes.find((f) => f.id === id)?.quoteFile === true) &&
+        listedQuotes.filter((f) => f.quoteFile).length === 2,
+      "listFiles marks the signed v2's and offered v5's quote PDFs, and only them, as quote files",
+      JSON.stringify(listedQuotes.map((f) => [f.name, f.quoteFile, f.retiredQuote])));
+    const listedV4 = listedQuotes.find((f) => f.id === v4row.quote_file_id);
+    check(listedV4?.retiredQuote === true && listedV4.quoteFile === false && listedQuotes.filter((f) => f.retiredQuote).length === 1,
+      "listFiles marks the superseded v4's quote PDF, and only it, as a retired quote",
+      JSON.stringify(listedQuotes.map((f) => [f.name, f.quoteFile, f.retiredQuote])));
     const liveQuote = v5row.quote_file_id as string;
     check((await setShared(A.id, liveQuote, false, ACTOR)) === false, "unsharing the offered v5's quote answers false", "true");
     check((await setDocType(A.id, liveQuote, "other", ACTOR)) === false, "relabelling the offered v5's quote answers false", "true");
