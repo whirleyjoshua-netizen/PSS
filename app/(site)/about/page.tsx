@@ -1,55 +1,75 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import { Section } from "@/components/ui/Section";
 import { PageHero, ConsultationCta } from "@/components/product/ProductParts";
-import { business } from "@/content/business";
 import { ReviewSpotlight } from "@/components/reviews/ReviewSpotlight";
 import { pastReviews } from "@/content/reviews";
 
 export const metadata: Metadata = {
-  title: "About Us | Premier Shade Solutions",
+  title: "Meet the Family | Premier Shade Solutions",
   description:
-    "Premier Shade Solutions is a husband-and-wife window treatment company serving the Las Vegas valley. We measure and install every job ourselves.",
+    "Premier Shade Solutions is a family-run window treatment company serving the Las Vegas valley. Shade designs, Josh installs, and we handle every job ourselves.",
   alternates: { canonical: "/about" },
 };
 
+/** The only page the children appear on (family brand spec §1). */
 export default function AboutPage() {
   return (
     <>
       <PageHero
         eyebrow="Who we are"
-        title="A husband-and-wife shop in Las Vegas"
-        lead="The people who answer the phone are the people who measure your windows and hang your shades."
+        title="Meet the family"
         trail={[{ name: "About", url: "/about" }]}
       />
 
-      <Section tone="ivory" containerWidth="prose">
-        {/* TODO(content): replace the three paragraphs below with the owners'
-            own words. How the two of you started, why window treatments, what
-            you care about getting right. This is the highest-converting page
-            on the site and the one thing competitors cannot copy — it should
-            sound like you, not like a website. */}
-        <div className="flex flex-col gap-6 text-lg leading-relaxed text-ink-soft">
-          <p>
-            Premier Shade Solutions is the two of us. There is no call center,
-            no rotating crew of subcontractors, and no salesperson working
-            toward a monthly target. When you call, you get an owner. When we
-            measure, we are the ones who will be hanging it. And when something
-            needs to be made right, you are already talking to the people who
-            can decide to make it right.
-          </p>
-          <p>
-            We work across the Las Vegas valley — {business.serviceArea.join(", ")} —
-            and we specify for this climate specifically. West-facing glass here
-            destroys products that would last a decade somewhere milder. Part of
-            our job is telling you which of those to avoid, even when the
-            cheaper or the more expensive option is the one that lasts.
-          </p>
-          <p>
-            Every job starts the same way: we come to you, at no charge, with
-            real samples. We look at the exposure, the room, and what you
-            actually need the window to do. Then we measure every opening and
-            leave you with a quote before we go.
-          </p>
+      <Section tone="ivory">
+        <div className="grid gap-12 lg:grid-cols-[minmax(0,64ch)_minmax(0,24rem)] lg:gap-16">
+          <div className="flex flex-col gap-6 text-lg leading-relaxed text-ink-soft">
+            <p>
+              <strong className="font-medium text-charcoal">It started with Josh&rsquo;s dad.</strong>{" "}
+              He installed window treatments across Los Angeles, and Josh grew up on those jobs —
+              learning to measure, mount and finish a window before most kids had a summer job. His
+              dad has since passed, and a lot of how we work comes straight from him: do it right, do
+              it yourself, and stand behind it.
+            </p>
+            <p>
+              <strong className="font-medium text-charcoal">Shade found the design side.</strong>{" "}
+              With Josh&rsquo;s encouragement she started designing, and she fell in love with it —
+              not just the fabrics and the finishes, but the people: sitting down in someone&rsquo;s
+              home, listening, and helping them get it exactly right. She became a top designer,
+              first in Ohio and now here in Las Vegas.
+            </p>
+            <p>
+              <strong className="font-medium text-charcoal">Now it&rsquo;s our family&rsquo;s business.</strong>{" "}
+              Shade designs, Josh installs, and our kids are growing up around it the way Josh did.
+              When you invite us into your home, you&rsquo;re working with us — not a call center,
+              not a rotating crew.
+            </p>
+            <p className="font-display text-2xl font-light text-charcoal">
+              You let us into your home. We let you into our family.
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-6">
+            <div className="relative aspect-4/3 w-full overflow-hidden bg-sand">
+              <Image
+                src="/brand/family-pumpkin.webp"
+                alt="Shade and Josh sitting on the floor at home with their baby and their young daughter, a big pumpkin in front of them ready to carve"
+                fill
+                sizes="(min-width: 1024px) 24rem, 100vw"
+                className="object-cover"
+              />
+            </div>
+            <div className="relative aspect-4/5 w-full overflow-hidden bg-sand">
+              <Image
+                src="/brand/owners-family.webp"
+                alt="Josh and Shade standing outside in the sun with their young daughter held between them"
+                fill
+                sizes="(min-width: 1024px) 24rem, 100vw"
+                className="object-cover"
+              />
+            </div>
+          </div>
         </div>
       </Section>
 
