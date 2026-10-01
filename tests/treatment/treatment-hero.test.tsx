@@ -60,11 +60,15 @@ describe("TreatmentHero", () => {
     expect(document.getElementById("book-name")).not.toBeNull();
   });
 
-  it("keeps the photo short on a phone and fills the section from lg up, with the slow zoom", () => {
+  it("keeps the photo short and the lead hidden on a phone, fills the section from lg up, with the slow zoom", () => {
     const { container } = hero();
     const frame = container.querySelector("section#book img")!.parentElement!;
-    expect(frame.className).toContain("aspect-[16/7]");
+    expect(frame.className).toContain("aspect-[16/5]");
+    expect(frame.className).toContain("overflow-hidden");
     expect(frame.className).toContain("lg:absolute");
     expect(container.querySelector("img")!.className).toContain("animate-slow-zoom");
+    expect(screen.getByText(/Roller, solar and cellular shades/).className.split(" ")).toEqual(
+      expect.arrayContaining(["hidden", "sm:block"]),
+    );
   });
 });
