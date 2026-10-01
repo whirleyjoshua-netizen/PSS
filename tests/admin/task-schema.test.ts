@@ -35,7 +35,14 @@ describe("taskInputSchema", () => {
   it("rejects an impossible date and a malformed assignee", () => {
     expect(message({ dueOn: "2026-02-30" })).toBe("Pick a due date from the calendar");
     expect(message({ dueOn: "next friday" })).toBe("Pick a due date from the calendar");
+    expect(message({ dueOn: "2026-13-01" })).toBe("Pick a due date from the calendar");
+    expect(message({ dueOn: "2026-02-32" })).toBe("Pick a due date from the calendar");
+    expect(message({ dueOn: "2026-00-10" })).toBe("Pick a due date from the calendar");
     expect(message({ assignee: "shade" })).toBe("Pick someone from the list");
+  });
+  it("turns whitespace-only notes into null", () => {
+    const result = parse({ notes: "   " });
+    expect(result.success && result.data.notes).toBe(null);
   });
   it("rejects an unknown status", () => {
     expect(parse({ status: "blocked" }).success).toBe(false);

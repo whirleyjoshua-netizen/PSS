@@ -5,8 +5,11 @@ const STATUS_VALUES = TASK_STATUSES.map((status) => status.value) as [TaskStatus
 const blankToNull = (value: string) => (value === "" ? null : value);
 
 /** A real calendar day: "2026-02-30" parses in JS as March 2, so round-trip it. */
-const isCalendarDay = (value: string) =>
-  /^\d{4}-\d{2}-\d{2}$/.test(value) && new Date(`${value}T12:00:00Z`).toISOString().slice(0, 10) === value;
+const isCalendarDay = (value: string) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = new Date(`${value}T12:00:00Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+};
 
 /** The new-task and edit-task forms. The action passes every field as a string. */
 export const taskInputSchema = z.object({
