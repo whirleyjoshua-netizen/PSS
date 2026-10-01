@@ -15,6 +15,9 @@ async function renderProduct(category: string, product: string) {
   return render(await ProductPage({ params: Promise.resolve({ category, product }) }));
 }
 
+const treatmentsSent = (container: HTMLElement) =>
+  Array.from(container.querySelectorAll<HTMLInputElement>('form input[name="treatments"]')).map((i) => i.value);
+
 /** The closing "Invite Us Over" sends the visitor up to the short form on this page, not to /contact. */
 function expectClosingButtonToBook() {
   const links = screen.getAllByRole("link", { name: /invite us over/i });
@@ -39,6 +42,11 @@ describe.each(categories.map((category) => [category.slug, category] as const))(
     expectFormBeforeCopy(container, category.intro[0]);
   });
 
+  it("files the lead under this category, the name the contact form's checkbox sends", async () => {
+    const { container } = await renderCategory(slug);
+    expect(treatmentsSent(container)).toEqual([category.name]);
+  });
+
   it("sends the closing Invite Us Over to the booking form on this page", async () => {
     await renderCategory(slug);
     expectClosingButtonToBook();
@@ -58,6 +66,12 @@ describe.each(products.map((product) => [`${product.category}/${product.slug}`, 
       expect(container.querySelectorAll("form")).toHaveLength(1);
       expect(container.querySelectorAll("h1")).toHaveLength(1);
       expectFormBeforeCopy(container, product.body[0]);
+    });
+
+    it("files the lead under its parent category, the name the contact form's checkbox sends", async () => {
+      const { container } = await renderProduct(product.category, product.slug);
+      const parent = categories.find((category) => category.slug === product.category)!;
+      expect(treatmentsSent(container)).toEqual([parent.name]);
     });
 
     it("sends the closing Invite Us Over to the booking form on this page", async () => {

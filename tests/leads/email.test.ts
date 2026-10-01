@@ -74,6 +74,12 @@ describe("sendLeadNotification", () => {
     expect(send.mock.calls[0][0].to).toEqual(["owner@example.com", "partner@example.com"]);
   });
 
+  it("names a booking lead's treatment on the Interested line", async () => {
+    await sendLeadNotification({ ...input, source: "booking", treatments: ["Shutters"] }, "abc");
+    const lines = send.mock.calls[0][0].text.split("\n");
+    expect(lines).toContain("Interested: Shutters");
+  });
+
   it("refuses to send when no owner address is configured", async () => {
     vi.stubEnv("LEAD_NOTIFICATION_EMAIL", " , ");
     await expect(sendLeadNotification(input, "abc")).rejects.toThrow(/not configured/);

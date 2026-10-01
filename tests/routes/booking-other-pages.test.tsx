@@ -12,6 +12,7 @@ describe.each(cities.map((city) => [city.slug, city] as const))("/service-area/%
 
     expect(container.querySelectorAll("form")).toHaveLength(1);
     expect(container.querySelector('input[name="city"]')).toHaveValue(city.name);
+    expect(container.querySelector('input[name="treatments"]')).toBeNull();
     expect(
       screen.getByRole("heading", { level: 2, name: `Book a free consultation in ${city.name}` }),
     ).toBeInTheDocument();
@@ -30,6 +31,7 @@ describe("/reviews", () => {
   it("ends with the booking block instead of a link away", () => {
     const { container } = render(<ReviewsPage />);
     expect(container.querySelector("section#book form")).not.toBeNull();
+    expect(container.querySelector('input[name="treatments"]')).toBeNull();
   });
 });
 

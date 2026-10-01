@@ -23,10 +23,13 @@ export function BookingBlock({
   photo,
   city,
   heading,
+  treatment,
 }: {
   photo: Photo;
   city?: ServiceCity;
   heading?: string;
+  /** The page's category name, sent as the lead's treatment (see HeroForm). */
+  treatment?: string;
 }) {
   return (
     <Section tone="sand" id="book" className="scroll-mt-20">
@@ -35,7 +38,13 @@ export function BookingBlock({
       ) : null}
 
       <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)] lg:items-start lg:gap-16">
-        <HeroForm idPrefix="book" source="booking" city={city} className="lg:order-2" />
+        <HeroForm
+          idPrefix="book"
+          source="booking"
+          city={city}
+          treatment={treatment}
+          className="lg:order-2"
+        />
 
         <div className="flex flex-col gap-6 lg:order-1">
           <div className="relative aspect-4/3 w-full overflow-hidden bg-ivory">

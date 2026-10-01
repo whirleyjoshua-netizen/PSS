@@ -13,17 +13,21 @@ import { FormMessage, Honeypot, TextField } from "./Field";
  * Used by the homepage hero and by the booking block on product, category,
  * city and reviews pages. `idPrefix` keeps field ids unique if two ever share
  * a page; `city` is the page's city so a Henderson lead is not filed as Las Vegas.
+ * `treatment` is the page's category name (the value the /contact checkbox
+ * sends), so a booking from /shutters/plantation-shutters arrives as "Shutters".
  */
 export function HeroForm({
   className,
   idPrefix = "hero",
   source = "hero",
   city = business.serviceArea[0],
+  treatment,
 }: {
   className?: string;
   idPrefix?: string;
   source?: LeadSource;
   city?: ServiceCity;
+  treatment?: string;
 }) {
   const { state, error, submit } = useConsultationForm(source);
 
@@ -40,6 +44,7 @@ export function HeroForm({
       <form onSubmit={submit} noValidate className="relative mt-6 flex flex-col gap-4">
         <Honeypot />
         <input type="hidden" name="city" value={city} readOnly />
+        {treatment ? <input type="hidden" name="treatments" value={treatment} readOnly /> : null}
 
         <TextField id={`${idPrefix}-name`} name="name" label="Name" autoComplete="name" required />
         <TextField

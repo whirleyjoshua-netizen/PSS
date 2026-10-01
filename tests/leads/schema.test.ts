@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { consultationSchema } from "@/lib/leads/schema";
+import { categories } from "@/content/products";
 
 const valid = {
   name: "Dana Reyes",
@@ -64,6 +65,14 @@ describe("consultationSchema", () => {
       source: "contact" as const,
     };
     expect(consultationSchema.safeParse(full).success).toBe(true);
+  });
+
+  it("accepts every category name a booking block sends as its treatment", () => {
+    for (const category of categories) {
+      const parsed = consultationSchema.safeParse({ ...valid, source: "booking", treatments: [category.name] });
+      expect(parsed.success, category.name).toBe(true);
+      expect(parsed.data?.treatments).toEqual([category.name]);
+    }
   });
 
   it("rejects an unknown window count", () => {

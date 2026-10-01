@@ -67,7 +67,7 @@ export default async function ProductPage({
         title={`${found.name} in Las Vegas`}
         trail={trail}
       />
-      <BookingBlock photo={found.image ?? consultationPhoto} />
+      <BookingBlock photo={found.image ?? consultationPhoto} treatment={parent.name} />
 
       <Section tone="ivory">
         {/* Columns are sized to their content and left-aligned so the body
