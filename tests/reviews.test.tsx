@@ -3,6 +3,7 @@ import { describe, it, expect } from "vitest";
 import ReviewsPage from "@/app/(site)/reviews/page";
 import AboutPage from "@/app/(site)/about/page";
 import Home from "@/app/(site)/page";
+import CategoryPage from "@/app/(site)/[category]/page";
 import { pastReviews } from "@/content/reviews";
 import { formatReviewDate } from "@/components/reviews/ReviewCard";
 
@@ -50,10 +51,17 @@ describe("reviews are labeled as the owners' earlier work", () => {
     expect(screen.getByText(/^These surveys come from/)).toHaveTextContent(
       /before we opened Premier Shade Solutions/i,
     );
-    // ...and the booking block's featured quote carries its own label.
+    // ...and the booking block shows no featured quote here, so there is no unlabelled one.
     const book = container.querySelector<HTMLElement>("section#book");
     expect(book).not.toBeNull();
-    expect(within(book!).getByText(/before we opened Premier Shade Solutions/i)).toBeInTheDocument();
+    expect(book!.querySelector("figure")).toBeNull();
+  });
+
+  it("in the booking block wherever it shows its quote", async () => {
+    const { container } = render(await CategoryPage({ params: Promise.resolve({ category: "shutters" }) }));
+    const quote = container.querySelector<HTMLElement>("section#book figure");
+    expect(quote).not.toBeNull();
+    expect(within(quote!).getByText(/before we opened Premier Shade Solutions/i)).toBeInTheDocument();
   });
 });
 

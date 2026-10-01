@@ -27,7 +27,7 @@ export default function ReviewsPage() {
         <ReviewWall reviews={pastReviews} />
       </Section>
 
-      <BookingBlock photo={consultationPhoto} />
+      <BookingBlock photo={consultationPhoto} showReview={false} />
     </>
   );
 }

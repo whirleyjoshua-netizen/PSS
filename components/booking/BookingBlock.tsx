@@ -24,12 +24,15 @@ export function BookingBlock({
   city,
   heading,
   treatment,
+  showReview = true,
 }: {
   photo: Photo;
   city?: ServiceCity;
   heading?: string;
   /** The page's category name, sent as the lead's treatment (see HeroForm). */
   treatment?: string;
+  /** False on /reviews, which already shows every review; the quote would link the page to itself. */
+  showReview?: boolean;
 }) {
   return (
     <Section tone="sand" id="book" className="scroll-mt-20">
@@ -59,7 +62,7 @@ export function BookingBlock({
 
           <p className="text-lg leading-relaxed text-charcoal">{FAMILY_LINE}</p>
 
-          {featured ? (
+          {showReview && featured ? (
             <figure className="flex flex-col gap-3 border-l-2 border-champagne pl-5">
               <blockquote className="text-ink-soft">&ldquo;{featured.quote}&rdquo;</blockquote>
               <figcaption className="text-xs text-ink-soft">

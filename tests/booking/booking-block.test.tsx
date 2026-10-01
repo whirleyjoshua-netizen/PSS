@@ -75,4 +75,11 @@ describe("BookingBlock", () => {
     expect(container.querySelector('input[name="treatments"]')).toBeNull();
     expect((await submitBooking()).treatments).toEqual([]);
   });
+
+  it("leaves the review out when the page says so", () => {
+    render(<BookingBlock photo={consultationPhoto} showReview={false} />);
+    expect(screen.queryByRole("figure")).toBeNull();
+    expect(screen.queryByRole("link", { name: /read every review/i })).toBeNull();
+    expect(screen.getByRole("button", { name: /invite us over/i })).toBeInTheDocument();
+  });
 });

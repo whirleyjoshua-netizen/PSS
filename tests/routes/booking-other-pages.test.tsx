@@ -35,6 +35,15 @@ describe("/reviews", () => {
   });
 });
 
+describe("/reviews booking block", () => {
+  it("does not repeat a quote or link the page to itself", () => {
+    const { container } = render(<ReviewsPage />);
+    const block = container.querySelector("section#book")!;
+    expect(block.querySelector("figure")).toBeNull();
+    expect(block.querySelector('a[href="/reviews"]')).toBeNull();
+  });
+});
+
 describe("/contact", () => {
   it("shows the consultation photo beside the form", () => {
     render(<ContactPage />);
