@@ -26,8 +26,8 @@ describe("product taxonomy", () => {
     expect(getCategory("drapery")).toBeUndefined();
   });
 
-  it("has fourteen child products", () => {
-    expect(products).toHaveLength(14);
+  it("has twelve child products", () => {
+    expect(products).toHaveLength(12);
   });
 
   it("no longer carries aluminum or mini blinds", () => {
@@ -90,7 +90,7 @@ describe("product taxonomy", () => {
   });
 
   it("produces one static path per child product", () => {
-    expect(allProductPaths()).toHaveLength(14);
+    expect(allProductPaths()).toHaveLength(12);
     expect(allProductPaths()).toContainEqual({
       category: "shades",
       product: "solar-shades",
@@ -119,10 +119,10 @@ describe("redesign wording (spec 2026-10-01 §5)", () => {
       caption: ["Fitted to the opening", "Framed, finished and built to last."],
     },
     outdoor: {
-      highlights: [["Heat blocking", "thermometer"], ["Patio comfort", "sofa"], ["Energy savings", "leaf"], ["UV protection", "shield"]],
+      highlights: [["Heat blocking", "thermometer"], ["Whole walls", "window"], ["Energy savings", "leaf"], ["UV protection", "shield"]],
       eyebrow: "Shade before the glass",
-      heading: "The Patio You Actually Use",
-      caption: ["Measured properly", "A covered patio, 15–20° cooler."],
+      heading: "Stop the Sun Before It Gets In",
+      caption: ["West and south walls", "Up to 90% of the sun's heat turned away."],
     },
     motorization: {
       highlights: [["App & remote", "phone"], ["Schedules", "clock"], ["No wiring", "battery"], ["High windows", "arrow-up"]],
@@ -175,5 +175,26 @@ describe("the owners' photos of 2026-10-01", () => {
     expect(product.storyPhoto?.src).toBe(story);
     expect(existsSync(path.join(process.cwd(), "public", image))).toBe(true);
     expect(product.image!.alt.trim().length).toBeGreaterThan(20);
+  });
+});
+
+describe("Outdoor after dropping patio shades and rolling shutters (owner, 2026-10-01)", () => {
+  it("carries Solar Screens only", () => {
+    expect(products.filter((p) => p.category === "outdoor").map((p) => p.slug)).toEqual(["solar-screens"]);
+  });
+
+  it("no longer advertises the dropped products anywhere in its copy", () => {
+    const outdoor = categories.find((c) => c.slug === "outdoor")!;
+    const text = JSON.stringify(outdoor);
+    expect(text).not.toMatch(/patio|rolling shutter/i);
+    expect(outdoor.tagline).toBe("Stop the heat at the glass.");
+    expect(outdoor.seo.title).toBe("Exterior Solar Screens in Las Vegas, NV | Premier Shade");
+    expect(outdoor.seo.description).toBe(
+      "Exterior solar screens for Las Vegas homes. Stop heat and glare before they reach the glass and cut cooling costs. Free in-home consultation.",
+    );
+    expect(outdoor.intro).toEqual([
+      "In Las Vegas, the hardest-working windows are the ones facing west. Exterior shading stops the sun before it reaches the glass, which is the only way to meaningfully cut the heat load on a west-facing room — an interior shade absorbs that energy after it is already inside.",
+      "Solar screens do that work for a whole side of the house at once: mounted over the window, they turn away most of the afternoon sun and take a real bite out of a summer power bill.",
+    ]);
   });
 });

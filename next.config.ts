@@ -23,6 +23,8 @@ const nextConfig: NextConfig = {
       // Products we no longer carry; old links and search results land on Blinds.
       { source: "/blinds/aluminum-blinds", destination: "/blinds", permanent: true },
       { source: "/blinds/mini-blinds", destination: "/blinds", permanent: true },
+      { source: "/outdoor/patio-shades", destination: "/outdoor", permanent: true },
+      { source: "/outdoor/rolling-shutters", destination: "/outdoor", permanent: true },
     ];
   },
 };

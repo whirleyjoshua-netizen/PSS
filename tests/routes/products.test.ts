@@ -8,7 +8,7 @@ describe("static params", () => {
   });
 
   it("generates one route per child product", async () => {
-    expect(await productParams()).toHaveLength(14);
+    expect(await productParams()).toHaveLength(12);
   });
 
   it("scopes product routes to their own category", async () => {

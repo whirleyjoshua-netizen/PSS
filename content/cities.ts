@@ -62,10 +62,10 @@ export const cities: City[] = [
       "Cadence",
     ],
     climateNote:
-      "Henderson's newer homes bring taller windows and bigger sliders than the rest of the valley, which makes motorization and exterior patio shading the two upgrades that come up most often here.",
+      "Henderson's newer homes bring taller windows and bigger sliders than the rest of the valley, which makes motorization and solar screens the two upgrades that come up most often here.",
     popularProducts: [
       { name: "Motorization", href: "/motorization" },
-      { name: "Patio Roller Shades", href: "/outdoor/patio-shades" },
+      { name: "Solar Screens", href: "/outdoor/solar-screens" },
       { name: "Roller Shades", href: "/shades/roller-shades" },
     ],
     seo: {

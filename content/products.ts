@@ -191,26 +191,26 @@ export const categories: Category[] = [
     slug: "outdoor",
     name: "Outdoor Shading",
     navLabel: "Outdoor",
-    tagline: "Take back the patio.",
+    tagline: "Stop the heat at the glass.",
     intro: [
-      "In Las Vegas the difference between a patio you use and a patio you look at is shade. Exterior shading stops the sun before it reaches the glass, which is the only way to meaningfully cut the heat load on a west-facing room — an interior shade absorbs that energy after it is already inside.",
-      "Measured properly, exterior products routinely drop a covered patio by fifteen to twenty degrees and take a real bite out of a summer power bill.",
+      "In Las Vegas, the hardest-working windows are the ones facing west. Exterior shading stops the sun before it reaches the glass, which is the only way to meaningfully cut the heat load on a west-facing room — an interior shade absorbs that energy after it is already inside.",
+      "Solar screens do that work for a whole side of the house at once: mounted over the window, they turn away most of the afternoon sun and take a real bite out of a summer power bill.",
     ],
     highlights: [
       { label: "Heat blocking", icon: "thermometer" },
-      { label: "Patio comfort", icon: "sofa" },
+      { label: "Whole walls", icon: "window" },
       { label: "Energy savings", icon: "leaf" },
       { label: "UV protection", icon: "shield" },
     ],
     story: {
       eyebrow: "Shade before the glass",
-      heading: "The Patio You Actually Use",
-      caption: { eyebrow: "Measured properly", line: "A covered patio, 15–20° cooler." },
+      heading: "Stop the Sun Before It Gets In",
+      caption: { eyebrow: "West and south walls", line: "Up to 90% of the sun's heat turned away." },
     },
     seo: {
-      title: "Patio Shades & Solar Screens in Las Vegas, NV",
+      title: "Exterior Solar Screens in Las Vegas, NV | Premier Shade",
       description:
-        "Exterior patio roller shades, rolling shutters, and solar screens for Las Vegas homes. Cut heat and glare before it reaches the glass.",
+        "Exterior solar screens for Las Vegas homes. Stop heat and glare before they reach the glass and cut cooling costs. Free in-home consultation.",
     },
   },
   {
@@ -581,54 +581,6 @@ export const products: Product[] = [
   },
 
   // --------------------------------------------------------------- outdoor
-  {
-    slug: "patio-shades",
-    name: "Patio Roller Shades",
-    category: "outdoor",
-    tagline: "Fifteen degrees of difference.",
-    body: [
-      "Exterior patio roller shades drop a solar screen fabric across a patio opening, stopping the sun before it reaches the space. That sequence is the whole point: shading on the outside rejects heat, while an interior shade only absorbs it after it has already entered.",
-      "A properly specified patio screen routinely drops a covered patio by fifteen to twenty degrees, cuts the wind-driven dust that makes outdoor furniture unusable, and turns a west-facing yard from a summer write-off into somewhere you can actually sit at six in the evening.",
-      "They also protect the room behind them. A patio screen across a slider does more for the adjacent living room's cooling load than any interior treatment on the same glass.",
-    ],
-    features: [
-      "Exterior solar screen fabric in openness factors from 1% to 10%",
-      "Typically drops covered patio temperature 15–20°F",
-      "Cuts wind-driven dust and blowing debris",
-      "Manual crank, motorized, or wind-sensor automated",
-      "Track and cable guide systems for windy exposures",
-    ],
-    bestFor: "West-facing patios, covered porches, and outdoor kitchens.",
-    seo: {
-      title: "Patio Roller Shades in Las Vegas, NV | Premier Shade",
-      description:
-        "Exterior patio roller shades for Las Vegas homes. Drop patio temperatures 15-20 degrees and block dust. Free in-home consultation.",
-    },
-  },
-  {
-    slug: "rolling-shutters",
-    name: "Rolling Shutters",
-    category: "outdoor",
-    tagline: "Shade, security, and quiet.",
-    body: [
-      "Rolling shutters are interlocking aluminum slats that roll down from a housing above the opening and lock in place. They are the most substantial exterior product available, and the only one that does three jobs at once: total blackout, a real physical security barrier, and a meaningful reduction in outside noise.",
-      "Closed, they eliminate solar gain on that opening entirely. That makes them a favorite for media rooms, for anyone who works nights and sleeps days, and for homes that sit empty part of the year — a closed rolling shutter is both a locked barrier and a signal that the glass behind it is not worth attempting.",
-      "They can be operated by strap, crank, or motor, and integrated with a home automation system so a whole elevation closes on a schedule.",
-    ],
-    features: [
-      "Interlocking aluminum slats with a locking bottom rail",
-      "Complete blackout and total elimination of solar gain",
-      "Genuine physical security barrier over glass",
-      "Measurable reduction in exterior noise",
-      "Manual or motorized, with automation integration available",
-    ],
-    bestFor: "Media rooms, night-shift sleepers, seasonal residences, and ground-floor security.",
-    seo: {
-      title: "Rolling Shutters in Las Vegas, NV | Premier Shade Solutions",
-      description:
-        "Exterior rolling security shutters for Las Vegas homes. Total blackout, security, and noise reduction. Free in-home consultation.",
-    },
-  },
   {
     slug: "solar-screens",
     name: "Solar Screens",

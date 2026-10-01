@@ -11,7 +11,7 @@ anything goes live.
 
 ## 1. Scope
 
-- **In:** the 5 category pages (`app/(site)/[category]/page.tsx`) and the 14 product pages
+- **In:** the 5 category pages (`app/(site)/[category]/page.tsx`) and the product pages (14 at the start; 12 after the owner dropped Patio Roller Shades and Rolling Shutters on 2026-10-01 — their URLs redirect to /outdoor and the Outdoor copy was rewritten around Solar Screens)
   (`app/(site)/[category]/[product]/page.tsx`).
 - **Out (keep family-brand's look and wording):** homepage, city pages, `/reviews`, Meet the
   family, contact, gallery, header, footer.
