@@ -31,6 +31,7 @@ describe("TreatmentHero", () => {
     expect(section).not.toBeNull();
     const h1 = screen.getByRole("heading", { level: 1, name: "Shades in Las Vegas" });
     expect(h1.className).toContain("heading-serif");
+    expect(h1.className.split(" ")).toEqual(expect.arrayContaining(["text-3xl", "sm:text-4xl", "md:text-6xl"]));
     expect(screen.getByText("Soft light, or none at all.")).toBeInTheDocument();
     expect(screen.getByText(/Roller, solar and cellular shades/)).toBeInTheDocument();
     expect(screen.getByRole("navigation", { name: "Breadcrumb" })).toBeInTheDocument();
@@ -63,7 +64,7 @@ describe("TreatmentHero", () => {
   it("keeps the photo short and the lead hidden on a phone, fills the section from lg up, with the slow zoom", () => {
     const { container } = hero();
     const frame = container.querySelector("section#book img")!.parentElement!;
-    expect(frame.className).toContain("aspect-[16/5]");
+    expect(frame.className).toContain("aspect-[32/9]");
     expect(frame.className).toContain("overflow-hidden");
     expect(frame.className).toContain("lg:absolute");
     expect(container.querySelector("img")!.className).toContain("animate-slow-zoom");

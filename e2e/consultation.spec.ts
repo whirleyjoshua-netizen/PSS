@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { categories, products } from "@/content/products";
 
 /**
  * The API is stubbed here on purpose. These tests verify the browser-side
@@ -161,7 +162,8 @@ test("a visitor can book from the photo hero on a category page", async ({ page 
 test.describe("on a 390×844 phone", () => {
   test.use({ viewport: { width: 390, height: 844 } });
 
-  for (const path of ["/shades", "/motorization", "/shades/roller-shades", "/shades/solar-shades"]) {
+  const paths = [...categories.map((c) => `/${c.slug}`), ...products.map((p) => `/${p.category}/${p.slug}`)];
+  for (const path of paths) {
     test(`${path} shows Invite Us Over without scrolling`, async ({ page }) => {
       await page.goto(path);
       await expect(page.locator("section#book").getByRole("button", { name: /invite us over/i })).toBeInViewport();

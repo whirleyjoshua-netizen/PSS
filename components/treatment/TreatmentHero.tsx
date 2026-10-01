@@ -32,7 +32,7 @@ export function TreatmentHero({
 }) {
   return (
     <section id="book" className="relative scroll-mt-20 overflow-hidden bg-sand">
-      <div className="relative aspect-[16/5] w-full overflow-hidden lg:absolute lg:inset-0 lg:aspect-auto">
+      <div className="relative aspect-[32/9] w-full overflow-hidden lg:absolute lg:inset-0 lg:aspect-auto">
         <Image
           src={photo.src}
           alt={photo.alt}
@@ -50,7 +50,7 @@ export function TreatmentHero({
             <p className="font-display text-xs font-medium uppercase tracking-[0.22em] text-champagne-ink">
               {eyebrow}
             </p>
-            <h1 className="heading-serif text-4xl leading-[1.05] text-charcoal md:text-6xl">{title}</h1>
+            <h1 className="heading-serif text-3xl leading-[1.05] text-charcoal sm:text-4xl md:text-6xl">{title}</h1>
             <p className="hidden max-w-xl text-lg leading-relaxed text-ink-soft sm:block">{lead}</p>
           </div>
 
