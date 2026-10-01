@@ -4,8 +4,7 @@ import CategoryPage from "@/app/(site)/[category]/page";
 import ProductPage from "@/app/(site)/[category]/[product]/page";
 import CityPage from "@/app/(site)/service-area/[city]/page";
 import ReviewsPage from "@/app/(site)/reviews/page";
-import { categories } from "@/content/products";
-import { products } from "@/content/products";
+import { categories, products } from "@/content/products";
 import { consultationPhoto } from "@/content/gallery";
 import { FEATURED_REVIEW } from "@/components/booking/FeaturedReview";
 
