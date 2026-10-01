@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import type { DocType } from "@/lib/admin/doc-types";
 import { deleteFile, getFile, setDocType, setShared } from "@/lib/admin/files";
-import { addMeasurement, deleteMeasurement, updateMeasurement } from "@/lib/admin/measurements";
+import { addMeasurement, deleteMeasurement, setKeptOfficial, updateMeasurement } from "@/lib/admin/measurements";
+import { isMeasureKind, type MeasureKind } from "@/lib/admin/measure-kinds";
 import { measurementSchema } from "@/lib/admin/schema";
 import { requireAdmin } from "@/lib/admin/session";
 import type { FormState } from "./actions";
@@ -36,16 +37,30 @@ function captureRaw(formData: FormData): Record<string, unknown> {
 
 // Every action calls requireAdmin() before reading its input.
 
-export async function saveMeasurement(jobId: string, windowId: string | null, formData: FormData): Promise<FormState> {
+// Not exported: a "use server" file may export only async functions.
+const KEPT_REFUSAL =
+  "This job is using the designer measure as its official measure. Untick “Keep as official measure” to take a separate one.";
+
+export async function saveMeasurement(
+  jobId: string, windowId: string | null, kind: MeasureKind, formData: FormData,
+): Promise<FormState> {
   const { email } = await requireAdmin();
   const values = captureValues(formData);
+  if (!isMeasureKind(kind)) return { error: "Choose Designer measure or Official measure first.", values };
   const parsed = measurementSchema.safeParse(captureRaw(formData));
   if (!parsed.success) return { error: parsed.error.issues[0].message, values };
 
-  const saved = windowId
-    ? await updateMeasurement(jobId, windowId, parsed.data, email)
-    : Boolean(await addMeasurement(jobId, parsed.data, email));
-  if (!saved) return { error: "That job or window no longer exists." };
+  // An edit keeps the window's own kind; `kind` only decides which list a new window joins.
+  if (windowId) {
+    if (!(await updateMeasurement(jobId, windowId, parsed.data, email))) {
+      return { error: "That job or window no longer exists." };
+    }
+  } else {
+    const added = await addMeasurement(jobId, kind, parsed.data, email);
+    if ("refused" in added) {
+      return added.refused === "kept" ? { error: KEPT_REFUSAL, values } : { error: "That job or window no longer exists." };
+    }
+  }
 
   revalidatePath(`/admin/jobs/${jobId}`);
   revalidatePath("/admin");
@@ -57,6 +72,19 @@ export async function removeMeasurement(jobId: string, windowId: string): Promis
   await deleteMeasurement(jobId, windowId, email);
   revalidatePath(`/admin/jobs/${jobId}`);
   revalidatePath("/admin");
+}
+
+/** Ticks or unticks "Keep as official measure". Anything but `true` unticks. */
+export async function setKeptOfficialAction(jobId: string, kept: boolean): Promise<{ error?: string }> {
+  const { email } = await requireAdmin();
+  const result = await setKeptOfficial(jobId, kept === true, email);
+  if (result === "missing") return { error: "That job no longer exists." };
+  if (result === "has-official") {
+    return { error: "An official measure is already recorded, so the designer measure can’t be kept as official." };
+  }
+  revalidatePath(`/admin/jobs/${jobId}`);
+  revalidatePath(`/admin/jobs/${jobId}/measure`);
+  return {};
 }
 
 export async function removeFile(jobId: string, fileId: string): Promise<void> {

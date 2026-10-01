@@ -2,7 +2,7 @@ import "server-only";
 import { after } from "next/server";
 import { createFile } from "@/lib/admin/files";
 import { createJob, getJob } from "@/lib/admin/jobs";
-import { describe as describeWindow, listMeasurements } from "@/lib/admin/measurements";
+import { describe as describeWindow, listWorkingWindows } from "@/lib/admin/measurements";
 import { oneOf } from "@/lib/admin/measure-units";
 import { isInstalled } from "@/lib/admin/stages";
 import { formatProjectNo } from "./project-no";
@@ -83,7 +83,7 @@ export async function requestService(
   // instead. With nothing typed either there is no window at all, and a job whose note said
   // "Not specified" would send the owners out knowing no more than we do — so we ask again.
   const measured = input.windowId
-    ? (await listMeasurements(jobId)).find((window) => window.id === input.windowId)
+    ? (await listWorkingWindows(jobId)).find((window) => window.id === input.windowId)
     : undefined;
   const typed = (input.windowText ?? "").trim();
   if (input.windowId && !measured && !typed) return { status: "unknown-window" };

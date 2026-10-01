@@ -27,7 +27,7 @@ const job: Job = {
   treatmentTypes: ["shutters"],
 };
 const base = {
-  job, editing: false, now, measurements: [], files: [], events: [], referrals: [], referrer: null,
+  job, editing: false, now, measurements: [], allWindows: [], measureSource: null, files: [], events: [], referrals: [], referrer: null,
   appointments: [], defaultMinutes: { consultation: 60, measure: 60, install: 240, service: 90 },
 };
 
@@ -73,12 +73,23 @@ describe("OverviewTab", () => {
 
   it("counts measured windows, not saved lines", () => {
     const line = {
-      id: "w", leadId: ID, position: 1, room: "Den", label: null, widthEighths: 240, heightEighths: 320,
+      id: "w", leadId: ID, kind: "designer" as const, position: 1, room: "Den", label: null, widthEighths: 240, heightEighths: 320,
       depthEighths: null, mount: "inside" as const, requirements: [], notes: null, photoFileId: null,
       measuredBy: "x", createdAt: now, updatedAt: now,
     };
-    render(<OverviewTab {...base} measurements={[{ ...line, quantity: 10 }, { ...line, id: "v", quantity: 2 }]} />);
-    expect(screen.getByRole("region", { name: "Measurements" })).toHaveTextContent("12 windows");
+    render(<OverviewTab {...base} measureSource="designer"
+      measurements={[{ ...line, quantity: 10 }, { ...line, id: "v", quantity: 2 }]} />);
+    expect(screen.getByRole("region", { name: "Measurements" })).toHaveTextContent("12 windows · designer");
+  });
+
+  it("says when the count comes from the official measure", () => {
+    const line = {
+      id: "o", leadId: ID, kind: "official" as const, position: 1, room: "Den", label: null, widthEighths: 240, heightEighths: 320,
+      depthEighths: null, mount: "inside" as const, requirements: [], notes: null, photoFileId: null,
+      measuredBy: "x", createdAt: now, updatedAt: now, quantity: 4,
+    };
+    render(<OverviewTab {...base} measureSource="official" measurements={[line]} />);
+    expect(screen.getByRole("region", { name: "Measurements" })).toHaveTextContent("4 windows · official");
   });
 
   it("keeps Add measurement on the Measurements card", () => {
@@ -110,7 +121,7 @@ describe("OverviewTab", () => {
     const generalPhoto = { id: "photo-2", leadId: ID, kind: "photo" as const, name: "before.jpg", contentType: "image/jpeg", blobPathname: "photo-2", createdAt: now, sizeBytes: 100, uploadedBy: "x", sharedAt: null };
     render(<OverviewTab {...base}
       files={[windowPhoto, generalPhoto]}
-      measurements={[{
+      allWindows={[{
         id: "m1", jobId: ID, room: "Kitchen", label: null, widthEighths: 280, heightEighths: 384,
         depthEighths: null, mount: "inside", requirements: [], notes: null, photoFileId: "photo-1",
         updatedAt: now,
@@ -118,6 +129,21 @@ describe("OverviewTab", () => {
     />);
     expect(screen.getByRole("link", { name: "before.jpg" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "window.jpg" })).toBeNull();
+  });
+
+  it("keeps designer window photos out of the thumbnails when the count is the official measure", () => {
+    const designerPhoto = { id: "photo-d", leadId: ID, kind: "photo" as const, name: "designer.jpg", contentType: "image/jpeg", blobPathname: "photo-d", createdAt: now, sizeBytes: 100, uploadedBy: "x", sharedAt: null };
+    const generalPhoto = { id: "photo-2", leadId: ID, kind: "photo" as const, name: "before.jpg", contentType: "image/jpeg", blobPathname: "photo-2", createdAt: now, sizeBytes: 100, uploadedBy: "x", sharedAt: null };
+    const line = {
+      id: "d", leadId: ID, kind: "designer" as const, position: 1, room: "Den", label: null, widthEighths: 240, heightEighths: 320,
+      depthEighths: null, mount: "inside" as const, requirements: [], notes: null, photoFileId: "photo-d",
+      measuredBy: "x", createdAt: now, updatedAt: now, quantity: 1,
+    };
+    const official = { ...line, id: "o", kind: "official" as const, photoFileId: null };
+    render(<OverviewTab {...base} files={[designerPhoto, generalPhoto]} measureSource="official"
+      measurements={[official]} allWindows={[line, official]} />);
+    expect(screen.getByRole("link", { name: "before.jpg" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "designer.jpg" })).toBeNull();
   });
 
   it("shows Review request and Referral link once sold", () => {

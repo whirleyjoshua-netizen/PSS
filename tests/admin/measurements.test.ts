@@ -89,8 +89,8 @@ describe("measurements", () => {
   const input = measurementSchema.parse({ ...form, photoFileId: PHOTO });
 
   it("adds a window at the next position with its event, only using a photo from the same job", async () => {
-    sql.mockResolvedValue([{ id: WIN }]);
-    expect(await m.addMeasurement(LEAD, input, "owner@example.com")).toBe(WIN);
+    sql.mockResolvedValue([{ id: WIN, found: true }]);
+    expect(await m.addMeasurement(LEAD, "designer", input, "owner@example.com")).toEqual({ id: WIN });
     const statement = text(sql.mock.calls[0]);
     expect(statement).toContain("coalesce(max(position)");
     expect(statement).toContain("insert into job_events");
@@ -99,19 +99,19 @@ describe("measurements", () => {
   });
 
   it("saves the quantity with a new window and logs how many were added", async () => {
-    sql.mockResolvedValue([{ id: WIN }]);
-    await m.addMeasurement(LEAD, { ...input, quantity: 10 }, "o");
+    sql.mockResolvedValue([{ id: WIN, found: true }]);
+    await m.addMeasurement(LEAD, "designer", { ...input, quantity: 10 }, "o");
     const [strings, ...values] = sql.mock.calls[0];
     const statement = (strings as TemplateStringsArray).join("?");
     expect(statement).toMatch(/insert into window_measurements \([^)]*quantity\)/);
     expect(values).toContain(10);
-    expect(values).toContain("Added 10 windows: Kitchen, Left of sink");
+    expect(values).toContain("Added 10 windows (designer): Kitchen, Left of sink");
   });
 
   it("logs a single window as before", async () => {
-    sql.mockResolvedValue([{ id: WIN }]);
-    await m.addMeasurement(LEAD, input, "o");
-    expect(sql.mock.calls[0]).toContain("Added window: Kitchen, Left of sink");
+    sql.mockResolvedValue([{ id: WIN, found: true }]);
+    await m.addMeasurement(LEAD, "designer", input, "o");
+    expect(sql.mock.calls[0]).toContain("Added window (designer): Kitchen, Left of sink");
   });
 
   it("saves a changed quantity when a window is edited, and logs how many it now covers", async () => {
@@ -119,7 +119,7 @@ describe("measurements", () => {
     await m.updateMeasurement(LEAD, WIN, { ...input, quantity: 7 }, "o");
     expect(text(sql.mock.calls[0])).toMatch(/quantity = \?/);
     expect(sql.mock.calls[0]).toContain(7);
-    expect(sql.mock.calls[0]).toContain("Edited 7 windows: Kitchen, Left of sink");
+    expect(sql.mock.calls[0]).toContain("Edited 7 windows (");
   });
 
   it("logs the quantity change on an edit, reading the old quantity in the same statement", async () => {
@@ -127,11 +127,13 @@ describe("measurements", () => {
     await m.updateMeasurement(LEAD, WIN, { ...input, quantity: 7 }, "o");
     expect(sql).toHaveBeenCalledOnce();
     const statement = text(sql.mock.calls[0]);
-    expect(statement).toMatch(/with previous as \(select [^)]*\bquantity\b[^)]*from window_measurements/);
-    expect(statement).toMatch(/case when previous\.quantity = \? then \?\s+else \? \|\| previous\.quantity::text \|\| \? end/);
-    // Unchanged keeps today's wording; changed reads "Edited Kitchen, Left of sink: 10 → 7 windows".
-    expect(sql.mock.calls[0]).toContain("Edited 7 windows: Kitchen, Left of sink");
-    expect(sql.mock.calls[0]).toContain("Edited Kitchen, Left of sink: ");
+    expect(statement).toMatch(/with previous as \(select [^)]*\bquantity\b[^)]*\bkind\b[^)]*from window_measurements/);
+    expect(statement).toMatch(
+      /case when previous\.quantity = \? then \? \|\| previous\.kind \|\| \?\s+else \? \|\| previous\.kind \|\| '\): ' \|\| previous\.quantity::text \|\| \? end/,
+    );
+    expect(sql.mock.calls[0]).toContain("Edited 7 windows (");
+    expect(sql.mock.calls[0]).toContain("): Kitchen, Left of sink");
+    expect(sql.mock.calls[0]).toContain("Edited Kitchen, Left of sink (");
     expect(sql.mock.calls[0]).toContain(" → 7 windows");
   });
 
@@ -139,7 +141,7 @@ describe("measurements", () => {
     sql.mockResolvedValue([{ id: WIN, previous_photo_id: null, new_photo_id: null }]);
     await m.updateMeasurement(LEAD, WIN, { ...input, quantity: 1 }, "o");
     expect(sql.mock.calls[0]).toContain(" → 1 window");
-    expect(sql.mock.calls[0]).toContain("Edited window: Kitchen, Left of sink");
+    expect(sql.mock.calls[0]).toContain("Edited window (");
   });
 
   it("logs how many windows a deleted line stood for, in the same statement", async () => {
@@ -147,10 +149,10 @@ describe("measurements", () => {
     expect(await m.deleteMeasurement(LEAD, WIN, "o")).toBe(true);
     expect(sql).toHaveBeenCalledOnce();
     const statement = text(sql.mock.calls[0]);
-    expect(statement).toMatch(/returning [^)]*\bquantity\b/);
+    expect(statement).toMatch(/returning [^)]*\bquantity\b[^)]*\bkind\b/);
     expect(statement).toContain(
-      "case when quantity > 1 then 'Deleted ' || quantity::text || ' windows: ' else 'Deleted window: ' end"
-        + " || room || coalesce(', ' || label, '')",
+      "case when quantity > 1 then 'Deleted ' || quantity::text || ' windows (' || kind || '): '"
+        + " else 'Deleted window (' || kind || '): ' end || room || coalesce(', ' || label, '')",
     );
   });
 
@@ -158,9 +160,10 @@ describe("measurements", () => {
     sql.mockResolvedValue([{
       id: WIN, lead_id: LEAD, position: 1, room: "Kitchen", label: null, width_eighths: 285, height_eighths: 384,
       depth_eighths: null, mount: "inside", requirements: [], notes: null, photo_file_id: null, quantity: 10,
-      measured_by: "o", created_at: "2026-09-29T00:00:00Z", updated_at: "2026-09-29T00:00:00Z",
+      kind: "official", measured_by: "o", created_at: "2026-09-29T00:00:00Z", updated_at: "2026-09-29T00:00:00Z",
     }]);
     expect((await m.getMeasurement(LEAD, WIN))?.quantity).toBe(10);
+    expect((await m.getMeasurement(LEAD, WIN))?.kind).toBe("official");
   });
 
   it("orders windows by position, then created_at, then id", async () => {
@@ -169,10 +172,59 @@ describe("measurements", () => {
     expect(text(sql.mock.calls[0])).toContain("order by position, created_at, id");
   });
 
-  it("returns null for a missing or non-uuid job", async () => {
-    sql.mockResolvedValue([]);
-    expect(await m.addMeasurement(LEAD, input, "o")).toBeNull();
-    expect(await m.addMeasurement("nope", input, "o")).toBeNull();
+  it("refuses a missing or non-uuid job as missing", async () => {
+    sql.mockResolvedValue([{ id: null, found: false }]);
+    expect(await m.addMeasurement(LEAD, "designer", input, "o")).toEqual({ refused: "missing" });
+    sql.mockClear();
+    expect(await m.addMeasurement("nope", "designer", input, "o")).toEqual({ refused: "missing" });
+    expect(sql).not.toHaveBeenCalled();
+  });
+
+  it("saves the window's kind and refuses an official window on a kept job, in the same statement", async () => {
+    sql.mockResolvedValue([{ id: WIN, found: true }]);
+    await m.addMeasurement(LEAD, "official", input, "o");
+    expect(sql).toHaveBeenCalledOnce();
+    const [strings, ...values] = sql.mock.calls[0];
+    const statement = (strings as TemplateStringsArray).join("?");
+    expect(statement).toMatch(/insert into window_measurements \(lead_id, kind,/);
+    expect(statement).toContain("designer_kept_official_at is null");
+    // The insert reads from the guarded CTE, so a kept job really refuses the official window.
+    expect(statement).toMatch(/insert into window_measurements[\s\S]*?select allowed\.id[\s\S]*?from allowed/);
+    expect(values).toContain("official");
+    expect(values).toContain("Added window (official): Kitchen, Left of sink");
+  });
+
+  it("says kept when the job exists but the official window was refused", async () => {
+    sql.mockResolvedValue([{ id: null, found: true }]);
+    expect(await m.addMeasurement(LEAD, "official", input, "o")).toEqual({ refused: "kept" });
+  });
+
+  it("never changes a window's kind on edit", async () => {
+    sql.mockResolvedValue([{ id: WIN, previous_photo_id: null, new_photo_id: null }]);
+    await m.updateMeasurement(LEAD, WIN, input, "o");
+    // Only the update's set list: the photo CTE legitimately reads job_files' kind = 'photo'.
+    const setList = text(sql.mock.calls[0]).match(/update window_measurements set([\s\S]*?)\bwhere\b/)?.[1];
+    expect(setList).toBeDefined();
+    expect(setList).not.toMatch(/\bkind\s*=/);
+  });
+
+  it("reads both lists and the kept record for a job", async () => {
+    const row = {
+      id: WIN, lead_id: LEAD, position: 1, room: "Kitchen", label: null, width_eighths: 285, height_eighths: 384,
+      depth_eighths: null, mount: "inside", requirements: [], notes: null, photo_file_id: null, quantity: 1,
+      kind: "designer", measured_by: "o", created_at: "2026-10-01T00:00:00Z", updated_at: "2026-10-01T00:00:00Z",
+    };
+    sql.mockResolvedValueOnce([row]).mockResolvedValueOnce([
+      { designer_kept_official_at: "2026-10-01T15:00:00Z", designer_kept_official_by: "owner@example.com" },
+    ]);
+    const set = await m.getMeasureSet(LEAD);
+    expect(set.windows.map((w) => w.kind)).toEqual(["designer"]);
+    expect(set.kept).toEqual({ at: new Date("2026-10-01T15:00:00Z"), by: "owner@example.com" });
+  });
+
+  it("reads no kept record when the job has none", async () => {
+    sql.mockResolvedValueOnce([]).mockResolvedValueOnce([{ designer_kept_official_at: null, designer_kept_official_by: null }]);
+    expect((await m.getMeasureSet(LEAD)).kept).toBeNull();
   });
 
   it("updates a window of this job with its event", async () => {
@@ -214,5 +266,61 @@ describe("measurements", () => {
     sql.mockResolvedValue([]);
     expect(await m.deleteMeasurement(LEAD, WIN, "o")).toBe(false);
     expect(await m.getMeasurement(LEAD, "x")).toBeNull();
+  });
+});
+
+describe("setKeptOfficial", () => {
+  it("ticks only when no official window exists, with its event, in one statement", async () => {
+    sql.mockResolvedValue([{ changed: true, found: true, was_kept: false, has_official: false }]);
+    expect(await m.setKeptOfficial(LEAD, true, "owner@example.com")).toBe("ok");
+    expect(sql).toHaveBeenCalledOnce();
+    const [strings, ...values] = sql.mock.calls[0];
+    const statement = (strings as TemplateStringsArray).join("?");
+    expect(statement).toContain("update leads set designer_kept_official_at");
+    expect(statement).toContain("kind = 'official'");
+    // The refusal lives in the update's own where clause, not just in a CTE nobody consults.
+    const where = statement.match(/update leads set[\s\S]*?\bwhere\b([\s\S]*?)\breturning\b/)?.[1];
+    expect(where).toMatch(/not \?::boolean or not exists \(select 1 from official\)/);
+    // Asking for what the job already says updates nothing (no new at/by, no second event).
+    expect(where).toContain("and (designer_kept_official_at is not null) <> ?::boolean");
+    expect(statement).toContain("insert into job_events");
+    expect(values).toContain("Designer measure kept as official");
+  });
+
+  it("logs the untick wording", async () => {
+    sql.mockResolvedValue([{ changed: true, found: true, was_kept: true, has_official: false }]);
+    expect(await m.setKeptOfficial(LEAD, false, "o")).toBe("ok");
+    expect(sql.mock.calls[0]).toContain("Designer measure no longer kept as official");
+  });
+
+  it("says unchanged when the box already says so (no second event)", async () => {
+    sql.mockResolvedValue([{ changed: false, found: true, was_kept: true, has_official: false }]);
+    expect(await m.setKeptOfficial(LEAD, true, "o")).toBe("unchanged");
+  });
+
+  it("refuses to tick when an official measure is recorded", async () => {
+    sql.mockResolvedValue([{ changed: false, found: true, was_kept: false, has_official: true }]);
+    expect(await m.setKeptOfficial(LEAD, true, "o")).toBe("has-official");
+  });
+
+  it("says unchanged, not has-official, when a simultaneous tick won the race (no official window)", async () => {
+    // READ COMMITTED: the statement's snapshot saw the job unkept, but another tick landed first,
+    // so the update matched nothing. There is no official window, so this is not a refusal.
+    sql.mockResolvedValue([{ changed: false, found: true, was_kept: false, has_official: false }]);
+    expect(await m.setKeptOfficial(LEAD, true, "o")).toBe("unchanged");
+  });
+
+  it("says unchanged when already kept, even if a race left official windows too", async () => {
+    // The job IS kept; telling a stale tab "an official measure is already recorded" would be false.
+    sql.mockResolvedValue([{ changed: false, found: true, was_kept: true, has_official: true }]);
+    expect(await m.setKeptOfficial(LEAD, true, "o")).toBe("unchanged");
+  });
+
+  it("says missing for an unknown or non-uuid job", async () => {
+    sql.mockResolvedValue([{ changed: false, found: false, was_kept: null, has_official: false }]);
+    expect(await m.setKeptOfficial(LEAD, true, "o")).toBe("missing");
+    sql.mockClear();
+    expect(await m.setKeptOfficial("nope", true, "o")).toBe("missing");
+    expect(sql).not.toHaveBeenCalled();
   });
 });

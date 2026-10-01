@@ -3,6 +3,7 @@ import type { Appointment } from "@/lib/admin/appointments";
 import type { AppointmentKind } from "@/lib/admin/appointment-kinds";
 import type { JobFile } from "@/lib/admin/files";
 import type { Job, JobEvent } from "@/lib/admin/jobs";
+import type { MeasureKind } from "@/lib/admin/measure-kinds";
 import type { WindowMeasurement } from "@/lib/admin/measurements";
 import { windowCount } from "@/lib/admin/measure-units";
 import { editDetailsHref } from "@/lib/admin/next-action";
@@ -23,11 +24,15 @@ import { CARD, HEADING, TEXT_LINK } from "./ui";
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
-export function OverviewTab({ job, editing, now, measurements, files, events, referrals, referrer, appointments, defaultMinutes }: {
+export function OverviewTab({ job, editing, now, measurements, allWindows, measureSource, files, events, referrals, referrer, appointments, defaultMinutes }: {
   job: Job;
   editing: boolean;
   now: Date;
+  /** The working list (official, else designer): what the card counts. */
   measurements: WindowMeasurement[];
+  /** Every window of both kinds, only to keep their photos out of the thumbnails. */
+  allWindows: WindowMeasurement[];
+  measureSource: MeasureKind | null;
   files: JobFile[];
   events: JobEvent[];
   referrals: Awaited<ReturnType<typeof listReferrals>>;
@@ -38,7 +43,7 @@ export function OverviewTab({ job, editing, now, measurements, files, events, re
   const edit = editDetailsHref(job.id);
   const stageIndex = STAGES.findIndex((s) => s.value === job.status);
   const soldOrLater = stageIndex >= STAGES.findIndex((s) => s.value === "sold");
-  const windowPhotoIds = new Set(measurements.map((m) => m.photoFileId).filter(Boolean));
+  const windowPhotoIds = new Set(allWindows.map((m) => m.photoFileId).filter(Boolean));
   const photos = files.filter((file) => file.kind === "photo" && !windowPhotoIds.has(file.id)).slice(0, 6);
   const documents = files.filter((file) => file.kind === "document");
   // The order paperwork is whichever document was attached to the job; there is one in practice.
@@ -63,7 +68,7 @@ export function OverviewTab({ job, editing, now, measurements, files, events, re
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:col-span-3 lg:grid-cols-4">
           <div className="grid sm:col-span-2"><AppointmentsCard jobId={job.id} appointments={appointments} defaultMinutes={defaultMinutes} /></div>
-          <StatusCard title="Measurements" value={measurements.length ? plural(windowCount(measurements), "window") : null}
+          <StatusCard title="Measurements" value={measurements.length ? `${plural(windowCount(measurements), "window")} · ${measureSource === "official" ? "official" : "designer"}` : null}
             detail={lastMeasured ? `Updated ${formatWhen(lastMeasured)}` : undefined} empty="No windows measured yet"
             actions={[
               { label: "Add measurement", href: `/admin/jobs/${job.id}/measure` },

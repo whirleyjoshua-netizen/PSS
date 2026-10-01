@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/Button";
 import type { FormState } from "@/app/admin/jobs/actions";
 import { removeFile, saveMeasurement } from "@/app/admin/jobs/measure-actions";
 import { postFile, resizePhoto } from "@/lib/admin/client-upload";
+import type { MeasureKind } from "@/lib/admin/measure-kinds";
 import type { WindowMeasurement } from "@/lib/admin/measurements";
 import { EIGHTH_OPTIONS, MAX_QUANTITY, REQUIREMENTS, ROOMS, splitEighths } from "@/lib/admin/measure-units";
 
@@ -66,8 +67,9 @@ function Quantity({ value }: { value: number }) {
  * One window at a time. Submits through a transition rather than a form
  * action, so a failed save never resets what was typed on the phone.
  */
-export function MeasureForm({ jobId, window, defaultRoom }: {
+export function MeasureForm({ jobId, kind, window, defaultRoom }: {
   jobId: string;
+  kind: MeasureKind;
   window: WindowMeasurement | null;
   defaultRoom: string;
 }) {
@@ -115,7 +117,7 @@ export function MeasureForm({ jobId, window, defaultRoom }: {
         }
       }
 
-      const result = await saveMeasurement(jobId, window?.id ?? null, data);
+      const result = await saveMeasurement(jobId, window?.id ?? null, kind, data);
       if (result.error) {
         setState(result);
         return;

@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Job } from "@/lib/admin/jobs";
 
@@ -13,7 +13,7 @@ const job: Job = {
 
 const getJob = vi.fn();
 vi.mock("@/lib/admin/jobs", () => ({ getJob, getEvents: vi.fn(async () => []) }));
-vi.mock("@/lib/admin/measurements", () => ({ listMeasurements: vi.fn(async () => []) }));
+vi.mock("@/lib/admin/measurements", () => ({ getMeasureSet: vi.fn(async () => ({ windows: [], kept: null })) }));
 vi.mock("@/lib/admin/files", () => ({ listFiles: vi.fn(async () => []) }));
 vi.mock("@/lib/referrals/db", () => ({ listReferrals: vi.fn(async () => []) }));
 vi.mock("@/lib/admin/session", () => ({ requireAdmin: vi.fn(async () => ({ email: "owner@example.com" })) }));
@@ -41,8 +41,14 @@ vi.mock("@/app/admin/jobs/measure-actions", () => ({ removeMeasurement: vi.fn(),
 // QuoteTab is an async server component, which the DOM renderer can't await; tests/dc/quote-review covers it.
 vi.mock("@/app/admin/jobs/[id]/QuoteTab", () => ({ QuoteTab: ({ job }: { job: Job }) => <p>Quote tab for {job.id}</p> }));
 
+// InstallTab is async too; this stand-in shows which windows the page handed the calculator.
+vi.mock("@/app/admin/jobs/[id]/InstallTab", () => ({
+  InstallTab: ({ measurements }: { measurements: { id: string }[] }) => <p>Install from {measurements.map((m) => m.id).join(",")}</p>,
+}));
+
 const { default: JobPage } = await import("@/app/admin/jobs/[id]/page");
-const { listMeasurements } = await import("@/lib/admin/measurements");
+const { getMeasureSet } = await import("@/lib/admin/measurements");
+const { listFiles } = await import("@/lib/admin/files");
 const open = async (query: { tab?: string; edit?: string }) =>
   render(await JobPage({ params: Promise.resolve({ id: ID }), searchParams: Promise.resolve(query) }));
 
@@ -65,13 +71,51 @@ describe("job page layout", () => {
 
   it("counts windows, not saved lines, on the Measurements tab", async () => {
     const line = {
-      id: "w", leadId: ID, position: 1, room: "Den", label: null, widthEighths: 240, heightEighths: 320,
+      id: "w", leadId: ID, kind: "designer" as const, position: 1, room: "Den", label: null, widthEighths: 240, heightEighths: 320,
       depthEighths: null, mount: "inside" as const, requirements: [], notes: null, photoFileId: null,
       measuredBy: "x", createdAt: new Date(), updatedAt: new Date(), quantity: 10,
     };
-    vi.mocked(listMeasurements).mockResolvedValueOnce([line, { ...line, id: "v", quantity: 2 }]);
+    vi.mocked(getMeasureSet).mockResolvedValueOnce({ windows: [line, { ...line, id: "v", quantity: 2 }], kept: null });
     await open({});
     expect(screen.getByRole("link", { name: /Measurements/ })).toHaveTextContent("12");
+  });
+
+  it("counts the official measure, not the designer one, once there is one", async () => {
+    const line = {
+      id: "w", leadId: ID, kind: "designer" as const, position: 1, room: "Den", label: null, widthEighths: 240, heightEighths: 320,
+      depthEighths: null, mount: "inside" as const, requirements: [], notes: null, photoFileId: null,
+      measuredBy: "x", createdAt: new Date(), updatedAt: new Date(), quantity: 10,
+    };
+    vi.mocked(getMeasureSet).mockResolvedValueOnce({ windows: [line, { ...line, id: "o", kind: "official", quantity: 4 }], kept: null });
+    await open({});
+    // Exact match: a bare toHaveTextContent("4") also passes on the both-kinds total of 14.
+    expect(within(screen.getByRole("link", { name: /Measurements/ })).getByText("4")).toBeInTheDocument();
+  });
+
+  it("prices the install from the official measure, not the designer one", async () => {
+    const line = {
+      id: "d", leadId: ID, kind: "designer" as const, position: 1, room: "Den", label: null, widthEighths: 240, heightEighths: 320,
+      depthEighths: null, mount: "inside" as const, requirements: [], notes: null, photoFileId: null,
+      measuredBy: "x", createdAt: new Date(), updatedAt: new Date(), quantity: 1,
+    };
+    vi.mocked(getMeasureSet).mockResolvedValueOnce({ windows: [line, { ...line, id: "o", kind: "official" }], kept: null });
+    await open({ tab: "install" });
+    expect(screen.getByText("Install from o")).toBeInTheDocument();
+  });
+
+  it("keeps designer window photos out of Files even once the official measure is the working one", async () => {
+    const line = {
+      id: "d", leadId: ID, kind: "designer" as const, position: 1, room: "Den", label: null, widthEighths: 240, heightEighths: 320,
+      depthEighths: null, mount: "inside" as const, requirements: [], notes: null, photoFileId: "p",
+      measuredBy: "x", createdAt: new Date(), updatedAt: new Date(), quantity: 1,
+    };
+    vi.mocked(getMeasureSet).mockResolvedValueOnce({ windows: [line, { ...line, id: "o", kind: "official", photoFileId: null }], kept: null });
+    vi.mocked(listFiles).mockResolvedValueOnce([{
+      id: "p", leadId: ID, kind: "photo", name: "designer.jpg", contentType: "image/jpeg", blobPathname: "p",
+      createdAt: new Date(), sizeBytes: 100, uploadedBy: "x", sharedAt: null,
+    }]);
+    await open({ tab: "files" });
+    expect(screen.getByText("Photos · 0")).toBeInTheDocument();
   });
 
   it("shows the Files tab without the measurements block", async () => {

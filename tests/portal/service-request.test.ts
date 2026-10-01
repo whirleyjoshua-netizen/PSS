@@ -20,9 +20,9 @@ vi.mock("@/lib/admin/jobs", () => ({
 const createFile = vi.fn(async () => ({ id: "file-1" }));
 vi.mock("@/lib/admin/files", () => ({ createFile }));
 
-const listMeasurements = vi.fn(async () => [] as unknown[]);
+const listWorkingWindows = vi.fn(async () => [] as unknown[]);
 vi.mock("@/lib/admin/measurements", () => ({
-  listMeasurements,
+  listWorkingWindows,
   describe: (w: { room: string; label: string | null }) => (w.label ? `${w.room}, ${w.label}` : w.room),
 }));
 
@@ -78,7 +78,7 @@ beforeEach(() => {
   createJob.mockReset().mockResolvedValue(NEW_JOB);
   getJob.mockReset().mockResolvedValue({ id: NEW_JOB, projectNo: 1051 });
   createFile.mockReset().mockResolvedValue({ id: "file-1" });
-  listMeasurements.mockReset().mockResolvedValue([]);
+  listWorkingWindows.mockReset().mockResolvedValue([]);
   notifyOwnersOfServiceRequest.mockReset().mockResolvedValue(undefined);
   requireCustomer.mockReset().mockResolvedValue({ email: EMAIL, jobs: [parent()] });
 });
@@ -157,10 +157,10 @@ describe("what it creates", () => {
     expect(notes).toContain("It started after the storm.");
   });
 
-  it("names the window the owners measured, through describe()", async () => {
-    listMeasurements.mockResolvedValue([{ id: WINDOW, room: "Dining Room", label: "left window" }]);
+  it("names the working window (official, else designer), through describe()", async () => {
+    listWorkingWindows.mockResolvedValue([{ id: WINDOW, room: "Dining Room", label: "left window" }]);
     await requestService(MINE, form({ windowId: WINDOW, windowText: undefined }));
-    expect(listMeasurements).toHaveBeenCalledWith(MINE);
+    expect(listWorkingWindows).toHaveBeenCalledWith(MINE);
     const notes = notesOf();
     expect(notes).toContain("Dining Room, left window");
     // The id is recorded beside the text so the owners need not interpret prose.
@@ -168,7 +168,7 @@ describe("what it creates", () => {
   });
 
   it("records that the window is one of several identical ones", async () => {
-    listMeasurements.mockResolvedValue([{ id: WINDOW, room: "Den", label: null, quantity: 10 }]);
+    listWorkingWindows.mockResolvedValue([{ id: WINDOW, room: "Den", label: null, quantity: 10 }]);
     await requestService(MINE, form({ windowId: WINDOW, windowText: undefined }));
     expect(notesOf()).toContain(`Window: Den (one of 10) (window id ${WINDOW})`);
   });

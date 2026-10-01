@@ -175,6 +175,8 @@ test("an owner measures a window with a photo", async ({ page, baseURL }) => {
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(name);
 
   await page.getByRole("link", { name: "Add measurement" }).click();
+  await page.getByRole("link", { name: /Designer measure/ }).click();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Designer measure");
   await page.getByRole("button", { name: "Kitchen" }).click();
   await page.getByLabel("Width inches").fill("35");
   await page.getByLabel("Width eighths").selectOption({ label: "⅝" });
@@ -218,6 +220,76 @@ test("an owner measures a window with a photo", async ({ page, baseURL }) => {
   const goneResponse = await download(page, photoUrl);
   expect(goneResponse.status).toBe(404);
   expect(goneResponse.html).toBe(false);
+});
+
+test("a designer measure kept as official, then a separate official measure", async ({ page }) => {
+  const name = `${NAME} Kept Official`;
+  await signIn(page);
+  await page.getByRole("link", { name: "New Job", exact: true }).click();
+  await page.getByLabel("Name", { exact: true }).fill(name);
+  await page.getByLabel("Phone", { exact: true }).fill("(702) 555-0136");
+  await page.getByRole("button", { name: "Add job" }).click();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(name);
+  const jobUrl = page.url().replace(/[?#].*$/, "");
+
+  // Designer measure, kept as official.
+  await page.getByRole("link", { name: "Add measurement" }).click();
+  await page.getByRole("link", { name: /Designer measure/ }).click();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Designer measure");
+  await page.getByRole("button", { name: "Kitchen" }).click();
+  await page.getByLabel("Width inches").fill("35");
+  await page.getByLabel("Height inches").fill("48");
+  await page.getByLabel("Inside").check();
+  await page.getByRole("button", { name: "Save and next window" }).click();
+  await expect(page.getByRole("status")).toContainText("Saved");
+  await page.getByLabel("Keep as official measure").check();
+  await expect(page.getByLabel("Keep as official measure")).toBeEnabled();
+  await expect(page.getByLabel("Keep as official measure")).toBeChecked();
+  await page.getByRole("link", { name: "Finish" }).click();
+
+  const official = page.getByRole("region", { name: /Official measure/ });
+  await expect(official).toContainText("Using the designer measure (kept as official");
+  await expect(official.getByRole("link", { name: "Add to official measure" })).toHaveCount(0);
+
+  // A stale official link lands on the chooser's reason, not a form.
+  await page.goto(`${jobUrl}/measure?kind=official`);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Measure");
+  await expect(page.getByText(/Using designer measure/)).toBeVisible();
+
+  // Untick, then take a separate official measure: blank, nothing carried over.
+  await page.goto(`${jobUrl}?tab=measurements`);
+  await page.getByLabel("Keep as official measure").uncheck();
+  await expect(official.getByRole("link", { name: "Add to official measure" })).toBeVisible();
+  await official.getByRole("link", { name: "Add to official measure" }).click();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Official measure");
+  await expect(page.getByText("0 windows so far")).toBeVisible();
+  await expect(page.getByLabel("Width inches")).toHaveValue("");
+  await expect(page.getByLabel(/^Room/)).toHaveValue("");
+  await page.getByRole("button", { name: "Office" }).click();
+  await page.getByLabel("Width inches").fill("30");
+  await page.getByLabel("Height inches").fill("40");
+  await page.getByLabel("Outside").check();
+  await page.getByLabel("Quantity (identical windows)").fill("4");
+  await page.getByRole("button", { name: "Save and next window" }).click();
+  await expect(page.getByRole("status")).toContainText("Saved");
+  await page.getByRole("link", { name: "Finish" }).click();
+
+  await expect(official.getByRole("row", { name: /Office/ })).toBeVisible();
+  const designer = page.getByRole("region", { name: /Designer measure/ });
+  await expect(designer.getByRole("row", { name: /Kitchen/ })).toBeVisible();
+  await expect(designer.getByRole("row", { name: /Office/ })).toHaveCount(0);
+  await expect(page.getByLabel("Keep as official measure")).toBeDisabled();
+
+  // Pricing works from the official measure.
+  await page.goto(`${jobUrl}?tab=install`);
+  await page.getByRole("button", { name: "Fill from measurements" }).click();
+  const lines = page.getByRole("group", { name: "Lines" });
+  await expect(lines.getByLabel("Windows")).toHaveCount(1);
+  await expect(lines.getByLabel("Windows")).toHaveValue("4");
+
+  await page.goto(`${jobUrl}?tab=activity`);
+  await expect(page.getByText("Designer measure kept as official")).toBeVisible();
+  await expect(page.getByText("Designer measure no longer kept as official")).toBeVisible();
 });
 
 test("a board card opens the full job page, and an old ?job= link redirects there", async ({ page }) => {

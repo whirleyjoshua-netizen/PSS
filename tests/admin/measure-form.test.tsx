@@ -15,7 +15,7 @@ const LEAD = "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c";
 const WIN = "1a2b3c4d-5e6f-4a1b-8c2d-3e4f5a6b7c8d";
 
 const existingWindow = {
-  id: WIN, leadId: LEAD, position: 1, room: "Kitchen", label: null,
+  id: WIN, leadId: LEAD, kind: "designer" as const, position: 1, room: "Kitchen", label: null,
   widthEighths: 285, heightEighths: 384, depthEighths: null, mount: "inside" as const,
   requirements: [], notes: null, photoFileId: null, quantity: 1, measuredBy: "owner@example.com",
   createdAt: new Date(), updatedAt: new Date(),
@@ -41,14 +41,14 @@ describe("MeasureForm", () => {
   it("saves a window and clears the form except the room", async () => {
     saveMeasurement.mockResolvedValue({ ok: true });
     const user = userEvent.setup();
-    render(<MeasureForm jobId={LEAD} window={null} defaultRoom="" />);
+    render(<MeasureForm jobId={LEAD} kind="designer" window={null} defaultRoom="" />);
 
     await fillWindow(user);
     await user.click(screen.getByRole("button", { name: /save and next window/i }));
 
     await waitFor(() => expect(saveMeasurement).toHaveBeenCalledOnce());
-    const [jobId, windowId, data] = saveMeasurement.mock.calls[0];
-    expect([jobId, windowId]).toEqual([LEAD, null]);
+    const [jobId, windowId, kind, data] = saveMeasurement.mock.calls[0];
+    expect([jobId, windowId, kind]).toEqual([LEAD, null, "designer"]);
     expect(data.get("room")).toBe("Kitchen");
     expect(data.get("widthEighth")).toBe("5");
     expect(await screen.findByRole("status")).toHaveTextContent(/saved/i);
@@ -56,10 +56,22 @@ describe("MeasureForm", () => {
     expect(screen.getByLabelText(/^width inches/i)).toHaveValue(null);
   });
 
+  it("saves into the measure it was opened for", async () => {
+    saveMeasurement.mockResolvedValue({ ok: true });
+    const user = userEvent.setup();
+    render(<MeasureForm jobId={LEAD} kind="official" window={null} defaultRoom="" />);
+
+    await fillWindow(user);
+    await user.click(screen.getByRole("button", { name: /save and next window/i }));
+
+    await waitFor(() => expect(saveMeasurement).toHaveBeenCalledWith(LEAD, null, "official", expect.any(FormData)));
+    expect(await screen.findByRole("status")).toHaveTextContent(/saved/i);
+  });
+
   it("keeps what was typed when the save fails", async () => {
     saveMeasurement.mockResolvedValue({ error: "Choose inside or outside mount" });
     const user = userEvent.setup();
-    render(<MeasureForm jobId={LEAD} window={null} defaultRoom="" />);
+    render(<MeasureForm jobId={LEAD} kind="designer" window={null} defaultRoom="" />);
 
     await user.click(screen.getByRole("button", { name: "Kitchen" }));
     await user.type(screen.getByLabelText(/^width inches/i), "35");
@@ -75,7 +87,7 @@ describe("MeasureForm", () => {
     saveMeasurement.mockResolvedValueOnce({ error: "Choose inside or outside mount" });
     saveMeasurement.mockResolvedValueOnce({ ok: true });
     const user = userEvent.setup();
-    render(<MeasureForm jobId={LEAD} window={null} defaultRoom="" />);
+    render(<MeasureForm jobId={LEAD} kind="designer" window={null} defaultRoom="" />);
 
     await fillWindow(user);
     const photo = new File([new Uint8Array([1, 2, 3])], "window.jpg", { type: "image/jpeg" });
@@ -88,8 +100,8 @@ describe("MeasureForm", () => {
 
     await waitFor(() => expect(saveMeasurement).toHaveBeenCalledTimes(2));
     expect(postFile).toHaveBeenCalledOnce();
-    const firstPhotoId = saveMeasurement.mock.calls[0][2].get("photoFileId");
-    const secondPhotoId = saveMeasurement.mock.calls[1][2].get("photoFileId");
+    const firstPhotoId = saveMeasurement.mock.calls[0][3].get("photoFileId");
+    const secondPhotoId = saveMeasurement.mock.calls[1][3].get("photoFileId");
     expect(firstPhotoId).toBe("9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d");
     expect(secondPhotoId).toBe(firstPhotoId);
   });
@@ -97,7 +109,7 @@ describe("MeasureForm", () => {
   it("pre-fills an existing window and saves it in place", async () => {
     saveMeasurement.mockResolvedValue({ ok: true });
     const user = userEvent.setup();
-    render(<MeasureForm jobId={LEAD} window={existingWindow} defaultRoom="" />);
+    render(<MeasureForm jobId={LEAD} kind="designer" window={existingWindow} defaultRoom="" />);
 
     expect(screen.getByLabelText(/^room/i)).toHaveValue("Kitchen");
     expect(screen.getByLabelText(/^width inches/i)).toHaveValue(35);
@@ -120,7 +132,7 @@ describe("MeasureForm", () => {
     saveMeasurement.mockResolvedValueOnce({ error: "Choose inside or outside mount" });
     saveMeasurement.mockResolvedValueOnce({ ok: true });
     const user = userEvent.setup();
-    render(<MeasureForm jobId={LEAD} window={null} defaultRoom="" />);
+    render(<MeasureForm jobId={LEAD} kind="designer" window={null} defaultRoom="" />);
 
     await fillWindow(user);
     const photoA = new File([new Uint8Array([1])], "a.jpg", { type: "image/jpeg" });
@@ -141,7 +153,7 @@ describe("MeasureForm", () => {
   it("sends the quantity, never below 1, and starts the next window back at 1", async () => {
     saveMeasurement.mockResolvedValue({ ok: true });
     const user = userEvent.setup();
-    render(<MeasureForm jobId={LEAD} window={null} defaultRoom="" />);
+    render(<MeasureForm jobId={LEAD} kind="designer" window={null} defaultRoom="" />);
 
     const quantity = screen.getByLabelText(/^quantity/i);
     expect(quantity).toHaveValue(1);
@@ -156,14 +168,14 @@ describe("MeasureForm", () => {
     await fillWindow(user);
     await user.click(screen.getByRole("button", { name: /save and next window/i }));
     await waitFor(() => expect(saveMeasurement).toHaveBeenCalledOnce());
-    expect(saveMeasurement.mock.calls[0][2].get("quantity")).toBe("10");
+    expect(saveMeasurement.mock.calls[0][3].get("quantity")).toBe("10");
     expect(await screen.findByRole("status")).toHaveTextContent(/saved/i);
     expect(screen.getByLabelText(/^quantity/i)).toHaveValue(1);
   });
 
   it("steps from what the box shows, never below 1", async () => {
     const user = userEvent.setup();
-    render(<MeasureForm jobId={LEAD} window={null} defaultRoom="" />);
+    render(<MeasureForm jobId={LEAD} kind="designer" window={null} defaultRoom="" />);
     const quantity = screen.getByLabelText(/^quantity/i);
     await user.clear(quantity);
     await user.type(quantity, "0");
@@ -178,7 +190,7 @@ describe("MeasureForm", () => {
   it("keeps a typed quantity on screen when the save is refused", async () => {
     saveMeasurement.mockResolvedValue({ error: "Choose inside or outside mount" });
     const user = userEvent.setup();
-    render(<MeasureForm jobId={LEAD} window={null} defaultRoom="" />);
+    render(<MeasureForm jobId={LEAD} kind="designer" window={null} defaultRoom="" />);
     const quantity = screen.getByLabelText(/^quantity/i);
     await user.clear(quantity);
     await user.type(quantity, "10");
@@ -193,7 +205,7 @@ describe("MeasureForm", () => {
 
   it("leaves a box that is not plain digits alone when stepping, for the server to refuse", async () => {
     const user = userEvent.setup();
-    render(<MeasureForm jobId={LEAD} window={null} defaultRoom="" />);
+    render(<MeasureForm jobId={LEAD} kind="designer" window={null} defaultRoom="" />);
     const quantity = screen.getByLabelText(/^quantity/i) as HTMLInputElement;
     fireEvent.change(quantity, { target: { value: "1e1" } });
     expect(quantity.value).toBe("1e1");
@@ -206,7 +218,7 @@ describe("MeasureForm", () => {
   it("puts 1 back in a quantity box left blank, so the screen shows what is saved", async () => {
     saveMeasurement.mockResolvedValue({ ok: true });
     const user = userEvent.setup();
-    render(<MeasureForm jobId={LEAD} window={null} defaultRoom="" />);
+    render(<MeasureForm jobId={LEAD} kind="designer" window={null} defaultRoom="" />);
     const quantity = screen.getByLabelText(/^quantity/i);
     await user.clear(quantity);
     await user.tab();
@@ -215,21 +227,21 @@ describe("MeasureForm", () => {
     await fillWindow(user);
     await user.click(screen.getByRole("button", { name: /save and next window/i }));
     await waitFor(() => expect(saveMeasurement).toHaveBeenCalledOnce());
-    expect(saveMeasurement.mock.calls[0][2].get("quantity")).toBe("1");
+    expect(saveMeasurement.mock.calls[0][3].get("quantity")).toBe("1");
   });
 
   it("will not submit a blank quantity box", () => {
-    render(<MeasureForm jobId={LEAD} window={null} defaultRoom="" />);
+    render(<MeasureForm jobId={LEAD} kind="designer" window={null} defaultRoom="" />);
     expect(screen.getByLabelText(/^quantity/i)).toBeRequired();
   });
 
   it("shows an existing window's quantity for editing", () => {
-    render(<MeasureForm jobId={LEAD} window={{ ...existingWindow, quantity: 6 }} defaultRoom="" />);
+    render(<MeasureForm jobId={LEAD} kind="designer" window={{ ...existingWindow, quantity: 6 }} defaultRoom="" />);
     expect(screen.getByLabelText(/^quantity/i)).toHaveValue(6);
   });
 
   it("labels every requirement toggle and offers the camera", () => {
-    render(<MeasureForm jobId={LEAD} window={null} defaultRoom="Office" />);
+    render(<MeasureForm jobId={LEAD} kind="designer" window={null} defaultRoom="Office" />);
     expect(screen.getByRole("checkbox", { name: "Hard surface" })).toBeInTheDocument();
     expect(screen.getByRole("checkbox", { name: "High ladder" })).toBeInTheDocument();
     expect(screen.getByLabelText(/photo/i)).toHaveAttribute("capture", "environment");
