@@ -310,6 +310,12 @@ describe("setKeptOfficial", () => {
     expect(await m.setKeptOfficial(LEAD, true, "o")).toBe("unchanged");
   });
 
+  it("says unchanged when already kept, even if a race left official windows too", async () => {
+    // The job IS kept; telling a stale tab "an official measure is already recorded" would be false.
+    sql.mockResolvedValue([{ changed: false, found: true, was_kept: true, has_official: true }]);
+    expect(await m.setKeptOfficial(LEAD, true, "o")).toBe("unchanged");
+  });
+
   it("says missing for an unknown or non-uuid job", async () => {
     sql.mockResolvedValue([{ changed: false, found: false, was_kept: null, has_official: false }]);
     expect(await m.setKeptOfficial(LEAD, true, "o")).toBe("missing");

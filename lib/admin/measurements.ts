@@ -201,6 +201,6 @@ export async function setKeptOfficial(leadId: string, kept: boolean, actor: stri
   const row = rows[0];
   if (row?.changed) return "ok";
   if (!row?.found) return "missing";
-  if (!kept || !row.has_official) return "unchanged";
+  if (!kept || row.was_kept || !row.has_official) return "unchanged";
   return "has-official";
 }
