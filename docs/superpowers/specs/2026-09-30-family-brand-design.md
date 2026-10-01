@@ -165,15 +165,17 @@ body copy of those pages is not edited, only blocks are added around it):
   city pre-filled; its "Book a free consultation in {city}" H2 stays (SEO).
 - **Reviews page:** the booking block replaces the bottom `ConsultationCta`.
 - **Contact page:** the consultation photo sits at the top of the aside.
-- **Photos.** Product pages gain an optional photo beside the body, set only where an owner photo
-  truly shows that product: Blinds (faux wood), Vertical Blinds (sheer verticals), Wood & Faux Wood
-  Blinds, Roller Shades, Cellular Shades, Transitional Shades, Plantation Shutters. Every other page
-  gets its photo from the booking block. That photo is the page's own product photo where one
-  exists, else the shared consultation photo (`consultationPhoto`, the same stand-in as §3.3, an
-  install photo until the owners' consultation shot exists). No photo is ever captioned as a
-  product it might not be: Solar Shades, Composite and Real Wood Shutters, Roman, Woven Wood, every
-  Outdoor page and Motorization use the consultation photo until the owners photograph those
-  products.
+- **Photos.** Only a photo that truly shows the product is ever used for it:
+  - Products gain an optional `image`, set for Vertical Blinds (sheer verticals), Wood & Faux
+    Wood Blinds, Roller Shades, Cellular Shades, Transitional Shades and Plantation Shutters. A
+    product's booking block shows its own photo, else the shared consultation photo.
+  - The Blinds category gains the faux wood photo beside its intro, as Shades and Shutters already
+    have. Category booking blocks always show the consultation photo, so a category photo is never
+    shown twice.
+  - `consultationPhoto` is the same stand-in as §3.3: an install photo until the owners'
+    consultation shot exists.
+  - Solar Shades, Composite and Real Wood Shutters, Roman, Woven Wood, every Outdoor page and
+    Motorization show the consultation photo until the owners photograph those products.
 - **Rule, enforced by a test:** every page in the sitemap renders at least one `<img>` with
   non-empty alt text, except `/privacy` and `/accessibility` (legal text, owner to confirm).
 - The header already stays visible on phones with a call icon, so no extra sticky call bar is
