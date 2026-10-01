@@ -25,6 +25,9 @@ export type Seo = {
   description: string;
 };
 
+/** One of our own job photos. Alt text describes the treatment and the room. */
+export type Photo = { src: string; alt: string };
+
 export type Category = {
   slug: CategorySlug;
   name: string;
@@ -32,7 +35,7 @@ export type Category = {
   tagline: string;
   intro: string[];
   /** A photo of our own install, shown beside the intro. */
-  image?: { src: string; alt: string };
+  image?: Photo;
   seo: Seo;
 };
 
@@ -44,6 +47,12 @@ export type Product = {
   body: string[];
   features: string[];
   bestFor: string;
+  /**
+   * A photo of our own install that truly shows this product (spec §8). Leave it
+   * unset rather than borrow a photo of something similar; the booking block
+   * then shows the consultation photo.
+   */
+  image?: Photo;
   seo: Seo;
 };
 
@@ -57,6 +66,10 @@ export const categories: Category[] = [
       "Blinds give you something no other treatment does: the ability to keep the light and lose the glare. Tilt the slats and an afternoon that was unusable becomes comfortable, without closing the room off or giving up the view.",
       "They are also the most practical choice for the rooms that take the hardest use — kitchens, bathrooms, garages, and home offices — because they wipe clean, tolerate humidity, and cost less to cover a lot of glass than most alternatives.",
     ],
+    image: {
+      src: "/gallery/faux-wood-blinds-living-room.webp",
+      alt: "White faux wood blinds with wide slats on two windows above a grey sofa with patterned pillows.",
+    },
     seo: {
       title: "Blinds in Las Vegas, NV | Premier Shade Solutions",
       description:
@@ -153,6 +166,10 @@ export const products: Product[] = [
       "Collects far less dust than a horizontal blind of the same size",
     ],
     bestFor: "Sliding glass doors, patio doors, and windows wider than they are tall.",
+    image: {
+      src: "/gallery/sheer-vertical-patio-slider.webp",
+      alt: "Floor-to-ceiling sheer vertical blinds drawn across a patio slider in a living room, with the backyard visible through the fabric vanes.",
+    },
     seo: {
       title: "Vertical Blinds in Las Vegas, NV | Premier Shade",
       description:
@@ -177,6 +194,10 @@ export const products: Product[] = [
       "Cordless lift available for homes with children or pets",
     ],
     bestFor: "Living rooms, dining rooms, and bedrooms wanting warmth without shutter cost.",
+    image: {
+      src: "/gallery/faux-wood-blinds-living-room.webp",
+      alt: "White faux wood blinds with wide slats on two windows above a grey sofa with patterned pillows.",
+    },
     seo: {
       title: "Wood & Faux Wood Blinds in Las Vegas, NV",
       description:
@@ -203,6 +224,10 @@ export const products: Product[] = [
       "Cordless, chain, or motorized operation",
     ],
     bestFor: "Bedrooms, media rooms, and any room wanting a clean modern line.",
+    image: {
+      src: "/gallery/roller-shades-bay-window.webp",
+      alt: "Light roller shades lowered in each window of a bay, with gridded transom windows left uncovered above.",
+    },
     seo: {
       title: "Roller Shades in Las Vegas, NV | Premier Shade Solutions",
       description:
@@ -251,6 +276,10 @@ export const products: Product[] = [
       "Light filtering and blackout cell fabrics",
     ],
     bestFor: "Bedrooms, older windows, and any home where the summer power bill is a concern.",
+    image: {
+      src: "/gallery/cellular-shades-great-room.webp",
+      alt: "White cellular shades lowered across two rows of windows in a vaulted great room with exposed wood beams and a stone fireplace.",
+    },
     seo: {
       title: "Cellular Shades in Las Vegas, NV | Premier Shade",
       description:
@@ -323,6 +352,10 @@ export const products: Product[] = [
       "Motorization available",
     ],
     bestFor: "Contemporary homes, newer construction, and rooms needing both daylight and privacy.",
+    image: {
+      src: "/gallery/transitional-shades-slider-wall.webp",
+      alt: "Charcoal transitional sheer shades raised across a four-panel glass slider wall in a living room, with a river and balcony seating visible beyond.",
+    },
     seo: {
       title: "Transitional Zebra Shades in Las Vegas, NV",
       description:
@@ -349,6 +382,10 @@ export const products: Product[] = [
       "The window treatment most likely to return value at resale",
     ],
     bestFor: "Front-facing rooms, primary living spaces, and homes being held long term.",
+    image: {
+      src: "/gallery/plantation-shutters-dining-room.webp",
+      alt: "White plantation shutters on three windows in a dining room with blue walls and industrial pendant lights over the table.",
+    },
     seo: {
       title: "Plantation Shutters in Las Vegas, NV | Premier Shade",
       description:

@@ -1,11 +1,6 @@
-import type { CategorySlug } from "./products";
+import type { CategorySlug, Photo } from "./products";
 
-export type GalleryItem = {
-  src: string;
-  alt: string;
-  treatment: CategorySlug;
-  caption?: string;
-};
+export type GalleryItem = Photo & { treatment: CategorySlug; caption?: string };
 
 /**
  * Real installations, photographed on the job. Sources live in `Images/` and
@@ -134,3 +129,16 @@ export const gallery: GalleryItem[] = [
     caption: "Cellular shades on a patio door and the breakfast-nook windows beside it.",
   },
 ];
+
+/**
+ * The photo beside every booking form and the homepage family section.
+ *
+ * A stand-in: the owners are taking a consultation photo (Shade with a
+ * homeowner, samples, a window in view). When it exists, put it in
+ * public/gallery/ and change this one constant. It must never be a photo
+ * with the children in it; they appear only on the About page.
+ */
+export const consultationPhoto: Photo = {
+  src: "/gallery/shades-open-living-room.webp",
+  alt: "Light window shades on every window and on a pair of French doors in an open-plan living room with a large sectional sofa.",
+};
