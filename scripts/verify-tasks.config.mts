@@ -7,7 +7,7 @@ const root = path.resolve(import.meta.dirname, "..");
  * Runs scripts/verify-tasks.ts and nothing else.
  *
  * It needs a config of its own because the script imports the real
- * lib/admin/measurements.ts, which needs the `@` alias and the server-only stub — the
+ * lib/admin/tasks.ts and lib/admin/admin-access.ts, which need the `@` alias and the server-only stub — the
  * same resolution the unit suite uses. It is deliberately NOT reachable from
  * vitest.config.mts, whose `include` is tests/**\/*.test.ts: this script must
  * never be swept into `npm test` and counted as coverage. It is run by hand.

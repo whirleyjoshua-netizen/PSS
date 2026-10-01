@@ -18,17 +18,19 @@
  *   1. creates an unassigned task and one assigned to the owner;
  *   2. tries to assign someone who cannot sign in — "not-assignable", no row written;
  *   3. adds a guest to admin_access and assigns them an open task and a done task —
- *      the done one has completed_at;
+ *      the done one exists and has a completed_at date;
  *   4. done → done keeps completed_at; leaving done clears it;
  *   5. raw writes THROW tasks_status_check, tasks_title_check and tasks_completed_check —
  *      the database is a guard, not only our code;
- *   6. Remind now: the first claim wins, a second within 10 minutes is refused "recent",
- *      after 10 minutes it claims again, a release restores the previous reminder exactly,
+ *   6. Remind now: the first claim wins, a second at once is refused "recent", a claim
+ *      9 minutes after the last reminder is still refused "recent", after 11 minutes it
+ *      claims again, a release restores the previous reminder exactly,
  *      and a release that doesn't match the current claim changes nothing;
  *   7. claimReminder refuses "unassigned", "done" and "missing";
  *   8. updateTask reports the previous assignee, and refuses a stranger without changing
  *      anything;
- *   9. listDigestTasks takes open, assigned tasks due on or before the given day only;
+ *   9. listDigestTasks takes open, assigned tasks due on or before the given day only —
+ *      a done task and an unassigned task, both overdue, are each left out;
  *  10. removeAdmin unassigns the guest's open task, keeps their name on the done one, and
  *      editing that done task with its assignee unchanged is still allowed;
  *  11. migration 032 re-runs without error.
@@ -52,6 +54,12 @@
  *   - in claimReminder, delete `and (last_reminded_at is null or last_reminded_at < now() -
  *     make_interval(mins => ${REMIND_COOLDOWN_MINUTES}::int))` — step 6 "a second within
  *     10 minutes" must fail;
+ *   - in lib/admin/task-rules.ts, set REMIND_COOLDOWN_MINUTES to 5 — step 6 "a claim
+ *     9 minutes after the last is still refused" must fail;
+ *   - in listDigestTasks, delete `status <> 'done' and ` — step 9 "the digest leaves out
+ *     an overdue done task" must fail;
+ *   - in listDigestTasks, delete `assignee_email is not null and ` — step 9 "the digest
+ *     leaves out an overdue unassigned task" must fail;
  *   - in releaseReminder, delete `and last_reminded_at = ${claim.claimedAt}::timestamptz` —
  *     step 6 "a release that doesn't match" must fail;
  *   - in removeAdmin (lib/admin/admin-access.ts), delete the `unassigned` CTE — step 10
@@ -160,7 +168,8 @@ test("task board against a real database", async () => {
     await sql`insert into admin_access (email, added_by) values (${GUEST}, ${OWNER})`;
     const guestOpen = idOf(await createTask(input({ assignee: GUEST, dueOn: "2026-10-09" }), OWNER));
     const guestDone = idOf(await createTask(input({ assignee: GUEST, status: "done" }), OWNER));
-    check((await getTask(guestDone))?.completedAt !== null, "a task created as done has completed_at", "null");
+    const guestDoneRow = await getTask(guestDone);
+    check(guestDoneRow !== null && guestDoneRow.completedAt instanceof Date, "a task created as done has completed_at", JSON.stringify(guestDoneRow));
 
     // 4. Moving to done stamps completed_at and keeps it; moving back clears it.
     await setTaskStatus(mine, "done");
@@ -184,11 +193,14 @@ test("task board against a real database", async () => {
     check("claim" in c1, "the first reminder claims", JSON.stringify(c1));
     const c2 = await claimReminder(guestOpen, OWNER);
     check("refused" in c2 && c2.refused === "recent" && c2.lastAt !== null, "a second within 10 minutes is refused as recent", JSON.stringify(c2));
+    await sql`update tasks set last_reminded_at = now() - interval '9 minutes' where id = ${guestOpen}`;
+    const c2b = await claimReminder(guestOpen, OWNER);
+    check("refused" in c2b && c2b.refused === "recent", "a claim 9 minutes after the last is still refused as recent", JSON.stringify(c2b));
     await sql`update tasks set last_reminded_at = now() - interval '11 minutes' where id = ${guestOpen}`;
     const before = await sql`select last_reminded_at::text as t, last_reminded_by as b from tasks where id = ${guestOpen}`;
     const c3 = await claimReminder(guestOpen, "someone-else@example.com");
     check("claim" in c3, "after 10 minutes it claims again", JSON.stringify(c3));
-    if (!("claim" in c3)) return;
+    if (!("claim" in c3)) throw new Error("FAILED: expected a claim after 10 minutes");
     await releaseReminder(guestOpen, c3.claim);
     const after = await sql`select last_reminded_at::text as t, last_reminded_by as b from tasks where id = ${guestOpen}`;
     check(after[0].t === before[0].t && after[0].b === before[0].b, "release restores the previous reminder exactly", `${JSON.stringify(before[0])} → ${JSON.stringify(after[0])}`);
@@ -216,9 +228,13 @@ test("task board against a real database", async () => {
     const yesterday = idOf(await createTask(input({ assignee: OWNER, dueOn: "2026-09-30" }), OWNER));
     const tomorrow = idOf(await createTask(input({ assignee: OWNER, dueOn: "2026-10-02" }), OWNER));
     const later = idOf(await createTask(input({ assignee: OWNER, dueOn: "2026-10-03" }), OWNER));
+    const overdueDone = idOf(await createTask(input({ assignee: OWNER, dueOn: "2026-09-30", status: "done" }), OWNER));
+    const overdueLoose = idOf(await createTask(input({ dueOn: "2026-09-30" }), OWNER));
     const digestIds = (await listDigestTasks("2026-10-02")).map((t) => t.id);
     check(digestIds.includes(yesterday) && digestIds.includes(tomorrow) && !digestIds.includes(later) && !digestIds.includes(guestDone),
       "the digest takes overdue to tomorrow, not later or done", JSON.stringify(digestIds));
+    check(!digestIds.includes(overdueDone), "the digest leaves out an overdue done task", JSON.stringify(digestIds));
+    check(!digestIds.includes(overdueLoose), "the digest leaves out an overdue unassigned task", JSON.stringify(digestIds));
 
     // 10. Removing access unassigns their open tasks; done ones keep the name.
     check(await removeAdmin(GUEST), "removeAdmin removes the guest", "false");
@@ -235,7 +251,12 @@ test("task board against a real database", async () => {
     for (const statement of statements) await sql.query(statement);
     console.log("  ok  migration 032 re-runs without error");
   } finally {
-    await sql`delete from tasks where created_by = ${OWNER}`;
-    await sql`delete from admin_access where email = ${GUEST}`;
+    // Both deletes run even if one throws; the first failure is then rethrown.
+    const cleanup = await Promise.allSettled([
+      sql`delete from tasks where created_by = ${OWNER}`,
+      sql`delete from admin_access where email = ${GUEST}`,
+    ]);
+    const failed = cleanup.find((r): r is PromiseRejectedResult => r.status === "rejected");
+    if (failed) throw failed.reason;
   }
 });
