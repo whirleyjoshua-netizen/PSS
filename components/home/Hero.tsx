@@ -26,7 +26,7 @@ export function Hero() {
         <div className="grid items-center gap-12 py-20 md:py-28 lg:grid-cols-[1.1fr_minmax(0,26rem)]">
           <div className="flex flex-col gap-6">
             <p className="font-display text-xs font-medium uppercase tracking-[0.24em] text-champagne">
-              Las Vegas · Henderson · Summerlin · North Las Vegas
+              Family-run window treatments · Las Vegas valley
             </p>
 
             <h1 className="text-4xl font-light leading-[1.1] tracking-tight sm:text-5xl lg:text-6xl">
@@ -34,9 +34,8 @@ export function Hero() {
             </h1>
 
             <p className="max-w-xl text-lg text-sand/80">
-              Custom blinds, shades, and shutters for the valley&rsquo;s hardest
-              light — measured, ordered, and installed by the two of us. Not a
-              call center, not a franchise.
+              Shade and Josh measure, order and install every job themselves. No
+              call center, no subcontractors.
             </p>
 
             <div className="flex flex-wrap items-center gap-4 pt-2">

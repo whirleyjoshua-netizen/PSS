@@ -14,7 +14,20 @@ function walk(dir: string): string[] {
 
 describe("business content", () => {
   it("uses the exact approved tagline", () => {
-    expect(business.tagline).toBe("Control the Light. Define the Space.");
+    expect(business.tagline).toBe("You let us into your home. We let you into our family.");
+  });
+
+  it("never uses the Vegas Strong phrase anywhere in the content", async () => {
+    const { readdirSync, readFileSync } = await import("node:fs");
+    const path = await import("node:path");
+    const dirs = ["content", "components", "app/(site)"];
+    const walk = (dir: string): string[] =>
+      readdirSync(dir, { withFileTypes: true }).flatMap((entry) =>
+        entry.isDirectory() ? walk(path.join(dir, entry.name)) : [path.join(dir, entry.name)],
+      );
+    for (const file of dirs.flatMap(walk).filter((f) => /\.(ts|tsx)$/.test(f))) {
+      expect(readFileSync(file, "utf8"), file).not.toMatch(/vegas strong/i);
+    }
   });
 
   it("uses the exact approved business name", () => {

@@ -5,7 +5,7 @@ import { Section, SectionHeading, Eyebrow } from "@/components/ui/Section";
 import { ButtonLink } from "@/components/ui/Button";
 import { business } from "@/content/business";
 import { categories } from "@/content/products";
-import { gallery } from "@/content/gallery";
+import { consultationPhoto, gallery } from "@/content/gallery";
 import { testimonials } from "@/content/testimonials";
 import { getProductsIn } from "@/lib/content/products";
 import { cityPath } from "@/lib/content/cities";
@@ -20,7 +20,7 @@ import { cityPath } from "@/lib/content/cities";
  */
 const PROMISES = [
   { figure: "Free", label: "In-home consultation and measurement" },
-  { figure: "Owner", label: "Measured and installed — never subcontracted" },
+  { figure: "Family-run", label: "Measured and installed by us, never subcontracted" },
   { figure: "4", label: "Valley cities served" },
 ];
 
@@ -95,7 +95,7 @@ const PILLARS = [
     body: "Fabric and finish look completely different in your own light than they do on a showroom wall or a screen. We bring the samples to your windows, measure every opening ourselves, and quote before we leave.",
   },
   {
-    title: "The owners do the work",
+    title: "We do the work ourselves",
     body: "The same two people who measure your windows are the ones who install them. Nothing is handed to a subcontractor who has never spoken to you, and there is no salesperson working a commission target.",
   },
   {
@@ -108,8 +108,8 @@ export function WhyPremier() {
   return (
     <Section tone="charcoal">
       <SectionHeading
-        eyebrow="Why Premier"
-        title="A two-person shop, and that is the point"
+        eyebrow="Working with us"
+        title="What it’s like to work with us"
         tone="dark"
       />
 
@@ -188,18 +188,18 @@ export function Testimonials() {
   );
 }
 
-/* ------------------------------------------------------ meet the owners */
+/* ---------------------------------------------------------------- family */
 
-export function MeetTheOwners() {
+export function FamilySection() {
   return (
     <Section tone="ivory">
       <div className="grid items-center gap-12 lg:grid-cols-2">
-        <div className="relative mx-auto aspect-4/5 w-full max-w-md overflow-hidden bg-sand">
+        <div className="relative mx-auto aspect-4/3 w-full overflow-hidden bg-sand">
           <Image
-            src="/brand/owners-family.webp"
-            alt="The owners of Premier Shade Solutions with their young daughter"
+            src={consultationPhoto.src}
+            alt={consultationPhoto.alt}
             fill
-            sizes="(min-width: 1024px) 28rem, 100vw"
+            sizes="(min-width: 1024px) 36rem, 100vw"
             className="object-cover"
           />
         </div>
@@ -207,23 +207,18 @@ export function MeetTheOwners() {
         <div className="flex flex-col gap-5">
           <Eyebrow>Who you&rsquo;ll be working with</Eyebrow>
           <h2 className="text-3xl font-light tracking-tight text-charcoal md:text-4xl">
-            A husband-and-wife shop in Las Vegas
+            When you invite us in, you&rsquo;re inviting in family
           </h2>
-          {/* TODO(content): replace with the owners' own words — how you
-              started, why window treatments, what you care about getting right. */}
           <p className="text-ink-soft">
-            Premier Shade Solutions is the two of us. We answer the phone, we
-            come to the consultation, we measure your windows, and we install
-            what we sell. When something needs to be made right, you are talking
-            to the people who can decide to make it right.
-          </p>
-          <p className="text-ink-soft">
-            That is a different experience from a national chain, and it is the
-            whole reason we started this.
+            We&rsquo;re a family-run business here in the Las Vegas valley. When we
+            walk through your door, we&rsquo;re not thinking about the sale.
+            We&rsquo;re thinking about how we&rsquo;d want someone to treat our own
+            home. We&rsquo;ll listen, bring the samples, measure everything
+            ourselves and stay with you from consultation to installation.
           </p>
           <div className="pt-2">
             <ButtonLink href="/about" variant="outline">
-              More about us
+              Meet the family
             </ButtonLink>
           </div>
         </div>
@@ -272,21 +267,23 @@ export function ClosingCta() {
       <div className="flex flex-col items-start gap-6 md:flex-row md:items-center md:justify-between">
         <div className="flex flex-col gap-3">
           <h2 className="max-w-xl text-3xl font-light tracking-tight text-ivory md:text-4xl">
-            Let&rsquo;s look at your windows together
+            Invite us over
           </h2>
           <p className="max-w-xl text-sand/75">
-            Free in-home consultation, real samples in your own light, and a
-            quote before we leave.
+            We&rsquo;ll bring the samples. You bring the coffee.
           </p>
         </div>
-        <div className="flex flex-wrap gap-4">
-          <ButtonLink href="/contact">Book a consultation</ButtonLink>
-          <a
-            href={business.phone.href}
-            className="inline-flex min-h-11 items-center whitespace-nowrap border border-ivory/40 px-6 py-3 font-display text-sm uppercase tracking-[0.14em] text-ivory transition-colors hover:bg-ivory hover:text-charcoal"
-          >
-            {business.phone.display}
-          </a>
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-wrap gap-4">
+            <ButtonLink href="/contact">Invite Us Over</ButtonLink>
+            <a
+              href={business.phone.href}
+              className="inline-flex min-h-11 items-center whitespace-nowrap border border-ivory/40 px-6 py-3 font-display text-sm uppercase tracking-[0.14em] text-ivory transition-colors hover:bg-ivory hover:text-charcoal"
+            >
+              {business.phone.display}
+            </a>
+          </div>
+          <p className="text-sm text-sand/75">Free in-home consultation. No charge, no obligation.</p>
         </div>
       </div>
     </Section>

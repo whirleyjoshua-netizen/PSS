@@ -10,7 +10,7 @@
 export const business = {
   name: "Premier Shade Solutions",
   legalName: "Premier Shade Solutions LLC",
-  tagline: "Control the Light. Define the Space.",
+  tagline: "You let us into your home. We let you into our family.",
   domain: "https://premiershadesolutions.com",
 
   phone: {

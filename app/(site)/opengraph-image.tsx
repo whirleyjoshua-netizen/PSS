@@ -1,7 +1,7 @@
 import { ImageResponse } from "next/og";
 import { business } from "@/content/business";
 
-export const alt = "Premier Shade Solutions — Custom Window Treatments in Las Vegas";
+export const alt = "Premier Shade Solutions — You let us into your home. We let you into our family.";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 

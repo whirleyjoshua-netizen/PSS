@@ -5,23 +5,24 @@ import {
   WhyPremier,
   GalleryStrip,
   Testimonials,
-  MeetTheOwners,
+  FamilySection,
   ServiceAreaBlock,
   ClosingCta,
 } from "@/components/home/Sections";
 import { PastWorkReviews } from "@/components/reviews/PastWorkReviews";
 
+/** People, then the experience, then trust, then products (family brand spec §3). */
 export default function Home() {
   return (
     <>
       <Hero />
       <TrustBar />
-      <CategoryGrid />
+      <FamilySection />
       <WhyPremier />
-      <GalleryStrip />
       <Testimonials />
       <PastWorkReviews />
-      <MeetTheOwners />
+      <CategoryGrid />
+      <GalleryStrip />
       <ServiceAreaBlock />
       <ClosingCta />
     </>

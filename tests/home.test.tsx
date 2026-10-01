@@ -55,4 +55,35 @@ describe("Home", () => {
     expect(hrefs).toContain("/contact");
     expect(hrefs).toContain(business.phone.href);
   });
+
+  it("leads with the family: eyebrow, family section and its link to Meet the family", () => {
+    render(<Home />);
+    expect(screen.getByText("Family-run window treatments · Las Vegas valley")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { level: 2, name: /when you invite us in, you[’']re inviting in family/i }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /meet the family/i })).toHaveAttribute("href", "/about");
+  });
+
+  it("never shows the children on the homepage", () => {
+    const { container } = render(<Home />);
+    for (const img of container.querySelectorAll("img")) {
+      expect(decodeURIComponent(img.getAttribute("src") ?? "")).not.toMatch(/owners-family|family-pumpkin/);
+    }
+  });
+
+  it("closes with Invite us over and the coffee line", () => {
+    render(<Home />);
+    expect(screen.getByRole("heading", { level: 2, name: /^invite us over$/i })).toBeInTheDocument();
+    expect(screen.getByText(/you bring the coffee/i)).toBeInTheDocument();
+  });
+
+  it("orders the sections people, experience, trust, then products", () => {
+    const { container } = render(<Home />);
+    const text = container.textContent ?? "";
+    const at = (s: string) => text.indexOf(s);
+    expect(at("inviting in family")).toBeLessThan(at("What it’s like to work with us"));
+    expect(at("What it’s like to work with us")).toBeLessThan(at("Here is what our clients said"));
+    expect(at("Here is what our clients said")).toBeLessThan(at("Every treatment, measured for your windows"));
+  });
 });
