@@ -1,9 +1,11 @@
 import { render, screen, within } from "@testing-library/react";
 import { describe, it, expect } from "vitest";
 import CategoryPage from "@/app/(site)/[category]/page";
+import ProductPage from "@/app/(site)/[category]/[product]/page";
 import CityPage from "@/app/(site)/service-area/[city]/page";
 import ReviewsPage from "@/app/(site)/reviews/page";
 import { categories } from "@/content/products";
+import { products } from "@/content/products";
 import { consultationPhoto } from "@/content/gallery";
 import { FEATURED_REVIEW } from "@/components/booking/FeaturedReview";
 
@@ -65,5 +67,46 @@ describe("pages outside the redesign keep the booking block", () => {
   it("the reviews page has no serif hero", () => {
     const { container } = render(<ReviewsPage />);
     expect(container.querySelector(".heading-serif")).toBeNull();
+  });
+});
+
+const product = (slug: string) => products.find((p) => p.slug === slug)!;
+const renderProduct = async (cat: string, slug: string) =>
+  render(await ProductPage({ params: Promise.resolve({ category: cat, product: slug }) }));
+
+describe("product page redesign", () => {
+  it("Roller Shades: own photo in the hero, story photo, Best for, details, other shades as cards", async () => {
+    const roller = product("roller-shades");
+    const { container } = await renderProduct("shades", "roller-shades");
+
+    expect(screen.getByRole("heading", { level: 1, name: "Roller Shades in Las Vegas" }).className).toContain("heading-serif");
+    expect(srcs(container.querySelector("section#book")!)[0]).toContain(roller.image!.src);
+    expect(screen.getByText(roller.seo.description)).toBeInTheDocument();
+    expect(within(screen.getByRole("list", { name: "Highlights" })).getAllByRole("listitem").map((li) => li.textContent))
+      .toEqual(category("shades").highlights.map((h) => h.label));
+
+    const story = screen.getByRole("heading", { level: 2, name: "Why Roller Shades" }).closest("section")!;
+    expect(within(story).getByText("Shades")).toBeInTheDocument();
+    expect(srcs(story)).toEqual([roller.storyPhoto!.src].map((s) => expect.stringContaining(s)));
+    expect(within(story).getByText("Best for")).toBeInTheDocument();
+    expect(within(story).getByText(roller.bestFor)).toBeInTheDocument();
+
+    expect(screen.getByRole("heading", { level: 2, name: "Details" })).toBeInTheDocument();
+    roller.features.forEach((f) => expect(screen.getByText(f)).toBeInTheDocument());
+
+    expect(screen.getByRole("heading", { level: 2, name: "Other Shades" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Cellular Shades/ })).toHaveAttribute("href", "/shades/cellular-shades");
+    expect(screen.getByText(/In our clients/)).toBeInTheDocument();
+
+    const all = srcs(container);
+    expect(new Set(all).size).toBe(all.length);
+  });
+
+  it("Solar Shades: consultation photo in the hero and the fabric panel in the story", async () => {
+    const { container } = await renderProduct("shades", "solar-shades");
+    expect(srcs(container.querySelector("section#book")!)[0]).toContain(consultationPhoto.src);
+    const story = screen.getByRole("heading", { level: 2, name: "Why Solar Shades" }).closest("section")!;
+    expect(story.querySelector("img")).toBeNull();
+    expect(within(story).getByText(product("solar-shades").bestFor)).toBeInTheDocument();
   });
 });

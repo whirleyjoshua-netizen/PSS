@@ -1,9 +1,17 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ConsultationCta } from "@/components/product/ProductParts";
+import { TreatmentHero } from "@/components/treatment/TreatmentHero";
+import { PromiseRow } from "@/components/booking/PromiseRow";
+import { FEATURED_REVIEW } from "@/components/booking/FeaturedReview";
+import { IconRow } from "@/components/treatment/IconRow";
+import { StorySection } from "@/components/treatment/StorySection";
+import { PhotoCardGrid } from "@/components/treatment/PhotoCardGrid";
+import { DetailsBand } from "@/components/treatment/DetailsBand";
 import { Section } from "@/components/ui/Section";
-import { PageHero, ConsultationCta } from "@/components/product/ProductParts";
-import { BookingBlock } from "@/components/booking/BookingBlock";
+import { ReviewSpotlight } from "@/components/reviews/ReviewSpotlight";
+import { pastReviews } from "@/content/reviews";
+import { uniquePhotos } from "@/lib/content/page-photos";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { consultationPhoto } from "@/content/gallery";
 import { breadcrumbSchema, productSchema } from "@/lib/seo/schema";
@@ -58,74 +66,49 @@ export default async function ProductPage({
     { name: found.name, url: `/${parent.slug}/${found.slug}` },
   ];
 
+  const [heroPhoto, storyPhoto, ...cardPhotos] = uniquePhotos([
+    found.image ?? consultationPhoto,
+    found.storyPhoto,
+    ...siblings.map((sibling) => sibling.image),
+  ]);
+
   return (
     <>
       <JsonLd schema={productSchema(found)} />
       <JsonLd schema={breadcrumbSchema(trail)} />
-      <PageHero
+      <TreatmentHero
+        photo={heroPhoto!}
+        trail={trail}
         eyebrow={found.tagline}
         title={`${found.name} in Las Vegas`}
-        trail={trail}
+        lead={found.seo.description}
+        treatment={parent.name}
       />
-      <BookingBlock photo={found.image ?? consultationPhoto} treatment={parent.name} />
-
-      <Section tone="ivory">
-        {/* Columns are sized to their content and left-aligned so the body
-            starts on the same edge as the page heading above it. A 1fr first
-            column would stretch and leave a hole beside the capped prose
-            measure; centering would break alignment with the hero. */}
-        <div className="grid gap-12 lg:grid-cols-[minmax(0,72ch)_22rem] lg:gap-16">
-          <div className="flex flex-col gap-5 text-lg leading-relaxed text-ink-soft">
-            {found.body.map((paragraph) => (
-              <p key={paragraph.slice(0, 40)}>{paragraph}</p>
-            ))}
-          </div>
-
-          <aside className="flex flex-col gap-8">
-            <div className="border border-rule bg-sand/50 p-6">
-              <h2 className="font-display text-xs font-medium uppercase tracking-[0.2em] text-champagne-ink">
-                Best for
-              </h2>
-              <p className="mt-3 text-sm leading-relaxed text-charcoal">{found.bestFor}</p>
-            </div>
-
-            <div>
-              <h2 className="font-display text-xs font-medium uppercase tracking-[0.2em] text-champagne-ink">
-                Details
-              </h2>
-              <ul className="mt-4 flex flex-col gap-3">
-                {found.features.map((feature) => (
-                  <li key={feature} className="flex gap-3 text-sm leading-relaxed text-ink-soft">
-                    <span aria-hidden="true" className="mt-2 size-1.5 shrink-0 bg-champagne" />
-                    {feature}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </aside>
-        </div>
+      <Section tone="sand" className="!py-10">
+        <PromiseRow centered />
       </Section>
-
+      <IconRow items={parent.highlights} />
+      <StorySection
+        eyebrow={parent.name}
+        heading={`Why ${found.name}`}
+        paragraphs={found.body}
+        photo={storyPhoto}
+        panelLabel={found.name}
+        caption={{ eyebrow: "Best for", line: found.bestFor }}
+      />
+      <DetailsBand features={found.features} />
       {siblings.length > 0 ? (
-        <Section tone="sand">
-          <h2 className="font-display text-xs font-medium uppercase tracking-[0.22em] text-champagne-ink">
-            Other {parent.name}
-          </h2>
-          <ul className="mt-8 flex flex-wrap gap-3">
-            {siblings.map((sibling) => (
-              <li key={sibling.slug}>
-                <Link
-                  href={`/${parent.slug}/${sibling.slug}`}
-                  className="inline-flex min-h-11 items-center border border-rule bg-ivory px-5 py-2.5 text-sm text-charcoal transition-colors hover:border-champagne-ink"
-                >
-                  {sibling.name}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </Section>
+        <PhotoCardGrid
+          heading={`Other ${parent.name}`}
+          cards={siblings.map((sibling, index) => ({
+            href: `/${parent.slug}/${sibling.slug}`,
+            name: sibling.name,
+            tagline: sibling.tagline,
+            photo: cardPhotos[index],
+          }))}
+        />
       ) : null}
-
+      <ReviewSpotlight reviews={pastReviews.filter((review) => review.spotlight && review !== FEATURED_REVIEW)} />
       <ConsultationCta
         title={`Thinking about ${found.name.toLowerCase()}?`}
         body="We bring samples to your windows, measure every opening, and quote before we leave. No charge and no obligation."
