@@ -167,8 +167,8 @@ export const categories: Category[] = [
       alt: "White plantation shutters with open louvers over a farmhouse kitchen sink and marble countertop",
     },
     bookingPhoto: {
-      src: "/gallery/plantation-shutters-french-doors.webp",
-      alt: "White plantation shutters mounted on a pair of French doors and on the tall window beside them.",
+      src: "/gallery/plantation-shutters-primary-bath-pendant.webp",
+      alt: "White plantation shutters with louvers tilted open on a wide primary-bathroom window, beside a round wire pendant light above the tub.",
     },
     highlights: [
       { label: "Built to fit", icon: "ruler" },
@@ -529,6 +529,14 @@ export const products: Product[] = [
       "Backed by strong manufacturer warranties",
     ],
     bestFor: "Most Las Vegas homes, and any window on a west or south elevation.",
+    image: {
+      src: "/gallery/plantation-shutters-french-doors.webp",
+      alt: "White plantation shutters mounted on a pair of French doors and on the tall window beside them.",
+    },
+    storyPhoto: {
+      src: "/gallery/plantation-shutters-bedroom.webp",
+      alt: "White plantation shutters with open louvers on two windows in a bedroom with grey walls.",
+    },
     seo: {
       title: "Composite Shutters in Las Vegas, NV | Premier Shade",
       description:
@@ -553,6 +561,14 @@ export const products: Product[] = [
       "Best suited to shaded elevations and dry interior rooms",
     ],
     bestFor: "Shaded windows, formal rooms, and homes with wood floors or beams to match.",
+    image: {
+      src: "/gallery/plantation-shutters-bath.webp",
+      alt: "White plantation shutters with wide louvers on a primary bathroom window above a soaking tub.",
+    },
+    storyPhoto: {
+      src: "/gallery/plantation-shutters-kitchen-sink.webp",
+      alt: "White plantation shutters with open louvers over a farmhouse kitchen sink and marble countertop",
+    },
     seo: {
       title: "Real Wood Shutters in Las Vegas, NV | Premier Shade",
       description:

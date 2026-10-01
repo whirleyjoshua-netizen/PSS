@@ -164,6 +164,12 @@ export const gallery: GalleryItem[] = [
     treatment: "shades",
     caption: "One wide solar screen shade across a long window, softening the light without closing it off.",
   },
+  {
+    src: "/gallery/plantation-shutters-primary-bath-pendant.webp",
+    alt: "White plantation shutters with louvers tilted open on a wide primary-bathroom window, beside a round wire pendant light above the tub.",
+    treatment: "shutters",
+    caption: "Plantation shutters in a primary bath, louvers open for light above the tub.",
+  },
 ];
 
 /**

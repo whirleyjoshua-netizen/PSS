@@ -140,7 +140,7 @@ describe("redesign wording (spec 2026-10-01 §5)", () => {
 });
 
 describe("story photos (spec §6)", () => {
-  const WITH_STORY = ["roller-shades", "solar-shades", "cellular-shades", "plantation-shutters"];
+  const WITH_STORY = ["roller-shades", "solar-shades", "cellular-shades", "plantation-shutters", "composite-shutters", "wood-shutters"];
 
   it("are set on exactly the products we have a second photo of", () => {
     expect(products.filter((p) => p.storyPhoto).map((p) => p.slug).sort()).toEqual([...WITH_STORY].sort());
@@ -159,7 +159,15 @@ describe("the owners' photos of 2026-10-01", () => {
     ["roller-shades", "/gallery/roller-shades-dining-room.webp", "/gallery/roller-shades-transom-closeup.webp"],
     ["solar-shades", "/gallery/solar-shades-balcony-view.webp", "/gallery/solar-shades-long-window.webp"],
     ["roman-shades", "/gallery/roman-shades-primary-bath.webp", undefined],
+    // Owner: the three shutter types look the same, so shutter photos are shared among them.
+    ["plantation-shutters", "/gallery/plantation-shutters-dining-room.webp", "/gallery/plantation-shutters-bedroom.webp"],
+    ["composite-shutters", "/gallery/plantation-shutters-french-doors.webp", "/gallery/plantation-shutters-bedroom.webp"],
+    ["wood-shutters", "/gallery/plantation-shutters-bath.webp", "/gallery/plantation-shutters-kitchen-sink.webp"],
   ];
+
+  it("Shutters leads with the primary-bath photo", () => {
+    expect(categories.find((c) => c.slug === "shutters")?.bookingPhoto?.src).toBe("/gallery/plantation-shutters-primary-bath-pendant.webp");
+  });
 
   it.each(PLACED)("%s shows its own photos", (slug, image, story) => {
     const product = products.find((p) => p.slug === slug)!;

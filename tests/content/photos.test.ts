@@ -17,6 +17,9 @@ const PRODUCT_PHOTOS: Record<string, string> = {
   "roman-shades": "/gallery/roman-shades-primary-bath.webp",
   "transitional-shades": "/gallery/transitional-shades-slider-wall.webp",
   "plantation-shutters": "/gallery/plantation-shutters-dining-room.webp",
+  // Owner 2026-10-01: the shutter types look alike, so their photos are shared.
+  "composite-shutters": "/gallery/plantation-shutters-french-doors.webp",
+  "wood-shutters": "/gallery/plantation-shutters-bath.webp",
 };
 
 describe("photos in the content model", () => {
@@ -43,7 +46,7 @@ describe("photos in the content model", () => {
     expect(booking).toEqual({
       blinds: "/gallery/sheer-vertical-patio-slider.webp",
       shades: "/gallery/roller-shades-bay-closeup.webp",
-      shutters: "/gallery/plantation-shutters-french-doors.webp",
+      shutters: "/gallery/plantation-shutters-primary-bath-pendant.webp",
     });
     for (const category of categories) {
       if (!category.bookingPhoto) continue;

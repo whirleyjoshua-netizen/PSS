@@ -94,7 +94,7 @@ the Blinds intro, "15–20° cooler" from the Outdoor intro).
 
 ## 6. Photos
 
-- **Rule kept:** a photo is only ever shown for the product it truly depicts.
+- **Rule kept:** a photo is only ever shown for the product it truly depicts. Exception (owner, 2026-10-01): plantation, composite and real wood shutters look the same in a photo, so shutter photos are shared among the three shutter pages.
 - **Fabric panel:** where a card or story slot has no real photo, a sand-coloured block with a
   faint woven texture and the product or category name in light serif lettering. It is
   decorative (`aria-hidden`); the card's text carries the name. Swapping in a photo later is a
