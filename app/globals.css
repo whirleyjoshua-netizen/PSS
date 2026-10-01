@@ -75,6 +75,14 @@ h1, h2, h3, h4 {
   text-wrap: balance;
 }
 
+/* Category and product pages: big headings in the body serif (spec 2026-10-01 §7).
+   Unlayered like the rule above, which a Tailwind utility could not beat. */
+.heading-serif {
+  font-family: var(--font-body);
+  font-weight: 400;
+  letter-spacing: -0.015em;
+}
+
 /*
  * The owner-only admin uses the brand palette (tokens above) with a system
  * sans-serif for dense working screens and a slightly warmer ground.
