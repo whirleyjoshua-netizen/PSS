@@ -303,6 +303,13 @@ describe("setKeptOfficial", () => {
     expect(await m.setKeptOfficial(LEAD, true, "o")).toBe("has-official");
   });
 
+  it("says unchanged, not has-official, when a simultaneous tick won the race (no official window)", async () => {
+    // READ COMMITTED: the statement's snapshot saw the job unkept, but another tick landed first,
+    // so the update matched nothing. There is no official window, so this is not a refusal.
+    sql.mockResolvedValue([{ changed: false, found: true, was_kept: false, has_official: false }]);
+    expect(await m.setKeptOfficial(LEAD, true, "o")).toBe("unchanged");
+  });
+
   it("says missing for an unknown or non-uuid job", async () => {
     sql.mockResolvedValue([{ changed: false, found: false, was_kept: null, has_official: false }]);
     expect(await m.setKeptOfficial(LEAD, true, "o")).toBe("missing");
