@@ -139,3 +139,32 @@ test("a visitor can book from the booking block on a product page", async ({ pag
   await expect(page.getByRole("heading", { level: 1 })).toContainText(/thank you/i);
   expect(posted).toMatchObject({ source: "booking", treatments: ["Shutters"] });
 });
+
+test("a visitor can book from the photo hero on a category page", async ({ page }) => {
+  let posted: Record<string, unknown> | null = null;
+  await page.route("**/api/consultation", async (route) => {
+    posted = route.request().postDataJSON();
+    await route.fulfill({ status: 201, contentType: "application/json", body: JSON.stringify({ ok: true }) });
+  });
+
+  await page.goto("/shades");
+  const hero = page.locator("section#book");
+  await hero.getByLabel("Name", { exact: true }).fill("Dana Reyes");
+  await hero.getByLabel("Phone", { exact: true }).fill("7025550134");
+  await hero.getByLabel("Email", { exact: true }).fill("dana@example.com");
+  await hero.getByRole("button", { name: /invite us over/i }).click();
+
+  await expect(page).toHaveURL(/\/thank-you$/);
+  expect(posted).toMatchObject({ source: "booking", treatments: ["Shades"] });
+});
+
+test.describe("on a 390×844 phone", () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  for (const path of ["/shades", "/motorization", "/shades/roller-shades", "/shades/solar-shades"]) {
+    test(`${path} shows Invite Us Over without scrolling`, async ({ page }) => {
+      await page.goto(path);
+      await expect(page.locator("section#book").getByRole("button", { name: /invite us over/i })).toBeInViewport();
+    });
+  }
+});
