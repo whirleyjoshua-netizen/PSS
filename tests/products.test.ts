@@ -1,3 +1,5 @@
+import { existsSync } from "node:fs";
+import path from "node:path";
 import { describe, it, expect } from "vitest";
 import { categories, products } from "@/content/products";
 import {
@@ -93,5 +95,61 @@ describe("product taxonomy", () => {
       category: "shades",
       product: "solar-shades",
     });
+  });
+});
+
+describe("redesign wording (spec 2026-10-01 §5)", () => {
+  const WORDING: Record<string, { highlights: [string, string][]; eyebrow: string; heading: string; caption: [string, string] }> = {
+    blinds: {
+      highlights: [["Glare control", "sun"], ["Privacy", "eye"], ["Wipe clean", "droplet"], ["Wide glass", "window"]],
+      eyebrow: "Keep the light, lose the glare",
+      heading: "Control Without Closing the Room Off",
+      caption: ["Made for hard-working rooms", "Kitchens, baths and home offices."],
+    },
+    shades: {
+      highlights: [["Light control", "sun"], ["Privacy", "eye"], ["Energy savings", "leaf"], ["Desert-ready fabrics", "home"]],
+      eyebrow: "More than a window covering",
+      heading: "A Single Panel That Changes the Room",
+      caption: ["Chosen for this valley", "The right fabric for every exposure."],
+    },
+    shutters: {
+      highlights: [["Built to fit", "ruler"], ["Sun-proof", "sun"], ["No cords", "shield"], ["Adds value", "home"]],
+      eyebrow: "Part of the house",
+      heading: "The Treatment That Reads as Architecture",
+      caption: ["Fitted to the opening", "Framed, finished and built to last."],
+    },
+    outdoor: {
+      highlights: [["Heat blocking", "thermometer"], ["Patio comfort", "sofa"], ["Energy savings", "leaf"], ["UV protection", "shield"]],
+      eyebrow: "Shade before the glass",
+      heading: "The Patio You Actually Use",
+      caption: ["Measured properly", "A covered patio, 15–20° cooler."],
+    },
+    motorization: {
+      highlights: [["App & remote", "phone"], ["Schedules", "clock"], ["No wiring", "battery"], ["High windows", "arrow-up"]],
+      eyebrow: "No electrician required",
+      heading: "Shades That Beat the Sun to the Window",
+      caption: ["On schedule", "Closes itself every summer afternoon."],
+    },
+  };
+
+  it.each(categories.map((c) => [c.slug, c] as const))("%s carries the approved highlights and story wording", (slug, category) => {
+    const want = WORDING[slug];
+    expect(category.highlights.map((h) => [h.label, h.icon])).toEqual(want.highlights);
+    expect(category.story).toEqual({ eyebrow: want.eyebrow, heading: want.heading, caption: { eyebrow: want.caption[0], line: want.caption[1] } });
+  });
+});
+
+describe("story photos (spec §6)", () => {
+  const WITH_STORY = ["roller-shades", "cellular-shades", "plantation-shutters"];
+
+  it("are set on exactly the three products the gallery has a second photo of", () => {
+    expect(products.filter((p) => p.storyPhoto).map((p) => p.slug).sort()).toEqual([...WITH_STORY].sort());
+  });
+
+  it.each(WITH_STORY)("%s: the story photo differs from its own photo, exists, and has alt text", (slug) => {
+    const product = products.find((p) => p.slug === slug)!;
+    expect(product.storyPhoto!.src).not.toBe(product.image?.src);
+    expect(product.storyPhoto!.alt.trim().length).toBeGreaterThan(20);
+    expect(existsSync(path.join(process.cwd(), "public", product.storyPhoto!.src))).toBe(true);
   });
 });

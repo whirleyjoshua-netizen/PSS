@@ -28,6 +28,21 @@ export type Seo = {
 /** One of our own job photos. Alt text describes the treatment and the room. */
 export type Photo = { src: string; alt: string };
 
+/** The line icons the icon row can draw (components/ui/LineIcon.tsx). */
+export type HighlightIcon =
+  | "sun" | "eye" | "droplet" | "window" | "leaf" | "home" | "ruler"
+  | "shield" | "thermometer" | "sofa" | "phone" | "clock" | "battery" | "arrow-up";
+
+/** One entry in a category's icon row: a two-or-three-word label the page copy already backs up. */
+export type Highlight = { label: string; icon: HighlightIcon };
+
+/** The story section's wording on a category page (spec 2026-10-01 §5). */
+export type CategoryStory = {
+  eyebrow: string;
+  heading: string;
+  caption: { eyebrow: string; line: string };
+};
+
 export type Category = {
   slug: CategorySlug;
   name: string;
@@ -41,6 +56,9 @@ export type Category = {
    * hero so the page never repeats `image`. Unset means the consultation photo.
    */
   bookingPhoto?: Photo;
+  /** Exactly four; product pages reuse their category's row. */
+  highlights: Highlight[];
+  story: CategoryStory;
   seo: Seo;
 };
 
@@ -58,6 +76,11 @@ export type Product = {
    * then shows the consultation photo.
    */
   image?: Photo;
+  /**
+   * A second, different photo of this same product for the story section, so the
+   * page never repeats `image`. Unset means the story shows the fabric panel.
+   */
+  storyPhoto?: Photo;
   seo: Seo;
 };
 
@@ -78,6 +101,17 @@ export const categories: Category[] = [
     bookingPhoto: {
       src: "/gallery/sheer-vertical-patio-slider.webp",
       alt: "Floor-to-ceiling sheer vertical blinds drawn across a patio slider in a living room, with the backyard visible through the fabric vanes.",
+    },
+    highlights: [
+      { label: "Glare control", icon: "sun" },
+      { label: "Privacy", icon: "eye" },
+      { label: "Wipe clean", icon: "droplet" },
+      { label: "Wide glass", icon: "window" },
+    ],
+    story: {
+      eyebrow: "Keep the light, lose the glare",
+      heading: "Control Without Closing the Room Off",
+      caption: { eyebrow: "Made for hard-working rooms", line: "Kitchens, baths and home offices." },
     },
     seo: {
       title: "Blinds in Las Vegas, NV | Premier Shade Solutions",
@@ -102,6 +136,17 @@ export const categories: Category[] = [
       src: "/gallery/roller-shades-bay-closeup.webp",
       alt: "Close view of light grey roller shades in a white-trimmed bay window, one raised to show trees below, with clear transom windows above.",
     },
+    highlights: [
+      { label: "Light control", icon: "sun" },
+      { label: "Privacy", icon: "eye" },
+      { label: "Energy savings", icon: "leaf" },
+      { label: "Desert-ready fabrics", icon: "home" },
+    ],
+    story: {
+      eyebrow: "More than a window covering",
+      heading: "A Single Panel That Changes the Room",
+      caption: { eyebrow: "Chosen for this valley", line: "The right fabric for every exposure." },
+    },
     seo: {
       title: "Window Shades in Las Vegas, NV | Premier Shade Solutions",
       description:
@@ -125,6 +170,17 @@ export const categories: Category[] = [
       src: "/gallery/plantation-shutters-french-doors.webp",
       alt: "White plantation shutters mounted on a pair of French doors and on the tall window beside them.",
     },
+    highlights: [
+      { label: "Built to fit", icon: "ruler" },
+      { label: "Sun-proof", icon: "sun" },
+      { label: "No cords", icon: "shield" },
+      { label: "Adds value", icon: "home" },
+    ],
+    story: {
+      eyebrow: "Part of the house",
+      heading: "The Treatment That Reads as Architecture",
+      caption: { eyebrow: "Fitted to the opening", line: "Framed, finished and built to last." },
+    },
     seo: {
       title: "Plantation Shutters in Las Vegas, NV | Premier Shade",
       description:
@@ -140,6 +196,17 @@ export const categories: Category[] = [
       "In Las Vegas the difference between a patio you use and a patio you look at is shade. Exterior shading stops the sun before it reaches the glass, which is the only way to meaningfully cut the heat load on a west-facing room — an interior shade absorbs that energy after it is already inside.",
       "Measured properly, exterior products routinely drop a covered patio by fifteen to twenty degrees and take a real bite out of a summer power bill.",
     ],
+    highlights: [
+      { label: "Heat blocking", icon: "thermometer" },
+      { label: "Patio comfort", icon: "sofa" },
+      { label: "Energy savings", icon: "leaf" },
+      { label: "UV protection", icon: "shield" },
+    ],
+    story: {
+      eyebrow: "Shade before the glass",
+      heading: "The Patio You Actually Use",
+      caption: { eyebrow: "Measured properly", line: "A covered patio, 15–20° cooler." },
+    },
     seo: {
       title: "Patio Shades & Solar Screens in Las Vegas, NV",
       description:
@@ -155,6 +222,17 @@ export const categories: Category[] = [
       "Motorization stopped being a luxury the moment it stopped requiring an electrician. Modern shades run on a rechargeable battery tube, pair to an app or a wall remote, and install in the same visit as a manual shade.",
       "It earns its keep in three places: windows nobody can reach, whole rooms that should move together, and schedules that beat the sun to the window — a shade that closes at 2pm every summer afternoon protects your floors and your thermostat whether or not anyone is home.",
     ],
+    highlights: [
+      { label: "App & remote", icon: "phone" },
+      { label: "Schedules", icon: "clock" },
+      { label: "No wiring", icon: "battery" },
+      { label: "High windows", icon: "arrow-up" },
+    ],
+    story: {
+      eyebrow: "No electrician required",
+      heading: "Shades That Beat the Sun to the Window",
+      caption: { eyebrow: "On schedule", line: "Closes itself every summer afternoon." },
+    },
     seo: {
       title: "Motorized Shades in Las Vegas, NV | Premier Shade",
       description:
@@ -245,6 +323,10 @@ export const products: Product[] = [
       src: "/gallery/roller-shades-transom-closeup.webp",
       alt: "Grey roller shades lowered in three bay windows beneath gridded transom windows, with white orchids in the foreground.",
     },
+    storyPhoto: {
+      src: "/gallery/roller-shades-bay-window.webp",
+      alt: "Light roller shades lowered in each window of a bay, with gridded transom windows left uncovered above.",
+    },
     seo: {
       title: "Roller Shades in Las Vegas, NV | Premier Shade Solutions",
       description:
@@ -296,6 +378,10 @@ export const products: Product[] = [
     image: {
       src: "/gallery/cellular-shades-great-room.webp",
       alt: "White cellular shades lowered across two rows of windows in a vaulted great room with exposed wood beams and a stone fireplace.",
+    },
+    storyPhoto: {
+      src: "/gallery/cellular-shades-top-down-bedroom.webp",
+      alt: "Top-down bottom-up cellular shades covering the lower half of two wood-trimmed windows in a bedroom, with sky visible above.",
     },
     seo: {
       title: "Cellular Shades in Las Vegas, NV | Premier Shade",
@@ -402,6 +488,10 @@ export const products: Product[] = [
     image: {
       src: "/gallery/plantation-shutters-dining-room.webp",
       alt: "White plantation shutters on three windows in a dining room with blue walls and industrial pendant lights over the table.",
+    },
+    storyPhoto: {
+      src: "/gallery/plantation-shutters-bedroom.webp",
+      alt: "White plantation shutters with open louvers on two windows in a bedroom with grey walls.",
     },
     seo: {
       title: "Plantation Shutters in Las Vegas, NV | Premier Shade",
