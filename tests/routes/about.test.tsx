@@ -23,7 +23,7 @@ describe("/about — Meet the family", () => {
     }
   });
 
-  it("shows both family photos with alt text and never names the children", () => {
+  it("shows both family photos with descriptive alt text", () => {
     const { container } = render(<AboutPage />);
     const srcs = Array.from(container.querySelectorAll("img")).map((img) =>
       decodeURIComponent(img.getAttribute("src") ?? ""),
