@@ -91,3 +91,34 @@ describe("BookingBlock", () => {
     expect(classes).not.toContain("py-20");
   });
 });
+
+describe("BookingBlock — layered design", () => {
+  it("shows the three promises as badges", () => {
+    render(<BookingBlock photo={consultationPhoto} />);
+    const badges = screen.getByRole("list", { name: /what you get/i });
+    expect(within(badges).getAllByRole("listitem").map((item) => item.textContent)).toEqual([
+      "Free consultation",
+      "Family-run",
+      "No obligation",
+    ]);
+  });
+
+  it("puts the review on a card with stars, still labelled as the owners' earlier work", () => {
+    render(<BookingBlock photo={consultationPhoto} />);
+    const card = screen.getByRole("figure");
+    expect(within(card).getByRole("img", { name: /5 out of 5 stars/i })).toBeInTheDocument();
+    expect(within(card).getByText(/before we opened premier shade solutions/i)).toBeInTheDocument();
+  });
+
+  it("slowly zooms the photo, an effect the reduced-motion rule switches off", () => {
+    render(<BookingBlock photo={consultationPhoto} />);
+    expect(screen.getByRole("img", { name: consultationPhoto.alt })).toHaveClass("animate-slow-zoom");
+  });
+
+  it("never hides the form or the review when scroll effects can't run", () => {
+    // jsdom has no IntersectionObserver, like a browser with scripts off: nothing may start hidden.
+    const { container } = render(<BookingBlock photo={consultationPhoto} />);
+    expect(container.querySelectorAll('[data-reveal="hidden"]')).toHaveLength(0);
+    expect(container.querySelectorAll(".reveal").length).toBeGreaterThan(0);
+  });
+});

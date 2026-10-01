@@ -4,7 +4,8 @@
 
 export const CONTROL =
   "w-full min-h-11 border border-rule bg-ivory px-4 py-3 text-charcoal " +
-  "placeholder:text-taupe/60 focus:border-champagne-ink focus:outline-none";
+  "placeholder:text-taupe/60 transition-shadow duration-200 focus:border-champagne-ink focus:outline-none " +
+  "focus:ring-3 focus:ring-champagne/40";
 
 export function Label({ htmlFor, children }: { htmlFor: string; children: React.ReactNode }) {
   return (
