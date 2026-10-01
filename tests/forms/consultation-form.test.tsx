@@ -169,7 +169,7 @@ describe("HeroForm", () => {
 
   it("says plainly that the button books a free in-home consultation", () => {
     render(<HeroForm />);
-    expect(screen.getByRole("heading", { name: /free in-home consultation/i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Free in-home consultation" })).toBeInTheDocument();
     expect(screen.getByText(/no charge, no obligation/i)).toBeInTheDocument();
   });
 });

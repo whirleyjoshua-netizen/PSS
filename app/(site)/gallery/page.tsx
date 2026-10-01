@@ -35,8 +35,9 @@ export default function GalleryPage() {
               person at your consultation, and to put you in touch with recent
               customers nearby.
             </p>
-            <div className="pt-2">
-              <ButtonLink href="/contact">Book a consultation</ButtonLink>
+            <div className="flex flex-col gap-2 pt-2 sm:flex-row sm:items-center sm:gap-5">
+              <ButtonLink href="/contact">Invite Us Over</ButtonLink>
+              <p className="text-sm text-ink-soft">Free in-home consultation. No charge, no obligation.</p>
             </div>
           </div>
         ) : (
