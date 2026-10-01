@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { describe as describeWindow, listMeasurements } from "@/lib/admin/measurements";
+import { describe as describeWindow, listWorkingWindows } from "@/lib/admin/measurements";
 import { oneOf } from "@/lib/admin/measure-units";
 import { isInstalled } from "@/lib/admin/stages";
 import { isFromAcknowledgement } from "@/lib/portal/acknowledgement";
@@ -40,9 +40,10 @@ export default async function ServiceRequestPage({
   const query = searchParams ? await searchParams : {};
   const fromAcknowledgement = isFromAcknowledgement(query.from) && job.status === "installed";
 
-  // The customer picks the window the owners actually measured, rather than typing a room
-  // name that may match nothing. With no measurements the picker is just the text box.
-  const windows = (await listMeasurements(jobId)).map((window) => ({
+  // The customer picks a window from the measure we ordered from (official, else the designer's),
+  // rather than typing a room name that may match nothing. With no measurements the picker is
+  // just the text box.
+  const windows = (await listWorkingWindows(jobId)).map((window) => ({
     id: window.id,
     label: describeWindow(window) + oneOf(window.quantity),
   }));

@@ -47,9 +47,9 @@ const createFile = vi.fn(async () => ({ id: "file-1" }));
 const listSharedDocuments = vi.fn(async () => [] as unknown[]);
 vi.mock("@/lib/admin/files", () => ({ createFile, listSharedDocuments, listBlobPathnames: vi.fn(async () => []) }));
 
-const listMeasurements = vi.fn(async () => [] as unknown[]);
+const listWorkingWindows = vi.fn(async () => [] as unknown[]);
 vi.mock("@/lib/admin/measurements", () => ({
-  listMeasurements,
+  listWorkingWindows,
   describe: (w: { room: string; label: string | null }) => (w.label ? `${w.room}, ${w.label}` : w.room),
 }));
 
@@ -133,7 +133,7 @@ beforeEach(() => {
   });
   notifyOwnersOfServiceRequest.mockReset().mockResolvedValue(undefined);
   createFile.mockReset().mockResolvedValue({ id: "file-1" });
-  listMeasurements.mockReset().mockResolvedValue([]);
+  listWorkingWindows.mockReset().mockResolvedValue([]);
   requireCustomer.mockReset().mockResolvedValue({ email: EMAIL, jobs: [job()] });
   revalidatePath.mockReset();
   redirect.mockClear();

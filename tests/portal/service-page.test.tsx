@@ -9,9 +9,9 @@ const notFound = vi.fn(() => {
 });
 vi.mock("next/navigation", () => ({ notFound, redirect: vi.fn() }));
 
-const listMeasurements = vi.fn(async () => [] as unknown[]);
+const listWorkingWindows = vi.fn(async () => [] as unknown[]);
 vi.mock("@/lib/admin/measurements", () => ({
-  listMeasurements,
+  listWorkingWindows,
   describe: (w: { room: string; label: string | null }) => (w.label ? `${w.room}, ${w.label}` : w.room),
 }));
 
@@ -39,7 +39,7 @@ const open = (jobId = MINE, from?: string | string[]) =>
 
 beforeEach(() => {
   requireCustomer.mockReset().mockResolvedValue({ email: "maria@example.com", jobs: [job()] });
-  listMeasurements.mockReset().mockResolvedValue([]);
+  listWorkingWindows.mockReset().mockResolvedValue([]);
   notFound.mockClear();
 });
 
@@ -52,7 +52,7 @@ describe("/project/[jobId]/service", () => {
   /** A job that is not theirs looks exactly like one that is not there. */
   it("is missing for a job the customer does not own", async () => {
     await expect(open(THEIRS)).rejects.toThrow("NEXT_NOT_FOUND");
-    expect(listMeasurements).not.toHaveBeenCalled();
+    expect(listWorkingWindows).not.toHaveBeenCalled();
   });
 
   it.each(["quoted", "sold", "ordered"] as const)("is missing while the job is only %s", async (status) => {
@@ -155,13 +155,13 @@ describe("/project/[jobId]/service", () => {
   });
 
   it("lists the windows the owners measured, in their own words", async () => {
-    listMeasurements.mockResolvedValue([{ id: WINDOW, room: "Dining Room", label: "left window" }]);
+    listWorkingWindows.mockResolvedValue([{ id: WINDOW, room: "Dining Room", label: "left window" }]);
     render(await open());
     expect(screen.getByRole("option", { name: "Dining Room, left window" })).toBeInTheDocument();
   });
 
   it("says a measured line of identical windows is one of several", async () => {
-    listMeasurements.mockResolvedValue([{ id: WINDOW, room: "Den", label: null, quantity: 10 }]);
+    listWorkingWindows.mockResolvedValue([{ id: WINDOW, room: "Den", label: null, quantity: 10 }]);
     render(await open());
     expect(screen.getByRole("option", { name: "Den (one of 10)" })).toBeInTheDocument();
   });
