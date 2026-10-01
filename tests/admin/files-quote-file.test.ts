@@ -20,17 +20,24 @@ beforeEach(() => {
 });
 
 describe("a quote PDF Send quote shared (ruling P17)", () => {
-  it("listFiles flags it in the same statement, and toFile leaves the flag undefined when not computed", async () => {
+  it("listFiles flags a LIVE quote and a RETIRED one in the same statement, by the same version statuses the guards use", async () => {
     sql.mockResolvedValueOnce([
-      { id: FILE, lead_id: JOB, created_at: new Date().toISOString(), size_bytes: 1, quote_file: true },
-      { id: "other", lead_id: JOB, created_at: new Date().toISOString(), size_bytes: 1, quote_file: false },
+      { id: FILE, lead_id: JOB, created_at: new Date().toISOString(), size_bytes: 1, quote_file: true, retired_quote: false },
+      { id: "old", lead_id: JOB, created_at: new Date().toISOString(), size_bytes: 1, quote_file: false, retired_quote: true },
+      { id: "other", lead_id: JOB, created_at: new Date().toISOString(), size_bytes: 1, quote_file: false, retired_quote: false },
     ]);
-    const [quote, other] = await files.listFiles(JOB);
+    const [quote, old, other] = await files.listFiles(JOB);
     expect(sql).toHaveBeenCalledTimes(1);
-    expect(text(sql.mock.calls[0])).toContain("exists ( select 1 from dc_quote_versions q where q.quote_file_id = job_files.id ) as quote_file");
-    expect(quote.quoteFile).toBe(true);
-    expect(other.quoteFile).toBe(false);
+    const s = text(sql.mock.calls[0]);
+    // T8: the "client approves it" flag only for a version the client is approving or approved.
+    expect(s).toContain("exists ( select 1 from dc_quote_versions q where q.quote_file_id = job_files.id and q.status in ('offered','sent','signed') ) as quote_file");
+    expect(s).toContain("exists ( select 1 from dc_quote_versions r where r.quote_file_id = job_files.id and r.status in ('superseded','cancelled') ) as retired_quote");
+    expect(s).not.toContain("q.quote_file_id = job_files.id ) as quote_file");
+    expect([quote.quoteFile, quote.retiredQuote]).toEqual([true, false]);
+    expect([old.quoteFile, old.retiredQuote]).toEqual([false, true]);
+    expect([other.quoteFile, other.retiredQuote]).toEqual([false, false]);
     expect(files.toFile({ id: FILE, size_bytes: 1 }).quoteFile).toBeUndefined();
+    expect(files.toFile({ id: FILE, size_bytes: 1 }).retiredQuote).toBeUndefined();
   });
 
   it("deleteFile refuses a live quote in its one statement, keeping the older guards, and leaves the bytes", async () => {

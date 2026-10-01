@@ -33,12 +33,17 @@ export type JobFile = {
    */
   quoteContract?: boolean;
   /**
-   * True when a Direct Connect quote version names this file as its quote PDF (Send quote shared it).
-   * Only listFiles computes it. Such a quote is managed from the Quote tab: while its version is
-   * offered, sent or signed, setShared(false), setDocType and deleteFile refuse it (the client is
-   * approving it, or approved it); once superseded or cancelled, setShared(true) refuses it.
+   * True when an offered, sent or signed Direct Connect quote version names this file as its quote PDF
+   * (Send quote shared it): the client is approving it, or approved it. Only listFiles computes it.
+   * Such a quote is managed from the Quote tab: setShared(false), setDocType and deleteFile refuse it.
    */
   quoteFile?: boolean;
+  /**
+   * True when a superseded or cancelled quote version names this file as its quote PDF (T8). Only
+   * listFiles computes it. setShared(true) refuses it, so the admin list offers no Share switch; its
+   * type and delete controls stay, as the server allows them once no live version names it.
+   */
+  retiredQuote?: boolean;
   /**
    * True when a job document (lib/docs/job-documents.ts) names this file as its PDF. Only
    * listFiles computes it. Such a file is managed from the Documents tab: sharing is Send's,
@@ -66,6 +71,7 @@ export function toFile(row: Record<string, unknown>): JobFile {
     signed: "signed" in row ? row.signed === true : undefined,
     quoteContract: "quote_contract" in row ? row.quote_contract === true : undefined,
     quoteFile: "quote_file" in row ? row.quote_file === true : undefined,
+    retiredQuote: "retired_quote" in row ? row.retired_quote === true : undefined,
     jobDocument: "job_document" in row ? row.job_document === true : undefined,
   };
 }
@@ -80,8 +86,10 @@ export async function listFiles(leadId: string): Promise<JobFile[]> {
     ) as signed, exists (
       select 1 from dc_quote_versions v where v.contract_file_id = job_files.id
     ) as quote_contract, exists (
-      select 1 from dc_quote_versions q where q.quote_file_id = job_files.id
+      select 1 from dc_quote_versions q where q.quote_file_id = job_files.id and q.status in ('offered','sent','signed')
     ) as quote_file, exists (
+      select 1 from dc_quote_versions r where r.quote_file_id = job_files.id and r.status in ('superseded','cancelled')
+    ) as retired_quote, exists (
       select 1 from job_documents d where d.file_id = job_files.id
     ) as job_document
     from job_files where lead_id = ${leadId} order by created_at desc`;

@@ -192,6 +192,19 @@ describe("JobFiles on a quote PDF Send quote shared (ruling P17)", () => {
     expect(li.getByText("Shared")).toBeInTheDocument();
   });
 
+  // T8: a superseded or cancelled version's quote is no longer the one the client approves. It gets the
+  // ordinary controls the server allows (type, delete), but no Share switch: re-sharing it is refused.
+  it("gives a retired quote its type and delete controls, no approval label, and no Share switch", () => {
+    render(<JobFiles jobId={JOB} measurements={[]} files={[
+      { ...file("old", "document", null, "Quote PSS-1042 v1.pdf", "quote"), quoteFile: false, retiredQuote: true },
+    ]} />);
+    const li = within(row("Quote PSS-1042 v1.pdf"));
+    expect(li.queryByText(/the client approves it/)).toBeNull();
+    expect(li.getByRole("combobox", { name: "Document type for Quote PSS-1042 v1.pdf" })).toBeInTheDocument();
+    expect(li.getByRole("button", { name: "Delete" })).toBeInTheDocument();
+    expect(li.queryByRole("switch")).toBeNull();
+  });
+
   it("leaves every control on an ordinary document labelled Quote", () => {
     render(<JobFiles jobId={JOB} measurements={[]} files={files} />);
     const li = within(row("Plain.pdf"));

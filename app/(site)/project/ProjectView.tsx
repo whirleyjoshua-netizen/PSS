@@ -123,10 +123,11 @@ export async function ProjectView({
   const current = currentStep(project.steps);
   // Spec §2: a Direct Connect quote the owner sent and the client has not approved yet — offered at any
   // stage but Lost, so a change sent after the contract can be approved too (Review Focus 5).
-  const offeredQuote = offered && !offered.approvedAt && job.status !== "lost"
-    ? documents.find((file) => file.id === offered.quoteFileId) ?? null
-    : null;
-  const quote = offeredQuote ?? documents.find((file) => file.docType === "quote");
+  const awaitingOffer = Boolean(offered && !offered.approvedAt && job.status !== "lost");
+  const offeredQuote = awaitingOffer ? documents.find((file) => file.id === offered?.quoteFileId) ?? null : null;
+  // T9: while a version is offered, the approve action takes the DC path and needs THAT version's own PDF
+  // shared. Unshared, there is nothing to review or approve: no fallback to another shared quote.
+  const quote = awaitingOffer ? offeredQuote : documents.find((file) => file.docType === "quote");
   // Spec §3: a Signed job owes its deposit until one is paid. The action re-checks every part of this.
   const depositDue = job.status === "signed" && deposit?.versionStatus === "signed" && deposit.jobStatus === "signed" && !deposit.paid ? deposit : null;
   const installLabel = project.installOn
@@ -186,7 +187,7 @@ export async function ProjectView({
       <StatusBanner
         step={current}
         quoteHref={quote ? `/project/files/${quote.id}` : null}
-        approve={offeredQuote || (quote && project.status === "quoted") ? <ApproveQuote jobId={job.id} /> : null}
+        approve={offeredQuote || (!awaitingOffer && quote && project.status === "quoted") ? <ApproveQuote jobId={job.id} /> : null}
         acknowledge={job.status === "installed" ? <AcknowledgeInstall jobId={job.id} /> : null}
       />
       {/* Sits under the banner it answers: the customer's eye is already there, and the approve

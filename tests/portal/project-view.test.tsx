@@ -256,6 +256,18 @@ describe("ProjectView approval", () => {
     expect(within(banner).getByRole("link", { name: "Review quote" })).toHaveAttribute("href", "/project/files/fq");
   });
 
+  // T9: the approve action takes the DC path whenever a version is offered, and refuses when that version's
+  // own PDF is not shared. So the page must not fall back to another shared quote, nor offer Approve.
+  it("offers no approval, and links no other quote, while the offered version's own PDF is not shared", async () => {
+    listSharedDocuments.mockResolvedValue([quoteDoc]);
+    offeredVersion.mockResolvedValue({ id: "v", version: 2, quoteFileId: "fq", approvedAt: null });
+    render(await ProjectView({ job: { ...job, status: "quoted" } }));
+    const banner = screen.getByRole("region", { name: "Where your project stands" });
+    expect(within(banner).queryByText("Approve this quote")).toBeNull();
+    expect(within(banner).queryByRole("link", { name: "Review quote" })).toBeNull();
+    expect(within(screen.getByRole("region", { name: "Next step" })).queryByText("Action required")).toBeNull();
+  });
+
   // Ruling P18: "Action required" means there is a quote to approve, so only a Quoted job with one.
   it("shows Action required on a Quoted job with a shared quote", async () => {
     listSharedDocuments.mockResolvedValue([quoteDoc]);
