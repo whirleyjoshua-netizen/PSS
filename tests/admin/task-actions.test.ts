@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const requireAdmin = vi.fn();
 vi.mock("@/lib/admin/session", () => ({ requireAdmin }));
@@ -27,8 +27,13 @@ const form = (entries: Record<string, string>) => {
 };
 const filled = { title: "Finish new flyers", notes: "", assignee: "shade@x.com", dueOn: "2026-10-09" };
 
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
 beforeEach(() => {
-  vi.clearAllMocks();
+  // resetAllMocks, not clearAllMocks: a rejecting implementation set in one test must not leak into the next.
+  vi.resetAllMocks();
   requireAdmin.mockResolvedValue({ email: ME });
   sendTaskEmail.mockResolvedValue(true);
   vi.stubEnv("ADMIN_BASE_URL", "https://pss.test");
@@ -133,7 +138,6 @@ describe("remindTaskAction", () => {
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
     await expect(actions.remindTaskAction(ID, {}, form({}))).resolves.toEqual({ error: "The reminder didn't send. Try again." });
     expect(consoleError).toHaveBeenCalled();
-    consoleError.mockRestore();
   });
   it("explains each refusal without sending", async () => {
     store.claimReminder.mockResolvedValueOnce({ refused: "recent", lastAt: new Date("2026-10-01T17:42:00Z") });

@@ -9,7 +9,7 @@ import { assignmentEmail, reminderEmail, sendTaskEmail } from "@/lib/admin/task-
 import { displayName, isTaskStatus, type TaskSummary } from "@/lib/admin/task-rules";
 import { formatTime } from "@/lib/admin/time";
 
-/** Exactly what the form sent, so a rejected form comes back as typed. */
+/** Form field values: as typed on an error, as stored after a successful edit. */
 export type TaskFormValues = { title: string; notes: string; assignee: string; dueOn: string; status: string };
 export type TaskFormState = { error?: string; notice?: string; ok?: string; values?: TaskFormValues };
 export type RemindState = { ok?: string; error?: string };
