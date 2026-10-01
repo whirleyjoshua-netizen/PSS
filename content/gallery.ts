@@ -170,6 +170,12 @@ export const gallery: GalleryItem[] = [
     treatment: "shutters",
     caption: "Plantation shutters in a primary bath, louvers open for light above the tub.",
   },
+  {
+    src: "/gallery/cellular-shades-great-room-motorized.webp",
+    alt: "White cellular shades lowered partway across a wall of tall windows in a wood-paneled great room, with armchairs and a holiday-set dining table in front.",
+    treatment: "motorization",
+    caption: "Motorized cellular shades across a two-story wall of windows, lowered together to the same line.",
+  },
 ];
 
 /**

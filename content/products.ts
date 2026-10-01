@@ -222,6 +222,10 @@ export const categories: Category[] = [
       "Motorization stopped being a luxury the moment it stopped requiring an electrician. Modern shades run on a rechargeable battery tube, pair to an app or a wall remote, and install in the same visit as a manual shade.",
       "It earns its keep in three places: windows nobody can reach, whole rooms that should move together, and schedules that beat the sun to the window — a shade that closes at 2pm every summer afternoon protects your floors and your thermostat whether or not anyone is home.",
     ],
+    bookingPhoto: {
+      src: "/gallery/cellular-shades-great-room-motorized.webp",
+      alt: "White cellular shades lowered partway across a wall of tall windows in a wood-paneled great room, with armchairs and a holiday-set dining table in front.",
+    },
     highlights: [
       { label: "App & remote", icon: "phone" },
       { label: "Schedules", icon: "clock" },

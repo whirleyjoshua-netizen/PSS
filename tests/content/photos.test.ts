@@ -39,7 +39,7 @@ describe("photos in the content model", () => {
     }
   });
 
-  it("gives Blinds, Shades and Shutters their own booking photo, from our gallery, in that category", () => {
+  it("gives Blinds, Shades, Shutters and Motorization their own booking photo, from our gallery, in that category", () => {
     const booking = Object.fromEntries(
       categories.filter((category) => category.bookingPhoto).map((category) => [category.slug, category.bookingPhoto!.src]),
     );
@@ -47,6 +47,8 @@ describe("photos in the content model", () => {
       blinds: "/gallery/sheer-vertical-patio-slider.webp",
       shades: "/gallery/roller-shades-bay-closeup.webp",
       shutters: "/gallery/plantation-shutters-primary-bath-pendant.webp",
+      // Owner 2026-10-01: the great-room cellular shades lead Motorization.
+      motorization: "/gallery/cellular-shades-great-room-motorized.webp",
     });
     for (const category of categories) {
       if (!category.bookingPhoto) continue;

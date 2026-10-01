@@ -39,9 +39,9 @@ describe("category page redesign", () => {
     expect(new Set(all).size).toBe(all.length);
   });
 
-  it("Motorization: consultation photo in the hero, fabric panel in the story, no Explore grid", async () => {
+  it("Motorization: its own photo in the hero, fabric panel in the story, no Explore grid", async () => {
     const { container } = await renderCategory("motorization");
-    expect(srcs(container.querySelector("section#book")!)[0]).toContain(consultationPhoto.src);
+    expect(srcs(container.querySelector("section#book")!)[0]).toContain("/gallery/cellular-shades-great-room-motorized.webp");
     expect(screen.queryByRole("heading", { level: 2, name: /Explore/ })).toBeNull();
     const story = screen.getByRole("heading", { level: 2, name: category("motorization").story.heading }).closest("section")!;
     expect(story.querySelector("img")).toBeNull();
