@@ -3,7 +3,6 @@ import { Container } from "@/components/ui/Container";
 import { Section } from "@/components/ui/Section";
 import { ButtonLink } from "@/components/ui/Button";
 import { business } from "@/content/business";
-import type { Product } from "@/content/products";
 
 export type Crumb = { name: string; url: string };
 
@@ -63,39 +62,6 @@ export function PageHero({
         </div>
       </Container>
     </div>
-  );
-}
-
-export function ProductCardList({
-  products,
-  categorySlug,
-}: {
-  products: Product[];
-  categorySlug: string;
-}) {
-  return (
-    <ul className="grid gap-px bg-rule sm:grid-cols-2 lg:grid-cols-3">
-      {products.map((product) => (
-        <li key={product.slug} className="bg-ivory">
-          <Link
-            href={`/${categorySlug}/${product.slug}`}
-            className="flex h-full flex-col gap-3 p-8 transition-colors hover:bg-sand/50"
-          >
-            <h3 className="font-display text-xl font-light tracking-tight text-charcoal">
-              {product.name}
-            </h3>
-            <p className="text-sm text-ink-soft">{product.tagline}</p>
-            <p className="text-sm leading-relaxed text-ink-soft">{product.bestFor}</p>
-            <span
-              aria-hidden="true"
-              className="mt-auto pt-4 font-display text-xs uppercase tracking-[0.16em] text-champagne-ink"
-            >
-              Learn more →
-            </span>
-          </Link>
-        </li>
-      ))}
-    </ul>
   );
 }
 
