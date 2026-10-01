@@ -202,6 +202,18 @@ describe("markStripeDepositPaid", () => {
       "select paid.lead_id, paid.dc_quote_version_id, (select status from prev) as stage_before, array(select stripe_session_id from others_expired where stripe_session_id is not null) as other_sessions from paid",
     );
   });
+  it("accepts only a pending row, or an expired one holding this session, and never a refunded one (a replay after Cancel & refund)", async () => {
+    expect(await d.markStripeDepositPaid(input)).toBeNull();
+    const s = text(sql.mock.calls[0]);
+    const paid = s.slice(s.indexOf("with paid as ("), s.indexOf("others_expired as ("));
+    const where = paid.slice(paid.indexOf("where id = ?"), paid.indexOf("returning"));
+    expect(where).toContain(
+      "and ((status = 'pending' and (stripe_session_id = ? or stripe_session_id is null)) or (status = 'expired' and stripe_session_id = ?))",
+    );
+    // Every status the updated row itself may hold (the not-exists guard's d.status is another row), exactly these two.
+    expect([...where.matchAll(/(?<![.\w])status (?:= '(\w+)'|in \(([^)]*)\))/g)].map((m) => m[1] ?? m[2])).toEqual(["pending", "expired"]);
+    expect(where).not.toContain("refunded");
+  });
   it("answers null when no pending deposit matched (a duplicate delivery, or one recorded by hand)", async () => {
     expect(await d.markStripeDepositPaid(input)).toBeNull();
   });

@@ -60,12 +60,13 @@ test.afterAll(async () => {
 });
 
 /**
- * The job header's "More actions" menu is a <details> that stays open after Set, and its panel
- * overlays the page below the header (a link or button there cannot be clicked). Close it, as the
- * owner would, before reaching past it.
+ * The job header's "More actions" menu stays open after Set stage, and its panel covers the page
+ * below the header, so a link or button there cannot be clicked. Close it as the owner would, by
+ * pressing "More actions" again, and wait until the panel is gone before reaching past it.
  */
 async function closeMoreActions(page: Page) {
-  await page.locator("details", { has: page.getByLabel("More actions") }).evaluate((menu) => { (menu as HTMLDetailsElement).open = false; });
+  await page.getByLabel("More actions").click();
+  await expect(page.getByText("Change stage…")).toBeHidden();
 }
 
 test("an admin page without a session goes to sign-in", async ({ page }) => {

@@ -21,6 +21,8 @@
  *  11. expireStaleDeposits expires a pending row older than 23 hours;
  *  12. the deposits checks refuse a bad method, a zero amount and a paid row with no paid_at (23514);
  *  13. cancelDeposit on A: refunded, version cancelled, A lost with deposit_cents cleared, two events; again → false;
+ *  13b. Stripe replays A's completed checkout after the refund: markStripeDepositPaid answers null, the row stays
+ *      refunded, A stays Lost with no deposit_cents, and no event is written;
  *  14. dc_quote_versions_one_offered: two offered versions for C fail at commit (23P01), but superseding one and
  *      offering the other in ONE statement succeeds — the shape sendQuote relies on;
  *  15. the new stages and 'payment' are accepted, a bogus stage is not;
@@ -43,10 +45,13 @@
  * production (cold-term). Usage (bash):
  *   E2E_POSTGRES_URL="$(cat "$SCRATCH/e2e-db-url.txt")" npx vitest run --config scripts/verify-deposit-flow.config.mts
  *
- * To watch it fail: delete `and status = 'pending'` from markStripeDepositPaid's `paid` CTE — step 6 fails
- * (a second delivery pays again or throws on the one-paid index). Delete `and exists (select 1 from paid)`
- * from recordDepositPayment — nothing visible changes here, so also delete `and l.status = 'signed'` from
- * its insert and run step 9 on a Sold lead by hand. Put everything back.
+ * To watch it fail: in markStripeDepositPaid's `paid` CTE, drop the status branch — replace
+ * `and ((status = 'pending' and (…)) or (status = 'expired' and …))` with `and stripe_session_id = ${input.sessionId}` —
+ * and step 13b goes red: the replay re-pays the refunded deposit and moves Lost A's deposit_cents back.
+ * (Step 6 alone stays green under that break: the not-exists-paid guard still stops a duplicate while the
+ * row is paid. After a refund nothing is paid, so the status branch is the only guard.) Delete
+ * `and exists (select 1 from paid)` from recordDepositPayment — nothing visible changes here, so also delete
+ * `and l.status = 'signed'` from its insert and run step 9 on a Sold lead by hand. Put everything back.
  */
 import { randomUUID } from "node:crypto";
 import { neon } from "@neondatabase/serverless";
@@ -61,12 +66,29 @@ import {
   markStripeDepositPaid, pendingStripeDeposit, recordDepositPayment,
 } from "../lib/payments/deposits";
 
+const BANNER = "\n================ verify-deposit-flow REFUSED TO RUN ================\n";
+
+/** Printed as well as thrown. Every reason names hosts or endpoint ids only, never the URL (it carries the password). */
+function refuse(reason: string): never {
+  console.error(`${BANNER}${reason}\n`);
+  throw new Error(`verify-deposit-flow refused to run: ${reason}`);
+}
+
 const url = process.env.E2E_POSTGRES_URL;
-if (!url) throw new Error("verify-deposit-flow refused to run: E2E_POSTGRES_URL is not set. It never falls back to POSTGRES_URL or .env.local.");
-const host = new URL(url).hostname;
-if (host.includes("cold-term")) throw new Error("verify-deposit-flow refused to run: E2E_POSTGRES_URL is production (cold-term).");
+if (!url) refuse("E2E_POSTGRES_URL is not set. It never falls back to POSTGRES_URL, DATABASE_URL or .env.local.");
+const host = (() => {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return refuse("E2E_POSTGRES_URL is not a valid URL, so its host cannot be checked.");
+  }
+})();
+if (url.includes("cold-term")) refuse(`E2E_POSTGRES_URL points at ${host}, which is production (cold-term).`);
 const endpoint = process.env.E2E_TEST_ENDPOINT;
-if (endpoint && !host.includes(endpoint)) throw new Error(`verify-deposit-flow refused to run: the URL is not the named test branch ${endpoint}.`);
+if (endpoint !== undefined && (!endpoint.startsWith("ep-") || endpoint.includes("cold-term"))) {
+  refuse("E2E_TEST_ENDPOINT must be a Neon test-branch endpoint (ep-…), never production.");
+}
+if (endpoint && !host.includes(endpoint)) refuse(`E2E_POSTGRES_URL is not the named test branch ${endpoint} (it points at ${host}).`);
 
 // The modules under test read the connection through lib/db at call time: point them at the vetted URL only.
 process.env.POSTGRES_URL = url;
@@ -270,6 +292,15 @@ test("the deposit flow's SQL holds against a real database", async () => {
         afterCancel.refunded?.id === depositA && afterCancel.jobStatus === "lost",
       "depositState reads A's refund back on its cancelled version", JSON.stringify(afterCancel));
 
+    console.log("step 13b: Stripe replays the completed checkout after the refund");
+    const eventsBeforeReplay = await events(A);
+    check((await markStripeDepositPaid({ depositId: depositA, sessionId: "cs_verify_A", paymentIntentId: "pi_verify_A", amountCents: 92417 })) === null,
+      "a replayed completion of the refunded deposit answers null", "paid again");
+    check(same(await depositRows(vA), refundedA), "A's deposit stays refunded, every field unchanged", JSON.stringify(await depositRows(vA)));
+    check(same(await leadRow(A), { status: "lost", deposit_cents: null, sold_cents: 184833, lost_reason: "Cancelled — deposit refunded" }),
+      "A stays Lost with deposit_cents null", JSON.stringify(await leadRow(A)));
+    check(same(await events(A), eventsBeforeReplay), "A's events are unchanged", JSON.stringify(await events(A)));
+
     console.log("step 14: one offered version per job");
     await sql`update dc_quote_versions set status = 'offered' where id = ${vC1}`;
     const twoOffered = await sql`update dc_quote_versions set status = 'offered' where id = ${vC2}`.then(() => "updated", failure);
@@ -426,16 +457,24 @@ test("the deposit flow's SQL holds against a real database", async () => {
 
     console.log("\nPASSED: the deposit flow's SQL holds against a real database. Manual run, not coverage.\n");
   } finally {
-    // Step 17. Deposits first: they reference versions with no on-delete action.
-    const ids = await scriptLeads();
+    // Step 17. Runs even on failure, and never throws: a throw here would replace the failure being
+    // reported. Deposits first: they reference versions with no on-delete action.
+    const attempt = async (label: string, work: () => Promise<unknown>) => {
+      try {
+        await work();
+      } catch (error) {
+        console.error(`step 17: cleanup could not ${label}:`, (error as Error).message);
+      }
+    };
+    let ids: string[] = [];
+    await attempt("find the script's leads", async () => { ids = await scriptLeads(); });
     if (ids.length > 0) {
-      await sql`delete from deposits where lead_id = any(${ids})`;
-      await sql`delete from dc_quote_versions where lead_id = any(${ids})`;
-      await sql`delete from job_files where lead_id = any(${ids})`;
-      await sql`delete from job_events where lead_id = any(${ids})`;
-      await sql`delete from leads where id = any(${ids})`;
+      await attempt("delete deposits", () => sql`delete from deposits where lead_id = any(${ids})`);
+      await attempt("delete versions", () => sql`delete from dc_quote_versions where lead_id = any(${ids})`);
+      await attempt("delete files", () => sql`delete from job_files where lead_id = any(${ids})`);
+      await attempt("delete events", () => sql`delete from job_events where lead_id = any(${ids})`);
+      await attempt("delete leads", () => sql`delete from leads where id = any(${ids})`);
     }
-    const left = await scriptLeads();
-    console.log(`step 17: cleanup, ${left.length} leads left`);
+    await attempt("report what is left", async () => console.log(`step 17: cleanup, ${(await scriptLeads()).length} leads left`));
   }
 }, 300_000);
