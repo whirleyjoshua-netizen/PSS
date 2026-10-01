@@ -77,6 +77,9 @@ describe("updateTask", () => {
     expect(await store.updateTask(ID, input)).toBe("missing");
     sql.mockResolvedValueOnce([{ found: true, allowed: false, updated: false, previous_assignee: null }]);
     expect(await store.updateTask(ID, input)).toBe("not-assignable");
+    // Deleted between the read and the write: allowed, but nothing was updated.
+    sql.mockResolvedValueOnce([{ found: true, allowed: true, updated: false, previous_assignee: "shade@x.com" }]);
+    expect(await store.updateTask(ID, input)).toBe("missing");
     expect(await store.updateTask("nope", input)).toBe("missing");
   });
 });
@@ -91,6 +94,9 @@ describe("claimReminder", () => {
     expect(query).toMatch(/last_reminded_at is null or last_reminded_at < now\(\) - make_interval\(mins => \?::int\)/);
     expect(query).toContain("assignee_email is not null and status <> 'done'");
     expect(sql.mock.calls[0]).toContain(10);
+    // A refusal shows the previous time only when it is inside the cooldown.
+    expect(query).toContain("p.last_reminded_at >= now() - make_interval(mins => ?::int) as prev_recent");
+    expect(sql.mock.calls[0].filter((value: unknown) => value === 10)).toHaveLength(2);
   });
   it("says why it refused", async () => {
     expect(await store.claimReminder(ID, "j@x.com")).toEqual({ refused: "missing", lastAt: null });
@@ -98,8 +104,11 @@ describe("claimReminder", () => {
     expect(await store.claimReminder(ID, "j@x.com")).toEqual({ refused: "done", lastAt: null });
     sql.mockResolvedValueOnce([{ id: null, prev_status: "todo", prev_assignee: null, prev_at: null }]);
     expect(await store.claimReminder(ID, "j@x.com")).toEqual({ refused: "unassigned", lastAt: null });
-    sql.mockResolvedValueOnce([{ id: null, prev_status: "todo", prev_assignee: "s@x.com", prev_at: "2026-10-01T17:40:00Z" }]);
+    sql.mockResolvedValueOnce([{ id: null, prev_status: "todo", prev_assignee: "s@x.com", prev_at: "2026-10-01T17:40:00Z", prev_recent: true }]);
     expect(await store.claimReminder(ID, "j@x.com")).toEqual({ refused: "recent", lastAt: new Date("2026-10-01T17:40:00Z") });
+    // A simultaneous press won: this statement saw an old time, which must not be shown.
+    sql.mockResolvedValueOnce([{ id: null, prev_status: "todo", prev_assignee: "s@x.com", prev_at: "2026-09-30T09:00:00Z", prev_recent: false }]);
+    expect(await store.claimReminder(ID, "j@x.com")).toEqual({ refused: "recent", lastAt: null });
   });
   it("releases only its own claim", async () => {
     await store.releaseReminder(ID, { task: {} as never, claimedAt: "C", previousAt: null, previousBy: null });

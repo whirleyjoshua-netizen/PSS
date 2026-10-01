@@ -51,7 +51,10 @@ export async function getTask(id: string): Promise<Task | null> {
   return rows[0] ? toTask(rows[0]) : null;
 }
 
-/** The assignee is checked inside the insert, so a removed person can't be assigned by a stale tab. */
+/**
+ * The assignee is checked inside the insert, so a stale tab can't assign someone already removed.
+ * A save racing a removal in the same instant is not prevented.
+ */
 export async function createTask(input: TaskInput, actor: string): Promise<{ id: string } | "not-assignable"> {
   const a = input.assignee;
   const rows = await db()`
@@ -92,7 +95,9 @@ export async function updateTask(
     select exists (select 1 from prev) as found, (select ok from allowed) as allowed,
            exists (select 1 from updated) as updated, (select assignee_email from prev) as previous_assignee`;
   if (!row?.found) return "missing";
-  if (!row.updated) return "not-assignable";
+  if (!row.allowed) return "not-assignable";
+  // Allowed but nothing updated: the task was deleted between the read and the write.
+  if (!row.updated) return "missing";
   return { previousAssignee: (row.previous_assignee as string | null) ?? null };
 }
 
@@ -136,14 +141,16 @@ export async function claimReminder(
                 completed_at, last_reminded_at, last_reminded_by, last_reminded_at::text as claimed_at
     )
     select p.status as prev_status, p.assignee_email as prev_assignee, p.last_reminded_at as prev_at,
-           p.at_text as prev_at_text, p.last_reminded_by as prev_by, c.*
+           p.at_text as prev_at_text, p.last_reminded_by as prev_by,
+           p.last_reminded_at >= now() - make_interval(mins => ${REMIND_COOLDOWN_MINUTES}::int) as prev_recent, c.*
     from prev p left join claimed c on true`;
   if (!row) return { refused: "missing", lastAt: null };
   if (!row.id) {
     if (row.prev_status === "done") return { refused: "done", lastAt: null };
     if (!row.prev_assignee) return { refused: "unassigned", lastAt: null };
-    // Null when a simultaneous press won: this statement's snapshot predates it.
-    return { refused: "recent", lastAt: at(row.prev_at) };
+    // A simultaneous press won: this statement's snapshot predates it, so its time (if any) is
+    // old. Show the time only when it is inside the cooldown; otherwise null ("a moment ago").
+    return { refused: "recent", lastAt: row.prev_recent ? at(row.prev_at) : null };
   }
   return {
     claim: {
