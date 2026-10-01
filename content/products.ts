@@ -320,12 +320,12 @@ export const products: Product[] = [
     ],
     bestFor: "Bedrooms, media rooms, and any room wanting a clean modern line.",
     image: {
-      src: "/gallery/roller-shades-transom-closeup.webp",
-      alt: "Grey roller shades lowered in three bay windows beneath gridded transom windows, with white orchids in the foreground.",
+      src: "/gallery/roller-shades-dining-room.webp",
+      alt: "Light textured roller shades in slim cassettes, half raised on four windows around a dining table, with a green yard outside.",
     },
     storyPhoto: {
-      src: "/gallery/roller-shades-bay-window.webp",
-      alt: "Light roller shades lowered in each window of a bay, with gridded transom windows left uncovered above.",
+      src: "/gallery/roller-shades-transom-closeup.webp",
+      alt: "Grey roller shades lowered in three bay windows beneath gridded transom windows, with white orchids in the foreground.",
     },
     seo: {
       title: "Roller Shades in Las Vegas, NV | Premier Shade Solutions",
@@ -351,6 +351,14 @@ export const products: Product[] = [
       "Reduces cooling load on west and south elevations",
     ],
     bestFor: "West and south-facing living rooms, home offices, and rooms with a view worth keeping.",
+    image: {
+      src: "/gallery/solar-shades-balcony-view.webp",
+      alt: "Two white solar screen shades lowered over balcony doors in a high-rise, with the city still visible through the weave.",
+    },
+    storyPhoto: {
+      src: "/gallery/solar-shades-long-window.webp",
+      alt: "A wide white solar screen shade lowered in a long window, with the shadows of bare trees showing softly through the fabric.",
+    },
     seo: {
       title: "Solar Shades in Las Vegas, NV | Premier Shade Solutions",
       description:
@@ -407,6 +415,10 @@ export const products: Product[] = [
       "Coordinating valances and pillows available from the same fabric",
     ],
     bestFor: "Formal living and dining rooms, primary bedrooms, and design-forward spaces.",
+    image: {
+      src: "/gallery/roman-shades-primary-bath.webp",
+      alt: "White hobbled roman shades in soft folds on two corner windows above a freestanding tub in a primary bathroom.",
+    },
     seo: {
       title: "Roman Shades in Las Vegas, NV | Premier Shade Solutions",
       description:

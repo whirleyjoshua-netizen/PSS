@@ -10,8 +10,11 @@ const onDisk = (src: string) => existsSync(path.join(process.cwd(), "public", sr
 const PRODUCT_PHOTOS: Record<string, string> = {
   "vertical-blinds": "/gallery/sheer-vertical-patio-slider.webp",
   "wood-blinds": "/gallery/faux-wood-blinds-living-room.webp",
-  "roller-shades": "/gallery/roller-shades-transom-closeup.webp",
+  // The owners sent the roller, roman and solar photos on 2026-10-01.
+  "roller-shades": "/gallery/roller-shades-dining-room.webp",
+  "solar-shades": "/gallery/solar-shades-balcony-view.webp",
   "cellular-shades": "/gallery/cellular-shades-great-room.webp",
+  "roman-shades": "/gallery/roman-shades-primary-bath.webp",
   "transitional-shades": "/gallery/transitional-shades-slider-wall.webp",
   "plantation-shutters": "/gallery/plantation-shutters-dining-room.webp",
 };

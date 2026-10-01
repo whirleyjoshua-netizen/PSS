@@ -140,9 +140,9 @@ describe("redesign wording (spec 2026-10-01 §5)", () => {
 });
 
 describe("story photos (spec §6)", () => {
-  const WITH_STORY = ["roller-shades", "cellular-shades", "plantation-shutters"];
+  const WITH_STORY = ["roller-shades", "solar-shades", "cellular-shades", "plantation-shutters"];
 
-  it("are set on exactly the three products the gallery has a second photo of", () => {
+  it("are set on exactly the products we have a second photo of", () => {
     expect(products.filter((p) => p.storyPhoto).map((p) => p.slug).sort()).toEqual([...WITH_STORY].sort());
   });
 
@@ -151,5 +151,21 @@ describe("story photos (spec §6)", () => {
     expect(product.storyPhoto!.src).not.toBe(product.image?.src);
     expect(product.storyPhoto!.alt.trim().length).toBeGreaterThan(20);
     expect(existsSync(path.join(process.cwd(), "public", product.storyPhoto!.src))).toBe(true);
+  });
+});
+
+describe("the owners' photos of 2026-10-01", () => {
+  const PLACED: [string, string, string | undefined][] = [
+    ["roller-shades", "/gallery/roller-shades-dining-room.webp", "/gallery/roller-shades-transom-closeup.webp"],
+    ["solar-shades", "/gallery/solar-shades-balcony-view.webp", "/gallery/solar-shades-long-window.webp"],
+    ["roman-shades", "/gallery/roman-shades-primary-bath.webp", undefined],
+  ];
+
+  it.each(PLACED)("%s shows its own photos", (slug, image, story) => {
+    const product = products.find((p) => p.slug === slug)!;
+    expect(product.image?.src).toBe(image);
+    expect(product.storyPhoto?.src).toBe(story);
+    expect(existsSync(path.join(process.cwd(), "public", image))).toBe(true);
+    expect(product.image!.alt.trim().length).toBeGreaterThan(20);
   });
 });

@@ -140,6 +140,30 @@ export const gallery: GalleryItem[] = [
     treatment: "shades",
     caption: "Cellular shades on a patio door and the breakfast-nook windows beside it.",
   },
+  {
+    src: "/gallery/roller-shades-dining-room.webp",
+    alt: "Light textured roller shades in slim cassettes, half raised on four windows around a dining table, with a green yard outside.",
+    treatment: "shades",
+    caption: "Textured roller shades in matching cassettes around a dining room, raised halfway to keep the yard in view.",
+  },
+  {
+    src: "/gallery/roman-shades-primary-bath.webp",
+    alt: "White hobbled roman shades in soft folds on two corner windows above a freestanding tub in a primary bathroom.",
+    treatment: "shades",
+    caption: "Hobbled roman shades on the corner windows of a primary bath — soft folds even when lowered.",
+  },
+  {
+    src: "/gallery/solar-shades-balcony-view.webp",
+    alt: "Two white solar screen shades lowered over balcony doors in a high-rise, with the city still visible through the weave.",
+    treatment: "shades",
+    caption: "Solar screen shades over balcony doors: the glare and heat stay out, the view stays in.",
+  },
+  {
+    src: "/gallery/solar-shades-long-window.webp",
+    alt: "A wide white solar screen shade lowered in a long window, with the shadows of bare trees showing softly through the fabric.",
+    treatment: "shades",
+    caption: "One wide solar screen shade across a long window, softening the light without closing it off.",
+  },
 ];
 
 /**
