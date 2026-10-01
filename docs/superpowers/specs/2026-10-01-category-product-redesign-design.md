@@ -52,7 +52,7 @@ anything goes live.
    product's `image`, else the fabric panel), name, tagline, "Learn more →". Motorization has no
    products, so it has no grid.
 6. **Reviews band:** `ReviewSpotlight` with the spotlight past-work reviews (as on Meet the
-   family).
+   family), minus the one already on the hero card so no quote shows twice.
 7. **Closing section:** today's `ConsultationCta`, unchanged.
 
 ## 4. Product page, top to bottom
@@ -99,14 +99,20 @@ the Blinds intro, "15–20° cooler" from the Outdoor intro).
   - Cellular Shades: `/gallery/cellular-shades-top-down-bedroom.webp`
   - Plantation Shutters: `/gallery/plantation-shutters-bedroom.webp`
   Every other product's story slot shows the fabric panel.
+- **Page order decides a repeat.** Slots fill top to bottom (hero, story, cards); a slot whose
+  photo already appeared higher on the page shows the fabric panel instead. Only Blinds is
+  affected today: its hero and story photos are also its two products' photos, so both Blinds
+  cards show the panel until two more blinds photos exist.
 - **Today's photo slots, unchanged:** category hero = `bookingPhoto` (Blinds, Shades, Shutters)
   else `consultationPhoto` (Outdoor, Motorization); category story = `image` (Blinds, Shades,
   Shutters) else the panel.
 
 ## 7. Look
 
-- **Headings:** H1 and story H2s in Source Serif 4 at display sizes (already loaded as the body
-  font; enable its optical-size axis so large sizes get the display cut — no new font file).
+- **Headings:** H1 and story H2s in Source Serif 4 (already loaded as the body font, weight
+  400) at display sizes with slightly tightened tracking — no new font file and no change to the
+  font download. A `.heading-serif` class in `app/globals.css`, unlayered and declared after the
+  `h1, h2, h3, h4` rule, because that rule is unlayered and would beat a Tailwind utility.
   Menus, buttons, eyebrows and small labels keep Jost.
 - **Colours:** the existing ivory, sand, champagne and charcoal tokens. No new colours.
 - **Icons:** a small inline-SVG set in the existing stroke style (`components/ui/LineIcon.tsx`),
