@@ -40,6 +40,8 @@
  *  15d. expireSessionlessDeposit expires a pending row with no session, once, and never one with a session;
  *  15e. cancelDeposit on a job the owner already moved to Lost: deposit_cents cleared, its own lost reason
  *      kept, a payment event and NO second stage event;
+ *  15f. ruling P23: a card payment on v2 expires a pending row on v1 of the same job and answers its session;
+ *      cancelDeposit then unshares v2's quote PDF in the same statement;
  *  16. deleteJob(A), with its deposits, succeeds and leaves no deposit rows;
  *  17. deletes everything it wrote, even on failure.
  *
@@ -471,6 +473,31 @@ test("the deposit flow's SQL holds against a real database", async () => {
       body: "Deposit $300 (cash) marked refunded — return it to the client" }), "one payment event for the refund", JSON.stringify(eventsG));
     const [versionG] = await sql`select status from dc_quote_versions where id = ${vG}`;
     check(versionG.status === "cancelled", "G's version is cancelled", JSON.stringify(versionG));
+
+    console.log("step 15f: ruling P23 — a payment expires the job's pending rows on every version; a cancel unshares its quote");
+    const P = await newLead("P", "signed", 30000);
+    const vP1 = await newVersion(P, 1, "signed", 10000);
+    const vP2 = await newVersion(P, 2, "signed", 30000);
+    const pendingP1 = await seedDeposit(P, vP1, 5000, "pending");
+    await attachSession(pendingP1, "cs_verify_P1");
+    const [quoteP] = await sql`
+      insert into job_files (lead_id, uploaded_by, kind, name, content_type, size_bytes, blob_pathname, doc_type, shared_at)
+      values (${P}, ${ACTOR}, 'document', 'Quote verify P v2.pdf', 'application/pdf', 1, ${`verify/${P}/quote-2-${STAMP}.pdf`}, 'quote', now())
+      returning id`;
+    await sql`update dc_quote_versions set quote_file_id = ${quoteP.id} where id = ${vP2}`;
+    const pendingP2 = await claimStripeDeposit({ leadId: P, versionId: vP2, amountCents: 15000 });
+    if (!pendingP2) throw new Error("setup: P's claim on v2 failed");
+    await attachSession(pendingP2.id, "cs_verify_P2");
+    const paidP = await markStripeDepositPaid({ depositId: pendingP2.id, sessionId: "cs_verify_P2", paymentIntentId: "pi_verify_P2", amountCents: 15000 });
+    check(same(paidP, { leadId: P, versionId: vP2, stageBefore: "signed", otherSessionIds: ["cs_verify_P1"] }),
+      "a payment on v2 answers the pending session on v1 for the webhook to close", `got ${JSON.stringify(paidP)}`);
+    const [p1Row] = await sql`select status from deposits where id = ${pendingP1}`;
+    check(p1Row.status === "expired", "the pending row on another version of the job is expired in the same statement", JSON.stringify(p1Row));
+    const stateP = await depositState(P);
+    check(stateP?.paid?.id === pendingP2.id, "setup: P's v2 deposit is the paid one", JSON.stringify(stateP));
+    check(await cancelDeposit({ leadId: P, deposit: stateP!.paid!, actor: ACTOR }), "cancelDeposit on P answers true", "false");
+    const [quotePAfter] = await sql`select shared_at from job_files where id = ${quoteP.id}`;
+    check(quotePAfter.shared_at === null, "the cancelled version's quote PDF is unshared in the same statement", JSON.stringify(quotePAfter));
 
     console.log("step 16: deleting a job with deposits");
     check((await deleteJob(A, ACTOR)) === "deleted", "deleteJob(A) answers deleted", "not deleted");

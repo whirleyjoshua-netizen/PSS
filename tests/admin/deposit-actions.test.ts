@@ -188,6 +188,17 @@ describe("cancelDepositAction", () => {
     expect(console.error).not.toHaveBeenCalled();
   });
 
+  // P23: only a statement that RETURNED false may be the other tab's success. One that threw says nothing
+  // about the database, so the owner keeps the P16 message and the owners are alerted, even if a read says refunded.
+  it("keeps the P16 message and alert when the cancellation THREW, without trusting a re-read", async () => {
+    deposits.cancelDeposit.mockRejectedValue(new Error("connection reset"));
+    deposits.depositById.mockResolvedValue({ ...paid, status: "refunded", refundedAt: new Date() });
+    expect(await cancelDepositAction(JOB, DEPOSIT)).toEqual({ error: REFUNDED_UNRECORDED });
+    expect(deposits.depositById).not.toHaveBeenCalled();
+    for (const cb of afterCbs.splice(0)) await cb();
+    expect(emails.alertUnrecordedRefund).toHaveBeenCalledWith({ job, depositId: DEPOSIT, amountCents: 92417 });
+  });
+
   it("refuses a deposit that is not the paid one", async () => {
     jobs.getJob.mockResolvedValue(job);
     expect(await cancelDepositAction(JOB, "6e2f7b3f-4c5d-4e6f-9a71-8b9c0d1e2f3a")).toEqual({ error: "This deposit is no longer paid. Reload the page." });

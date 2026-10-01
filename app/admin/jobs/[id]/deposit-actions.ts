@@ -75,16 +75,19 @@ export async function cancelDepositAction(jobId: string, depositId: string): Pro
     if (!refunded) return { error: "Stripe did not refund the card, so nothing was changed. Try again, or refund it in the Stripe dashboard first." };
   }
   let recorded = false;
+  let threw = false;
   let failure: unknown = "the statement matched no paid deposit";
   try {
     recorded = await cancelDeposit({ leadId: job.id, deposit, actor: admin.email });
   } catch (error) {
+    threw = true;
     failure = error;
   }
   if (!recorded) {
-    // Two tabs: the other press recorded this very cancellation first, so this statement matched nothing.
+    // Two tabs: the other press recorded this very cancellation first, so this statement RETURNED false.
     // The deposit is refunded on record — the owner's outcome — so nothing is wrong and nobody is alerted.
-    const now = await depositById(deposit.id).catch(() => null);
+    // A statement that THREW proves nothing (ruling P23): it keeps the P16 message and alert below.
+    const now = threw ? null : await depositById(deposit.id).catch(() => null);
     if (now?.status === "refunded") {
       refresh(job.id);
       return { ok: true };

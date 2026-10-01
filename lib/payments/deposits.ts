@@ -191,8 +191,8 @@ export async function attachSession(depositId: string, sessionId: string): Promi
  * Spec §4, the verified webhook's write. One statement, idempotent: it acts only on this card deposit,
  * for exactly the amount charged, while no deposit of the version is paid. The row may be pending, or
  * EXPIRED with the very session Stripe completed (ruling P11b): Stripe's verified completion is the
- * truth, so money actually taken is never dropped. Any OTHER pending card deposit of the version is
- * expired in the same statement. deposit_cents is written and a Signed job moves to Sold; a job the
+ * truth, so money actually taken is never dropped. Every OTHER pending deposit of the JOB, on any of its
+ * versions (ruling P23), is expired in the same statement. deposit_cents is written and a Signed job moves to Sold; a job the
  * owner moved elsewhere keeps its stage, and the payment is still recorded. A duplicate delivery finds
  * the row already paid, matches nothing and answers null.
  *
@@ -217,7 +217,7 @@ export async function markStripeDepositPaid(input: {
     ),
     others_expired as (
       update deposits set status = 'expired'
-      where dc_quote_version_id = (select dc_quote_version_id from paid) and status = 'pending' and id <> ${input.depositId}
+      where lead_id = (select lead_id from paid) and status = 'pending' and id <> ${input.depositId}
       returning id, stripe_session_id
     ),
     prev as (select l.status from leads l join paid on l.id = paid.lead_id),
@@ -320,8 +320,10 @@ export async function expireDeposit(sessionId: string): Promise<boolean> {
 
 /**
  * Cancel & refund (spec §4), after any Stripe refund succeeded. One statement: the paid deposit →
- * refunded (only at the amount the owner saw), its version signed → cancelled, the job → Lost with
- * deposit_cents cleared, and a 'payment' and a 'stage' event. The leads update is gated on the refunded
+ * refunded (only at the amount the owner saw), its version signed → cancelled, that version's quote PDF
+ * unshared (ruling P23, as sendQuote unshares a superseded one; a signed file is never touched, and the
+ * signed contract is not the quote file), the job → Lost with deposit_cents cleared, and a 'payment' and
+ * a 'stage' event. The leads update is gated on the refunded
  * row only, so a job the owner had already moved to Lost still has deposit_cents cleared; it keeps its
  * own lost reason, follow-up and stage date, and gets no second stage event. (One update, not two
  * CTEs on the same row: Postgres applies only one of two updates to a row in one statement.)
@@ -341,6 +343,13 @@ export async function cancelDeposit(input: { leadId: string; deposit: Deposit; a
     cancelled as (
       update dc_quote_versions set status = 'cancelled', cancelled_at = now()
       where id = (select dc_quote_version_id from refunded) and status = 'signed'
+      returning id
+    ),
+    unshared as (
+      update job_files set shared_at = null
+      where lead_id = ${input.leadId}
+        and id = (select v.quote_file_id from dc_quote_versions v join refunded r on v.id = r.dc_quote_version_id)
+        and not exists (select 1 from contract_signatures s where s.file_id = job_files.id or s.signed_file_id = job_files.id)
       returning id
     ),
     prev as (select l.status from leads l join refunded r on l.id = r.lead_id),

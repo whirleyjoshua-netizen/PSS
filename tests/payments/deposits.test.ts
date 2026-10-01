@@ -201,13 +201,14 @@ describe("markStripeDepositPaid", () => {
     expect(paid).toContain("returning lead_id, amount_cents, dc_quote_version_id");
     expect(values(sql.mock.calls[0]).filter((value) => value === "cs_1").length).toBe(3);
   });
-  it("in the same statement expires any OTHER pending card deposit of the version, so no open checkout outlives the payment", async () => {
+  it("in the same statement expires every OTHER pending deposit of the JOB, on any version, so no open checkout outlives the payment (P23)", async () => {
     await d.markStripeDepositPaid(input);
     expect(sql).toHaveBeenCalledTimes(1);
     const s = text(sql.mock.calls[0]);
     expect(s).toContain(
-      "others_expired as ( update deposits set status = 'expired' where dc_quote_version_id = (select dc_quote_version_id from paid) and status = 'pending' and id <> ? returning id, stripe_session_id )",
+      "others_expired as ( update deposits set status = 'expired' where lead_id = (select lead_id from paid) and status = 'pending' and id <> ? returning id, stripe_session_id )",
     );
+    expect(s).not.toContain("where dc_quote_version_id = (select dc_quote_version_id from paid) and status = 'pending'");
     expect(values(sql.mock.calls[0]).filter((value) => value === DEPOSIT).length).toBe(2);
   });
   it("still refuses when the version already has a paid deposit, and never re-marks a paid row", async () => {
@@ -302,6 +303,17 @@ describe("cancelDeposit", () => {
       "'payment'", "'stage', prev.status, 'lost'", "where prev.status <> 'lost'",
     ]) expect(s).toContain(part);
     expect(values(sql.mock.calls[0])).toEqual(expect.arrayContaining(["Cancelled — deposit refunded", "Deposit $924.17 refunded to the client's card"]));
+  });
+  // P23: the cancelled version's quote PDF stops being shared, as sendQuote's `unshared` does for a superseded one.
+  it("in the same statement unshares the cancelled version's quote PDF, never a signed file", async () => {
+    sql.mockResolvedValueOnce([{ lead_id: LEAD }]);
+    expect(await d.cancelDeposit({ leadId: LEAD, deposit: paid, actor: "o@x" })).toBe(true);
+    expect(sql).toHaveBeenCalledTimes(1);
+    const s = text(sql.mock.calls[0]);
+    expect(s).toContain(
+      "unshared as ( update job_files set shared_at = null where lead_id = ? and id = (select v.quote_file_id from dc_quote_versions v join refunded r on v.id = r.dc_quote_version_id) and not exists (select 1 from contract_signatures s where s.file_id = job_files.id or s.signed_file_id = job_files.id) returning id )",
+    );
+    expect(s).not.toContain("contract_file_id");
   });
   it("clears deposit_cents on a job already Lost, in the same statement: the leads update is gated on the refunded row, not the stage", async () => {
     sql.mockResolvedValueOnce([{ lead_id: LEAD }]);
