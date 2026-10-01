@@ -46,10 +46,12 @@
  *   npx vitest run --config scripts/verify-measure-kinds.config.mts
  *
  * To watch it fail (which is the only way to know it works), in lib/admin/measurements.ts:
- *   - delete `or designer_kept_official_at is null` from addMeasurement's `allowed` CTE —
- *     step 4 must fail;
- *   - delete the `not exists (select 1 from official)` clause from setKeptOfficial —
- *     step 8 must fail;
+ *   - replace the whole `where …` of addMeasurement's `allowed` CTE with `where true` —
+ *     step 4 must fail (deleting only `or designer_kept_official_at is null` refuses every
+ *     official window, so step 4 would still pass);
+ *   - delete the whole `and (not ${kept}::boolean or not exists (select 1 from official))`
+ *     line from setKeptOfficial — step 8 must fail (deleting only the `not exists` part
+ *     leaves invalid SQL, and step 2 fails instead);
  *   - delete `and (designer_kept_official_at is not null) <> ${kept}::boolean` from
  *     setKeptOfficial — step 3 must fail.
  * Put each back.
