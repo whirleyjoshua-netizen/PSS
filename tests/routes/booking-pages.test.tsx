@@ -94,5 +94,17 @@ describe.each(products.map((product) => [`${product.category}/${product.slug}`, 
       const expected = product.image?.src ?? consultationPhoto.src;
       expect(imageSrcs(container).some((src) => src.includes(expected))).toBe(true);
     });
+
+    it("never shows the same photo twice on the page", async () => {
+      const { container } = await renderProduct(product.category, product.slug);
+      const srcs = imageSrcs(container);
+      expect(new Set(srcs).size).toBe(srcs.length);
+    });
+
+    it("tells its story under Why {name}, with what it is best for", async () => {
+      await renderProduct(product.category, product.slug);
+      expect(screen.getByRole("heading", { level: 2, name: `Why ${product.name}` })).toBeInTheDocument();
+      expect(screen.getByText(product.bestFor)).toBeInTheDocument();
+    });
   },
 );
