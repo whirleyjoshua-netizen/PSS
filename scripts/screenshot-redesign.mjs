@@ -19,6 +19,8 @@ for (const [name, width, height] of SIZES) {
         await new Promise((r) => setTimeout(r, 60));
       }
       window.scrollTo(0, 0);
+      // A fast scroll can outrun the reveal observer; show every revealed block for the picture.
+      document.querySelectorAll("[data-reveal]").forEach((el) => { el.dataset.reveal = "shown"; });
     });
     await page.waitForTimeout(500);
     await page.screenshot({ path: `${OUT}/${path.slice(1).replaceAll("/", "-")}-${name}.png`, fullPage: true });
