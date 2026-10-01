@@ -138,3 +138,43 @@ The existing components are reused and reordered; copy changes; one section is n
 - Removing the family images from Google Ads (owner undecided; separate from the site).
 - A/B testing the button wording.
 - New photography beyond swapping in the consultation shot when it arrives.
+
+## 8. Addendum (2026-09-30): every ad page is a booking page, every page has a photo
+
+Why: Google Ads review the same day. FACT: 34 all-time clicks; the Search campaign's 17 produced
+1 lead (via /motorization). FACT: paid-search visitors engaged 19% of sessions for 20 s on average,
+against 59% and 1 m 50 s for organic. FACT: the ad landing pages (category and product pages) have
+no form, no photo (20 public pages render zero `<img>`), no reviews and no offer; "Book a
+consultation" sends visitors to the long /contact form. Owner decisions in conversation:
+"make each ad page also a book a consultation page" and "each page should have at least 1 image".
+
+Scope added to this spec (§7's "Product, category and city page copy" stays out of scope; the
+body copy of those pages is not edited, only blocks are added around it):
+
+- **Booking block** (`BookingBlock`) placed directly under the page hero on all 5 category pages
+  and all 14 product pages, so it is the first thing an ad visitor sees on a phone. Contents:
+  - The existing three-field form (name, phone, email), with heading "Free in-home consultation",
+    the sub line from §3.1 and the "Invite Us Over" button. On phones the form comes first.
+  - One photo, the family line "Shade and Josh measure, order and install every job themselves.
+    No call center, no subcontractors." and one spotlight past-work review, labelled as from the
+    owners' years before Premier Shade Solutions (FTC rule in `content/reviews.ts`), linking to
+    `/reviews`.
+  - Leads from it carry `source: "booking"`, so the owner and the lead email can tell them apart
+    from the homepage hero and the contact page.
+- **City pages:** the long consultation form section is replaced by the booking block with the
+  city pre-filled; its "Book a free consultation in {city}" H2 stays (SEO).
+- **Reviews page:** the booking block replaces the bottom `ConsultationCta`.
+- **Contact page:** the consultation photo sits at the top of the aside.
+- **Photos.** Product pages gain an optional photo beside the body, set only where an owner photo
+  truly shows that product: Blinds (faux wood), Vertical Blinds (sheer verticals), Wood & Faux Wood
+  Blinds, Roller Shades, Cellular Shades, Transitional Shades, Plantation Shutters. Every other page
+  gets its photo from the booking block. That photo is the page's own product photo where one
+  exists, else the shared consultation photo (`consultationPhoto`, the same stand-in as §3.3, an
+  install photo until the owners' consultation shot exists). No photo is ever captioned as a
+  product it might not be: Solar Shades, Composite and Real Wood Shutters, Roman, Woven Wood, every
+  Outdoor page and Motorization use the consultation photo until the owners photograph those
+  products.
+- **Rule, enforced by a test:** every page in the sitemap renders at least one `<img>` with
+  non-empty alt text, except `/privacy` and `/accessibility` (legal text, owner to confirm).
+- The header already stays visible on phones with a call icon, so no extra sticky call bar is
+  added.
