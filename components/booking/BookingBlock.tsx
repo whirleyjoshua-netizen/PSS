@@ -35,7 +35,7 @@ export function BookingBlock({
   showReview?: boolean;
 }) {
   return (
-    <Section tone="sand" id="book" className="scroll-mt-20">
+    <Section tone="sand" id="book" padding="tight-top" className="scroll-mt-20">
       {heading ? (
         <h2 className="mb-10 text-3xl font-light tracking-tight text-charcoal">{heading}</h2>
       ) : null}

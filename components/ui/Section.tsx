@@ -8,21 +8,33 @@ const TONES = {
 
 export type SectionTone = keyof typeof TONES;
 
+/**
+ * Vertical padding. "tight-top" keeps the usual spacing from md up but cuts the
+ * phone top padding to 16px, for the booking block under a page hero: with
+ * py-20 the Invite Us Over button fell just below a 390x844 fold (spec §8).
+ */
+const PADDING = {
+  default: "py-20 md:py-28",
+  "tight-top": "pt-4 pb-20 md:py-28",
+} as const;
+
 export function Section({
   children,
   tone = "ivory",
   className,
   containerWidth = "default",
   id,
+  padding = "default",
 }: {
   children: React.ReactNode;
   tone?: SectionTone;
   className?: string;
   containerWidth?: "default" | "wide" | "prose";
   id?: string;
+  padding?: keyof typeof PADDING;
 }) {
   return (
-    <section id={id} className={`${TONES[tone]} py-20 md:py-28 ${className ?? ""}`}>
+    <section id={id} className={`${TONES[tone]} ${PADDING[padding]} ${className ?? ""}`}>
       <Container width={containerWidth}>{children}</Container>
     </section>
   );

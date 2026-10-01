@@ -82,4 +82,12 @@ describe("BookingBlock", () => {
     expect(screen.queryByRole("link", { name: /read every review/i })).toBeNull();
     expect(screen.getByRole("button", { name: /invite us over/i })).toBeInTheDocument();
   });
+
+  it("sits close under the page hero on a phone, with the usual spacing from md up", () => {
+    const { container } = render(<BookingBlock photo={consultationPhoto} />);
+    const classes = container.querySelector("section#book")!.className.split(/\s+/);
+    // pt-4 instead of py-20's 80px lifts the Invite Us Over button above a 390x844 fold (spec §8).
+    expect(classes).toEqual(expect.arrayContaining(["pt-4", "pb-20", "md:py-28"]));
+    expect(classes).not.toContain("py-20");
+  });
 });
