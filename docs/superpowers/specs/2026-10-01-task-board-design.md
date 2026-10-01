@@ -44,7 +44,9 @@ Index on `(status, due_on)`.
 - **Assignable people** = owners (`ADMIN_EMAILS`, via `parseAllowlist`) ∪
   `admin_access` emails. The server re-checks the chosen assignee with
   `isAllowed()` on every create/edit; an address that is not allowed is
-  rejected with a form error, never saved.
+  rejected with a form error, never saved. Exception: keeping a task's
+  current assignee unchanged is always allowed, so a done task that still names
+  someone who lost access can be edited without erasing that history.
 - **Access removal unassigns.** `removeAdmin` (lib/admin/admin-access.ts) gains
   one more CTE step in its existing single statement:
   `update tasks set assignee_email = null, updated_at = now() where assignee_email in (select email from removed) and status <> 'done'`.
@@ -79,12 +81,13 @@ Button on any task that has an assignee and is not done.
 - `replyTo` = the presser's email.
 - **10-minute lock, enforced in SQL.** One statement claims the slot:
   `update tasks set last_reminded_at = now(), last_reminded_by = $actor where id = $id and assignee_email is not null and status <> 'done' and (last_reminded_at is null or last_reminded_at < now() - interval '10 minutes') returning ...`.
-  No row returned → "Already reminded at 10:42am" (or "nothing to remind" if
-  unassigned/done) and no email. If the send then fails, the claim is rolled
+  No row returned → "Already reminded at 10:42 AM." ("That task is already
+  done." / "Assign the task to someone first." / "That task was deleted.") and
+  no email. If the send then fails, the claim is rolled
   back by restoring the previous `last_reminded_at`/`last_reminded_by` with a
   guarded update (`where id = $id and last_reminded_at = $claimedAt`), so the
   card never shows a reminder that was not delivered.
-- Card shows `Reminded Oct 1, 10:42am`.
+- Card shows `Reminded Thu, Oct 1, 10:42 AM` (`formatWhen`).
 
 ### 3.3 Morning digest
 
@@ -97,7 +100,7 @@ as `/api/cron/follow-ups`, added to `vercel.json` at `0 14 * * *` (7am PDT /
   `due_on <= tomorrow`.
 - Groups by assignee; one email each with sections **Overdue**, **Due today**,
   **Due tomorrow** (empty sections omitted). People with none get nothing.
-- Subject: `Your tasks for Thu, Oct 1: 3`
+- Subject: `Your tasks for Thu, Oct 1, 2026: 3` (`formatDay`, as the follow-up digest)
 - Returns `{ sent, failed, error? }`; one person's failed send does not stop
   the others; status 500 when any failed.
 
