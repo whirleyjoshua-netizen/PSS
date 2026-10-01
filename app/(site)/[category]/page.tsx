@@ -1,13 +1,16 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import { notFound } from "next/navigation";
+import { ConsultationCta } from "@/components/product/ProductParts";
+import { TreatmentHero } from "@/components/treatment/TreatmentHero";
+import { PromiseRow } from "@/components/booking/PromiseRow";
+import { FEATURED_REVIEW } from "@/components/booking/FeaturedReview";
+import { IconRow } from "@/components/treatment/IconRow";
+import { StorySection } from "@/components/treatment/StorySection";
+import { PhotoCardGrid } from "@/components/treatment/PhotoCardGrid";
 import { Section } from "@/components/ui/Section";
-import {
-  PageHero,
-  ProductCardList,
-  ConsultationCta,
-} from "@/components/product/ProductParts";
-import { BookingBlock } from "@/components/booking/BookingBlock";
+import { ReviewSpotlight } from "@/components/reviews/ReviewSpotlight";
+import { pastReviews } from "@/content/reviews";
+import { uniquePhotos } from "@/lib/content/page-photos";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { consultationPhoto } from "@/content/gallery";
 import { breadcrumbSchema } from "@/lib/seo/schema";
@@ -56,51 +59,48 @@ export default async function CategoryPage({
 
   const trail = [{ name: found.name, url: `/${found.slug}` }];
 
+  const [heroPhoto, storyPhoto, ...cardPhotos] = uniquePhotos([
+    found.bookingPhoto ?? consultationPhoto,
+    found.image,
+    ...children.map((product) => product.image),
+  ]);
+
   return (
     <>
       <JsonLd schema={breadcrumbSchema(trail)} />
-      <PageHero
+      <TreatmentHero
+        photo={heroPhoto!}
+        trail={trail}
         eyebrow={found.tagline}
         title={`${found.name} in Las Vegas`}
-        trail={trail}
+        lead={found.seo.description}
+        treatment={found.name}
       />
-      <BookingBlock photo={found.bookingPhoto ?? consultationPhoto} treatment={found.name} />
-
-      <Section tone="ivory">
-        <div
-          className={
-            found.image ? "grid items-center gap-12 lg:grid-cols-2" : undefined
-          }
-        >
-          <div className="flex max-w-[72ch] flex-col gap-5 text-lg leading-relaxed text-ink-soft">
-            {found.intro.map((paragraph) => (
-              <p key={paragraph.slice(0, 40)}>{paragraph}</p>
-            ))}
-          </div>
-
-          {found.image ? (
-            <div className="relative mx-auto aspect-3/4 w-full max-w-md overflow-hidden bg-sand">
-              <Image
-                src={found.image.src}
-                alt={found.image.alt}
-                fill
-                sizes="(min-width: 1024px) 28rem, 100vw"
-                className="object-cover"
-              />
-            </div>
-          ) : null}
-        </div>
-
-        {children.length > 0 ? (
-          <div className="mt-14">
-            <h2 className="mb-8 font-display text-xs font-medium uppercase tracking-[0.22em] text-champagne-ink">
-              Explore {found.name}
-            </h2>
-            <ProductCardList products={children} categorySlug={found.slug} />
-          </div>
-        ) : null}
+      <Section tone="sand" className="!py-10">
+        <PromiseRow centered />
       </Section>
-
+      <IconRow items={found.highlights} />
+      <StorySection
+        eyebrow={found.story.eyebrow}
+        heading={found.story.heading}
+        paragraphs={found.intro}
+        photo={storyPhoto}
+        panelLabel={found.name}
+        caption={found.story.caption}
+      />
+      {children.length > 0 ? (
+        <PhotoCardGrid
+          flush
+          heading={`Explore ${found.name}`}
+          cards={children.map((product, index) => ({
+            href: `/${found.slug}/${product.slug}`,
+            name: product.name,
+            tagline: product.tagline,
+            photo: cardPhotos[index],
+          }))}
+        />
+      ) : null}
+      <ReviewSpotlight reviews={pastReviews.filter((review) => review.spotlight && review !== FEATURED_REVIEW)} />
       <ConsultationCta href="#book" />
     </>
   );
