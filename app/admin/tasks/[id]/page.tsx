@@ -17,7 +17,8 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
   if (!task) notFound();
   // A done task keeps the name of someone who has since lost access; the list must show it,
   // or the select would silently fall back to Unassigned and saving would erase it.
-  const options = task.assigneeEmail && !people.includes(task.assigneeEmail) ? [...people, task.assigneeEmail] : people;
+  const noAccess = task.assigneeEmail && !people.includes(task.assigneeEmail) ? task.assigneeEmail : undefined;
+  const options = noAccess ? [...people, noAccess] : people;
 
   return (
     <div className="flex max-w-2xl flex-col gap-6">
@@ -33,6 +34,7 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
       <TaskForm
         action={updateTaskAction.bind(null, task.id)}
         people={options}
+        noAccess={noAccess}
         defaults={{
           title: task.title, notes: task.notes ?? "", assignee: task.assigneeEmail ?? "",
           dueOn: task.dueOn ?? "", status: task.status,

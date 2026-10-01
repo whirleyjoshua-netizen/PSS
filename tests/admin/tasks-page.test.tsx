@@ -86,6 +86,7 @@ describe("TaskPage", () => {
     render(await TaskPage({ params: Promise.resolve({ id: ID }) }));
     expect(screen.getByRole("heading", { level: 1, name: "Finish new flyers" })).toBeInTheDocument();
     expect(screen.getByLabelText("Assigned to")).toHaveValue("gone@x.com");
+    expect(screen.getByRole("option", { name: "Gone (gone@x.com) — no access" })).toHaveValue("gone@x.com");
     expect(screen.getByLabelText("Status")).toHaveValue("done");
     expect(screen.queryByRole("button", { name: /^Remind now/ })).toBeNull();
     expect(screen.getByRole("button", { name: "Delete" })).toBeInTheDocument();

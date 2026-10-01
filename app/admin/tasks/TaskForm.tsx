@@ -6,10 +6,14 @@ import { CONTROL, Label } from "@/components/forms/Field";
 import { displayName, TASK_NOTES_MAX, TASK_STATUSES, TASK_TITLE_MAX } from "@/lib/admin/task-rules";
 import type { TaskFormState, TaskFormValues } from "./actions";
 
-/** New task and edit task. `people` must include the current assignee, even one who lost access. */
-export function TaskForm({ action, people, defaults, submitLabel, idPrefix, showStatus = false }: {
+/**
+ * New task and edit task. `people` must include the current assignee, even one who lost access;
+ * `noAccess` names that person so their option says so. The stored value is still the email.
+ */
+export function TaskForm({ action, people, noAccess, defaults, submitLabel, idPrefix, showStatus = false }: {
   action: (prev: TaskFormState, formData: FormData) => Promise<TaskFormState>;
   people: string[];
+  noAccess?: string;
   defaults: TaskFormValues;
   submitLabel: string;
   idPrefix: string;
@@ -37,7 +41,9 @@ export function TaskForm({ action, people, defaults, submitLabel, idPrefix, show
             <select id={id("assignee")} name="assignee" defaultValue={values.assignee} className={CONTROL}>
               <option value="">Unassigned</option>
               {people.map((email) => (
-                <option key={email} value={email}>{`${displayName(email)} (${email})`}</option>
+                <option key={email} value={email}>
+                  {`${displayName(email)} (${email})${email === noAccess ? " — no access" : ""}`}
+                </option>
               ))}
             </select>
           </div>
