@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { Section } from "@/components/ui/Section";
 import { PageHero } from "@/components/product/ProductParts";
 import { ConsultationForm } from "@/components/forms/ConsultationForm";
 import { business } from "@/content/business";
+import { consultationPhoto } from "@/content/gallery";
 import { cityPath } from "@/lib/content/cities";
 
 export const metadata: Metadata = {
@@ -28,6 +30,15 @@ export default function ContactPage() {
           <ConsultationForm />
 
           <aside className="flex flex-col gap-8">
+            <div className="relative aspect-4/3 w-full overflow-hidden bg-sand">
+              <Image
+                src={consultationPhoto.src}
+                alt={consultationPhoto.alt}
+                fill
+                sizes="(min-width: 1024px) 22rem, 100vw"
+                className="object-cover"
+              />
+            </div>
             <div className="border border-rule bg-sand/50 p-6">
               <h2 className="font-display text-xs font-medium uppercase tracking-[0.2em] text-champagne-ink">
                 Prefer to call?

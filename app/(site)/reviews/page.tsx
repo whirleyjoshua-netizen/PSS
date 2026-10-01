@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Section } from "@/components/ui/Section";
-import { PageHero, ConsultationCta } from "@/components/product/ProductParts";
+import { PageHero } from "@/components/product/ProductParts";
+import { BookingBlock } from "@/components/booking/BookingBlock";
+import { consultationPhoto } from "@/content/gallery";
 import { ReviewWall } from "@/components/reviews/ReviewWall";
 import { pastReviews, pastWork } from "@/content/reviews";
 
@@ -25,7 +27,7 @@ export default function ReviewsPage() {
         <ReviewWall reviews={pastReviews} />
       </Section>
 
-      <ConsultationCta />
+      <BookingBlock photo={consultationPhoto} />
     </>
   );
 }

@@ -46,7 +46,14 @@ describe("reviews are labeled as the owners' earlier work", () => {
   it("on the reviews page", () => {
     const { container } = render(<ReviewsPage />);
     expect(container.querySelectorAll("h1")).toHaveLength(1);
-    expect(screen.getByText(/before we opened Premier Shade Solutions/i)).toBeInTheDocument();
+    // The hero lead labels the whole wall...
+    expect(screen.getByText(/^These surveys come from/)).toHaveTextContent(
+      /before we opened Premier Shade Solutions/i,
+    );
+    // ...and the booking block's featured quote carries its own label.
+    const book = container.querySelector<HTMLElement>("section#book");
+    expect(book).not.toBeNull();
+    expect(within(book!).getByText(/before we opened Premier Shade Solutions/i)).toBeInTheDocument();
   });
 });
 

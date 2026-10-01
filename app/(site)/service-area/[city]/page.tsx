@@ -3,7 +3,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Section } from "@/components/ui/Section";
 import { PageHero, ConsultationCta } from "@/components/product/ProductParts";
-import { ConsultationForm } from "@/components/forms/ConsultationForm";
+import { BookingBlock } from "@/components/booking/BookingBlock";
+import { consultationPhoto } from "@/content/gallery";
+import type { ServiceCity } from "@/content/business";
 import { allCityPaths, getCity } from "@/lib/content/cities";
 
 export const dynamicParams = false;
@@ -108,19 +110,11 @@ export default async function CityPage({
         </ul>
       </Section>
 
-      <Section tone="ivory">
-        <div className="grid gap-12 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]">
-          <div className="flex flex-col gap-4">
-            <h2 className="text-3xl font-light tracking-tight text-charcoal">
-              Book a free consultation in {found.name}
-            </h2>
-            <p className="text-ink-soft">
-              We come to you, measure every opening, and leave you with a quote.
-            </p>
-          </div>
-          <ConsultationForm />
-        </div>
-      </Section>
+      <BookingBlock
+        photo={consultationPhoto}
+        city={found.name as ServiceCity}
+        heading={`Book a free consultation in ${found.name}`}
+      />
 
       <ConsultationCta
         title={`Serving ${found.name} and the rest of the valley`}
