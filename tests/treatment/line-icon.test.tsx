@@ -17,4 +17,12 @@ describe("LineIcon", () => {
     expect(svg.getAttribute("class")).toContain("size-7");
     expect(svg.querySelectorAll("path")).toHaveLength(ICON_PATHS.sun.length);
   });
+
+  it("closes the leaf outline back where it starts", () => {
+    // "M x y c …": a move, then relative cubic curves of six numbers each.
+    const [x, y, ...curves] = ICON_PATHS.leaf[0].match(/-?\d+(\.\d+)?/g)!.map(Number);
+    let end = [x, y];
+    for (let i = 0; i < curves.length; i += 6) end = [end[0] + curves[i + 4], end[1] + curves[i + 5]];
+    expect(end).toEqual([x, y]);
+  });
 });
