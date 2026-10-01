@@ -54,9 +54,11 @@ export const toDeposit = (row: Record<string, unknown>): Deposit => ({
  * The deposit picture for the portal and the Quote tab. Null until a DC contract is signed.
  * Anchored on the job's DEPOSIT, not blindly on the newest signed version (ruling P5, amended): a change
  * order signed after the deposit was paid must never hide that deposit. Among the signed or cancelled
- * versions, the one holding a paid deposit wins; else one holding a pending deposit; else the newest by
- * version. A refund never ranks a version: a job cancelled, refunded and re-signed is asked for a new
- * deposit on the new version. `refunded` still reports a refunded deposit on the chosen version.
+ * versions, the one holding a paid deposit wins; else the newest by version. A pending deposit ranks
+ * nothing (ruling P20): a change order signed after the client opened checkout on the old version is the
+ * one to pay, and startDepositAction expires the old version's pending row. A refund never ranks a
+ * version either: a job cancelled, refunded and re-signed is asked for a new deposit on the new version.
+ * `refunded` still reports a refunded deposit on the chosen version.
  * (bool_or over no deposits is null, and desc sorts nulls first — hence the coalesce.)
  */
 export async function depositState(leadId: string): Promise<DepositState | null> {
@@ -66,13 +68,12 @@ export async function depositState(leadId: string): Promise<DepositState | null>
       select v.id
       from dc_quote_versions v
       left join lateral (
-        select bool_or(d.status = 'paid') as has_paid,
-               bool_or(d.status = 'pending') as has_pending
+        select bool_or(d.status = 'paid') as has_paid
         from deposits d where d.dc_quote_version_id = v.id
       ) h on true
       where v.lead_id = ${leadId} and v.status in ('signed','cancelled')
         and v.client_total_cents is not null and v.signed_at is not null
-      order by coalesce(h.has_paid, false) desc, coalesce(h.has_pending, false) desc, v.version desc
+      order by coalesce(h.has_paid, false) desc, v.version desc
       limit 1
     )
     select v.id as version_id, v.version, v.status as version_status, v.client_total_cents, v.signed_at,
@@ -120,6 +121,21 @@ export async function expireStaleDeposits(versionId: string): Promise<number> {
     where dc_quote_version_id = ${versionId} and status = 'pending' and created_at < now() - interval '23 hours'
     returning id`;
   return rows.length;
+}
+
+/**
+ * Ruling P20, one statement: every pending deposit on the job's OTHER versions expires, so a checkout
+ * opened before a change order was signed can no longer be the job's open deposit. It answers their
+ * Checkout Sessions for the caller to close in Stripe (best-effort). A payment that completes anyway is
+ * still applied by the webhook: markStripeDepositPaid accepts an expired row with its own session.
+ */
+export async function expirePendingOnOtherVersions(leadId: string, versionId: string): Promise<string[]> {
+  if (!isUuid(leadId) || !isUuid(versionId)) return [];
+  const rows = await db()`
+    update deposits set status = 'expired'
+    where lead_id = ${leadId} and dc_quote_version_id <> ${versionId} and status = 'pending'
+    returning stripe_session_id`;
+  return rows.map((row) => row.stripe_session_id as string | null).filter((id): id is string => Boolean(id));
 }
 
 /**

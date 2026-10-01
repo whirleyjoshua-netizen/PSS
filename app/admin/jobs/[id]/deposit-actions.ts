@@ -4,11 +4,15 @@ import { after } from "next/server";
 import { getJob } from "@/lib/admin/jobs";
 import { dollarsToCents, formatCents } from "@/lib/admin/money";
 import { requireAdmin } from "@/lib/admin/session";
+import { isRefundableStage } from "@/lib/admin/stages";
 import { inCancellationWindow } from "@/lib/docs/business-days";
-import { cancelDeposit, depositState, isRecordedMethod, recordDepositPayment } from "@/lib/payments/deposits";
+import { cancelDeposit, depositById, depositState, isRecordedMethod, recordDepositPayment } from "@/lib/payments/deposits";
 import { alertUnrecordedRefund, sendCancellationEmails, sendDepositReceipts } from "@/lib/payments/emails";
 import { closeCheckout, refundPayment, stripeClient } from "@/lib/payments/stripe";
 import { MISSING, refresh } from "../form-state";
+
+/** Postgres unique_violation: on the paid insert only deposits_one_paid_per_version can raise it. */
+const UNIQUE_VIOLATION = "23505";
 
 /**
  * "Payment received" (spec §4): the owner records a check, cash or other deposit on a Signed job.
@@ -37,7 +41,14 @@ export async function recordDepositAction(jobId: string, amount: string, method:
     if (closed === "paid") return { error: "The client is paying by card right now. Wait for that payment before recording another." };
     if (closed === "unknown") return { error: "Could not check the client's card payment with Stripe. Try again in a minute." };
   }
-  const recorded = await recordDepositPayment({ leadId: job.id, versionId: state.versionId, amountCents, method, actor: admin.email });
+  let recorded: { depositId: string } | null;
+  try {
+    recorded = await recordDepositPayment({ leadId: job.id, versionId: state.versionId, amountCents, method, actor: admin.email });
+  } catch (error) {
+    // Two owners pressed Record payment together: the other insert won the one-paid-per-version index.
+    if ((error as { code?: string } | null)?.code === UNIQUE_VIOLATION) return { error: "This deposit is already recorded." };
+    throw error;
+  }
   if (!recorded) return { error: "The deposit could not be recorded. Reload the page and check the job's stage." };
   after(() => sendDepositReceipts(job.id));
   refresh(job.id);
@@ -45,7 +56,7 @@ export async function recordDepositAction(jobId: string, amount: string, method:
 }
 
 /**
- * "Cancel & refund" (spec §4) on a Signed or Sold job with a paid deposit. A card deposit is refunded
+ * "Cancel & refund" (spec §4) on a job with a paid deposit, at any stage before Ordered or at Lost (ruling P21). A card deposit is refunded
  * in full through Stripe first (one idempotency key per deposit); only then is the cancellation
  * recorded, in one statement. A recorded deposit is marked refunded and the owner returns the money.
  */
@@ -53,7 +64,7 @@ export async function cancelDepositAction(jobId: string, depositId: string): Pro
   const admin = await requireAdmin();
   const job = await getJob(jobId);
   if (!job) return MISSING;
-  if (job.status !== "signed" && job.status !== "sold") return { error: "Only a Signed or Sold job can be cancelled and refunded here." };
+  if (!isRefundableStage(job.status)) return { error: "Materials are ordered, so this job cannot be cancelled and refunded here." };
   const state = await depositState(job.id);
   const deposit = state?.paid;
   if (!state || !deposit || deposit.id !== depositId) return { error: "This deposit is no longer paid. Reload the page." };
@@ -71,6 +82,13 @@ export async function cancelDepositAction(jobId: string, depositId: string): Pro
     failure = error;
   }
   if (!recorded) {
+    // Two tabs: the other press recorded this very cancellation first, so this statement matched nothing.
+    // The deposit is refunded on record — the owner's outcome — so nothing is wrong and nobody is alerted.
+    const now = await depositById(deposit.id).catch(() => null);
+    if (now?.status === "refunded") {
+      refresh(job.id);
+      return { ok: true };
+    }
     console.error(`Deposit ${deposit.id}: the cancellation was not recorded${card ? " after Stripe refunded the card" : ""}`, failure);
     if (!card) return { error: "The cancellation could not be recorded. Reload the page." };
     // Ruling P16: the money has gone back, so say so. Pressing again refunds nothing more (the idempotency

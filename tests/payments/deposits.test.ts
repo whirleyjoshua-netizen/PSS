@@ -61,20 +61,29 @@ describe("depositState", () => {
     expect(sql).toHaveBeenCalledTimes(1);
     const s = text(sql.mock.calls[0]);
     for (const part of [
-      "bool_or(d.status = 'paid') as has_paid", "bool_or(d.status = 'pending') as has_pending",
+      "bool_or(d.status = 'paid') as has_paid",
       "from deposits d where d.dc_quote_version_id = v.id",
-      "order by coalesce(h.has_paid, false) desc, coalesce(h.has_pending, false) desc, v.version desc limit 1",
+      "order by coalesce(h.has_paid, false) desc, v.version desc limit 1",
       "join chosen c on c.id = v.id",
     ]) expect(s).toContain(part);
     expect(s).not.toContain("select max(version)");
   });
+  it("a newer signed version without a deposit beats an older version holding only a stale pending deposit (ruling P20)", async () => {
+    // A change order signed after the client opened card checkout on the old version: the new version
+    // is the one to pay. Only a paid deposit outranks the version number; a pending one ranks nothing.
+    sql.mockResolvedValueOnce([versionRow({ version: 2, id: null, status: null, amount_cents: null })]);
+    expect(await d.depositState(LEAD)).toMatchObject({ version: 2, paid: null, pending: null });
+    const s = text(sql.mock.calls[0]);
+    expect(s).toContain("order by coalesce(h.has_paid, false) desc, v.version desc limit 1");
+    expect(s).not.toContain("has_pending");
+  });
   it("a newer signed version outranks an older version whose deposit was refunded", async () => {
     // Amended P5: cancelled and refunded, then re-signed — the new version is asked for a new deposit.
-    // A refund never ranks a version; only paid, then pending, then the version number do.
+    // A refund never ranks a version; only paid, then the version number do (ruling P20).
     sql.mockResolvedValueOnce([versionRow({ version: 3, id: null, status: null, amount_cents: null })]);
     expect(await d.depositState(LEAD)).toMatchObject({ version: 3, paid: null, pending: null, refunded: null });
     const s = text(sql.mock.calls[0]);
-    expect(s).toContain("coalesce(h.has_pending, false) desc, v.version desc limit 1");
+    expect(s).toContain("coalesce(h.has_paid, false) desc, v.version desc limit 1");
     expect(s).not.toContain("has_refunded");
   });
   it("still reports a refunded deposit on the chosen version", async () => {
@@ -117,6 +126,23 @@ describe("claimStripeDeposit", () => {
     expect(await d.claimStripeDeposit({ leadId: LEAD, versionId: VERSION, amountCents: 0 })).toBeNull();
     expect(await d.claimStripeDeposit({ leadId: LEAD, versionId: VERSION, amountCents: -5 })).toBeNull();
     expect(await d.claimStripeDeposit({ leadId: LEAD, versionId: VERSION, amountCents: 10.5 })).toBeNull();
+    expect(sql).not.toHaveBeenCalled();
+  });
+});
+
+describe("expirePendingOnOtherVersions (ruling P20)", () => {
+  const OTHER = "6e2f7b3f-4c5d-4e6f-9a71-8b9c0d1e2f3a";
+  it("in ONE statement expires every pending deposit of the job's OTHER versions and answers their sessions", async () => {
+    sql.mockResolvedValueOnce([{ stripe_session_id: "cs_old" }, { stripe_session_id: null }]);
+    expect(await d.expirePendingOnOtherVersions(LEAD, VERSION)).toEqual(["cs_old"]);
+    expect(sql).toHaveBeenCalledTimes(1);
+    const s = text(sql.mock.calls[0]);
+    expect(s).toContain("update deposits set status = 'expired' where lead_id = ? and dc_quote_version_id <> ? and status = 'pending' returning stripe_session_id");
+    expect(values(sql.mock.calls[0])).toEqual([LEAD, VERSION]);
+  });
+  it("answers nothing, without a query, for a malformed id", async () => {
+    expect(await d.expirePendingOnOtherVersions("nope", OTHER)).toEqual([]);
+    expect(await d.expirePendingOnOtherVersions(LEAD, "nope")).toEqual([]);
     expect(sql).not.toHaveBeenCalled();
   });
 });

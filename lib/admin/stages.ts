@@ -40,6 +40,18 @@ export function nextStage(stage: Stage): Stage | null {
 /** A stage's place in STAGES; -1 for lost, which is outside the sequence. */
 export const stageIndex = (stage: Stage): number => STAGES.findIndex((s) => s.value === stage);
 
+/**
+ * Ruling P21: Cancel & refund is offered while nothing is ordered — any stage before Ordered (Signed,
+ * Sold, Official measure) — and on a Lost job, which may still hold a paid deposit when an owner moved
+ * it to Lost by hand. The caller also requires a paid deposit. Once materials are ordered it is not.
+ */
+export function isRefundableStage(stage: string): boolean {
+  if (stage === "lost") return true;
+  if (!isStage(stage)) return false;
+  const index = stageIndex(stage);
+  return index !== -1 && index < stageIndex("ordered");
+}
+
 /** Reaching any of these counts as a booked visit (Google Ads' "booked" conversion). */
 export const BOOKED_OR_LATER: readonly Stage[] = STAGES.slice(stageIndex("visit_booked")).map((s) => s.value);
 /** Reaching any of these counts as a sale. Signed is not: the sale is the paid deposit (spec §4). */

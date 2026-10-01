@@ -26,10 +26,12 @@
  *  14. dc_quote_versions_one_offered: two offered versions for C fail at commit (23P01), but superseding one and
  *      offering the other in ONE statement succeeds — the shape sendQuote relies on;
  *  15. the new stages and 'payment' are accepted, a bogus stage is not;
- *  15a. depositState's ranking (ruling P5, amended) and the Task 3 report's cases (a)–(e): a paid deposit on
- *      an older version beats a newer signed version with none; a newer signed version beats an older one
- *      whose deposit was refunded (with or without a pending deposit of its own); a lone refunded version
- *      reports its refund; no deposits → the newest signed version; no signed version → null;
+ *  15a. depositState's ranking (ruling P5, amended; ruling P20) and the Task 3 report's cases (a)–(e): a paid
+ *      deposit on an older version beats a newer signed version with none; a newer signed version beats an
+ *      older one whose deposit was refunded (with or without a pending deposit of its own); a lone refunded
+ *      version reports its refund; no deposits → the newest signed version; no signed version → null;
+ *      (f, P20) a newer signed version with no deposit beats an older one holding only a pending deposit, and
+ *      expirePendingOnOtherVersions expires that older pending row (answering its session) and nothing else;
  *  15b. markStripeDepositPaid on an EXPIRED row whose own session completed (ruling P11b): paid, another pending
  *      row of the version expired in the same statement, stageBefore and otherSessionIds answered; a wrong
  *      session matches nothing; a job not in Signed keeps its stage and gets no stage event;
@@ -62,8 +64,8 @@ vi.mock("@vercel/blob", () => ({ del: async () => undefined, put: async () => ({
 
 import { deleteJob } from "../lib/admin/jobs";
 import {
-  attachSession, cancelDeposit, claimStripeDeposit, depositState, expireDeposit, expireSessionlessDeposit, expireStaleDeposits,
-  markStripeDepositPaid, pendingStripeDeposit, recordDepositPayment,
+  attachSession, cancelDeposit, claimStripeDeposit, depositState, expireDeposit, expirePendingOnOtherVersions, expireSessionlessDeposit,
+  expireStaleDeposits, markStripeDepositPaid, pendingStripeDeposit, recordDepositPayment,
 } from "../lib/payments/deposits";
 
 const BANNER = "\n================ verify-deposit-flow REFUSED TO RUN ================\n";
@@ -367,6 +369,26 @@ test("the deposit flow's SQL holds against a real database", async () => {
     check(stateRe !== null && stateRe.versionId === vRe2 && stateRe.version === 2 && stateRe.amountCents === 20001 &&
         stateRe.paid === null && stateRe.pending === null && stateRe.refunded === null,
       "(e) no deposits: the newest signed version, and a half cent rounds up", JSON.stringify(stateRe));
+    // (f, ruling P20) An older signed version with only a pending card deposit, a newer signed change order with
+    // none: the newer one is the one to pay. The pending tier is gone from the ranking.
+    const Rf = await newLead("Rf", "signed", 30000);
+    const vRf1 = await newVersion(Rf, 1, "signed", 10000);
+    const vRf2 = await newVersion(Rf, 2, "signed", 30000);
+    const pendingRf = await seedDeposit(Rf, vRf1, 5000, "pending");
+    await sql`update deposits set stripe_session_id = ${`cs_verify_Rf_${STAMP}`} where id = ${pendingRf}`;
+    const stateRf = await depositState(Rf);
+    check(stateRf !== null && stateRf.versionId === vRf2 && stateRf.version === 2 && stateRf.paid === null &&
+        stateRf.pending === null && stateRf.amountCents === 15000,
+      "(f) a newer signed version with no deposit beats an older version holding only a pending deposit", JSON.stringify(stateRf));
+    // startDepositAction's first write for v2: the old version's pending row expires and its session is answered.
+    const closedRf = await expirePendingOnOtherVersions(Rf, vRf2);
+    const rowsRf1 = await depositRows(vRf1);
+    check(same(closedRf, [`cs_verify_Rf_${STAMP}`]) && rowsRf1.length === 1 && rowsRf1[0].status === "expired",
+      "(f) expirePendingOnOtherVersions expires the older version's pending row and answers its session", JSON.stringify([closedRf, rowsRf1]));
+    const pendingRf2 = await claimStripeDeposit({ leadId: Rf, versionId: vRf2, amountCents: 15000 });
+    check(pendingRf2 !== null && (await expirePendingOnOtherVersions(Rf, vRf2)).length === 0 &&
+        (await depositRows(vRf2))[0]?.status === "pending",
+      "(f) it never touches the chosen version's own pending row", JSON.stringify(await depositRows(vRf2)));
     // No signed version at all: null.
     check((await depositState(C)) === null, "a job with no signed version has no deposit state", JSON.stringify(await depositState(C)));
 

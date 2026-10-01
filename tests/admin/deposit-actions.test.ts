@@ -7,7 +7,7 @@ const afterCbs: (() => unknown)[] = [];
 vi.mock("next/server", () => ({ after: (cb: () => unknown) => { afterCbs.push(cb); } }));
 const jobs = { getJob: vi.fn() };
 vi.mock("@/lib/admin/jobs", () => jobs);
-const deposits = { depositState: vi.fn(), recordDepositPayment: vi.fn(), cancelDeposit: vi.fn(), isRecordedMethod: (v: unknown) => ["check", "cash", "other"].includes(v as string) };
+const deposits = { depositState: vi.fn(), depositById: vi.fn(), recordDepositPayment: vi.fn(), cancelDeposit: vi.fn(), isRecordedMethod: (v: unknown) => ["check", "cash", "other"].includes(v as string) };
 vi.mock("@/lib/payments/deposits", () => deposits);
 const stripe = { stripeClient: vi.fn(() => ({}) as unknown), closeCheckout: vi.fn(), refundPayment: vi.fn() };
 vi.mock("@/lib/payments/stripe", () => stripe);
@@ -32,6 +32,7 @@ beforeEach(() => {
   deposits.depositState.mockReset().mockResolvedValue(state);
   deposits.recordDepositPayment.mockReset().mockResolvedValue({ depositId: "new" });
   deposits.cancelDeposit.mockReset().mockResolvedValue(true);
+  deposits.depositById.mockReset().mockResolvedValue({ ...paid });
   stripe.stripeClient.mockClear();
   stripe.closeCheckout.mockReset().mockResolvedValue("closed");
   stripe.refundPayment.mockReset().mockResolvedValue(true);
@@ -91,6 +92,20 @@ describe("recordDepositAction", () => {
     expect(deposits.recordDepositPayment).not.toHaveBeenCalled();
   });
 
+  // Two owners press Record payment together: the second insert trips deposits_one_paid_per_version.
+  it("answers that the deposit is already recorded when a concurrent record wins the one-paid index (23505)", async () => {
+    deposits.recordDepositPayment.mockRejectedValue(Object.assign(new Error("duplicate key value violates unique constraint"), {
+      code: "23505", constraint: "deposits_one_paid_per_version",
+    }));
+    expect(await recordDepositAction(JOB, "924", "check")).toEqual({ error: "This deposit is already recorded." });
+    expect(afterCbs).toHaveLength(0);
+  });
+
+  it("still throws any other database failure", async () => {
+    deposits.recordDepositPayment.mockRejectedValue(Object.assign(new Error("connection reset"), { code: "08006" }));
+    await expect(recordDepositAction(JOB, "924", "check")).rejects.toThrow("connection reset");
+  });
+
   it("says so when the statement recorded nothing (the job moved meanwhile)", async () => {
     deposits.recordDepositPayment.mockResolvedValue(null);
     expect(await recordDepositAction(JOB, "924", "check")).toEqual({ error: "The deposit could not be recorded. Reload the page and check the job's stage." });
@@ -144,9 +159,36 @@ describe("cancelDepositAction", () => {
     expect(stripe.refundPayment).not.toHaveBeenCalled();
   });
 
-  it("refuses a job that is not Signed or Sold, and a deposit that is not the paid one", async () => {
-    jobs.getJob.mockResolvedValue({ ...job, status: "ordered" });
-    expect(await cancelDepositAction(JOB, DEPOSIT)).toEqual({ error: "Only a Signed or Sold job can be cancelled and refunded here." });
+  // Ruling P21: nothing is ordered before Ordered, so Official measure can still be cancelled; a Lost
+  // job that still holds a paid deposit (moved to Lost by hand) can be refunded too.
+  it.each(["signed", "sold", "measure", "lost"])("allows Cancel & refund on a %s job with a paid deposit", async (status) => {
+    jobs.getJob.mockResolvedValue({ ...job, status });
+    expect(await cancelDepositAction(JOB, DEPOSIT)).toEqual({ ok: true });
+    expect(stripe.refundPayment).toHaveBeenCalledWith(expect.anything(), "pi_1", DEPOSIT);
+    expect(deposits.cancelDeposit).toHaveBeenCalledWith({ leadId: JOB, deposit: paid, actor: "owner@example.com" });
+  });
+
+  it.each(["ordered", "installed", "completed"])("refuses a %s job, touching nothing", async (status) => {
+    jobs.getJob.mockResolvedValue({ ...job, status });
+    expect(await cancelDepositAction(JOB, DEPOSIT)).toEqual({ error: "Materials are ordered, so this job cannot be cancelled and refunded here." });
+    expect(stripe.refundPayment).not.toHaveBeenCalled();
+    expect(deposits.cancelDeposit).not.toHaveBeenCalled();
+  });
+
+  // Two tabs: the first press recorded the cancellation, so the second's statement matches nothing.
+  it("answers success, with no alert and no second email, when another tab already recorded the cancellation", async () => {
+    deposits.cancelDeposit.mockResolvedValue(false);
+    deposits.depositById.mockResolvedValue({ ...paid, status: "refunded", refundedAt: new Date() });
+    vi.mocked(console.error).mockClear();
+    expect(await cancelDepositAction(JOB, DEPOSIT)).toEqual({ ok: true });
+    expect(deposits.depositById).toHaveBeenCalledWith(DEPOSIT);
+    for (const cb of afterCbs.splice(0)) await cb();
+    expect(emails.alertUnrecordedRefund).not.toHaveBeenCalled();
+    expect(emails.sendCancellationEmails).not.toHaveBeenCalled();
+    expect(console.error).not.toHaveBeenCalled();
+  });
+
+  it("refuses a deposit that is not the paid one", async () => {
     jobs.getJob.mockResolvedValue(job);
     expect(await cancelDepositAction(JOB, "6e2f7b3f-4c5d-4e6f-9a71-8b9c0d1e2f3a")).toEqual({ error: "This deposit is no longer paid. Reload the page." });
     expect(stripe.refundPayment).not.toHaveBeenCalled();

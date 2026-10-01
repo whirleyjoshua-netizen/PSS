@@ -2,6 +2,7 @@
 
 import { useState, useTransition, type FormEvent } from "react";
 import { formatCents } from "@/lib/admin/money";
+import { isRefundableStage } from "@/lib/admin/stages";
 import { formatDateOnly, formatShortDate } from "@/lib/admin/time";
 import type { DepositMethod } from "@/lib/payments/deposits";
 import { PAID_HOW } from "@/lib/payments/paid-how";
@@ -30,7 +31,8 @@ export function DepositPanel({ jobId, view }: { jobId: string; view: DepositView
   const [message, setMessage] = useState<{ ok: string } | { error: string } | null>(null);
   const [pending, start] = useTransition();
   const canRecord = !view.paid && view.jobStatus === "signed";
-  const canCancel = view.paid !== null && (view.jobStatus === "signed" || view.jobStatus === "sold");
+  // Ruling P21: before Ordered, or Lost, while a deposit is paid. The action re-checks it.
+  const canCancel = view.paid !== null && isRefundableStage(view.jobStatus);
   const lastDay = formatDateOnly(view.lastCancellableDay);
 
   const record = (event: FormEvent<HTMLFormElement>) => {

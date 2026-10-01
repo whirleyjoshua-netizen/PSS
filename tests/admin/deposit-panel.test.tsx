@@ -82,6 +82,19 @@ describe("DepositPanel", () => {
     expect(screen.getByText(/return it to the client yourself/)).toBeInTheDocument();
   });
 
+  // Ruling P21: any stage before Ordered, and Lost, while a paid deposit exists.
+  it.each(["measure", "lost"])("offers Cancel & refund on a %s job with a paid deposit, and still says whether the window is open", (jobStatus) => {
+    render(<DepositPanel jobId={J} view={{ ...view, jobStatus, inWindow: false, paid }} />);
+    fireEvent.click(screen.getByRole("button", { name: "Cancel & refund" }));
+    expect(screen.getByText("The 3-business-day cancellation window closed at the end of Oct 1, 2026.")).toBeInTheDocument();
+  });
+
+  it("offers no Cancel & refund once the job is Ordered", () => {
+    render(<DepositPanel jobId={J} view={{ ...view, jobStatus: "ordered", paid }} />);
+    expect(screen.getByText("Deposit $924.17 paid by card on Sep 29, 2026.")).toBeInTheDocument();
+    expect(screen.queryByRole("button")).toBeNull();
+  });
+
   it("offers nothing on a refunded, Lost job", () => {
     render(<DepositPanel jobId={J} view={{ ...view, jobStatus: "lost", refunded: { amountCents: 92417, refundedAt: new Date("2026-09-30T17:00:00Z") } }} />);
     expect(screen.getByText("Deposit $924.17 refunded Sep 30, 2026.")).toBeInTheDocument();

@@ -5,7 +5,7 @@ vi.mock("@/lib/portal/session", () => ({ requireCustomer }));
 vi.mock("@/lib/portal/login", () => ({ portalOrigin: () => "https://pss.test" }));
 const deposits = {
   depositState: vi.fn(), claimStripeDeposit: vi.fn(), pendingStripeDeposit: vi.fn(), attachSession: vi.fn(),
-  expireDeposit: vi.fn(), expireStaleDeposits: vi.fn(), expireSessionlessDeposit: vi.fn(),
+  expireDeposit: vi.fn(), expireStaleDeposits: vi.fn(), expireSessionlessDeposit: vi.fn(), expirePendingOnOtherVersions: vi.fn(),
 };
 vi.mock("@/lib/payments/deposits", () => deposits);
 const create = vi.fn();
@@ -46,6 +46,7 @@ beforeEach(() => {
   deposits.expireDeposit.mockReset().mockResolvedValue(true);
   deposits.expireStaleDeposits.mockReset().mockResolvedValue(0);
   deposits.expireSessionlessDeposit.mockReset().mockResolvedValue(true);
+  deposits.expirePendingOnOtherVersions.mockReset().mockResolvedValue([]);
   create.mockReset().mockResolvedValue(open);
   retrieve.mockReset().mockResolvedValue(open);
   stripeClient.mockClear();
@@ -72,6 +73,22 @@ describe("startDepositAction", () => {
     expect(await startDepositAction(MINE)).toBe("paid");
     expect(create).not.toHaveBeenCalled();
     expect(deposits.claimStripeDeposit).not.toHaveBeenCalled();
+  });
+
+  // Ruling P20: a change order was signed after the client opened checkout on the old version. That
+  // old pending row is expired, and its session closed in Stripe, before the new version's is opened.
+  it("expires the other versions' pending deposits and closes their checkouts before claiming this version's", async () => {
+    deposits.expirePendingOnOtherVersions.mockResolvedValue(["cs_old_version"]);
+    expect(await startDepositAction(MINE)).toEqual({ url: "https://checkout.stripe.test/c/cs_1" });
+    expect(deposits.expirePendingOnOtherVersions).toHaveBeenCalledWith(MINE, VERSION);
+    expect(closeCheckout).toHaveBeenCalledWith(expect.anything(), "cs_old_version");
+    expect(deposits.expirePendingOnOtherVersions.mock.invocationCallOrder[0]).toBeLessThan(deposits.claimStripeDeposit.mock.invocationCallOrder[0]);
+  });
+
+  it("still opens checkout when closing the other version's session fails", async () => {
+    deposits.expirePendingOnOtherVersions.mockResolvedValue(["cs_old_version"]);
+    closeCheckout.mockRejectedValueOnce(new Error("stripe down"));
+    expect(await startDepositAction(MINE)).toEqual({ url: "https://checkout.stripe.test/c/cs_1" });
   });
 
   it("claims a pending deposit at the stored half and opens Checkout for exactly it", async () => {

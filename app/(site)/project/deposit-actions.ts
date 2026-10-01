@@ -3,8 +3,8 @@
 import { redirect } from "next/navigation";
 import type Stripe from "stripe";
 import {
-  attachSession, claimStripeDeposit, depositState, expireDeposit, expireSessionlessDeposit, expireStaleDeposits, pendingStripeDeposit,
-  type Deposit,
+  attachSession, claimStripeDeposit, depositState, expireDeposit, expirePendingOnOtherVersions, expireSessionlessDeposit, expireStaleDeposits,
+  pendingStripeDeposit, type Deposit,
 } from "@/lib/payments/deposits";
 import { closeCheckout, stripeClient } from "@/lib/payments/stripe";
 import { portalOrigin } from "@/lib/portal/login";
@@ -69,6 +69,16 @@ export async function startDepositAction(jobId: string): Promise<StartDepositRes
   const stripe = stripeClient();
   if (!stripe) return "unavailable";
 
+  // Ruling P20: a checkout opened on an older version (before a change order was signed) is given up and
+  // closed in Stripe, so only this version's deposit can be paid. Closing is best-effort: a payment that
+  // completes anyway reaches the webhook, which still records it.
+  for (const sessionId of await expirePendingOnOtherVersions(job.id, state.versionId)) {
+    try {
+      await closeCheckout(stripe, sessionId);
+    } catch (error) {
+      console.error(`Could not close Checkout Session ${sessionId}`, error);
+    }
+  }
   await expireStaleDeposits(state.versionId);
   for (let attempt = 0; attempt < 2; attempt += 1) {
     const deposit = (await claimStripeDeposit({ leadId: job.id, versionId: state.versionId, amountCents: state.amountCents }))
