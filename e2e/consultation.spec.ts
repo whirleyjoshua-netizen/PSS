@@ -120,3 +120,21 @@ test("the honeypot is present but invisible to a sighted user", async ({ page })
   await expect(honeypot).toBeAttached();
   await expect(honeypot).not.toBeInViewport();
 });
+
+test("a visitor can book from the booking block on a product page", async ({ page }) => {
+  let posted: Record<string, unknown> | null = null;
+  await page.route("**/api/consultation", async (route) => {
+    posted = route.request().postDataJSON();
+    await route.fulfill({ status: 201, contentType: "application/json", body: JSON.stringify({ ok: true }) });
+  });
+
+  await page.goto("/motorization");
+  const block = page.locator("section#book");
+  await block.getByLabel("Name", { exact: true }).fill("Dana Reyes");
+  await block.getByLabel("Phone", { exact: true }).fill("7025550134");
+  await block.getByLabel("Email", { exact: true }).fill("dana@example.com");
+  await block.getByRole("button", { name: /invite us over/i }).click();
+
+  await expect(page.getByRole("heading", { level: 1 })).toContainText(/thank you/i);
+  expect(posted).toMatchObject({ source: "booking" });
+});
