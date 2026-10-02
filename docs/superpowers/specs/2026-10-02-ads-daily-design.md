@@ -1,7 +1,7 @@
 # `/ads-daily`: morning Google Ads review
 
 **Date:** 2026-10-02
-**Status:** design approved by the owner, not yet built
+**Status:** built 2026-10-02; dry run 2026-10-02; P0 applied 2026-10-02
 
 ## Goal
 
@@ -10,7 +10,7 @@ Every morning, check whether the Search campaign spent its budget and whether it
 ## Fixed facts
 
 - Google Ads account 683-934-1456, campaign "Search - Window Treatments LV" (ID 24293240304), $25/day budget as of 2026-10-02. Each run reads the live daily budget instead of assuming it.
-- Current bidding (2026-10-02): Maximize clicks with a $9 campaign-wide max CPC limit. Each run reads the live bidding strategy and bids instead of assuming them.
+- Current bidding: Manual CPC since 2026-10-02 (switched outside a logged run). All 7 ad-group default max CPCs and every keyword's max CPC were $9.00 as of 2026-10-02. Each run reads the live bidding strategy and bids instead of assuming them.
 - Target CPL: **$75** for one "Consultation request".
 - Max CPC hard ceiling: **$12**.
 - The 725-400-5254 number is the owner's old personal line. It must never be attached to an ad.
@@ -19,9 +19,13 @@ Every morning, check whether the Search campaign spent its budget and whether it
 
 Under Maximize clicks, Google allows only one campaign-wide max CPC limit, so the per-keyword bid rules (R1, R3) can't be applied. The owner decided to move to Manual CPC:
 
-- **P0 — switch bidding from Maximize clicks to Manual CPC, every active keyword's max CPC set to $9.00 (the current cap).** It is a one-time item, proposed first on every run until it has been approved, applied and verified. Like any other item, it needs the owner's approval. The starting bid is the live campaign max CPC limit read that run ($9.00 as of 2026-10-02); if the live limit differs from $9.00, the P0 item says so and uses the live figure.
+- **P0 — switch bidding from Maximize clicks to Manual CPC, every active keyword's max CPC set to $9.00 (the current cap).** It is a one-time item, outstanding only while the live bidding strategy is Maximize clicks (the live strategy decides, not the log); while outstanding it is proposed first on every run. Like any other item, it needs the owner's approval. The starting bid is the live campaign max CPC limit read that run ($9.00 as of 2026-10-02); if the live limit differs from $9.00, the P0 item says so and uses the live figure.
+- **Applying P0 sets ad-group default bids.** Switching Maximize clicks → Manual CPC makes Google set every ad group's Default max. CPC to $0.01 (seen 2026-10-02). After switching, open the Ad groups page (https://ads.google.com/aw/adgroups?campaignId=24293240304&ocid=8525738539), select all ad groups (Outdoor included) → Edit → Change bids → Set new bids → the starting bid → Apply. Then confirm each keyword's Max. CPC shows the starting bid (a keyword without its own bid inherits the ad-group default).
+- **Verifying P0** includes reading every ad group's Default max. CPC. Any value other than the starting bid (e.g. $0.01) means P0 is not verified.
+- While bidding is Manual CPC, the health check reads each ad group's Default max. CPC on the Ad groups page and flags any ad group below $1.00 as a serving problem.
 - Until P0 is applied: R1 and R3 can't target a keyword. The run states them as "not applicable until P0" and doesn't fire them. R7 applies to the campaign max CPC limit.
 - After P0: R1 and R3 change that keyword's max CPC. R7 raises max CPC 15% on every active keyword, never above $12.
+- A keyword with no explicit bid is raised or lowered (R1, R3, R7 after P0) from its effective bid, the ad-group default, and the new value is set on the keyword itself.
 
 ## What gets built
 
@@ -36,20 +40,21 @@ Nothing else is built: no API integration, no admin page, no scheduled job.
 2. **Health check**, in the owner's logged-in Chrome (Browser 1, macOS):
    - Yesterday's impressions, clicks and cost vs the live daily budget (Budget column; $25/day as of 2026-10-02).
    - Campaign and ad statuses, disapprovals, and billing or policy banners.
+   - While bidding is Manual CPC: each ad group's Default max. CPC (Ad groups page). Any ad group below $1.00 is flagged as a serving problem.
    - If yesterday had 0 impressions, stop and diagnose before proposing anything else (Ad preview with location "Las Vegas, Nevada" city, change history, billing).
 3. **Pull numbers** for yesterday, the last 7 days and since launch (custom range Sep 28, 2026 through yesterday). Every range ends yesterday; today's partial day is never used.
    - Per keyword: cost, clicks, impressions, CTR, conversions, cost per conversion, and "Search lost top IS (rank)".
    - Campaign row: cost, clicks, conversions and cost per conversion for yesterday, the last 7 days and since launch. The proposal reports these figures as read, never sums of keyword rows.
    - Campaign: search impression share and "Search lost IS (rank)" for the last 7 days.
    - The campaign's live daily budget (Budget column on the Campaigns page).
-   - Campaign cost for each of the last 3 days: Campaigns page, date = last 7 days, Segment → Time → Day.
+   - Campaign cost for each of the 3 days ending yesterday: Campaigns page, date = last 7 days, Segment → Time → Day.
    - The current bidding strategy, and either the campaign max CPC limit (Maximize clicks) or each active keyword's max CPC (Manual CPC).
    - Search terms report for the last 7 days.
    - Status of the latest conversion upload in Data Manager.
 4. **Apply the rules** below.
 5. **Propose** one numbered list. P0 comes first while it is outstanding. Each item names the action, the keyword or term, and the numbers behind it.
 6. **Wait for approval.** The owner replies "all", "1–5 and 7", "skip 3", or similar. Apply only the approved items. If P0 is approved, apply it before any other item.
-7. **Verify.** Reload the affected pages in a fresh tab and confirm each change actually saved. Saves can drop silently when Google shows a "Confirm it's you" prompt. Fill the log's Verified column for each applied item. Report anything that didn't stick.
+7. **Verify.** Reload the affected pages in a fresh tab and confirm each change actually saved. Saves can drop silently when Google shows a "Confirm it's you" prompt. For P0, read every ad group's Default max. CPC; any value other than the starting bid (e.g. $0.01) means P0 is not verified. Fill the log's Verified column for each applied item. Report anything that didn't stick.
 8. **Write the log** `~/pss/.ads-log/YYYY-MM-DD.md`: the numbers, each proposal, the decision (approved or rejected), and what was verified as applied.
 
 ## Rules
@@ -69,7 +74,7 @@ If P0 and R7 are approved in the same run, P0 is applied first, and R7 is then a
 | R3 | Keyword has ≥ 2 leads and CPL > $112 | Lower its max CPC 15%. Not applicable until P0 |
 | R4 | Keyword spent < $150 with 0 leads | Leave it. Flag it only if CTR < 2% with ≥ 100 impressions |
 | R5 | Search term (last 7 days) is DIY, another retailer or brand, a job search, outside the service area, or a product PSS doesn't sell | Propose as a negative keyword, up to 20 per day |
-| R6 | Search term got a click, shows buying intent ("near me", "install", "installation", "cost", "price", "quote", a service-area city name), and isn't already a keyword | Propose as a phrase-match keyword in the matching ad group. The keyword is the core product phrase of the search term, not the full query (e.g. "bypass shutters for sliding glass doors near me" → "bypass shutters"); show the original term in the item. At most 5 new keywords per rolling 7 days |
+| R6 | Search term got a click, shows buying intent ("near me", "install", "installation", "cost", "price", "quote", a service-area city name), and isn't already a keyword | Propose as a phrase-match keyword in the matching ad group. The keyword is the core product phrase of the search term, not the full query (e.g. "bypass shutters for sliding glass doors near me" → "bypass shutters"); show the original term in the item. Set its max CPC to the ad group's default bid and show that bid in the item. At most 5 new keywords per rolling 7 days |
 | R7 | Campaign spent < $20/day on each of the last 3 days, and campaign "Search lost IS (rank)" (last 7 days) > 30% | Before P0: propose raising the campaign max CPC limit 15%, never above $12. After P0, or when P0 is approved in the same run: propose raising max CPC 15% on every active keyword, never above $12 |
 | R8 | Campaign cost ≥ the live daily budget ($25 as of 2026-10-02) on each of the last 3 days, and campaign CPL (last 7 days) ≤ $75 | Propose a budget increase of $5/day |
 
