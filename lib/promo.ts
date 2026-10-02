@@ -11,6 +11,8 @@ export type Promo = {
   startsAt: string;
   /** ISO instant with offset; exclusive. */
   endsAt: string;
+  /** The lead-times dropdown flags install windows that run past this calendar day, e.g. "2026-12-24". */
+  arriveBy?: { day: string; note: string };
 };
 
 export const promoStorageKey = (promo: Promo) => `pss-promo-closed:${promo.id}`;

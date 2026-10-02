@@ -7,6 +7,9 @@
  * When the remaining real values arrive, this is the only file that changes.
  */
 
+import { leadTimes } from "@/content/lead-times";
+import { leadTimeSummary } from "@/lib/lead-times";
+
 export const business = {
   name: "Premier Shade Solutions",
   legalName: "Premier Shade Solutions LLC",
@@ -48,6 +51,7 @@ export type ServiceCity = (typeof business.serviceArea)[number];
 /**
  * How long production typically takes, shown on the customer's project page while
  * their order is in production. A rule of thumb for every job, never per-job data —
- * the copy says "typically" for that reason.
+ * the copy says "typically" for that reason. Built from content/lead-times.ts, the same
+ * weeks the holiday strip and the contract terms give.
  */
-export const PRODUCTION_ESTIMATE = "Typically 4–6 weeks from order to install";
+export const PRODUCTION_ESTIMATE = `Typically ${leadTimeSummary(leadTimes)} from order to install`;

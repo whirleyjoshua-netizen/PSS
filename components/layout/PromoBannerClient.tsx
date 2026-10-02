@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Container } from "@/components/ui/Container";
+import { LeadTimesMenu } from "./LeadTimesMenu";
 import { trackPromoClick } from "@/lib/analytics/events";
 import { promoStorageKey, type Promo } from "@/lib/promo";
 
@@ -30,7 +31,7 @@ export function PromoBannerClient({ promo }: { promo: Promo }) {
     <aside
       aria-label="Holiday announcement"
       data-promo={promo.id}
-      className="holiday-strip relative overflow-hidden border-b-[5px] border-holiday-green bg-holiday-red text-holiday-snow shadow-[inset_0_-7px_0_var(--color-champagne)]"
+      className="holiday-strip relative border-b-[5px] border-holiday-green bg-holiday-red text-holiday-snow shadow-[inset_0_-7px_0_var(--color-champagne)]"
     >
       {/* A light snowfall: dots on a 22px grid, faint enough to keep the text 8.5:1. */}
       <div
@@ -38,26 +39,29 @@ export function PromoBannerClient({ promo }: { promo: Promo }) {
         className="pointer-events-none absolute inset-0 bg-[radial-gradient(var(--color-holiday-snow)_1.2px,transparent_1.6px)] bg-size-[22px_22px] opacity-15"
       />
       <Container>
-        <div className="relative flex min-h-11 items-center justify-center gap-3 py-2 pr-10 pl-10 pb-3">
-          <Snowflake />
-          <Link
-            href={promo.href}
-            onClick={() => trackPromoClick(promo.id, pathname)}
-            className="text-center text-sm leading-snug hover:underline"
-          >
-            <span className="sm:hidden">
-              {promo.shortMessage} <span className="font-semibold underline underline-offset-2">{promo.shortCta}</span>
-            </span>
-            <span className="hidden sm:inline">
-              {promo.message} <span className="font-semibold underline underline-offset-2">{promo.cta}</span>
-            </span>
-          </Link>
-          <Snowflake />
+        <div className="relative flex min-h-11 items-center gap-2 pt-1.5 pb-3">
+          <div className="flex min-w-0 flex-1 items-center justify-center gap-3">
+            <Snowflake />
+            <Link
+              href={promo.href}
+              onClick={() => trackPromoClick(promo.id, pathname)}
+              className="text-center text-sm leading-snug hover:underline"
+            >
+              <span className="sm:hidden">
+                {promo.shortMessage} <span className="font-semibold underline underline-offset-2">{promo.shortCta}</span>
+              </span>
+              <span className="hidden sm:inline">
+                {promo.message} <span className="font-semibold underline underline-offset-2">{promo.cta}</span>
+              </span>
+            </Link>
+            <Snowflake />
+          </div>
+          <LeadTimesMenu promo={promo} pathname={pathname} />
           <button
             type="button"
             onClick={close}
             aria-label="Close holiday announcement"
-            className="absolute right-0 top-1/2 inline-flex size-11 -translate-y-1/2 items-center justify-center text-xl leading-none transition-colors hover:bg-holiday-snow/15"
+            className="-mr-3 inline-flex size-11 shrink-0 items-center justify-center text-xl leading-none transition-colors hover:bg-holiday-snow/15"
           >
             <span aria-hidden="true">×</span>
           </button>
