@@ -33,6 +33,14 @@ const listTeam = vi.fn();
 vi.mock("@/lib/admin/team", () => ({ listTeam }));
 vi.mock("@/app/admin/jobs/measure-actions", () => ({ removeMeasurement: vi.fn(), removeFile: vi.fn(), setFileShared: vi.fn() }));
 
+const webauthn = { supported: false };
+vi.mock("@simplewebauthn/browser", () => ({
+  browserSupportsWebAuthn: () => webauthn.supported,
+  platformAuthenticatorIsAvailable: async () => true,
+  startRegistration: vi.fn(),
+}));
+vi.mock("@/app/admin/passkey-actions", () => ({ beginFaceIdSetup: vi.fn(), completeFaceIdSetup: vi.fn() }));
+
 const { default: BoardPage } = await import("@/app/admin/page");
 const open = async (params: { list?: string; job?: string; q?: string }) =>
   render(await BoardPage({ searchParams: Promise.resolve(params) }));
@@ -45,6 +53,7 @@ beforeEach(() => {
   listDueFollowUps.mockReset().mockResolvedValue([]);
   listTeam.mockReset().mockResolvedValue([]);
   redirect.mockClear();
+  webauthn.supported = false;
 });
 
 describe("board page", () => {
@@ -170,5 +179,11 @@ describe("board look and conveniences", () => {
     for (const link of screen.getAllByRole("link")) {
       expect(link.getAttribute("href") ?? "").not.toContain("list=bogus");
     }
+  });
+
+  it("offers Face ID for this phone at the top of the board when the phone can do it", async () => {
+    webauthn.supported = true;
+    await open({});
+    expect(await screen.findByRole("button", { name: "Turn on Face ID for this phone" })).toBeInTheDocument();
   });
 });

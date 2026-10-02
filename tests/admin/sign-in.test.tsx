@@ -6,12 +6,19 @@ const CODE_FAILED = "That code didn't work. Check it, or request a new one.";
 const requestSignInAction = vi.fn();
 const verifySignInCodeAction = vi.fn();
 vi.mock("@/app/admin/sign-in/actions", () => ({ requestSignInAction, verifySignInCodeAction }));
+const webauthn = { supported: false };
+vi.mock("@simplewebauthn/browser", () => ({
+  browserSupportsWebAuthn: () => webauthn.supported,
+  startAuthentication: vi.fn(),
+}));
+vi.mock("@/app/admin/passkey-actions", () => ({ beginFaceIdSignIn: vi.fn(), completeFaceIdSignIn: vi.fn() }));
 
 const { SignInForm } = await import("@/app/admin/sign-in/SignInForm");
 
 beforeEach(() => {
   requestSignInAction.mockReset().mockResolvedValue({ status: "sent", email: "owner@example.com" });
   verifySignInCodeAction.mockReset().mockResolvedValue({ error: CODE_FAILED });
+  webauthn.supported = false;
 });
 
 async function sendFor(user: ReturnType<typeof userEvent.setup>, address = "owner@example.com") {
@@ -74,5 +81,20 @@ describe("SignInForm", () => {
     expect(screen.getByLabelText(/email/i)).toHaveValue("");
     expect(screen.queryByLabelText("6-digit code")).toBeNull();
     expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("leads with Face ID above the email form when this browser has passkeys", () => {
+    webauthn.supported = true;
+    render(<SignInForm />);
+    const faceId = screen.getByRole("button", { name: "Sign in with Face ID" });
+    const email = screen.getByLabelText(/email/i);
+    expect(faceId.compareDocumentPosition(email) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByText("or use your email")).toBeInTheDocument();
+  });
+
+  it("shows only the email form when it does not", () => {
+    render(<SignInForm />);
+    expect(screen.queryByRole("button", { name: "Sign in with Face ID" })).toBeNull();
+    expect(screen.getByLabelText(/email/i)).toBeInTheDocument();
   });
 });

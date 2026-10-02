@@ -11,10 +11,12 @@ describe("migration 034", () => {
     for (const line of source.split("\n")) if (line.trim().startsWith("--")) expect(line).not.toContain(";");
   });
 
-  it("is re-runnable: every statement adds a column if missing, or drops a constraint before it adds it", () => {
+  it("is re-runnable: every statement adds a column or table if missing, or drops a constraint before it adds it", () => {
     expect(statements.length).toBeGreaterThan(0);
     for (const s of statements) {
-      expect(s).toMatch(/^alter table admin_login_tokens (add column if not exists|drop constraint if exists|add constraint)/);
+      expect(s).toMatch(
+        /^(alter table admin_login_tokens (add column if not exists|drop constraint if exists|add constraint)|create table if not exists |create index if not exists )/,
+      );
     }
   });
 
@@ -34,5 +36,39 @@ describe("migration 034", () => {
     );
     expect(drop).toBeGreaterThanOrEqual(0);
     expect(add).toBeGreaterThan(drop);
+  });
+
+  const table = (name: string) => statements.find((s) => s.startsWith(`create table if not exists ${name} (`)) ?? "";
+
+  it("stores passkeys by credential id, bound to a normalized address", () => {
+    const passkeys = table("admin_passkeys");
+    expect(passkeys).not.toBe("");
+    for (const column of [
+      "id text primary key",
+      "email text not null",
+      "public_key bytea not null",
+      "counter bigint not null default 0",
+      "transports text[] not null default '{}'",
+      "label text not null",
+      "created_at timestamptz not null default now()",
+      "last_used_at timestamptz,",
+    ]) expect(passkeys).toContain(column);
+    expect(passkeys).toContain("constraint admin_passkeys_email_normalized check (email = lower(btrim(email)))");
+    expect(statements).toContain("create index if not exists admin_passkeys_email_idx on admin_passkeys (email)");
+  });
+
+  it("stores each Face ID challenge with its purpose, an optional address and an expiry", () => {
+    const challenges = table("admin_webauthn_challenges");
+    expect(challenges).not.toBe("");
+    for (const column of [
+      "id text primary key",
+      "challenge text not null",
+      "purpose text not null",
+      "email text,",
+      "expires_at timestamptz not null",
+    ]) expect(challenges).toContain(column);
+    expect(challenges).toContain(
+      "constraint admin_webauthn_challenges_purpose_check check (purpose in ('register', 'sign-in'))",
+    );
   });
 });

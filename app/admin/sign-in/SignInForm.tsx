@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { CONTROL, Label, TextField } from "@/components/forms/Field";
+import { PasskeySignIn } from "../PasskeySignIn";
 import {
   requestSignInAction,
   verifySignInCodeAction,
@@ -10,15 +11,21 @@ import {
   type SignInState,
 } from "./actions";
 
-/** Each "Use a different email" remounts the email step, clearing its sent state. */
+/**
+ * Face ID leads when this browser has passkeys; the emailed code is the backup below it.
+ * Each "Use a different email" remounts the email step, clearing its sent state.
+ */
 export function SignInForm({ expired = false }: { expired?: boolean }) {
   const [attempt, setAttempt] = useState(0);
   return (
-    <EmailStep
-      key={attempt}
-      expired={expired && attempt === 0}
-      onDifferentEmail={() => setAttempt((n) => n + 1)}
-    />
+    <div className="flex flex-col gap-4">
+      <PasskeySignIn />
+      <EmailStep
+        key={attempt}
+        expired={expired && attempt === 0}
+        onDifferentEmail={() => setAttempt((n) => n + 1)}
+      />
+    </div>
   );
 }
 

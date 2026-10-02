@@ -44,6 +44,8 @@ describe("admin access store", () => {
     expect(sql.mock.calls[0]).toContain("a@x.com");
     // Their open tasks become unassigned in the same statement; done tasks keep the name as history.
     expect(flat).toMatch(/update tasks set assignee_email = null, updated_at = now\(\) where status <> 'done' and assignee_email in \(select email from removed\)/);
+    // Their Face ID devices go too, so a removed person cannot sign back in with one.
+    expect(flat).toMatch(/passkeys as \( delete from admin_passkeys where email in \(select email from removed\) \)/);
   });
 
   it("reports removing an unknown address as false", async () => {
