@@ -266,6 +266,10 @@ export const products: Product[] = [
     ],
     bestFor: "Sliding glass doors, patio doors, and windows wider than they are tall.",
     image: {
+      src: "/gallery/vertical-blinds-patio-door-valance.webp",
+      alt: "White vertical blinds drawn across a sliding patio door beneath a grey floral swag valance, with a sunroom visible through the glass.",
+    },
+    storyPhoto: {
       src: "/gallery/sheer-vertical-patio-slider.webp",
       alt: "Floor-to-ceiling sheer vertical blinds drawn across a patio slider in a living room, with the backyard visible through the fabric vanes.",
     },
@@ -294,6 +298,10 @@ export const products: Product[] = [
     ],
     bestFor: "Living rooms, dining rooms, and bedrooms wanting warmth without shutter cost.",
     image: {
+      src: "/gallery/faux-wood-blinds-front-window.webp",
+      alt: "White faux wood blinds with wide slats and cloth tapes in a tall front window, framed by cream curtains, looking out to a covered porch and the street.",
+    },
+    storyPhoto: {
       src: "/gallery/faux-wood-blinds-living-room.webp",
       alt: "White faux wood blinds with wide slats on two windows above a grey sofa with patterned pillows.",
     },

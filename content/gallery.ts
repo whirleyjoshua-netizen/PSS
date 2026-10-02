@@ -176,6 +176,18 @@ export const gallery: GalleryItem[] = [
     treatment: "motorization",
     caption: "Motorized cellular shades across a two-story wall of windows, lowered together to the same line.",
   },
+  {
+    src: "/gallery/vertical-blinds-patio-door-valance.webp",
+    alt: "White vertical blinds drawn across a sliding patio door beneath a grey floral swag valance, with a sunroom visible through the glass.",
+    treatment: "blinds",
+    caption: "Vertical blinds on a sliding patio door, finished with a swag valance above.",
+  },
+  {
+    src: "/gallery/faux-wood-blinds-front-window.webp",
+    alt: "White faux wood blinds with wide slats and cloth tapes in a tall front window, framed by cream curtains, looking out to a covered porch and the street.",
+    treatment: "blinds",
+    caption: "Faux wood blinds with cloth tapes in a tall front window, under drapery panels.",
+  },
 ];
 
 /**

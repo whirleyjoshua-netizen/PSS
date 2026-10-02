@@ -106,9 +106,9 @@ the Blinds intro, "15–20° cooler" from the Outdoor intro).
   - Plantation Shutters: `/gallery/plantation-shutters-bedroom.webp`
   Every other product's story slot shows the fabric panel.
 - **Page order decides a repeat.** Slots fill top to bottom (hero, story, cards); a slot whose
-  photo already appeared higher on the page shows the fabric panel instead. Only Blinds is
-  affected today: its hero and story photos are also its two products' photos, so both Blinds
-  cards show the panel until two more blinds photos exist.
+  photo already appeared higher on the page shows the fabric panel instead. Blinds was the only page
+  affected until the owners sent new vertical and faux wood photos on 2026-10-01; the earlier two
+  moved to those products' story slots, so no page repeats a photo today.
 - **Today's photo slots, unchanged:** category hero = `bookingPhoto` (Blinds, Shades, Shutters)
   else `consultationPhoto` (Outdoor, Motorization); category story = `image` (Blinds, Shades,
   Shutters) else the panel.

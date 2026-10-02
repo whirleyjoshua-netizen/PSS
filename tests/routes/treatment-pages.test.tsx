@@ -47,10 +47,13 @@ describe("category page redesign", () => {
     expect(story.querySelector("img")).toBeNull();
   });
 
-  it("Blinds: product photos already used above become fabric panels on the cards", async () => {
+  it("Blinds: both product cards show their own photo, none repeated from above", async () => {
     const { container } = await renderCategory("blinds");
     const cards = screen.getByRole("heading", { level: 2, name: "Explore Blinds" }).closest("section")!;
-    expect(cards.querySelectorAll("img")).toHaveLength(0);
+    expect(srcs(cards)).toEqual([
+      expect.stringContaining("/gallery/vertical-blinds-patio-door-valance.webp"),
+      expect.stringContaining("/gallery/faux-wood-blinds-front-window.webp"),
+    ]);
     const all = srcs(container);
     expect(new Set(all).size).toBe(all.length);
   });

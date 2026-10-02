@@ -140,7 +140,7 @@ describe("redesign wording (spec 2026-10-01 §5)", () => {
 });
 
 describe("story photos (spec §6)", () => {
-  const WITH_STORY = ["roller-shades", "solar-shades", "cellular-shades", "plantation-shutters", "composite-shutters", "wood-shutters"];
+  const WITH_STORY = ["vertical-blinds", "wood-blinds", "roller-shades", "solar-shades", "cellular-shades", "plantation-shutters", "composite-shutters", "wood-shutters"];
 
   it("are set on exactly the products we have a second photo of", () => {
     expect(products.filter((p) => p.storyPhoto).map((p) => p.slug).sort()).toEqual([...WITH_STORY].sort());
@@ -159,6 +159,8 @@ describe("the owners' photos of 2026-10-01", () => {
     ["roller-shades", "/gallery/roller-shades-dining-room.webp", "/gallery/roller-shades-transom-closeup.webp"],
     ["solar-shades", "/gallery/solar-shades-balcony-view.webp", "/gallery/solar-shades-long-window.webp"],
     ["roman-shades", "/gallery/roman-shades-primary-bath.webp", undefined],
+    ["vertical-blinds", "/gallery/vertical-blinds-patio-door-valance.webp", "/gallery/sheer-vertical-patio-slider.webp"],
+    ["wood-blinds", "/gallery/faux-wood-blinds-front-window.webp", "/gallery/faux-wood-blinds-living-room.webp"],
     // Owner: the three shutter types look the same, so shutter photos are shared among them.
     ["plantation-shutters", "/gallery/plantation-shutters-dining-room.webp", "/gallery/plantation-shutters-bedroom.webp"],
     ["composite-shutters", "/gallery/plantation-shutters-french-doors.webp", "/gallery/plantation-shutters-bedroom.webp"],

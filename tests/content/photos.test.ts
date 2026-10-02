@@ -8,8 +8,9 @@ const onDisk = (src: string) => existsSync(path.join(process.cwd(), "public", sr
 
 /** Spec §8: only photos that truly show the product. Changing this list is an owner decision. */
 const PRODUCT_PHOTOS: Record<string, string> = {
-  "vertical-blinds": "/gallery/sheer-vertical-patio-slider.webp",
-  "wood-blinds": "/gallery/faux-wood-blinds-living-room.webp",
+  // The owners sent these on 2026-10-01; the earlier two moved to the story slots.
+  "vertical-blinds": "/gallery/vertical-blinds-patio-door-valance.webp",
+  "wood-blinds": "/gallery/faux-wood-blinds-front-window.webp",
   // The owners sent the roller, roman and solar photos on 2026-10-01.
   "roller-shades": "/gallery/roller-shades-dining-room.webp",
   "solar-shades": "/gallery/solar-shades-balcony-view.webp",
