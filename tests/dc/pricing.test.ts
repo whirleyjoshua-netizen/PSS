@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { pickInstallQuote, priceVersion, pricingFingerprint, ruleFor, sendBlockers, type PricingInput } from "@/lib/dc/pricing";
+import { foldFee, pickInstallQuote, priceVersion, pricingFingerprint, ruleFor, sendBlockers, type PricingInput } from "@/lib/dc/pricing";
 
 const base: PricingInput = {
   lines: [
@@ -49,6 +49,22 @@ describe("priceVersion", () => {
       expect(p.handlingFoldedCents).toBeLessThanOrEqual(fee);
       expect(fee - p.handlingFoldedCents).toBeLessThan(3);
     }
+  });
+  it("never puts any of the fee on a free line, unless every line is free", () => {
+    const free = { position: 9, qty: 1, collection: "Duette", msrpUnitCents: 0, costExtendedCents: 0, pctOverride: null };
+    const shutters = { ...base.lines[1], qty: 3 };
+    for (const fee of [6600, 6601, 6602]) {
+      const p = priceVersion({ ...base, handlingFeeCents: fee, lines: [shutters, free] });
+      expect(p.lines[1].sellUnitCents).toBe(0);
+    }
+    const allFree = priceVersion({ ...base, lines: [free, { ...free, position: 10 }] });
+    expect(allFree.handlingFoldedCents).toBe(6600);
+    expect(allFree.clientTotalCents).toBe(6600 + 25000);
+  });
+  it("a negative fee or a negative line folds nothing onto it", () => {
+    expect(priceVersion({ ...base, handlingFeeCents: -500 }).handlingFoldedCents).toBe(0);
+    expect(priceVersion({ ...base, handlingFeeCents: -500 }).lines.map((l) => l.sellUnitCents)).toEqual([39300, 33740]);
+    expect(foldFee([{ qty: 1, extendedCents: 10000 }, { qty: 1, extendedCents: -2000 }], 600)).toEqual([600, 0]);
   });
   it("waiving handling builds nothing in: line prices are the markup prices", () => {
     const p = priceVersion({ ...base, waiveHandling: true });

@@ -30,16 +30,22 @@ export function ruleFor(rules: Record<string, number>, collection: string): numb
 /**
  * Builds the handling fee into the line prices (owner, 2026-10-02: the quote shows no handling line).
  * Each line takes a share in proportion to its markup price, as whole cents per unit, so every line still
- * reads unit × qty; the cents left over go to the lowest-quantity lines first. With a qty-1 line the
- * whole fee goes in; with none, under the smallest qty in cents may be left off. Never more than the fee.
+ * reads unit × qty; the cents left over go to the lowest-quantity lines first. Free lines take none of it
+ * (unless every line is free), and a fee of 0 or less folds nothing. With a qty-1 priced line the whole fee
+ * goes in; with none, under the smallest qty in cents may be left off. Never more than the fee.
  * Answers the extra cents per unit for each line, in the lines' order.
  */
 export function foldFee(lines: { qty: number; extendedCents: number }[], feeCents: number): number[] {
-  const total = lines.reduce((sum, l) => sum + l.extendedCents, 0);
-  const extra = lines.map((l) => (total > 0 ? Math.floor(Math.floor((feeCents * l.extendedCents) / total) / l.qty) : 0));
+  const extra = lines.map(() => 0);
+  if (feeCents <= 0) return extra;
+  const all = lines.map((_, i) => i);
+  // Only priced lines carry the fee: a free accessory stays free. If every line is free, they share it.
+  const paid = all.filter((i) => lines[i].extendedCents > 0);
+  const takers = paid.length > 0 ? paid : all.filter((i) => lines[i].extendedCents === 0);
+  const total = paid.reduce((sum, i) => sum + lines[i].extendedCents, 0);
+  for (const i of paid) extra[i] = Math.floor(Math.floor((feeCents * lines[i].extendedCents) / total) / lines[i].qty);
   let left = feeCents - extra.reduce((sum, e, i) => sum + e * lines[i].qty, 0);
-  const byQty = lines.map((l, i) => i).sort((a, b) => lines[a].qty - lines[b].qty || a - b);
-  for (const i of byQty) {
+  for (const i of [...takers].sort((a, b) => lines[a].qty - lines[b].qty || a - b)) {
     const add = Math.floor(left / lines[i].qty);
     extra[i] += add;
     left -= add * lines[i].qty;

@@ -12,6 +12,7 @@ import { STARTER_TERMS } from "@/lib/docs/starter-terms";
 import { liveTemplateOfKind, type DocumentTemplate } from "@/lib/docs/templates";
 import type { ContractInput } from "./contract-layout";
 import { renderContractPdf, type ContractTerms } from "./contract-pdf";
+import { sellUnitCents } from "./money";
 import { pickInstallQuote, priceVersion, pricingFingerprint, sendBlockers, type InstallChoice, type PricedVersion } from "./pricing";
 import { buildQuotePdf } from "./quote-pdf";
 import { sendContractEmail } from "./send-contract-email";
@@ -28,18 +29,20 @@ const TERMS_UNREADABLE = "Your contract terms file could not be read. Add your c
 
 /** An offered (or later) version's price as Send quote froze it: the per-line % and sell stored then, and the stored totals. */
 function frozenPrice(version: StoredVersion): PricedVersion {
+  const folded = version.handlingFoldedCents !== null;
   const lines = version.lines.map((l) => {
     const sellExtendedCents = l.sellUnitCents === null ? null : l.sellUnitCents * l.qty;
+    // With the fee built in, the margin is on the markup price, as priceVersion showed it before Send.
+    const marginBase = folded && l.markupPct !== null ? sellUnitCents(l.msrpUnitCents, l.markupPct) * l.qty : sellExtendedCents;
     return {
       position: l.position, pct: l.markupPct, source: l.markupOverridden ? "override" as const : "rule" as const,
       sellUnitCents: l.sellUnitCents, sellExtendedCents,
-      marginCents: sellExtendedCents === null ? null : sellExtendedCents - l.costExtendedCents,
+      marginCents: marginBase === null ? null : marginBase - l.costExtendedCents,
     };
   });
   const installCents = version.installCents ?? 0;
   const clientTotalCents = version.clientTotalCents;
   // Sent with the fee built into the line prices, or (before migration 037) as its own line.
-  const folded = version.handlingFoldedCents !== null;
   return {
     lines, productsCents: version.productsCents,
     handlingChargedCents: folded || version.waiveHandling ? 0 : version.handlingFeeCents,

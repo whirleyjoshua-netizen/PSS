@@ -106,6 +106,12 @@ describe("QuoteReview figures", () => {
     expect(screen.getByRole("checkbox", { name: "Waive" })).not.toBeChecked();
   });
 
+  it("says None when there is no fee to build in", () => {
+    const r = review();
+    render(<QuoteReview jobId={J} review={{ ...r, priced: { ...r.priced, handlingChargedCents: 0, handlingFoldedCents: 0 } }} />);
+    expect(total("HD handling fee")).toHaveTextContent("None");
+  });
+
   it("says Waived when the fee is waived", () => {
     const r = review();
     render(<QuoteReview jobId={J} review={{ ...r, priced: { ...r.priced, handlingChargedCents: 0, handlingFoldedCents: 0, waiveHandling: true } }} />);

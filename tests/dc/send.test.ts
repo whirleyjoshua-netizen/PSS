@@ -136,6 +136,8 @@ describe("loadReview", () => {
       const review = await loadReview(JOB);
       expect(review!.priced).toMatchObject({ handlingChargedCents: 0, handlingFoldedCents: version.handlingFeeCents, clientTotalCents: frozenTotal });
       expect(review!.priced.lines[0].sellUnitCents).toBe(foldedUnit);
+      // The line margin is on the markup price, as the review showed it before Send, not on the price with the fee.
+      expect(review!.priced.lines[0].marginCents).toBe(39300 * line.qty - line.costExtendedCents);
     });
 
     it("keeps a waived fee, an override and no installation as they were sent", async () => {

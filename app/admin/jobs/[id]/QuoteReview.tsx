@@ -251,7 +251,7 @@ export function QuoteReview({ jobId, review, now }: { jobId: string; review: Rev
             Only a version sent before that prints it as its own line. */}
         <Total label="HD handling fee" muted={priced.handlingChargedCents === 0}
           value={priced.handlingChargedCents > 0 ? formatCents(priced.handlingChargedCents)
-            : priced.waiveHandling ? "Waived" : `${formatCents(priced.handlingFoldedCents)} in line prices`}>
+            : priced.waiveHandling ? "Waived" : priced.handlingFoldedCents > 0 ? `${formatCents(priced.handlingFoldedCents)} in line prices` : "None"}>
           <Choice label="Waive" checked={priced.waiveHandling} locked={locked} busy={choosing} resets={refusals} onChange={(checked) => choose({ waiveHandling: checked })} />
         </Total>
         {priced.oversizedCents > 0 ? <Total label="Oversized" value={formatCents(priced.oversizedCents)} /> : null}
