@@ -12,9 +12,11 @@ export type PricedVersion = {
   /**
    * handlingChargedCents is the fee as its own printed line: always 0 now, and kept for versions sent
    * before the fee was built into line prices. handlingFoldedCents is the part of it inside the line prices.
+   * Installation likewise: installCents is the install price chosen, installFoldedCents the part of it inside
+   * the line prices, installLineCents the part printed as its own line (0 now; versions sent before 038).
    */
   lines: PricedLine[]; productsCents: number | null; handlingChargedCents: number; handlingFoldedCents: number; oversizedCents: number;
-  installCents: number; installQuoteId: string | null; clientTotalCents: number | null;
+  installCents: number; installFoldedCents: number; installLineCents: number; installQuoteId: string | null; clientTotalCents: number | null;
   costCents: number; marginCents: number | null; waiveHandling: boolean; blockers: string[];
 };
 export type SendContext = { hasTerms: boolean; isLatest: boolean; versionStatus: string; jobStatus: string; customerEmail: string | null };
@@ -28,22 +30,28 @@ export function ruleFor(rules: Record<string, number>, collection: string): numb
 }
 
 /**
- * Builds the handling fee into the line prices (owner, 2026-10-02: the quote shows no handling line).
- * Each line takes a share in proportion to its markup price, as whole cents per unit, so every line still
- * reads unit × qty; the cents left over go to the lowest-quantity lines first. Free lines take none of it
- * (unless every line is free), and a fee of 0 or less folds nothing. With a qty-1 priced line the whole fee
- * goes in; with none, under the smallest qty in cents may be left off. Never more than the fee.
- * Answers the extra cents per unit for each line, in the lines' order.
+ * Builds an amount into the line prices (owner, 2026-10-02: the quote shows no handling or installation line).
+ * "price": each line takes a share in proportion to its markup price (the handling fee).
+ * "shade": every unit takes the same share (installation, divided evenly per shade).
+ * Shares are whole cents per unit, so every line still reads unit × qty; the cents left over go to the
+ * lowest-quantity lines first. Free lines take none (unless every line is free), and 0 or less folds
+ * nothing. With a qty-1 priced line the whole amount goes in; with none, under the smallest qty in cents
+ * may be left off. Never more than the amount. Answers the extra cents per unit for each line, in order.
  */
-export function foldFee(lines: { qty: number; extendedCents: number }[], feeCents: number): number[] {
+export function foldFee(lines: { qty: number; extendedCents: number }[], feeCents: number, split: "price" | "shade" = "price"): number[] {
   const extra = lines.map(() => 0);
   if (feeCents <= 0) return extra;
   const all = lines.map((_, i) => i);
-  // Only priced lines carry the fee: a free accessory stays free. If every line is free, they share it.
+  // Only priced lines carry it: a free accessory stays free. If every line is free, they share it.
   const paid = all.filter((i) => lines[i].extendedCents > 0);
   const takers = paid.length > 0 ? paid : all.filter((i) => lines[i].extendedCents === 0);
-  const total = paid.reduce((sum, i) => sum + lines[i].extendedCents, 0);
-  for (const i of paid) extra[i] = Math.floor(Math.floor((feeCents * lines[i].extendedCents) / total) / lines[i].qty);
+  if (split === "shade") {
+    const shades = takers.reduce((sum, i) => sum + lines[i].qty, 0);
+    for (const i of takers) extra[i] = shades > 0 ? Math.floor(feeCents / shades) : 0;
+  } else {
+    const total = paid.reduce((sum, i) => sum + lines[i].extendedCents, 0);
+    for (const i of paid) extra[i] = Math.floor(Math.floor((feeCents * lines[i].extendedCents) / total) / lines[i].qty);
+  }
   let left = feeCents - extra.reduce((sum, e, i) => sum + e * lines[i].qty, 0);
   for (const i of [...takers].sort((a, b) => lines[a].qty - lines[b].qty || a - b)) {
     const add = Math.floor(left / lines[i].qty);
@@ -71,8 +79,13 @@ export function priceVersion(input: PricingInput): PricedVersion {
   if (!input.install && !input.noInstall) blockers.push("Save an installation price, or tick No installation.");
 
   const feeCents = input.waiveHandling ? 0 : input.handlingFeeCents;
-  // The fee can only be spread once every line has a price.
-  const extra = missing.size > 0 ? marked.map(() => 0) : foldFee(marked.map((m) => ({ qty: m.line.qty, extendedCents: m.unit! * m.line.qty })), feeCents);
+  const install = input.noInstall ? null : input.install;
+  const installCents = install?.totalCents ?? 0;
+  // The fee and installation can only be spread once every line has a price.
+  const sizes = marked.map((m) => ({ qty: m.line.qty, extendedCents: (m.unit ?? 0) * m.line.qty }));
+  const handlingExtra = missing.size > 0 ? marked.map(() => 0) : foldFee(sizes, feeCents, "price");
+  const installExtra = missing.size > 0 ? marked.map(() => 0) : foldFee(sizes, installCents, "shade");
+  const extra = handlingExtra.map((h, i) => h + installExtra[i]);
   const lines: PricedLine[] = marked.map(({ line, pct, unit }, i) => {
     if (pct === null || unit === null) {
       return { position: line.position, pct: null, source: "missing", sellUnitCents: null, sellExtendedCents: null, marginCents: null };
@@ -86,17 +99,17 @@ export function priceVersion(input: PricingInput): PricedVersion {
     };
   });
 
-  const handlingFoldedCents = missing.size > 0 ? 0 : extra.reduce((sum, e, i) => sum + e * marked[i].line.qty, 0);
-  const install = input.noInstall ? null : input.install;
-  const installCents = install?.totalCents ?? 0;
+  const folded = (per: number[]) => per.reduce((sum, e, i) => sum + e * marked[i].line.qty, 0);
+  const handlingFoldedCents = folded(handlingExtra);
+  const installFoldedCents = folded(installExtra);
   const productsCents = missing.size > 0 ? null : lines.reduce((sum, l) => sum + (l.sellExtendedCents ?? 0), 0);
-  const clientTotalCents = productsCents === null ? null : productsCents + input.oversizedFeeCents + installCents;
+  const clientTotalCents = productsCents === null ? null : productsCents + input.oversizedFeeCents;
   return {
     lines, productsCents, handlingChargedCents: 0, handlingFoldedCents, oversizedCents: input.oversizedFeeCents,
-    installCents, installQuoteId: install?.id ?? null, clientTotalCents,
+    installCents, installFoldedCents, installLineCents: 0, installQuoteId: install?.id ?? null, clientTotalCents,
     costCents: input.dealerTotalCents,
-    // Product margin: installation is excluded.
-    marginCents: clientTotalCents === null ? null : clientTotalCents - installCents - input.dealerTotalCents,
+    // Product margin: the installation charged (built into the lines) is excluded.
+    marginCents: clientTotalCents === null ? null : clientTotalCents - installFoldedCents - input.dealerTotalCents,
     waiveHandling: input.waiveHandling, blockers,
   };
 }
@@ -123,6 +136,6 @@ export function pricingFingerprint(p: PricedVersion): string {
   return JSON.stringify({
     lines: p.lines.map((l) => [l.position, l.pct, l.sellUnitCents, l.sellExtendedCents]),
     handling: p.handlingChargedCents, folded: p.handlingFoldedCents, waive: p.waiveHandling, oversized: p.oversizedCents,
-    install: [p.installQuoteId, p.installCents], total: p.clientTotalCents,
+    install: [p.installQuoteId, p.installCents, p.installFoldedCents, p.installLineCents], total: p.clientTotalCents,
   });
 }

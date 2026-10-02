@@ -43,7 +43,7 @@ const version = (over: Partial<StoredVersion> = {}): StoredVersion => ({
   status: "draft", subtotalCents: 0, handlingFeeCents: 2500, oversizedFeeCents: 0, dealerTotalCents: 121277,
   waiveHandling: false, noInstall: false, installQuoteId: null, installCents: null, productsCents: null, clientTotalCents: null,
   contractFileId: null, sentAt: null, signedAt: null, createdAt: new Date("2026-09-20T18:00:00Z"),
-  quoteFileId: null, offeredAt: null, approvedAt: null, handlingFoldedCents: null, lines: LINES, ...over,
+  quoteFileId: null, offeredAt: null, approvedAt: null, handlingFoldedCents: null, installFoldedCents: null, lines: LINES, ...over,
 });
 
 /** Odd-cent figures no recomputation from the lines would land on, so each one on screen came from here. */
@@ -55,7 +55,7 @@ const review = (over: Partial<Review> = {}): Review => ({
       { position: 2, pct: 55, source: "override", sellUnitCents: 44003, sellExtendedCents: 88006, marginCents: 8966 },
       { position: 3, pct: 50, source: "rule", sellUnitCents: 10007, sellExtendedCents: 10007, marginCents: 127 },
     ],
-    productsCents: 137314, handlingChargedCents: 2507, handlingFoldedCents: 0, oversizedCents: 0, installCents: 45013, installQuoteId: "iq-1",
+    productsCents: 137314, handlingChargedCents: 2507, handlingFoldedCents: 0, oversizedCents: 0, installCents: 45013, installFoldedCents: 0, installLineCents: 45013, installQuoteId: "iq-1",
     clientTotalCents: 184834, costCents: 121279, marginCents: 18542, waiveHandling: false, blockers: [],
   },
   blockers: [], fingerprint: FP,
@@ -104,6 +104,20 @@ describe("QuoteReview figures", () => {
     expect(total("HD handling fee")).toHaveTextContent("$25.07 in line prices");
     expect(screen.getByText("HD handling fee").parentElement).toHaveClass("text-ink-soft");
     expect(screen.getByRole("checkbox", { name: "Waive" })).not.toBeChecked();
+  });
+
+  it("says installation is in the line prices, outside the sum, when it was built in", () => {
+    const r = review();
+    render(<QuoteReview jobId={J} review={{ ...r, priced: { ...r.priced, installFoldedCents: 45013, installLineCents: 0 } }} />);
+    expect(total("Installation")).toHaveTextContent("$450.13 in line prices");
+    expect(screen.getByText("Installation", { selector: "dt" }).parentElement).toHaveClass("text-ink-soft");
+    expect(screen.getByRole("checkbox", { name: "No installation on this job" })).toBeInTheDocument();
+  });
+
+  it("says None for installation when there is none", () => {
+    const r = review();
+    render(<QuoteReview jobId={J} review={{ ...r, priced: { ...r.priced, installCents: 0, installFoldedCents: 0, installLineCents: 0 } }} />);
+    expect(total("Installation")).toHaveTextContent("None");
   });
 
   it("says None when there is no fee to build in", () => {

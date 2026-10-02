@@ -18,6 +18,8 @@ export type StoredVersion = {
   quoteFileId: string | null; offeredAt: Date | null; approvedAt: Date | null;
   /** The handling fee Send quote built into the line prices; null on versions sent before (migration 037). */
   handlingFoldedCents: number | null;
+  /** The installation Send quote built into the line prices; null on versions sent before (migration 038). */
+  installFoldedCents: number | null;
 };
 export type DcSettings = { termsPathname: string | null; termsUpdatedAt: Date | null; lastPolledAt: Date | null };
 
@@ -129,6 +131,7 @@ export async function listVersions(leadId: string): Promise<StoredVersion[]> {
     createdAt: new Date(v.created_at as string),
     quoteFileId: (v.quote_file_id as string | null) ?? null, offeredAt: date(v.offered_at), approvedAt: date(v.approved_at),
     handlingFoldedCents: num(v.handling_folded_cents),
+    installFoldedCents: num(v.install_folded_cents),
     lines: lines.filter((l) => l.version_id === v.id).map(toLine),
   }));
 }

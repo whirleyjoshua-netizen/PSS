@@ -27,13 +27,18 @@ const NO_TERMS = "Add your contract terms on the Documents page first.";
 const DRAFT_TERMS = "Your contract terms still carry the DRAFT line. Remove it on the Documents page.";
 const TERMS_UNREADABLE = "Your contract terms file could not be read. Add your contract terms on the Documents page.";
 
-/** An offered (or later) version's price as Send quote froze it: the per-line % and sell stored then, and the stored totals. */
+/**
+ * An offered (or later) version's price as Send quote froze it: the per-line % and sell stored then, and the
+ * stored totals. Three generations print exactly as they were sent: handling and installation as their own
+ * lines (before 037); handling built in, installation its own line (037); both built in (038).
+ */
 function frozenPrice(version: StoredVersion): PricedVersion {
-  const folded = version.handlingFoldedCents !== null;
+  const handlingFolded = version.handlingFoldedCents !== null;
+  const installFolded = version.installFoldedCents !== null;
   const lines = version.lines.map((l) => {
     const sellExtendedCents = l.sellUnitCents === null ? null : l.sellUnitCents * l.qty;
-    // With the fee built in, the margin is on the markup price, as priceVersion showed it before Send.
-    const marginBase = folded && l.markupPct !== null ? sellUnitCents(l.msrpUnitCents, l.markupPct) * l.qty : sellExtendedCents;
+    // With anything built in, the margin is on the markup price, as priceVersion showed it before Send.
+    const marginBase = (handlingFolded || installFolded) && l.markupPct !== null ? sellUnitCents(l.msrpUnitCents, l.markupPct) * l.qty : sellExtendedCents;
     return {
       position: l.position, pct: l.markupPct, source: l.markupOverridden ? "override" as const : "rule" as const,
       sellUnitCents: l.sellUnitCents, sellExtendedCents,
@@ -41,15 +46,16 @@ function frozenPrice(version: StoredVersion): PricedVersion {
     };
   });
   const installCents = version.installCents ?? 0;
+  const installLineCents = installFolded ? 0 : installCents;
+  const installFoldedCents = version.installFoldedCents ?? 0;
   const clientTotalCents = version.clientTotalCents;
-  // Sent with the fee built into the line prices, or (before migration 037) as its own line.
   return {
     lines, productsCents: version.productsCents,
-    handlingChargedCents: folded || version.waiveHandling ? 0 : version.handlingFeeCents,
+    handlingChargedCents: handlingFolded || version.waiveHandling ? 0 : version.handlingFeeCents,
     handlingFoldedCents: version.handlingFoldedCents ?? 0, oversizedCents: version.oversizedFeeCents,
-    installCents, installQuoteId: version.installQuoteId, clientTotalCents, costCents: version.dealerTotalCents,
-    // As priceVersion computes it: product margin, installation excluded.
-    marginCents: clientTotalCents === null ? null : clientTotalCents - installCents - version.dealerTotalCents,
+    installCents, installFoldedCents, installLineCents, installQuoteId: version.installQuoteId, clientTotalCents, costCents: version.dealerTotalCents,
+    // As priceVersion computes it: product margin, the installation charged excluded.
+    marginCents: clientTotalCents === null ? null : clientTotalCents - installFoldedCents - installLineCents - version.dealerTotalCents,
     waiveHandling: version.waiveHandling, blockers: [],
   };
 }
@@ -144,7 +150,8 @@ function pricedInput(job: Job, version: StoredVersion, priced: PricedVersion, pr
       const p = pricedLine(l.position);
       return { room: l.room, description: l.description, options: l.options, qty: l.qty, sellUnitCents: p.sellUnitCents!, sellExtendedCents: p.sellExtendedCents! };
     }),
-    installCents: priced.installCents, handlingChargedCents: priced.handlingChargedCents,
+    // Only what prints as its own line: built-in installation and handling are inside the line prices.
+    installCents: priced.installLineCents, handlingChargedCents: priced.handlingChargedCents,
     oversizedCents: priced.oversizedCents, clientTotalCents: priced.clientTotalCents!,
   };
 }
@@ -208,7 +215,7 @@ export async function sendQuote(input: { jobId: string; versionId: string; finge
       offered as (
         update dc_quote_versions set status = 'offered', install_quote_id = ${priced.installQuoteId}, install_cents = ${priced.installCents},
           products_cents = ${priced.productsCents}, client_total_cents = ${priced.clientTotalCents},
-          handling_folded_cents = ${priced.handlingFoldedCents},
+          handling_folded_cents = ${priced.handlingFoldedCents}, install_folded_cents = ${priced.installFoldedCents},
           quote_file_id = ${file.id}, offered_at = now(), offered_by = ${input.actor}
         where id = ${version.id} and lead_id = ${job.id} and status = 'draft'
           and version = (select max(version) from dc_quote_versions where lead_id = ${job.id})

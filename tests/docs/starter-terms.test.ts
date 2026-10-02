@@ -30,10 +30,12 @@ describe("starter terms", () => {
   it("carries no HTML comment", () => expect(STARTER_TERMS).not.toContain("<!--"));
 });
 
-describe("starter terms and the handling fee", () => {
-  it("say the fee is inside the line prices, never that it is its own line", async () => {
+describe("starter terms, the handling fee and installation", () => {
+  it("say the fee and installation are inside the line prices, never their own lines", async () => {
     const { STARTER_TERMS } = await import("@/lib/docs/starter-terms");
     expect(STARTER_TERMS).toContain("Your line prices include the manufacturer's handling charge; it is not listed separately.");
     expect(STARTER_TERMS).not.toMatch(/own line|handling fee and your total/);
+    expect(STARTER_TERMS).toContain("When we install, installation is included in your line prices.");
+    expect(STARTER_TERMS).not.toContain("installation and your total");
   });
 });

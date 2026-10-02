@@ -10,7 +10,7 @@ export const STARTER_TERMS = `**DRAFT: have a Nevada attorney review these terms
 
 ## 1. Our Agreement
 
-These Terms & Conditions go with your priced contract from {{company_name}} ("we," "us"). The priced contract lists each window, the products chosen, installation and your total.
+These Terms & Conditions go with your priced contract from {{company_name}} ("we," "us"). The priced contract lists each window, the products chosen and your total. When we install, installation is included in your line prices.
 
 When you sign electronically on your project page, you agree to the priced contract and to these terms. The signed PDF of the contract and these terms is our complete agreement, and you can download or ask us for a copy at any time.
 

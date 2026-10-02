@@ -229,7 +229,7 @@ const footprint = async (leadId: string) => {
 const versionRow = async (id: string) =>
   (await sql`select status, waive_handling, no_install, install_quote_id, install_cents, products_cents,
                     client_total_cents, contract_file_id, sent_at, sent_by, signed_at, quote_file_id, offered_at, offered_by, approved_at,
-                    handling_folded_cents
+                    handling_folded_cents, install_folded_cents
              from dc_quote_versions where id = ${id}`)[0];
 
 const lineRows = async (versionId: string) =>
@@ -447,16 +447,18 @@ test("DC quote import: import, edit, send, sign and the Dealer Copy guard agains
     const expectedLines = expected.lines.map((l) => [l.position, l.pct, l.sellUnitCents, l.source === "override"]);
     check(same(frozenLines, expectedLines), "v2's lines hold priceVersion's % and sell price",
       `got ${JSON.stringify(frozenLines)}, want ${JSON.stringify(expectedLines)}`);
-    // Migration 037: the handling fee is inside the line prices, frozen with them, and the printed lines,
-    // installation and oversize charge add up to the stored total exactly.
+    // Migrations 037 and 038: the handling fee and installation are inside the line prices, frozen with
+    // them, and the printed lines and oversize charge add up to the stored total exactly.
     const frozenLineSum = (await sql`select sum(l.sell_unit_cents * q.qty)::int as n from dc_quote_lines l
       join dc_quote_lines q on q.version_id = l.version_id and q.position = l.position where l.version_id = ${v2}`)[0].n;
     check(
       quote.handlingFeeCents > 0 && v2sent.handling_folded_cents === expected.handlingFoldedCents &&
         expected.handlingFoldedCents > 0 && expected.handlingFoldedCents <= quote.handlingFeeCents &&
+        v2sent.install_folded_cents === expected.installFoldedCents && expected.installFoldedCents > 0 &&
+        expected.installFoldedCents <= v2sent.install_cents &&
         frozenLineSum === v2sent.products_cents &&
-        frozenLineSum + v2sent.install_cents + quote.oversizedFeeCents === v2sent.client_total_cents,
-      `v2 froze the handling fee built into its prices (${expected.handlingFoldedCents} of ${quote.handlingFeeCents}), and its lines add up to the total`,
+        frozenLineSum + quote.oversizedFeeCents === v2sent.client_total_cents,
+      `v2 froze the handling fee (${expected.handlingFoldedCents} of ${quote.handlingFeeCents}) and installation (${expected.installFoldedCents} of ${v2sent.install_cents}) built into its prices, and its lines add up to the total`,
       `row ${JSON.stringify(v2sent)}, line sum ${frozenLineSum}`,
     );
     check((await versionRow(v1)).status === "superseded", "v1 is superseded", JSON.stringify(await versionRow(v1)));
@@ -527,6 +529,7 @@ test("DC quote import: import, edit, send, sign and the Dealer Copy guard agains
       afterRule!.version.id === v2 && shown.clientTotalCents === expected.clientTotalCents &&
         shown.productsCents === expected.productsCents && shown.installCents === expected.installCents &&
         shown.handlingChargedCents === expected.handlingChargedCents && shown.handlingFoldedCents === expected.handlingFoldedCents &&
+        shown.installFoldedCents === expected.installFoldedCents && shown.installLineCents === expected.installLineCents &&
         shown.oversizedCents === expected.oversizedCents &&
         shown.marginCents === expected.marginCents &&
         same(shown.lines.map((l) => [l.position, l.pct, l.sellUnitCents, l.sellExtendedCents]),

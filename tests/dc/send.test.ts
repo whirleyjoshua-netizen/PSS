@@ -51,7 +51,7 @@ const version: StoredVersion = {
   dealerTotalCents: quote.dealerTotalCents, waiveHandling: false, noInstall: false,
   installQuoteId: null, installCents: null, productsCents: null, clientTotalCents: null,
   contractFileId: null, sentAt: null, signedAt: null, createdAt: new Date("2026-09-27T19:30:00Z"),
-  quoteFileId: null, offeredAt: null, approvedAt: null, handlingFoldedCents: null,
+  quoteFileId: null, offeredAt: null, approvedAt: null, handlingFoldedCents: null, installFoldedCents: null,
   lines: quote.lines.map((l) => ({ ...l, pctOverride: null, markupPct: null, sellUnitCents: null, markupOverridden: false })),
 };
 const line = version.lines[0];
@@ -102,9 +102,9 @@ describe("loadReview", () => {
     expect(review!.olderVersions.map((v) => v.id)).toEqual([V0]);
     expect(review!.install).toEqual(install);
     expect(review!.blockers).toEqual([]);
-    // The handling fee is built into the line price (one line, so all of it).
-    expect(review!.priced.lines[0]).toMatchObject({ pct: 60, source: "rule", sellUnitCents: 39300 + version.handlingFeeCents / line.qty });
-    expect(review!.priced).toMatchObject({ handlingChargedCents: 0, handlingFoldedCents: version.handlingFeeCents });
+    // The handling fee and installation are built into the line price (one line, so all of both).
+    expect(review!.priced.lines[0]).toMatchObject({ pct: 60, source: "rule", sellUnitCents: 39300 + (version.handlingFeeCents + 25000) / line.qty });
+    expect(review!.priced).toMatchObject({ handlingChargedCents: 0, handlingFoldedCents: version.handlingFeeCents, installFoldedCents: 25000, installLineCents: 0 });
     expect(review!.priced.installCents).toBe(25000);
     expect(review!.fingerprint).toBe(pricingFingerprint(review!.priced));
   });
@@ -123,7 +123,7 @@ describe("loadReview", () => {
       expect(review!.priced).toEqual({
         lines: [{ position: line.position, pct: 60, source: "rule", sellUnitCents: 39300, sellExtendedCents: productsCents, marginCents: productsCents - line.costExtendedCents }],
         productsCents, handlingChargedCents: version.handlingFeeCents, handlingFoldedCents: 0, oversizedCents: version.oversizedFeeCents,
-        installCents: 25000, installQuoteId: INSTALL, clientTotalCents: frozenTotal, costCents: version.dealerTotalCents,
+        installCents: 25000, installFoldedCents: 0, installLineCents: 25000, installQuoteId: INSTALL, clientTotalCents: frozenTotal, costCents: version.dealerTotalCents,
         marginCents: frozenTotal - 25000 - version.dealerTotalCents, waiveHandling: false, blockers: [],
       });
       expect(review!.install).toEqual(install);
@@ -138,6 +138,25 @@ describe("loadReview", () => {
       expect(review!.priced.lines[0].sellUnitCents).toBe(foldedUnit);
       // The line margin is on the markup price, as the review showed it before Send, not on the price with the fee.
       expect(review!.priced.lines[0].marginCents).toBe(39300 * line.qty - line.costExtendedCents);
+    });
+
+    it("a version sent with handling built in but installation as its own line (037) prints exactly that", async () => {
+      const foldedUnit = 39300 + version.handlingFeeCents / line.qty;
+      store.listVersions.mockResolvedValue([{ ...offered, handlingFoldedCents: version.handlingFeeCents, installFoldedCents: null,
+        productsCents: foldedUnit * line.qty, lines: [{ ...offered.lines[0], sellUnitCents: foldedUnit }] }]);
+      const { priced } = (await loadReview(JOB))!;
+      expect(priced).toMatchObject({ handlingChargedCents: 0, installCents: 25000, installLineCents: 25000, installFoldedCents: 0, clientTotalCents: frozenTotal });
+      expect(priced.marginCents).toBe(frozenTotal - 25000 - version.dealerTotalCents);
+    });
+
+    it("a version sent with both built in prints neither line, and its margin leaves installation out", async () => {
+      const foldedUnit = 39300 + (version.handlingFeeCents + 25000) / line.qty;
+      store.listVersions.mockResolvedValue([{ ...offered, handlingFoldedCents: version.handlingFeeCents, installFoldedCents: 25000,
+        productsCents: foldedUnit * line.qty, lines: [{ ...offered.lines[0], sellUnitCents: foldedUnit }] }]);
+      const { priced } = (await loadReview(JOB))!;
+      expect(priced).toMatchObject({ handlingChargedCents: 0, installLineCents: 0, installFoldedCents: 25000, clientTotalCents: frozenTotal });
+      expect(priced.marginCents).toBe(frozenTotal - 25000 - version.dealerTotalCents);
+      expect(priced.lines[0].marginCents).toBe(39300 * line.qty - line.costExtendedCents);
     });
 
     it("keeps a waived fee, an override and no installation as they were sent", async () => {
@@ -231,9 +250,11 @@ describe("sendQuote", () => {
     expect(printed).toMatchObject({
       projectNo: "PSS-1042", version: 1,
       client: { name: "Test Testt", address: "1 Main St", city: "Las Vegas", email: "t@example.com" },
-      installCents: priced.installCents, handlingChargedCents: priced.handlingChargedCents,
+      // Installation and handling are inside the line prices: neither prints as its own line.
+      installCents: 0, handlingChargedCents: 0,
       oversizedCents: priced.oversizedCents, clientTotalCents: priced.clientTotalCents,
     });
+    expect(priced.installFoldedCents).toBe(25000);
     expect(printed.lines).toEqual([expect.objectContaining({ qty: 1, sellUnitCents: priced.lines[0].sellUnitCents, sellExtendedCents: priced.lines[0].sellExtendedCents })]);
     const values = sql.mock.calls[0].slice(1);
     const lineJson = values.find((v: unknown) => typeof v === "string" && v.startsWith("[{"));
@@ -245,6 +266,7 @@ describe("sendQuote", () => {
     expect(text(sql.mock.calls[0])).toContain("handling_folded_cents = ?");
     expect(values[text(sql.mock.calls[0]).split("?").findIndex((part) => part.endsWith("handling_folded_cents = "))]).toBe(priced.handlingFoldedCents);
     expect(printed.handlingChargedCents).toBe(0);
+    expect(values[text(sql.mock.calls[0]).split("?").findIndex((part) => part.endsWith("install_folded_cents = "))]).toBe(priced.installFoldedCents);
     expect(values).toContain(`Sent Quote PSS-1042 v1.pdf for ${formatCents(priced.clientTotalCents)}`);
   });
 

@@ -255,7 +255,11 @@ export function QuoteReview({ jobId, review, now }: { jobId: string; review: Rev
           <Choice label="Waive" checked={priced.waiveHandling} locked={locked} busy={choosing} resets={refusals} onChange={(checked) => choose({ waiveHandling: checked })} />
         </Total>
         {priced.oversizedCents > 0 ? <Total label="Oversized" value={formatCents(priced.oversizedCents)} /> : null}
-        <Total label="Installation" value={formatCents(priced.installCents)}>
+        {/* Installation is built into the line prices too, evenly per shade: shown muted, outside the sum.
+            Only a version sent before that prints it as its own line. */}
+        <Total label="Installation" muted={priced.installLineCents === 0}
+          value={priced.installLineCents > 0 ? formatCents(priced.installLineCents)
+            : priced.installFoldedCents > 0 ? `${formatCents(priced.installFoldedCents)} in line prices` : "None"}>
           {installNote ? <span className="text-xs text-ink-soft">{installNote}</span> : (
             <a className={TEXT_LINK} href={`/admin/jobs/${jobId}?tab=install`}>No installation price saved yet</a>
           )}
