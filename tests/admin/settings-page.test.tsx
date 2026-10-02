@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { AddedAdmin } from "@/lib/admin/admin-access";
+import type { PasskeyDevice } from "@/lib/admin/passkeys";
 
 const requireAdmin = vi.fn(async () => ({ email: "owner@example.com" }));
 vi.mock("@/lib/admin/session", () => ({ requireAdmin }));
@@ -47,6 +48,15 @@ vi.mock("@/lib/admin/lead-settings", () => ({ getDefaultAssignee }));
 
 const listAddedAdmins = vi.fn(async (): Promise<AddedAdmin[]> => []);
 vi.mock("@/lib/admin/admin-access", () => ({ listAddedAdmins }));
+
+const listPasskeys = vi.fn(async (): Promise<PasskeyDevice[]> => []);
+vi.mock("@/lib/admin/passkeys", () => ({ listPasskeys }));
+vi.mock("@/app/admin/passkey-actions", () => ({
+  removeFaceIdDevice: vi.fn(), beginFaceIdSetup: vi.fn(), completeFaceIdSetup: vi.fn(),
+}));
+vi.mock("@simplewebauthn/browser", () => ({
+  browserSupportsWebAuthn: () => false, platformAuthenticatorIsAvailable: async () => false, startRegistration: vi.fn(),
+}));
 
 const { default: SettingsPage } = await import("@/app/admin/settings/page");
 
@@ -175,6 +185,19 @@ describe("admin access section", () => {
     render(await SettingsPage());
     const region = screen.getByRole("region", { name: "Admin access" });
     expect(region).toHaveTextContent(/owner@example\.com[\s\S]*alia@example\.com/);
+  });
+});
+
+describe("Face ID section", () => {
+  it("lists only the signed-in person's own devices", async () => {
+    calendarEnabled.mockReturnValue(false);
+    listPasskeys.mockResolvedValueOnce([
+      { id: "cred-1", label: "iPhone", createdAt: new Date("2026-10-01T18:00:00Z"), lastUsedAt: null },
+    ]);
+    render(await SettingsPage());
+    expect(listPasskeys).toHaveBeenCalledWith("owner@example.com");
+    expect(screen.getByRole("heading", { name: "Face ID sign-in" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Remove iPhone added Thu, Oct 1, 2026" })).toBeInTheDocument();
   });
 });
 

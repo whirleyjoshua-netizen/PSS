@@ -10,6 +10,7 @@ import { formatDay } from "@/lib/admin/time";
 import { FollowUpsDue } from "./FollowUpsDue";
 import { JobCard, groupByStage } from "./JobCard";
 import { JobList } from "./JobList";
+import { TurnOnFaceId } from "./TurnOnFaceId";
 
 /** `?job=a&job=b` arrives as an array; treat it as the first value. */
 function first(value: string | string[] | undefined): string | undefined {
@@ -53,6 +54,8 @@ export default async function BoardPage({
             <span className="text-ink-soft">Las Vegas, NV</span>
           </p>
         </header>
+
+        <TurnOnFaceId place="board" />
 
         <div className="flex flex-wrap items-center gap-3">
           <form role="search" action="/admin" className="flex min-w-[16rem] flex-1 items-center gap-2 rounded-lg border border-rule bg-ivory px-3 shadow-sm">

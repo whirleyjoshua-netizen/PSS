@@ -4,6 +4,7 @@ import { getSyncState } from "@/lib/calendar/store";
 import { formatWhen } from "@/lib/admin/time";
 import { listTeam } from "@/lib/admin/team";
 import { TeamSection } from "./TeamSection";
+import { InstallSection } from "./InstallSection";
 import { getRouteSettings } from "@/lib/routes/settings";
 import { RoutesSection } from "./RoutesSection";
 import { routePlanningConfigured } from "@/lib/routes/optimize";
@@ -14,6 +15,8 @@ import { LeadDefaultsSection } from "./LeadDefaultsSection";
 import { parseAllowlist } from "@/lib/admin/allowlist";
 import { listAddedAdmins } from "@/lib/admin/admin-access";
 import { AdminAccessSection } from "./AdminAccessSection";
+import { listPasskeys } from "@/lib/admin/passkeys";
+import { FaceIdSection } from "./FaceIdSection";
 import { getDcSettings, listMarkupRules, listSeenCollections } from "@/lib/dc/store";
 import { MarkupSection } from "./MarkupSection";
 import { TermsSection } from "./TermsSection";
@@ -24,7 +27,7 @@ export default async function SettingsPage() {
   const admin = await requireAdmin();
   const enabled = calendarEnabled();
   // Read both together, so neither rejection is left unhandled while the other is awaited.
-  const [team, rates, installSettings, calendar, routeSettings, defaultAssignee, addedAdmins, rules, collections, dcSettings, termsTemplate] = await Promise.all([
+  const [team, rates, installSettings, calendar, routeSettings, defaultAssignee, addedAdmins, rules, collections, dcSettings, termsTemplate, faceIdDevices] = await Promise.all([
     listTeam(),
     listInstallRates(),
     getInstallSettings(),
@@ -45,6 +48,7 @@ export default async function SettingsPage() {
     listSeenCollections(),
     getDcSettings(),
     liveTemplateOfKind("terms"),
+    listPasskeys(admin.email),
   ]);
   const routeSetup = {
     map: Boolean(process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY && process.env.NEXT_PUBLIC_GOOGLE_MAP_ID),
@@ -57,8 +61,10 @@ export default async function SettingsPage() {
   return (
     <div className="flex max-w-xl flex-col gap-4">
       <h1 className="text-2xl font-semibold">Settings</h1>
+      <InstallSection />
       <TeamSection team={team} />
       <AdminAccessSection owners={parseAllowlist(process.env.ADMIN_EMAILS)} added={addedAdmins} me={admin.email} />
+      <FaceIdSection devices={faceIdDevices} />
       <LeadDefaultsSection team={team} defaultAssignee={defaultAssignee} />
       <RoutesSection settings={routeSettings} setup={routeSetup} />
       <InstallRatesSection rates={rates} settings={installSettings} />

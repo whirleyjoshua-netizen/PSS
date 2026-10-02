@@ -22,7 +22,10 @@ export async function addAdmin(email: string, addedBy: string): Promise<boolean>
   return rows.length > 0;
 }
 
-/** One statement, so the access row, their sessions, unused sign-in links and open tasks go together. */
+/**
+ * One statement, so the access row, their sessions, unused sign-in links, Face ID devices and open
+ * tasks go together.
+ */
 export async function removeAdmin(email: string): Promise<boolean> {
   const rows = await db()`
     with removed as (
@@ -31,6 +34,8 @@ export async function removeAdmin(email: string): Promise<boolean> {
       delete from admin_sessions where email in (select email from removed)
     ), unused as (
       delete from admin_login_tokens where used_at is null and email in (select email from removed)
+    ), passkeys as (
+      delete from admin_passkeys where email in (select email from removed)
     ), unassigned as (
       update tasks set assignee_email = null, updated_at = now()
       where status <> 'done' and assignee_email in (select email from removed)
