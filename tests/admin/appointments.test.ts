@@ -31,9 +31,11 @@ describe("listAppointments", () => {
     const [appointment] = await appointments.listAppointments(JOB);
     expect(appointment).toEqual({
       id: APPT, jobId: JOB, kind: "consultation", startsAt: new Date("2026-09-20T17:00:00Z"),
-      allDay: false, confirmedAt: null, confirmedBy: null, windowStart: null, windowEnd: null, durationMinutes: null,
+      allDay: false, confirmedAt: null, confirmedBy: null, designerNotes: null,
+      windowStart: null, windowEnd: null, durationMinutes: null,
     });
     expect(flat(sql.mock.calls[0])).toContain("order by starts_at");
+    expect(flat(sql.mock.calls[0])).toContain("confirmed_by, designer_notes,");
     expect(flat(sql.mock.calls[0])).toContain("window_start::text as window_start, window_end::text as window_end, duration_minutes");
     expect(sql.mock.calls[0]).toContain(JOB);
   });
@@ -43,6 +45,12 @@ describe("listAppointments", () => {
     const [appointment] = await appointments.listAppointments(JOB);
     expect(appointment.confirmedAt).toEqual(new Date("2026-09-18T12:00:00Z"));
     expect(appointment.confirmedBy).toBe(ACTOR);
+  });
+
+  it("maps the designer notes", async () => {
+    sql.mockResolvedValue([{ ...row, designer_notes: "Bring the motorized samples.\nDog in the yard." }]);
+    const [appointment] = await appointments.listAppointments(JOB);
+    expect(appointment.designerNotes).toBe("Bring the motorized samples.\nDog in the yard.");
   });
 
   it("maps the arrival window as clock times and the length in minutes", async () => {
@@ -111,6 +119,82 @@ describe("saveAppointment", () => {
 
   it("returns missing for a non-uuid job id, without touching the database", async () => {
     expect(await appointments.saveAppointment("../etc", "service", STARTS, false, NO_TIMING, ACTOR)).toBe("missing");
+    expect(sql).not.toHaveBeenCalled();
+  });
+  it("saves the designer notes, and a reschedule replaces them with what the dialog sent", async () => {
+    sql.mockResolvedValue([{ job: 1 }]);
+    await appointments.saveAppointment(JOB, "measure", STARTS, false, NO_TIMING, ACTOR, { designerNotes: "Bring samples" });
+    const statement = flat(sql.mock.calls[0]);
+    expect(statement).toContain("duration_minutes, designer_notes, confirmed_at, confirmed_by)");
+    expect(statement).toMatch(/on conflict \(lead_id, kind\) do update set[^;]*designer_notes = excluded\.designer_notes/);
+    expect(sql.mock.calls[0]).toContain("Bring samples");
+  });
+
+  it("saves a changed gate code to the client in the same statement, and keeps it out of the log line", async () => {
+    sql.mockResolvedValue([{ job: 1 }]);
+    await appointments.saveAppointment(JOB, "consultation", STARTS, false, NO_TIMING, ACTOR, { designerNotes: null, gateCode: "#4321" });
+    expect(sql).toHaveBeenCalledOnce();
+    const statement = flat(sql.mock.calls[0]);
+    expect(statement).toContain("update leads set gate_code = ?::text, updated_at = now() where id = ? and ?::boolean and gate_code is distinct from ?::text");
+    expect(sql.mock.calls[0]).toEqual(expect.arrayContaining(["#4321", true]));
+    // Only the job_events insert, never the gate code, reaches the activity log.
+    const log = statement.slice(statement.indexOf("insert into job_events"));
+    expect(log).not.toMatch(/gate/);
+    const bodies = sql.mock.calls[0].filter((v: unknown) => typeof v === "string" && v.includes("pending confirmation"));
+    for (const body of bodies) expect(body).not.toContain("#4321");
+  });
+
+  it("leaves the gate code alone when none was sent", async () => {
+    sql.mockResolvedValue([{ job: 1 }]);
+    await appointments.saveAppointment(JOB, "consultation", STARTS, false, NO_TIMING, ACTOR, { designerNotes: null });
+    // The value bound just before "::boolean and gate_code" is the flag: false, so the leads update matches no row.
+    const at = text(sql.mock.calls[0]).split("?").findIndex((part) => part.startsWith("::boolean and gate_code"));
+    expect(at).toBeGreaterThan(0);
+    expect(sql.mock.calls[0][at]).toBe(false);
+  });
+});
+
+describe("setAppointmentNotes", () => {
+  it("writes the notes on this job's appointment without un-confirming it, in one statement", async () => {
+    sql.mockResolvedValue([{ found: 1 }]);
+    expect(await appointments.setAppointmentNotes(JOB, APPT, { designerNotes: "Side gate sticks" }, ACTOR)).toBe("ok");
+    expect(sql).toHaveBeenCalledOnce();
+    const statement = flat(sql.mock.calls[0]);
+    expect(statement).toContain("update appointments set designer_notes = ?::text where id = ? and lead_id = ?");
+    expect(statement).not.toContain("confirmed_at");
+    expect(statement).not.toContain("confirmed_by");
+    // A newer updated_at tells the route planner the day changed; notes do not change a route.
+    const update = statement.slice(statement.indexOf("update appointments"), statement.indexOf("returning lead_id, kind"));
+    expect(update).not.toContain("updated_at");
+    expect(sql.mock.calls[0]).toEqual(expect.arrayContaining(["Side gate sticks", APPT, JOB, ACTOR]));
+  });
+
+  it("logs that the notes changed, naming the kind but never the notes or the gate code", async () => {
+    sql.mockResolvedValue([{ found: 1 }]);
+    await appointments.setAppointmentNotes(JOB, APPT, { designerNotes: "Side gate sticks", gateCode: "#4321" }, ACTOR);
+    const statement = flat(sql.mock.calls[0]);
+    expect(statement).toContain("insert into job_events");
+    expect(statement).toContain("initcap(kind) || ' notes updated' from noted");
+    const log = statement.slice(statement.indexOf("insert into job_events"));
+    expect(log).not.toMatch(/gate|designer_notes/);
+  });
+
+  it("saves a changed gate code to the appointment's client in the same statement", async () => {
+    sql.mockResolvedValue([{ found: 1 }]);
+    await appointments.setAppointmentNotes(JOB, APPT, { designerNotes: null, gateCode: "#4321" }, ACTOR);
+    const statement = flat(sql.mock.calls[0]);
+    expect(statement).toContain("update leads set gate_code = ?::text, updated_at = now() where id = (select lead_id from noted) and ?::boolean and gate_code is distinct from ?::text");
+    expect(sql.mock.calls[0]).toEqual(expect.arrayContaining(["#4321", true]));
+  });
+
+  it("reports an appointment that is gone or belongs to another job", async () => {
+    sql.mockResolvedValue([{ found: 0 }]);
+    expect(await appointments.setAppointmentNotes(JOB, APPT, { designerNotes: "x" }, ACTOR)).toBe("missing");
+  });
+
+  it("refuses a non-uuid id without touching the database", async () => {
+    expect(await appointments.setAppointmentNotes("../etc", APPT, { designerNotes: "x" }, ACTOR)).toBe("missing");
+    expect(await appointments.setAppointmentNotes(JOB, "../etc", { designerNotes: "x" }, ACTOR)).toBe("missing");
     expect(sql).not.toHaveBeenCalled();
   });
 });
@@ -204,7 +288,7 @@ describe("module boundaries", () => {
 describe("logConfirmation", () => {
   it("logs the kind and when it is booked for, as the signed-in owner", async () => {
     await appointments.logConfirmation(
-      { id: APPT, jobId: JOB, kind: "consultation", startsAt: STARTS, allDay: false, confirmedAt: new Date(), confirmedBy: ACTOR, ...NO_TIMING },
+      { id: APPT, jobId: JOB, kind: "consultation", startsAt: STARTS, allDay: false, confirmedAt: new Date(), confirmedBy: ACTOR, designerNotes: null, ...NO_TIMING },
       ACTOR,
     );
     const statement = flat(sql.mock.calls[0]);
@@ -216,7 +300,7 @@ describe("logConfirmation", () => {
 
   it("describes an all-day appointment by its date alone", async () => {
     await appointments.logConfirmation(
-      { id: APPT, jobId: JOB, kind: "install", startsAt: STARTS, allDay: true, confirmedAt: new Date(), confirmedBy: ACTOR, ...NO_TIMING },
+      { id: APPT, jobId: JOB, kind: "install", startsAt: STARTS, allDay: true, confirmedAt: new Date(), confirmedBy: ACTOR, designerNotes: null, ...NO_TIMING },
       ACTOR,
     );
     expect(sql.mock.calls[0]).toContain("Install confirmed for Sep 20, 2026");
@@ -224,7 +308,7 @@ describe("logConfirmation", () => {
 
   it("does nothing for a non-uuid job id", async () => {
     await appointments.logConfirmation(
-      { id: APPT, jobId: "../etc", kind: "install", startsAt: STARTS, allDay: true, confirmedAt: new Date(), confirmedBy: ACTOR, ...NO_TIMING },
+      { id: APPT, jobId: "../etc", kind: "install", startsAt: STARTS, allDay: true, confirmedAt: new Date(), confirmedBy: ACTOR, designerNotes: null, ...NO_TIMING },
       ACTOR,
     );
     expect(sql).not.toHaveBeenCalled();

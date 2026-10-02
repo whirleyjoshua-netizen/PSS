@@ -19,7 +19,15 @@ export type Appointment = {
   allDay: boolean;
   confirmedAt: Date | null;
   confirmedBy: string | null;
+  /** The designer's own notes for this visit. Owner-only: never in the portal, emails or job_events. */
+  designerNotes: string | null;
 } & AppointmentTiming;
+
+/**
+ * What a booking or a notes edit writes besides the time. gateCode undefined leaves the client's
+ * gate code alone; null clears it. The gate code is per client (leads.gate_code), the notes per appointment.
+ */
+export type AppointmentDetails = { designerNotes: string | null; gateCode?: string | null };
 
 function toAppointment(row: Record<string, unknown>): Appointment {
   return {
@@ -30,6 +38,7 @@ function toAppointment(row: Record<string, unknown>): Appointment {
     allDay: row.all_day === true,
     confirmedAt: row.confirmed_at ? new Date(row.confirmed_at as string | Date) : null,
     confirmedBy: (row.confirmed_by as string | null) ?? null,
+    designerNotes: (row.designer_notes as string | null) ?? null,
     windowStart: clockOf(row.window_start),
     windowEnd: clockOf(row.window_end),
     durationMinutes: typeof row.duration_minutes === "number" ? row.duration_minutes : null,
@@ -43,7 +52,7 @@ const whenLabel = (startsAt: Date, allDay: boolean): string =>
 export async function listAppointments(jobId: string): Promise<Appointment[]> {
   if (!isUuid(jobId)) return [];
   const rows = await db()`
-    select id, lead_id, kind, starts_at, all_day, confirmed_at, confirmed_by,
+    select id, lead_id, kind, starts_at, all_day, confirmed_at, confirmed_by, designer_notes,
            window_start::text as window_start, window_end::text as window_end, duration_minutes
       from appointments
     where lead_id = ${jobId} order by starts_at`;
@@ -55,24 +64,35 @@ export type SaveResult = "ok" | "missing";
 /**
  * Books or moves one appointment and logs it, in one statement. A saved appointment is always
  * unconfirmed: only the confirm path sets confirmed_at, and only a confirmed row mirrors to the job.
+ * The same statement saves the designer notes and, when details.gateCode is given and differs, the
+ * client's gate code. Neither goes into the log line.
  */
 export async function saveAppointment(
   jobId: string, kind: AppointmentKind, startsAt: Date, allDay: boolean, timing: AppointmentTiming, actor: string,
+  details: AppointmentDetails = { designerNotes: null },
 ): Promise<SaveResult> {
   if (!isUuid(jobId)) return "missing";
   const when = whenLabel(startsAt, allDay);
   const setBody = `${kindLabel(kind)} set for ${when} — pending confirmation`;
   const movedBody = `${kindLabel(kind)} moved to ${when} — pending confirmation`;
+  const setGate = details.gateCode !== undefined;
+  const gateCode = details.gateCode ?? null;
   const [result] = await db()`
     with target as (select id from leads where id = ${jobId}),
     prev as (select id from appointments where lead_id = ${jobId} and kind = ${kind}),
+    gate as (
+      update leads set gate_code = ${gateCode}::text, updated_at = now()
+       where id = ${jobId} and ${setGate}::boolean and gate_code is distinct from ${gateCode}::text
+      returning id
+    ),
     saved as (
-      insert into appointments (lead_id, kind, starts_at, all_day, window_start, window_end, duration_minutes, confirmed_at, confirmed_by)
+      insert into appointments (lead_id, kind, starts_at, all_day, window_start, window_end, duration_minutes, designer_notes, confirmed_at, confirmed_by)
       select id, ${kind}, ${startsAt}::timestamptz, ${allDay}::boolean,
-             ${timing.windowStart}::time, ${timing.windowEnd}::time, ${timing.durationMinutes}::integer, null, null
+             ${timing.windowStart}::time, ${timing.windowEnd}::time, ${timing.durationMinutes}::integer,
+             ${details.designerNotes}::text, null, null
         from target
       on conflict (lead_id, kind) do update set
-        starts_at = excluded.starts_at, all_day = excluded.all_day,
+        starts_at = excluded.starts_at, all_day = excluded.all_day, designer_notes = excluded.designer_notes,
         window_start = excluded.window_start, window_end = excluded.window_end,
         duration_minutes = excluded.duration_minutes,
         confirmed_at = null, confirmed_by = null, updated_at = now()
@@ -87,6 +107,39 @@ export async function saveAppointment(
     )
     select (select count(*) from target)::int as job`;
   return result?.job ? "ok" : "missing";
+}
+
+/**
+ * Edits one appointment's designer notes, and the client's gate code when details.gateCode is given,
+ * in one statement. Unlike saveAppointment it never touches confirmed_at: a notes edit is not a
+ * re-booking. It leaves appointments.updated_at alone too, because the route planner reads a newer
+ * updated_at as "this day changed" (SAVE_GUARD in lib/routes/day.ts) and notes do not move a route.
+ * The log line names the kind only: the notes and the gate code never go into job_events.
+ */
+export async function setAppointmentNotes(
+  jobId: string, appointmentId: string, details: AppointmentDetails, actor: string,
+): Promise<SaveResult> {
+  if (!isUuid(jobId) || !isUuid(appointmentId)) return "missing";
+  const setGate = details.gateCode !== undefined;
+  const gateCode = details.gateCode ?? null;
+  const [result] = await db()`
+    with noted as (
+      update appointments set designer_notes = ${details.designerNotes}::text
+       where id = ${appointmentId} and lead_id = ${jobId}
+      returning lead_id, kind
+    ),
+    gate as (
+      update leads set gate_code = ${gateCode}::text, updated_at = now()
+       where id = (select lead_id from noted) and ${setGate}::boolean and gate_code is distinct from ${gateCode}::text
+      returning id
+    ),
+    logged as (
+      insert into job_events (lead_id, actor, kind, body)
+      select lead_id, ${actor}, 'edit', initcap(kind) || ' notes updated' from noted
+      returning id
+    )
+    select (select count(*) from noted)::int as found`;
+  return result?.found ? "ok" : "missing";
 }
 
 export type ConfirmResult = Appointment | "missing" | "already";

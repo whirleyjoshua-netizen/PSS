@@ -26,7 +26,7 @@ const STARTS = new Date("2026-09-20T17:00:00Z");
 
 const appointment = (over: Partial<Appointment> = {}): Appointment => ({
   id: APPT, jobId: ID, kind: "consultation", startsAt: STARTS, allDay: false,
-  confirmedAt: null, confirmedBy: null, windowStart: null, windowEnd: null, durationMinutes: null, ...over,
+  confirmedAt: null, confirmedBy: null, designerNotes: null, windowStart: null, windowEnd: null, durationMinutes: null, ...over,
 });
 
 const card = () => screen.getByRole("region", { name: "Appointments" });
