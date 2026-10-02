@@ -64,17 +64,10 @@ export function Questionnaire({ initial, windowRange }: { initial: Questionnaire
           </label>
         </fieldset>
 
-        <div className="grid gap-6 sm:grid-cols-2">
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="q-address">Street address</Label>
-            <input id="q-address" name="address" autoComplete="street-address" maxLength={200} className={CONTROL}
-              defaultValue={text("address", initial.address ?? "")} />
-          </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="q-gate">Gate or community code (optional)</Label>
-            <input id="q-gate" name="gateCode" autoComplete="off" maxLength={40} className={CONTROL}
-              defaultValue={text("gateCode", initial.gateCode ?? "")} />
-          </div>
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="q-address">Street address</Label>
+          <input id="q-address" name="address" autoComplete="street-address" maxLength={200} className={CONTROL}
+            defaultValue={text("address", initial.address ?? "")} />
         </div>
 
         <fieldset className="flex flex-col gap-3">

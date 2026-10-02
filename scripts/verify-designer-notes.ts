@@ -1,6 +1,6 @@
 /**
  * Behavioural proof of designer notes and the event-body hash: migration 035, saveAppointment and
- * setAppointmentNotes in lib/admin/appointments.ts, updateDetails' gateCodeChanged in lib/admin/jobs.ts,
+ * setAppointmentNotes in lib/admin/appointments.ts,
  * and getCalendarJob / saveLink / getLinks / getLinkByEvent in lib/calendar/store.ts.
  *
  * THIS IS NOT AUTOMATED COVERAGE. It is a script you run by hand, it is in no
@@ -27,7 +27,7 @@
  *   7. getCalendarJob returns the gate code and the confirmed measure's notes;
  *   8. saveLink stores a body hash, getLinks and getLinkByEvent read it back, a second saveLink
  *      replaces it, and a claim (claimLink) has a null hash;
- *   9. updateDetails reports gateCodeChanged true for a new gate code and false for the same one;
+ *   9. (removed 2026-10-01: Job details no longer edits the gate code)
  *  10. rescheduling (saveAppointment again) keeps the notes it is given and un-confirms; with
  *      keepNotes true it leaves the row's notes unchanged, with keepNotes false it sets them, and
  *      keepNotes on a kind with no row yet books it with no notes;
@@ -63,7 +63,6 @@ import { readFileSync } from "node:fs";
 import { neon } from "@neondatabase/serverless";
 import { test } from "vitest";
 import { confirmAppointment, listAppointments, saveAppointment, setAppointmentNotes } from "../lib/admin/appointments";
-import { updateDetails } from "../lib/admin/jobs";
 import { claimLink, getCalendarJob, getLinkByEvent, getLinks, saveLink } from "../lib/calendar/store";
 
 /** Endpoints this script must never write to. Production is the whole point of the list. */
@@ -247,16 +246,6 @@ test("designer notes and the event-body hash against a real database", async () 
     const claim = await claimLink(lead, "consultation");
     const claimed = (await getLinks(lead)).find((l) => l.kind === "consultation");
     check(claim !== null && claimed?.bodyHash === null, "a claim has no body hash", `claim link is ${JSON.stringify(claimed)}`);
-
-    // 9. updateDetails reports a gate-code change only when there is one.
-    const details = {
-      address: null, city: "Henderson", brands: [], orderedOn: null, budgetTier: null,
-      windowCountExact: null, treatmentTypes: [], motorized: false,
-    };
-    const changed = await updateDetails(lead, { ...details, gateCode: GATE_1 }, ACTOR);
-    check(changed.saved && changed.gateCodeChanged, "updateDetails reports a new gate code", JSON.stringify(changed));
-    const same = await updateDetails(lead, { ...details, gateCode: GATE_1 }, ACTOR);
-    check(same.saved && !same.gateCodeChanged, "updateDetails reports the same gate code as unchanged", JSON.stringify(same));
 
     // 10. A reschedule keeps the notes the dialog sends, and un-confirms as before.
     const later = new Date(AT.getTime() + 24 * 60 * 60 * 1000);

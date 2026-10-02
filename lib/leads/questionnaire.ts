@@ -15,7 +15,7 @@ export async function findQuestionnaire(
 ): Promise<{ windowRange: string | null; answers: QuestionnaireAnswers } | null> {
   if (!key) return null;
   const rows = await db()`
-    select window_count, window_count_exact, treatment_types, motorized, address, gate_code, finish
+    select window_count, window_count_exact, treatment_types, motorized, address, finish
     from leads
     where questionnaire_token_hash = ${hashToken(key)} and questionnaire_expires_at > now()`;
   const row = rows[0];
@@ -27,7 +27,6 @@ export async function findQuestionnaire(
       treatmentTypes: ((row.treatment_types as unknown[]) ?? []).filter(isTreatmentType),
       motorized: row.motorized === true,
       address: (row.address as string | null) ?? null,
-      gateCode: (row.gate_code as string | null) ?? null,
       finish: isFinish(row.finish) ? row.finish : null,
     },
   };
@@ -44,7 +43,7 @@ export async function saveQuestionnaire(key: string, a: QuestionnaireAnswers): P
     with updated as (
       update leads set
         window_count_exact = ${a.windowCountExact}, treatment_types = ${a.treatmentTypes}::text[],
-        motorized = ${a.motorized}, gate_code = ${a.gateCode}, finish = ${a.finish},
+        motorized = ${a.motorized}, finish = ${a.finish},
         address = coalesce(${a.address}::text, address),
         lat = case when coalesce(${a.address}::text, address) is distinct from address then null else lat end,
         lng = case when coalesce(${a.address}::text, address) is distinct from address then null else lng end,

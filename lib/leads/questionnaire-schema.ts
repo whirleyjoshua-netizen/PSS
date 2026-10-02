@@ -27,7 +27,6 @@ export const questionnaireSchema = z.object({
   address: z
     .preprocess(blank, z.string().trim().max(200, "Keep the address under 200 characters").optional())
     .transform((value) => value ?? null),
-  gateCode: gateCodeField,
   finish: z
     .preprocess(blank, z.enum(FINISHES, { error: "Pick a finish" }).optional())
     .transform((value): Finish | null => value ?? null),
@@ -37,7 +36,7 @@ export type QuestionnaireAnswers = z.output<typeof questionnaireSchema>;
 
 export const isEmptyAnswers = (a: QuestionnaireAnswers): boolean =>
   a.windowCountExact === null && a.treatmentTypes.length === 0 && !a.motorized &&
-  a.address === null && a.gateCode === null && a.finish === null;
+  a.address === null && a.finish === null;
 
 export const QUESTIONNAIRE_EXPIRED = "This form has expired — call us and we'll take it from here.";
 

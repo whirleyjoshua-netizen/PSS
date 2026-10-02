@@ -8,7 +8,7 @@ const { findQuestionnaire, saveQuestionnaire } = await import("@/lib/leads/quest
 const KEY = "k".repeat(43);
 const HASH = createHash("sha256").update(KEY).digest("hex");
 const text = (call: unknown[]) => (call[0] as TemplateStringsArray).join("?").replace(/\s+/g, " ");
-const answers = { windowCountExact: 12, treatmentTypes: ["shutters" as const], motorized: true, address: "12 Sample St", gateCode: "#4321", finish: "luxury" as const };
+const answers = { windowCountExact: 12, treatmentTypes: ["shutters" as const], motorized: true, address: "12 Sample St", finish: "luxury" as const };
 
 beforeEach(() => { sql.mockReset(); });
 
@@ -52,6 +52,8 @@ describe("saveQuestionnaire", () => {
     }
     // The job's stage (status) is never touched; geocode_status is cleared only for a new address.
     expect(statement).not.toMatch(/(^|[^_])status/);
+    // The gate code is no longer asked of the customer, so it is never written here.
+    expect(statement).not.toContain("gate_code");
     expect(call).toContain(HASH);
     expect(call).toContain("premium");
     expect(call).toContain("Customer added details: 12 windows · Shutters · Motorized · Luxury");

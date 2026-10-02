@@ -4,7 +4,7 @@ import { describe, it, expect, vi } from "vitest";
 vi.mock("@/app/(site)/thank-you/actions", () => ({ submitQuestionnaire: vi.fn() }));
 const { Questionnaire } = await import("@/app/(site)/thank-you/Questionnaire");
 
-const blank = { windowCountExact: null, treatmentTypes: [], motorized: false, address: null, gateCode: null, finish: null };
+const blank = { windowCountExact: null, treatmentTypes: [], motorized: false, address: null, finish: null };
 
 describe("Questionnaire", () => {
   it("asks every question, with nothing required", () => {
@@ -17,7 +17,8 @@ describe("Questionnaire", () => {
       expect(screen.getByLabelText(label)).not.toBeChecked();
     }
     expect(screen.getByLabelText(/^Motorized/)).not.toBeChecked();
-    expect(screen.getByLabelText(/^Gate or community code/)).toHaveAttribute("maxLength", "40");
+    // Owner 2026-10-01: the gate code is taken in the scheduler, not asked of the customer.
+    expect(screen.queryByLabelText(/gate/i)).toBeNull();
     expect(screen.getByRole("group", { name: "What kind of finish are you picturing?" })).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: /^Luxury — top-tier fabrics and premium brands/ })).not.toBeChecked();
     expect(document.querySelectorAll("[required]")).toHaveLength(0);
@@ -25,13 +26,11 @@ describe("Questionnaire", () => {
   });
 
   it("prefills saved answers and reminds them of their first answer", () => {
-    render(<Questionnaire initial={{ windowCountExact: 31, treatmentTypes: ["not_sure"], motorized: true, address: "12 Sample St",
-      gateCode: "#4321", finish: "not_sure" }} windowRange="20+" />);
+    render(<Questionnaire initial={{ windowCountExact: 31, treatmentTypes: ["not_sure"], motorized: true, address: "12 Sample St", finish: "not_sure" }} windowRange="20+" />);
     expect(screen.getByText("You said 20+ earlier.")).toBeInTheDocument();
     expect(screen.getByLabelText("How many windows?")).toHaveValue("31");
     expect(screen.getByLabelText("Not sure — show me all the samples")).toBeChecked();
     expect(screen.getByLabelText(/^Motorized/)).toBeChecked();
-    expect(screen.getByLabelText(/^Gate or community code/)).toHaveValue("#4321");
     expect(screen.getByRole("radio", { name: "Not sure yet" })).toBeChecked();
   });
 

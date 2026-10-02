@@ -17,13 +17,18 @@ const job: Job = {
 };
 
 describe("DetailsForm", () => {
+  it("has no gate code field: it lives in the scheduler and Edit notes (owner 2026-10-01)", () => {
+    render(<DetailsForm job={job} />);
+    expect(screen.queryByLabelText(/gate/i)).toBeNull();
+    expect(document.querySelector('[name="gateCode"]')).toBeNull();
+  });
+
   it("lets the owner correct the questionnaire answers", () => {
     render(<DetailsForm job={job} />);
     expect(screen.getByLabelText("Exact windows")).toHaveValue("12");
     expect(screen.getByLabelText("Roman shades")).toBeChecked();
     expect(screen.getByLabelText("Shutters")).not.toBeChecked();
     expect(screen.getByLabelText("Motorized")).toBeChecked();
-    expect(screen.getByLabelText("Gate code")).toHaveValue("#4321");
   });
   it("lets the owner correct the address and city", () => {
     render(<DetailsForm job={{ ...job, address: "12 Sample St", city: "North Las Vegas" }} />);

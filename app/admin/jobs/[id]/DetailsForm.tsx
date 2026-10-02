@@ -68,7 +68,6 @@ export function DetailsForm({ job }: { job: Job }) {
           {WINDOW_EXACT_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
         </select>
       </label>
-      <TextField id="gateCode" name="gateCode" label="Gate code" defaultValue={field("gateCode", job.gateCode ?? "")} />
       <fieldset className="flex flex-col gap-2 sm:col-span-2">
         <legend className="text-sm">Treatment types</legend>
         <div className="flex flex-wrap gap-2">

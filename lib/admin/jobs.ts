@@ -243,19 +243,19 @@ export async function setStage(
 
 /**
  * Saves the details form and logs it, in one statement. saved false means the job is gone.
- * addressChanged and gateCodeChanged compare against the row as it was before this update, so only a
- * real edit re-geocodes, and only a real gate-code edit re-syncs the Outlook events that show it.
+ * addressChanged compares against the row as it was before this update, so only a real edit
+ * re-geocodes. The gate code is not edited here (owner 2026-10-01): the scheduler and Edit notes own it.
  *
  * No appointment date passes through here: visit_at and install_on are mirrors of the confirmed
  * appointments (see mirrorToJob), and a New job now moves to Appointment booked only when its
- * consultation is confirmed. Only the gate code saved here reaches Outlook (see saveDetails).
+ * consultation is confirmed. Nothing saved here syncs Outlook (see saveDetails).
  */
 export async function updateDetails(
   id: string, input: DetailsInput, actor: string,
-): Promise<{ saved: boolean; addressChanged: boolean; gateCodeChanged: boolean }> {
-  if (!isUuid(id)) return { saved: false, addressChanged: false, gateCodeChanged: false };
+): Promise<{ saved: boolean; addressChanged: boolean }> {
+  if (!isUuid(id)) return { saved: false, addressChanged: false };
   const rows = await db()`
-    with prev as (select address, city, gate_code from leads where id = ${id}),
+    with prev as (select address, city from leads where id = ${id}),
     changed as (
       update leads set
         address = ${input.address}, city = ${input.city},
@@ -265,7 +265,7 @@ export async function updateDetails(
         geocoded_at = case when address is distinct from ${input.address}::text or city is distinct from ${input.city}::text then null else geocoded_at end,
         brands = ${input.brands}, ordered_on = ${input.orderedOn}::date,
         budget_tier = ${input.budgetTier},
-        window_count_exact = ${input.windowCountExact}, treatment_types = ${input.treatmentTypes}::text[], motorized = ${input.motorized}, gate_code = ${input.gateCode},
+        window_count_exact = ${input.windowCountExact}, treatment_types = ${input.treatmentTypes}::text[], motorized = ${input.motorized},
         updated_at = now()
       where id = ${id}
       returning id
@@ -276,13 +276,11 @@ export async function updateDetails(
       returning id
     )
     select changed.id,
-           (prev.address is distinct from ${input.address}::text or prev.city is distinct from ${input.city}::text) as address_changed,
-           (prev.gate_code is distinct from ${input.gateCode}::text) as gate_code_changed
+           (prev.address is distinct from ${input.address}::text or prev.city is distinct from ${input.city}::text) as address_changed
       from changed, prev`;
   return {
     saved: rows.length > 0,
     addressChanged: rows[0]?.address_changed === true,
-    gateCodeChanged: rows[0]?.gate_code_changed === true,
   };
 }
 

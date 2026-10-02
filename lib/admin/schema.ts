@@ -41,7 +41,6 @@ export const detailsSchema = z
     windowCountExact: windowCountExactField,
     treatmentTypes: treatmentTypesField,
     motorized: z.boolean().default(false),
-    gateCode: gateCodeField,
   })
   .transform(({ budget, ...rest }) => ({
     budgetTier: budget ?? null,

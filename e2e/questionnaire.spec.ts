@@ -44,7 +44,8 @@ test("a new lead answers the questionnaire and the owner sees it", async ({ page
   await card.getByLabel("Cellular shades").check();
   await card.getByLabel("Shutters").check();
   await card.getByLabel(/^Motorized/).check();
-  await card.getByLabel(/^Gate or community code/).fill("#4321");
+  // The gate code is taken in the scheduler, not asked of the customer (owner 2026-10-01).
+  await expect(card.getByLabel(/gate/i)).toHaveCount(0);
   await card.getByRole("radio", { name: /^Luxury/ }).check();
   await card.getByRole("button", { name: "Save" }).click();
   await expect(page).toHaveURL(/\/thank-you\/all-set$/);
@@ -53,7 +54,7 @@ test("a new lead answers the questionnaire and the owner sees it", async ({ page
   const [lead] = await sql()`select id, status, window_count_exact, treatment_types, motorized, gate_code, finish, budget_tier
     from leads where name = ${NAME}`;
   expect(lead).toMatchObject({ status: "new", window_count_exact: 12, treatment_types: ["shutters", "cellular_shades"],
-    motorized: true, gate_code: "#4321", finish: "luxury", budget_tier: "premium" });
+    motorized: true, gate_code: null, finish: "luxury", budget_tier: "premium" });
 
   // Another browser has no key, so it gets the plain thank-you page.
   const stranger = await browser.newContext();

@@ -53,26 +53,22 @@ describe("job page", () => {
 
   it("prefills saved details and checked brands", () => {
     render(<DetailsForm job={job} />);
-    expect(screen.getByLabelText("Gate code")).toHaveValue(job.gateCode ?? "");
     expect(screen.getByRole("checkbox", { name: "Hunter Douglas" })).toBeChecked();
     expect(screen.getByRole("checkbox", { name: "Alta Window Fashions" })).not.toBeChecked();
   });
 
   it("keeps typed values on the details form after a failed save", async () => {
     saveDetails.mockResolvedValueOnce({
-      error: "Gate codes are 40 characters or fewer",
-      values: { gateCode: "#12345", orderedOn: "2027-03-01" },
+      error: "Pick a budget tier",
+      values: { orderedOn: "2027-03-01" },
     });
     const user = userEvent.setup();
     render(<DetailsForm job={job} />);
 
-    const gate = screen.getByLabelText("Gate code");
-    await user.clear(gate);
-    await user.type(gate, "#12345");
+    await user.type(screen.getByLabelText("Order date"), "2027-03-01");
     await user.click(screen.getByRole("button", { name: /save details/i }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(/40 characters/);
-    expect(screen.getByLabelText("Gate code")).toHaveValue("#12345");
+    expect(await screen.findByRole("alert")).toHaveTextContent("Pick a budget tier");
     expect(screen.getByLabelText("Order date")).toHaveValue("2027-03-01");
   });
 

@@ -65,7 +65,7 @@ export async function saveDetails(id: string, _prev: FormState, formData: FormDa
   const { email } = await requireAdmin();
   const values = captureValues(formData, [
     "address", "city", "brands", "orderedOn", "budget",
-    "windowCountExact", "treatmentTypes", "motorized", "gateCode",
+    "windowCountExact", "treatmentTypes", "motorized",
   ]);
   const parsed = detailsSchema.safeParse({
     address: formData.get("address") ?? "",
@@ -76,16 +76,13 @@ export async function saveDetails(id: string, _prev: FormState, formData: FormDa
     windowCountExact: formData.get("windowCountExact") ?? "",
     treatmentTypes: formData.getAll("treatmentTypes").map(String),
     motorized: formData.get("motorized") === "on",
-    gateCode: formData.get("gateCode") ?? "",
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message, values };
-  const { saved, addressChanged, gateCodeChanged } = await updateDetails(id, parsed.data, email);
+  const { saved, addressChanged } = await updateDetails(id, parsed.data, email);
   if (!saved) return MISSING;
   // Coordinates for the route planner, only when the address really changed. Never blocks the save.
   if (addressChanged) after(() => geocodeLead(id));
-  // No date is edited here. Only the gate code reaches Outlook (it is on every confirmed appointment's
-  // event), so only a changed gate code syncs, and the sync pushes no date.
-  if (gateCodeChanged) after(() => syncJobCalendar(id));
+  // This save never touches Outlook: it holds no date, and the gate code is edited in the scheduler.
   refresh(id);
   return { ok: true };
 }

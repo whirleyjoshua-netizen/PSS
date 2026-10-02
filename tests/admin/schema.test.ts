@@ -31,7 +31,7 @@ describe("detailsSchema", () => {
       brands: ["Alta Window Fashions"], orderedOn: "2027-01-10",
       address: null, city: "Henderson",
       budgetTier: null,
-      windowCountExact: null, treatmentTypes: [], motorized: false, gateCode: null,
+      windowCountExact: null, treatmentTypes: [], motorized: false,
     });
   });
 
@@ -75,14 +75,14 @@ describe("detailsSchema budget", () => {
 });
 
 describe("detailsSchema questionnaire fields", () => {
-  it("parses exact windows, treatment types, motorized and gate code", () => {
-    expect(detailsSchema.parse({ ...place,  windowCountExact: "31", treatmentTypes: ["shutters"], motorized: true, gateCode: " 12# " }))
-      .toMatchObject({ windowCountExact: 31, treatmentTypes: ["shutters"], motorized: true, gateCode: "12#" });
+  it("parses exact windows, treatment types and motorized, and drops a gate code (the scheduler owns it)", () => {
+    const parsed = detailsSchema.parse({ ...place,  windowCountExact: "31", treatmentTypes: ["shutters"], motorized: true, gateCode: " 12# " });
+    expect(parsed).toMatchObject({ windowCountExact: 31, treatmentTypes: ["shutters"], motorized: true });
+    expect(parsed).not.toHaveProperty("gateCode");
   });
   it("rejects bad values", () => {
     expect(detailsSchema.safeParse({ ...place,  windowCountExact: "0" }).success).toBe(false);
     expect(detailsSchema.safeParse({ ...place,  treatmentTypes: ["Blinds"] }).success).toBe(false);
-    expect(detailsSchema.safeParse({ ...place,  gateCode: "x".repeat(41) }).success).toBe(false);
   });
 });
 

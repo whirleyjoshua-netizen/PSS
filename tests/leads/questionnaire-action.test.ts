@@ -24,17 +24,12 @@ beforeEach(() => {
   redirect.mockClear();
 });
 
-describe("submitQuestionnaire calendar sync", () => {
-  it("syncs the saved lead's calendar, so a new gate code reaches its Outlook events", async () => {
-    await expect(submitQuestionnaire({}, form([["gateCode", "#4321"]]))).rejects.toThrow("NEXT_REDIRECT /thank-you/all-set");
-    expect(syncJobCalendar).toHaveBeenCalledWith("lead-1");
-  });
-  it("does not sync when the save found no lead, or nothing was saved", async () => {
-    saveQuestionnaire.mockResolvedValue(null);
-    await submitQuestionnaire({}, form([["gateCode", "#4321"]]));
-    expect(syncJobCalendar).not.toHaveBeenCalled();
-    saveQuestionnaire.mockResolvedValue("lead-1");
-    await expect(submitQuestionnaire({}, form([]))).rejects.toThrow("NEXT_REDIRECT");
+describe("submitQuestionnaire and the gate code", () => {
+  // Owner 2026-10-01: the gate code is taken in the scheduler, not asked of the customer, so a
+  // submitted gateCode is ignored and nothing the questionnaire saves reaches Outlook.
+  it("ignores a gate code sent anyway and never syncs the calendar", async () => {
+    await expect(submitQuestionnaire({}, form([["windowCountExact", "12"], ["gateCode", "#4321"]]))).rejects.toThrow("NEXT_REDIRECT /thank-you/all-set");
+    expect(saveQuestionnaire.mock.calls[0][1]).not.toHaveProperty("gateCode");
     expect(syncJobCalendar).not.toHaveBeenCalled();
   });
 });
@@ -60,11 +55,11 @@ describe("submitQuestionnaire", () => {
   it("saves the answers against the cookie's key and redirects to all-set", async () => {
     await expect(submitQuestionnaire({}, form([
       ["windowCountExact", "12"], ["treatmentTypes", "shutters"], ["treatmentTypes", "cellular_shades"], ["motorized", "on"],
-      ["address", "12 Sample St"], ["gateCode", "#4321"], ["finish", "luxury"],
+      ["address", "12 Sample St"], ["finish", "luxury"],
     ]))).rejects.toThrow("NEXT_REDIRECT /thank-you/all-set");
     expect(saveQuestionnaire).toHaveBeenCalledWith("the-key", {
       windowCountExact: 12, treatmentTypes: ["shutters", "cellular_shades"], motorized: true,
-      address: "12 Sample St", gateCode: "#4321", finish: "luxury",
+      address: "12 Sample St", finish: "luxury",
     });
   });
   it("ignores any key sent in the form", async () => {
@@ -86,9 +81,9 @@ describe("submitQuestionnaire", () => {
     expect(saveQuestionnaire).not.toHaveBeenCalled();
   });
   it("keeps what was typed when validation fails", async () => {
-    const state = await submitQuestionnaire({}, form([["gateCode", "x".repeat(41)], ["treatmentTypes", "shutters"]]));
-    expect(state.error).toBe("Keep the gate code under 40 characters");
-    expect(state.values).toMatchObject({ gateCode: "x".repeat(41), treatmentTypes: "shutters" });
+    const state = await submitQuestionnaire({}, form([["address", "x".repeat(201)], ["treatmentTypes", "shutters"]]));
+    expect(state.error).toBe("Keep the address under 200 characters");
+    expect(state.values).toMatchObject({ address: "x".repeat(201), treatmentTypes: "shutters" });
     expect(saveQuestionnaire).not.toHaveBeenCalled();
   });
   it("reports a failed save without losing the answers", async () => {

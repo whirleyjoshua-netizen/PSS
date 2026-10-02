@@ -2,21 +2,21 @@ import { describe, it, expect } from "vitest";
 import { isEmptyAnswers, questionnaireSchema } from "@/lib/leads/questionnaire-schema";
 import { questionnaireSummary } from "@/lib/leads/questionnaire-summary";
 
-const empty = { windowCountExact: "", treatmentTypes: [], motorized: false, address: "", gateCode: "", finish: "" };
+const empty = { windowCountExact: "", treatmentTypes: [], motorized: false, address: "", finish: "" };
 
 describe("questionnaireSchema", () => {
   it("parses a full answer set", () => {
     expect(questionnaireSchema.parse({
       windowCountExact: "12", treatmentTypes: ["shutters", "cellular_shades", "shutters"], motorized: true,
-      address: " 12 Sample St ", gateCode: " #4321 ", finish: "luxury",
+      address: " 12 Sample St ", finish: "luxury",
     })).toEqual({
       windowCountExact: 12, treatmentTypes: ["shutters", "cellular_shades"], motorized: true,
-      address: "12 Sample St", gateCode: "#4321", finish: "luxury",
+      address: "12 Sample St", finish: "luxury",
     });
   });
   it("turns an empty submit into empty answers", () => {
     const parsed = questionnaireSchema.parse(empty);
-    expect(parsed).toEqual({ windowCountExact: null, treatmentTypes: [], motorized: false, address: null, gateCode: null, finish: null });
+    expect(parsed).toEqual({ windowCountExact: null, treatmentTypes: [], motorized: false, address: null, finish: null });
     expect(isEmptyAnswers(parsed)).toBe(true);
     expect(isEmptyAnswers({ ...parsed, motorized: true })).toBe(false);
   });
@@ -31,22 +31,22 @@ describe("questionnaireSchema", () => {
     expect(questionnaireSchema.safeParse({ ...empty, finish: "premium" }).error!.issues[0].message).toBe("Pick a finish");
   });
   it("limits the gate code to 40 characters and the address to 200", () => {
-    expect(questionnaireSchema.safeParse({ ...empty, gateCode: "x".repeat(41) }).error!.issues[0].message).toBe("Keep the gate code under 40 characters");
-    expect(questionnaireSchema.safeParse({ ...empty, gateCode: "x".repeat(40) }).success).toBe(true);
+    // Owner 2026-10-01: the questionnaire no longer takes a gate code; one sent anyway is dropped.
+    expect(questionnaireSchema.parse({ ...empty, gateCode: "#4321" })).not.toHaveProperty("gateCode");
     expect(questionnaireSchema.safeParse({ ...empty, address: "x".repeat(201) }).success).toBe(false);
   });
 });
 
 describe("questionnaireSummary", () => {
-  const base = { windowCountExact: null, treatmentTypes: [], motorized: false, address: null, gateCode: null, finish: null } as const;
+  const base = { windowCountExact: null, treatmentTypes: [], motorized: false, address: null, finish: null } as const;
   it("lists what the customer told us, without the gate code or address", () => {
     expect(questionnaireSummary({ ...base, windowCountExact: 12, treatmentTypes: ["cellular_shades", "shutters"], motorized: true,
-      finish: "luxury", gateCode: "#4321", address: "12 Sample St" }))
+      finish: "luxury", address: "12 Sample St" }))
       .toBe("Customer added details: 12 windows · Shutters, Cellular shades · Motorized · Luxury");
   });
   it("leaves out empty parts", () => {
     expect(questionnaireSummary({ ...base, windowCountExact: 31 })).toBe("Customer added details: 30+ windows");
     expect(questionnaireSummary({ ...base, finish: "not_sure" })).toBe("Customer added details: Finish not sure yet");
-    expect(questionnaireSummary({ ...base, gateCode: "#4321" })).toBe("Customer added details");
+    expect(questionnaireSummary({ ...base })).toBe("Customer added details");
   });
 });
