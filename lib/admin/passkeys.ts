@@ -37,8 +37,15 @@ const looksLikeResponse = (response: unknown): response is { id: string } =>
   typeof (response as { id?: unknown }).id === "string" &&
   (response as { id: string }).id.length > 0 && (response as { id: string }).id.length <= 1024;
 
-/** One statement: clears expired challenges and stores this one for 5 minutes. */
-async function storeChallenge(purpose: "register" | "sign-in", challenge: string, email: string | null): Promise<string> {
+/** Unauthenticated sign-in challenges waiting at once. Past this, sign-in is refused, not stored. */
+export const MAX_WAITING_SIGN_INS = 200;
+
+/**
+ * One statement: clears expired challenges and stores this one for 5 minutes. A sign-in challenge
+ * is stored only while fewer than MAX_WAITING_SIGN_INS live ones exist (null when refused). The
+ * sweep's deletions are not visible inside the same statement, so the count skips expired rows.
+ */
+async function storeChallenge(purpose: "register" | "sign-in", challenge: string, email: string | null): Promise<string | null> {
   const id = newToken();
   if (purpose === "register") {
     await db()`
@@ -47,15 +54,17 @@ async function storeChallenge(purpose: "register" | "sign-in", challenge: string
       )
       insert into admin_webauthn_challenges (id, challenge, purpose, email, expires_at)
       values (${id}, ${challenge}, 'register', ${email}, now() + interval '5 minutes')`;
-  } else {
-    await db()`
-      with swept as (
-        delete from admin_webauthn_challenges where expires_at < now()
-      )
-      insert into admin_webauthn_challenges (id, challenge, purpose, email, expires_at)
-      values (${id}, ${challenge}, 'sign-in', null, now() + interval '5 minutes')`;
+    return id;
   }
-  return id;
+  const stored = await db()`
+    with swept as (
+      delete from admin_webauthn_challenges where expires_at < now()
+    )
+    insert into admin_webauthn_challenges (id, challenge, purpose, email, expires_at)
+    select ${id}, ${challenge}, 'sign-in', null, now() + interval '5 minutes'
+    where (select count(*) from admin_webauthn_challenges where purpose = 'sign-in' and expires_at > now()) < ${MAX_WAITING_SIGN_INS}
+    returning id`;
+  return stored.length > 0 ? id : null;
 }
 
 export async function startRegistration(
@@ -79,7 +88,7 @@ export async function startRegistration(
       authenticatorAttachment: "platform",
     },
   });
-  const challengeId = await storeChallenge("register", options.challenge, email);
+  const challengeId = (await storeChallenge("register", options.challenge, email)) as string;
   return { options, challengeId };
 }
 
@@ -123,32 +132,39 @@ export async function finishRegistration(
   return rows.length > 0;
 }
 
-export async function startSignIn(): Promise<{ options: PublicKeyCredentialRequestOptionsJSON; challengeId: string }> {
+/** Null when too many sign-ins are already waiting. */
+export async function startSignIn(): Promise<{ options: PublicKeyCredentialRequestOptionsJSON; challengeId: string } | null> {
   const options = await generateAuthenticationOptions({
     rpID: rpId(),
     allowCredentials: [],
     userVerification: "required",
   });
   const challengeId = await storeChallenge("sign-in", options.challenge, null);
-  return { options, challengeId };
+  return challengeId ? { options, challengeId } : null;
 }
 
-/** The signed-in address, or null for any failure. */
-export async function finishSignIn(challengeId: string, response: AuthenticationResponseJSON): Promise<string | null> {
-  if (!challengeId || !looksLikeResponse(response)) return null;
+/**
+ * The signed-in address, or why not. "unknown-passkey" means no stored passkey has this id (it was
+ * removed), so the phone can stop treating Face ID as on. Every other failure is "not-verified".
+ */
+export type SignInResult = { email: string } | { failed: "unknown-passkey" | "not-verified" };
+const NOT_VERIFIED = { failed: "not-verified" } as const;
+
+export async function finishSignIn(challengeId: string, response: AuthenticationResponseJSON): Promise<SignInResult> {
+  if (!challengeId || !looksLikeResponse(response)) return NOT_VERIFIED;
   const sql = db();
   const used = await sql`
     delete from admin_webauthn_challenges
     where id = ${challengeId} and purpose = 'sign-in' and expires_at > now()
     returning challenge`;
   const challenge = used[0]?.challenge as string | undefined;
-  if (!challenge) return null;
+  if (!challenge) return NOT_VERIFIED;
 
   const found = await sql`
     select email, encode(public_key, 'hex') as public_key, counter, transports
     from admin_passkeys where id = ${response.id}`;
   const stored = found[0];
-  if (!stored) return null;
+  if (!stored) return { failed: "unknown-passkey" };
 
   let newCounter: number;
   try {
@@ -165,21 +181,21 @@ export async function finishSignIn(challengeId: string, response: Authentication
       },
       requireUserVerification: true,
     });
-    if (!result.verified) return null;
+    if (!result.verified) return NOT_VERIFIED;
     newCounter = result.authenticationInfo.newCounter;
   } catch (error) {
     console.error("Face ID sign-in did not verify", error);
-    return null;
+    return NOT_VERIFIED;
   }
 
   // The same rule the library applies, repeated in the write so two racing sign-ins with one
   // signature cannot both move the counter. Passkeys that never count (iCloud) stay at 0.
   const moved = await sql`
     update admin_passkeys set counter = ${newCounter}, last_used_at = now()
-    where id = ${response.id} and (counter < ${newCounter} or (counter = 0 and ${newCounter} = 0))
+    where id = ${response.id} and (counter < ${newCounter}::bigint or (counter = 0 and ${newCounter}::bigint = 0))
     returning email`;
   const email = moved[0]?.email as string | undefined;
-  return email && (await isAllowed(email)) ? email : null;
+  return email && (await isAllowed(email)) ? { email } : NOT_VERIFIED;
 }
 
 export type PasskeyDevice = { id: string; label: string; createdAt: Date; lastUsedAt: Date | null };

@@ -11,7 +11,10 @@ vi.mock("@simplewebauthn/browser", () => ({
   browserSupportsWebAuthn: () => webauthn.supported,
   startAuthentication: vi.fn(),
 }));
-vi.mock("@/app/admin/passkey-actions", () => ({ beginFaceIdSignIn: vi.fn(), completeFaceIdSignIn: vi.fn() }));
+vi.mock("@/app/admin/passkey-actions", () => ({
+  beginFaceIdSignIn: vi.fn(async () => ({ challenge: "abc" })),
+  completeFaceIdSignIn: vi.fn(),
+}));
 
 const { SignInForm } = await import("@/app/admin/sign-in/SignInForm");
 

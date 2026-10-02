@@ -140,7 +140,10 @@ describe("finishRegistration", () => {
 
 describe("startSignIn", () => {
   it("asks for any of this site's passkeys with Face ID required, and stores a sign-in challenge", async () => {
-    const { options, challengeId } = await startSignIn();
+    sql.mockResolvedValueOnce([{ id: "stored" }]);
+    const started = await startSignIn();
+    expect(started).not.toBeNull();
+    const { options, challengeId } = started!;
     expect(options.rpId).toBe("ops.example.com");
     expect(options.userVerification).toBe("required");
     // Discoverable credentials: no address is asked for, so nothing is listed.
@@ -150,15 +153,28 @@ describe("startSignIn", () => {
     const insert = text(sql.mock.calls[0]);
     expect(insert).toMatch(/^with swept as \( delete from admin_webauthn_challenges where expires_at < now\(\) \)/);
     expect(insert).toContain(
-      "insert into admin_webauthn_challenges (id, challenge, purpose, email, expires_at) values (?, ?, 'sign-in', null, now() + interval '5 minutes')",
+      "insert into admin_webauthn_challenges (id, challenge, purpose, email, expires_at) select ?, ?, 'sign-in', null, now() + interval '5 minutes'",
     );
-    expect(params(sql.mock.calls[0])).toEqual([challengeId, options.challenge]);
+    expect(params(sql.mock.calls[0])).toEqual([challengeId, options.challenge, 200]);
+  });
+
+  it("refuses once 200 sign-ins are already waiting, counting only live ones, in the same statement", async () => {
+    // The insert's own condition finds 200 live rows, so nothing is stored and no row comes back.
+    sql.mockResolvedValueOnce([]);
+    expect(await startSignIn()).toBeNull();
+    expect(sql).toHaveBeenCalledTimes(1);
+    // The sweep's deletions are not visible inside the same statement, so the count skips expired rows itself.
+    expect(text(sql.mock.calls[0])).toMatch(
+      /where \(select count\(\*\) from admin_webauthn_challenges where purpose = 'sign-in' and expires_at > now\(\)\) < \? returning id$/,
+    );
+    expect(params(sql.mock.calls[0]).at(-1)).toBe(200);
   });
 });
 
 describe("finishSignIn", () => {
   const stored = { email: EMAIL, public_key: "0102ff", counter: "7", transports: ["internal"] };
   const verified = { verified: true, authenticationInfo: { newCounter: 8 } };
+  const NOT_VERIFIED = { failed: "not-verified" };
 
   it("verifies against the stored key and counter, moves the counter, and returns the address", async () => {
     sql
@@ -167,7 +183,7 @@ describe("finishSignIn", () => {
       .mockResolvedValueOnce([{ email: EMAIL }]);
     verifyAuthenticationResponse.mockResolvedValue(verified);
 
-    expect(await finishSignIn("ch-2", AUTH_RESPONSE as never)).toBe(EMAIL);
+    expect(await finishSignIn("ch-2", AUTH_RESPONSE as never)).toEqual({ email: EMAIL });
 
     expect(text(sql.mock.calls[0])).toBe(
       "delete from admin_webauthn_challenges where id = ? and purpose = 'sign-in' and expires_at > now() returning challenge",
@@ -187,54 +203,54 @@ describe("finishSignIn", () => {
     });
     // One statement, guarded so a replayed or raced counter never moves backwards.
     expect(text(sql.mock.calls[2])).toBe(
-      "update admin_passkeys set counter = ?, last_used_at = now() where id = ? and (counter < ? or (counter = 0 and ? = 0)) returning email",
+      "update admin_passkeys set counter = ?, last_used_at = now() where id = ? and (counter < ?::bigint or (counter = 0 and ?::bigint = 0)) returning email",
     );
     expect(params(sql.mock.calls[2])).toEqual([8, "cred-1", 8, 8]);
     expect(isAllowed).toHaveBeenCalledWith(EMAIL);
   });
 
-  it("returns null for someone whose access was removed, even with a good passkey", async () => {
+  it("fails for someone whose access was removed, even with a good passkey", async () => {
     sql
       .mockResolvedValueOnce([{ challenge: "chal" }])
       .mockResolvedValueOnce([stored])
       .mockResolvedValueOnce([{ email: EMAIL }]);
     verifyAuthenticationResponse.mockResolvedValue(verified);
     isAllowed.mockResolvedValue(false);
-    expect(await finishSignIn("ch-2", AUTH_RESPONSE as never)).toBeNull();
+    expect(await finishSignIn("ch-2", AUTH_RESPONSE as never)).toEqual(NOT_VERIFIED);
   });
 
-  it("returns null when the challenge is gone, without looking up the passkey", async () => {
-    expect(await finishSignIn("ch-2", AUTH_RESPONSE as never)).toBeNull();
+  it("fails when the challenge is gone, without looking up the passkey", async () => {
+    expect(await finishSignIn("ch-2", AUTH_RESPONSE as never)).toEqual(NOT_VERIFIED);
     expect(sql).toHaveBeenCalledTimes(1);
     expect(verifyAuthenticationResponse).not.toHaveBeenCalled();
   });
 
-  it("returns null for an unknown passkey", async () => {
+  it("says the passkey is unknown when no stored passkey has its id, so the phone can forget it", async () => {
     sql.mockResolvedValueOnce([{ challenge: "chal" }]).mockResolvedValueOnce([]);
-    expect(await finishSignIn("ch-2", AUTH_RESPONSE as never)).toBeNull();
+    expect(await finishSignIn("ch-2", AUTH_RESPONSE as never)).toEqual({ failed: "unknown-passkey" });
     expect(verifyAuthenticationResponse).not.toHaveBeenCalled();
   });
 
-  it("returns null and moves nothing when verification fails or throws", async () => {
+  it("fails and moves nothing when verification fails or throws", async () => {
     sql.mockResolvedValueOnce([{ challenge: "chal" }]).mockResolvedValueOnce([stored]);
     verifyAuthenticationResponse.mockResolvedValueOnce({ verified: false, authenticationInfo: { newCounter: 8 } });
-    expect(await finishSignIn("ch-2", AUTH_RESPONSE as never)).toBeNull();
+    expect(await finishSignIn("ch-2", AUTH_RESPONSE as never)).toEqual(NOT_VERIFIED);
     sql.mockResolvedValueOnce([{ challenge: "chal" }]).mockResolvedValueOnce([stored]);
     verifyAuthenticationResponse.mockRejectedValueOnce(new Error("counter went backwards"));
-    expect(await finishSignIn("ch-2", AUTH_RESPONSE as never)).toBeNull();
+    expect(await finishSignIn("ch-2", AUTH_RESPONSE as never)).toEqual(NOT_VERIFIED);
     expect(sql.mock.calls.every((call) => !text(call).startsWith("update"))).toBe(true);
     expect(isAllowed).not.toHaveBeenCalled();
   });
 
-  it("returns null when the counter update finds nothing to move", async () => {
+  it("fails when the counter update finds nothing to move", async () => {
     sql.mockResolvedValueOnce([{ challenge: "chal" }]).mockResolvedValueOnce([stored]).mockResolvedValueOnce([]);
     verifyAuthenticationResponse.mockResolvedValue(verified);
-    expect(await finishSignIn("ch-2", AUTH_RESPONSE as never)).toBeNull();
+    expect(await finishSignIn("ch-2", AUTH_RESPONSE as never)).toEqual(NOT_VERIFIED);
   });
 
   it("refuses a malformed response before touching the challenge", async () => {
-    expect(await finishSignIn("ch-2", { id: 5 } as never)).toBeNull();
-    expect(await finishSignIn("", AUTH_RESPONSE as never)).toBeNull();
+    expect(await finishSignIn("ch-2", { id: 5 } as never)).toEqual(NOT_VERIFIED);
+    expect(await finishSignIn("", AUTH_RESPONSE as never)).toEqual(NOT_VERIFIED);
     expect(sql).not.toHaveBeenCalled();
   });
 });
