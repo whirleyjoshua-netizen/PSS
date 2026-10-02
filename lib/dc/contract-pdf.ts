@@ -1,8 +1,8 @@
 import "server-only";
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
-import { business } from "@/content/business";
 import { formatShortDate } from "@/lib/admin/time";
 import { contractRows, winAnsiSafe, type ContractInput } from "./contract-layout";
+import { drawLetterhead, embedLogo, markPages, type EmbeddedLogo } from "@/lib/pdf/logo";
 import { LETTER, MARGIN, wrap } from "@/lib/pdf/text";
 import { parseDocText } from "@/lib/docs/parse";
 import { drawSignatureBlock, renderBlocks, type PdfPen, type RenderedPdf } from "@/lib/docs/pdf";
@@ -30,6 +30,8 @@ function drawTerms(doc: PDFDocument, regular: PDFFont, bold: PDFFont, text: stri
 export async function buildTermsPdf(text: string): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
   drawSignatureBlock(drawTerms(doc, await doc.embedFont(StandardFonts.Helvetica), await doc.embedFont(StandardFonts.HelveticaBold), text, []));
+  // No letterhead here (the terms pages alone), so every page carries the mark, the first included.
+  markPages(doc, await embedLogo(doc), { fromPage: 0 });
   return doc.save();
 }
 
@@ -38,7 +40,7 @@ export async function buildTermsPdf(text: string): Promise<Uint8Array> {
  * `closing` sentence. The contract and the quote both print through this, so the quote the client
  * approves and the contract they sign show the same figures in the same places.
  */
-export function drawPricedPages(doc: PDFDocument, regular: PDFFont, bold: PDFFont, input: ContractInput, heading: string, closing: string): void {
+export function drawPricedPages(doc: PDFDocument, logo: EmbeddedLogo, regular: PDFFont, bold: PDFFont, input: ContractInput, heading: string, closing: string): void {
   const { rows, totals } = contractRows(input);
   const fullWidth = LETTER[0] - 2 * MARGIN;
 
@@ -49,8 +51,7 @@ export function drawPricedPages(doc: PDFDocument, regular: PDFFont, bold: PDFFon
   const right = (s: string, xRight: number, size = 9, font = regular) => text(s, xRight - font.widthOfTextAtSize(winAnsiSafe(s), size), size, font);
   const need = (height: number) => { if (y - height < MARGIN) { page = doc.addPage(LETTER); y = LETTER[1] - MARGIN; } };
 
-  text(business.legalName, MARGIN, 14, bold); y -= 16;
-  text(`${business.phone.display} · ${business.email}`, MARGIN, 9); y -= 26;
+  y = drawLetterhead(page, logo, regular);
   const date = formatShortDate(input.date);
   const title = wrap(heading, bold, 16, fullWidth - regular.widthOfTextAtSize(winAnsiSafe(date), 10) - 16);
   right(date, LETTER[0] - MARGIN, 10);
@@ -99,23 +100,28 @@ export async function renderContractPdf(input: ContractInput, terms: ContractTer
   const doc = await PDFDocument.create();
   const regular = await doc.embedFont(StandardFonts.Helvetica);
   const bold = await doc.embedFont(StandardFonts.HelveticaBold);
-  drawPricedPages(doc, regular, bold, input, `Contract ${input.projectNo} · Version ${input.version}`,
+  const logo = await embedLogo(doc);
+  drawPricedPages(doc, logo, regular, bold, input, `Contract ${input.projectNo} · Version ${input.version}`,
     "The terms and conditions on the following pages are part of this contract.");
 
   const initials: InitialsMark[] = [];
   let signature: MarkPoint;
+  let uploadedPages: ReadonlySet<PDFPage> = new Set();
   if ("text" in terms) {
     signature = drawSignatureBlock(drawTerms(doc, regular, bold, terms.text, initials));
   } else {
     const uploaded = await PDFDocument.load(terms.pdf);
     const copied = await doc.copyPages(uploaded, uploaded.getPageIndices());
     for (const p of copied) doc.addPage(p);
+    uploadedPages = new Set(copied);
     // Uploaded terms have no sections we can find (spec §11): the block gets a final page of its own (spec §3).
     const pen: PdfPen = { doc, page: doc.addPage(LETTER), y: LETTER[1] - MARGIN, regular, bold };
     pen.page.drawText("Signature", { x: MARGIN, y: pen.y, size: 14, font: bold, color: rgb(0.1, 0.1, 0.1) });
     pen.y -= 26;
     signature = drawSignatureBlock(pen);
   }
+  // Uploaded terms print exactly as uploaded: nothing is drawn on them.
+  markPages(doc, logo, { fromPage: 1, skip: uploadedPages });
   return { bytes: await doc.save(), marks: { initials, signature } };
 }
 

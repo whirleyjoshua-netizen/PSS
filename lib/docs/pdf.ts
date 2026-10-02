@@ -1,8 +1,8 @@
 import "server-only";
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
-import { business } from "@/content/business";
 import { formatShortDate } from "@/lib/admin/time";
 import { winAnsiSafe } from "@/lib/dc/contract-layout";
+import { drawLetterhead, embedLogo, markPages } from "@/lib/pdf/logo";
 import { LETTER, MARGIN, wrapRuns, type Seg } from "@/lib/pdf/text";
 import {
   INITIALS_BOX, INITIALS_GUTTER, SIGNATURE_BLOCK, sectionNumber, type InitialsMark, type MarkPoint, type SignMarks,
@@ -166,9 +166,8 @@ export async function renderDocumentPdf(input: DocumentPdfInput): Promise<Render
   const pen: PdfPen = { doc, page: doc.addPage(LETTER), y: LETTER[1] - MARGIN, regular, bold, initials: signing ? [] : undefined };
   const fonts = { regular, bold };
 
-  drawLines(pen, [[{ text: business.legalName, bold: true }]], MARGIN, 14, 16);
-  drawLines(pen, [[{ text: `${business.phone.display} · ${business.email}`, bold: false }]], MARGIN, 9, 12);
-  pen.y -= 14;
+  const logo = await embedLogo(doc);
+  pen.y = drawLetterhead(pen.page, logo, regular);
 
   const date = winAnsiSafe(formatShortDate(input.date));
   const dateWidth = regular.widthOfTextAtSize(date, 10);
@@ -189,6 +188,7 @@ export async function renderDocumentPdf(input: DocumentPdfInput): Promise<Render
     pen.y -= GAP;
     signature = drawSignatureBlock(pen);
   }
+  markPages(doc, logo, { fromPage: 1 });
   return { bytes: await doc.save(), marks: { initials: pen.initials ?? [], signature } };
 }
 
