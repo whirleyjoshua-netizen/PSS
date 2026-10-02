@@ -1,6 +1,8 @@
 import { test, expect, type BrowserContext } from "@playwright/test";
 import { neon } from "@neondatabase/serverless";
-import { createHash, randomBytes } from "node:crypto";
+import { randomBytes } from "node:crypto";
+// The app's own hashes (tokens.ts has no server-only import), so the specs never re-derive them.
+import { codeHash, hashToken } from "../lib/admin/tokens";
 
 const url = process.env.E2E_POSTGRES_URL;
 test.skip(!url, "Set E2E_POSTGRES_URL to a Neon branch to run admin tests");
@@ -15,7 +17,7 @@ const NAME = `E2E Mobile ${Date.now()}`;
 
 async function signIn(page: import("@playwright/test").Page) {
   const token = randomBytes(32).toString("base64url");
-  const hash = createHash("sha256").update(token).digest("hex");
+  const hash = hashToken(token);
   await sql()`insert into admin_login_tokens (token_hash, email, expires_at)
     values (${hash}, 'e2e-mobile@example.com', now() + interval '15 minutes')`;
   await page.goto(`/admin/auth?token=${token}`);
@@ -60,7 +62,7 @@ test("signs in with the emailed code", async ({ page, context }) => {
   await expect(page.getByRole("status")).toContainText("a sign-in code and link are on their way");
 
   // The row is written in after(), once the response has gone. No email leaves e2e, so the code is
-  // set to a known one: the same hash lib/admin/login.ts stores, sha256 of "email:code".
+  // set to a known one, hashed exactly as lib/admin/login.ts stores it.
   let tokenHash: string | undefined;
   await expect
     .poll(
@@ -74,12 +76,13 @@ test("signs in with the emailed code", async ({ page, context }) => {
       { timeout: 10_000 },
     )
     .toBeTruthy();
-  const known = createHash("sha256").update(`${email}:123456`).digest("hex");
+  const known = codeHash(email, "123456");
   await sql()`update admin_login_tokens set code_hash = ${known} where token_hash = ${tokenHash!}`;
 
   await page.getByLabel("6-digit code").fill("123456");
   // Exact: on a phone with passkeys the page also has "Sign in with Face ID".
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(page).toHaveURL(/\/admin$/);
   await expect(page.getByRole("heading", { name: "Jobs", exact: true })).toBeVisible();
   await rememberChallenges(context);
 
@@ -99,25 +102,41 @@ test("the app manifest and iOS tags are on admin pages only", async ({ page, req
   await page.goto("/admin/sign-in");
   await expect(page.locator('link[rel="manifest"]')).toHaveAttribute("href", "/ops.webmanifest");
   await expect(page.locator('meta[name="apple-mobile-web-app-title"]')).toHaveAttribute("content", "PSS Ops");
+  await expect(page.locator('meta[name="apple-mobile-web-app-capable"]')).toHaveAttribute("content", "yes");
+  await expect(page.locator('link[rel="apple-touch-icon"]')).toHaveAttribute("href", "/ops/icon-180.png");
+  await expect(page.locator('link[rel="icon"][href="/icon.svg"]')).toHaveCount(1);
+  expect((await request.get("/icon.svg")).ok()).toBe(true);
   // Once its Face ID options have landed, the page's sign-in challenge id is in the cookie.
   await expect(page.getByRole("button", { name: "Sign in with Face ID" })).toBeEnabled();
   await rememberChallenges(context);
 
   // The public site is not the app: "Add to Home Screen" there must not install PSS Ops.
-  await page.goto("/");
+  const home = await page.goto("/");
+  // The home page really loaded (an error page would also lack a manifest).
+  expect(home?.ok()).toBe(true);
+  await expect(page.locator("main#main")).toBeVisible();
+  await expect(page.getByRole("contentinfo")).toBeVisible();
   await expect(page.locator('link[rel="manifest"]')).toHaveCount(0);
   await expect(page.locator('meta[name="apple-mobile-web-app-title"]')).toHaveCount(0);
 });
 
 test("refresh keeps the menu closed", async ({ page }) => {
   await signIn(page);
-  const menu = page.locator("details.admin-sidebar");
-  const refresh = menu.getByRole("button", { name: "Refresh" });
+  const header = page.locator("header.admin-sidebar");
+  const menu = header.locator("details");
+  const refresh = header.getByRole("button", { name: "Refresh" });
+  // Beside the Menu, not inside it.
+  await expect(menu.getByRole("button", { name: "Refresh" })).toHaveCount(0);
 
+  // A real refresh: router.refresh() fetches the page's server data again (an RSC request).
+  const refetched = page.waitForResponse(
+    (response) => response.request().headers()["rsc"] === "1" && new URL(response.url()).pathname === "/admin",
+  );
   await refresh.click();
-  // It finishes ("Refreshing…" back to "Refresh") with the menu still shut and its links hidden.
+  expect((await refetched).ok()).toBe(true);
   await expect(refresh).toHaveText("Refresh");
   await expect(refresh).toBeEnabled();
+  // The menu stayed shut, its links hidden.
   await expect(menu).not.toHaveAttribute("open", /.*/);
   await expect(menu.getByRole("link", { name: "Schedule" })).toBeHidden();
   await expect(menu.getByRole("button", { name: /Sign out/ })).toBeHidden();

@@ -5,7 +5,7 @@ import { Resend } from "resend";
 import { business } from "@/content/business";
 import { db } from "@/lib/db";
 import { isAllowed } from "./allowlist";
-import { hashToken, newToken } from "./tokens";
+import { codeHash, hashToken, newToken } from "./tokens";
 
 const LINK_MINUTES = 15;
 const LINKS_PER_HOUR = 5;
@@ -21,7 +21,7 @@ export const DAILY_WRONG_CODES = 15;
 export const newSignInCode = (): string => String(randomInt(0, 1_000_000)).padStart(6, "0");
 
 /** The code is only ever stored hashed, bound to its address. */
-export const codeHash = (email: string, code: string): string => hashToken(`${email}:${code}`);
+export { codeHash };
 
 /**
  * Emails a one-time sign-in link, and a 6-digit code on the same row, to an allowlisted owner.

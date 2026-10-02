@@ -1,6 +1,7 @@
 import { test, expect, type BrowserContext } from "@playwright/test";
 import { neon } from "@neondatabase/serverless";
-import { createHash } from "node:crypto";
+// The app's own hash (tokens.ts has no server-only import), so the spec never re-derives it.
+import { codeHash } from "../lib/admin/tokens";
 
 // Runs only from playwright.face-id.config.ts (http://localhost, a domain RP ID WebAuthn accepts).
 // The main config ignores this file: on 127.0.0.1 there is no valid RP ID.
@@ -58,7 +59,7 @@ test("Face ID sign-in with a virtual authenticator", async ({ page, context }) =
       { timeout: 10_000 },
     )
     .toBeTruthy();
-  const known = createHash("sha256").update(`${EMAIL}:123456`).digest("hex");
+  const known = codeHash(EMAIL, "123456");
   await sql()`update admin_login_tokens set code_hash = ${known} where token_hash = ${tokenHash!}`;
   await rememberChallenges(context);
   await page.getByLabel("6-digit code").fill("123456");
