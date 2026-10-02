@@ -123,12 +123,6 @@ export const gallery: GalleryItem[] = [
     caption: "Top-down cellular shades on wood-trimmed windows — privacy below, sky above.",
   },
   {
-    src: "/gallery/shades-open-living-room.webp",
-    alt: "Dark woven wood shades on a pair of French doors, light fabric shades under a grey woven valance on two windows, and a white plantation shutter on a side window, in a living room with a large sectional sofa.",
-    treatment: "shades",
-    caption: "Woven wood shades on the French doors, light shades on the windows behind the sofa and a plantation shutter on the side window.",
-  },
-  {
     src: "/gallery/cellular-shades-entry-sidelights.webp",
     alt: "Slim cellular shades on both sidelights of a white front door, with a matching shade on a high window in the entryway.",
     treatment: "shades",
@@ -209,15 +203,13 @@ export const gallery: GalleryItem[] = [
 ];
 
 /**
- * The photo beside every booking form and the homepage family section.
- *
- * A stand-in: the owners are taking a consultation photo (Shade with a
- * homeowner, samples, a window in view). When it exists, put it in
- * public/gallery/, add it to `gallery` above, and change the src here. It
- * must never be a photo with the children in it; they appear only on the
- * About page.
+ * The stand-in wherever a page has no photo of its own: the hero of a
+ * category or product we have no photo of, and the booking block on the
+ * city pages and /reviews. The owners chose the woven roman dining room
+ * (2026-10-01): it shows the work without much of a client's home. Keep it
+ * a gallery photo, and never one with the children in it.
  */
-export const consultationPhoto: Photo = galleryPhoto("/gallery/shades-open-living-room.webp");
+export const consultationPhoto: Photo = galleryPhoto("/gallery/roman-shades-woven-dining-room.webp");
 
 /** A gallery photo's src and reviewed alt text; throws at module load if the gallery lacks it. */
 function galleryPhoto(src: string): Photo {

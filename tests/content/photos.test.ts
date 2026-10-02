@@ -86,4 +86,12 @@ describe("photos in the content model", () => {
   it("never uses a family photo as the consultation stand-in", () => {
     expect(consultationPhoto.src).not.toMatch(/^\/brand\//);
   });
+
+  // Owner 2026-10-01: the woven roman dining room replaces the living-room stand-in,
+  // which showed too much of a client's home; that photo is gone from the site.
+  it("uses the woven roman dining room as the stand-in, and the old living-room photo nowhere", () => {
+    expect(consultationPhoto.src).toBe("/gallery/roman-shades-woven-dining-room.webp");
+    expect(gallery.some((item) => item.src === "/gallery/shades-open-living-room.webp")).toBe(false);
+    expect(onDisk("/gallery/shades-open-living-room.webp")).toBe(false);
+  });
 });
