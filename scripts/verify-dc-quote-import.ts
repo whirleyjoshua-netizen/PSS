@@ -59,7 +59,8 @@
  *
  * Usage (bash):
  *   E2E_POSTGRES_URL='<neon test branch url>' \
- *     npx vitest run --config scripts/verify-dc-quote-import.config.mts
+ *     npx vitest run --config scripts/verify-dc-quote-import.config.mts --disableConsoleIntercept
+ *   (without the flag, vitest hides a passing run's "ok" lines)
  *
  * Usage (PowerShell):
  *   $env:E2E_POSTGRES_URL='<neon test branch url>'
@@ -227,7 +228,8 @@ const footprint = async (leadId: string) => {
 
 const versionRow = async (id: string) =>
   (await sql`select status, waive_handling, no_install, install_quote_id, install_cents, products_cents,
-                    client_total_cents, contract_file_id, sent_at, sent_by, signed_at, quote_file_id, offered_at, offered_by, approved_at
+                    client_total_cents, contract_file_id, sent_at, sent_by, signed_at, quote_file_id, offered_at, offered_by, approved_at,
+                    handling_folded_cents
              from dc_quote_versions where id = ${id}`)[0];
 
 const lineRows = async (versionId: string) =>
@@ -445,6 +447,18 @@ test("DC quote import: import, edit, send, sign and the Dealer Copy guard agains
     const expectedLines = expected.lines.map((l) => [l.position, l.pct, l.sellUnitCents, l.source === "override"]);
     check(same(frozenLines, expectedLines), "v2's lines hold priceVersion's % and sell price",
       `got ${JSON.stringify(frozenLines)}, want ${JSON.stringify(expectedLines)}`);
+    // Migration 037: the handling fee is inside the line prices, frozen with them, and the printed lines,
+    // installation and oversize charge add up to the stored total exactly.
+    const frozenLineSum = (await sql`select sum(l.sell_unit_cents * q.qty)::int as n from dc_quote_lines l
+      join dc_quote_lines q on q.version_id = l.version_id and q.position = l.position where l.version_id = ${v2}`)[0].n;
+    check(
+      quote.handlingFeeCents > 0 && v2sent.handling_folded_cents === expected.handlingFoldedCents &&
+        expected.handlingFoldedCents > 0 && expected.handlingFoldedCents <= quote.handlingFeeCents &&
+        frozenLineSum === v2sent.products_cents &&
+        frozenLineSum + v2sent.install_cents + quote.oversizedFeeCents === v2sent.client_total_cents,
+      `v2 froze the handling fee built into its prices (${expected.handlingFoldedCents} of ${quote.handlingFeeCents}), and its lines add up to the total`,
+      `row ${JSON.stringify(v2sent)}, line sum ${frozenLineSum}`,
+    );
     check((await versionRow(v1)).status === "superseded", "v1 is superseded", JSON.stringify(await versionRow(v1)));
     const quotes = await quoteFiles(A.id);
     check(quotes.length === 1 && quotes[0].id === v2sent.quote_file_id && quotes[0].shared_at !== null,
@@ -512,7 +526,8 @@ test("DC quote import: import, edit, send, sign and the Dealer Copy guard agains
     check(
       afterRule!.version.id === v2 && shown.clientTotalCents === expected.clientTotalCents &&
         shown.productsCents === expected.productsCents && shown.installCents === expected.installCents &&
-        shown.handlingChargedCents === expected.handlingChargedCents && shown.oversizedCents === expected.oversizedCents &&
+        shown.handlingChargedCents === expected.handlingChargedCents && shown.handlingFoldedCents === expected.handlingFoldedCents &&
+        shown.oversizedCents === expected.oversizedCents &&
         shown.marginCents === expected.marginCents &&
         same(shown.lines.map((l) => [l.position, l.pct, l.sellUnitCents, l.sellExtendedCents]),
           expected.lines.map((l) => [l.position, l.pct, l.sellUnitCents, l.sellExtendedCents])),
