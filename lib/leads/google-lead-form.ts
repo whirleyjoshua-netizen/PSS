@@ -43,7 +43,6 @@ export type GoogleLead = {
   gclid: string | null;
   notes: string;
   isTest: boolean;
-  key: string | undefined;
 };
 
 export const ZIP_NOT_IN_AREA_NOTE = "ZIP not in the service-area list";
@@ -98,7 +97,6 @@ export function parseGoogleLead(
       gclid: p.gcl_id?.trim() || null,
       notes: [header, ...extra].join("\n"),
       isTest: p.is_test === true,
-      key: p.google_key ?? undefined,
     },
   };
 }

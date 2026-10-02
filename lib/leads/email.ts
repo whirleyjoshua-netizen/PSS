@@ -41,7 +41,12 @@ export async function sendLeadNotification(
     `Phone:      ${formatPhone(input.phone)}`,
     `Email:      ${input.email ?? "(none given)"}`,
     `City:       ${input.city}`,
-    input.address ? `Address:    ${input.address}` : null,
+    // A Google lead form lead's address is only the ZIP it gave.
+    input.address
+      ? input.source === GOOGLE_FORM_SOURCE
+        ? `ZIP:        ${input.address}`
+        : `Address:    ${input.address}`
+      : null,
     input.treatments?.length ? `Interested: ${input.treatments.join(", ")}` : null,
     input.windowCount ? `Windows:    ${input.windowCount}` : null,
     input.heardVia ? `Heard via:  ${input.heardVia}` : null,

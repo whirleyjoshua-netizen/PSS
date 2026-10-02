@@ -44,6 +44,12 @@ const raw = (text: string) =>
     body: text,
   }));
 const call = (payload: unknown) => raw(JSON.stringify(payload));
+const withLength = (text: string, length: string) =>
+  POST(new Request("https://premiershadesolutions.com/api/ads/lead-form", {
+    method: "POST",
+    headers: { "content-type": "application/json", "content-length": length },
+    body: text,
+  }));
 
 const nothingDone = () => {
   expect(insertGoogleLead).not.toHaveBeenCalled();
@@ -127,6 +133,40 @@ describe("400 on a body that isn't JSON or doesn't match the schema", () => {
   });
 });
 
+describe("413 on a body over 64 KB, by its content-length, before any parse", () => {
+  it("rejects a content-length over 64 KB without reading the body", async () => {
+    // Not JSON: a parse would answer 400, so 413 proves the body was never parsed.
+    const response = await withLength("{not json", String(64 * 1024 + 1));
+    expect(response.status).toBe(413);
+    expect(await response.text()).toBe("");
+    nothingDone();
+  });
+
+  it("rejects a real oversized lead too", async () => {
+    const text = JSON.stringify(body({ padding: "x".repeat(70_000) }));
+    expect((await withLength(text, String(Buffer.byteLength(text)))).status).toBe(413);
+    nothingDone();
+  });
+
+  it("accepts a content-length of exactly 64 KB", async () => {
+    const text = JSON.stringify(body());
+    const padded = text.slice(0, -1) + "," + JSON.stringify("pad") + ":" + JSON.stringify("x".repeat(64 * 1024 - text.length - 9)) + "}";
+    expect(Buffer.byteLength(padded)).toBe(64 * 1024);
+    expect((await withLength(padded, String(64 * 1024))).status).toBe(200);
+    expect(insertGoogleLead).toHaveBeenCalledOnce();
+  });
+
+  it("proceeds as before when there is no content-length", async () => {
+    expect((await call(body())).status).toBe(200);
+    expect(insertGoogleLead).toHaveBeenCalledOnce();
+  });
+
+  it("is still 404 when the route is off", async () => {
+    vi.stubEnv("ADS_LEADFORM_KEY", "");
+    expect((await withLength("{}", String(64 * 1024 + 1))).status).toBe(404);
+  });
+});
+
 describe("Google's Send test data", () => {
   it("is_test: true answers 200 and stores and emails nothing", async () => {
     const response = await call(body({ is_test: true }));
@@ -136,7 +176,7 @@ describe("Google's Send test data", () => {
 });
 
 describe("a new lead", () => {
-  it("is inserted with the mapped fields and a fresh id, emailed, geocoded, 200", async () => {
+  it("is inserted with the mapped fields and a fresh id, emailed, 200", async () => {
     const response = await call(body());
     expect(response.status).toBe(200);
 
@@ -153,6 +193,9 @@ describe("a new lead", () => {
     });
     expect(stored.notes).toContain("Google lead form (form 40000000000, campaign 20000000000)");
     expect(stored.id).toMatch(/^[0-9a-f-]{36}$/);
+    // The secret is never carried into the insert.
+    expect(stored).not.toHaveProperty("key");
+    expect(JSON.stringify(stored)).not.toContain(KEY);
 
     expect(sendLeadNotification).toHaveBeenCalledOnce();
     const [emailed, emailedId] = sendLeadNotification.mock.calls[0];
@@ -168,8 +211,13 @@ describe("a new lead", () => {
       attribution: { gclid: "EAIaIQobChMI-gclid", utmSource: "google", utmMedium: "cpc" },
     });
     expect(emailed.notes).toContain("Google lead form (form");
+    expect(JSON.stringify(emailed)).not.toContain(KEY);
+  });
 
-    expect(geocodeLead).toHaveBeenCalledWith("stored-id");
+  it("is never geocoded: its address is only a ZIP", async () => {
+    expect((await call(body())).status).toBe(200);
+    expect(insertGoogleLead).toHaveBeenCalledOnce();
+    expect(geocodeLead).not.toHaveBeenCalled();
   });
 
   it("never sends the customer confirmation email", async () => {
@@ -184,7 +232,7 @@ describe("a new lead", () => {
   it("still answers 200 when the lead is stored but the email fails", async () => {
     sendLeadNotification.mockRejectedValue(new Error("Resend down"));
     expect((await call(body())).status).toBe(200);
-    expect(geocodeLead).toHaveBeenCalledWith("stored-id");
+    expect(insertGoogleLead).toHaveBeenCalledOnce();
   });
 });
 

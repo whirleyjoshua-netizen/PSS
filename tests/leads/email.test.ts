@@ -64,6 +64,20 @@ describe("sendLeadNotification", () => {
     expect(message.text).not.toContain("google_form");
   });
 
+  it("labels a Google lead form lead's address line ZIP, since it is only a ZIP", async () => {
+    await sendLeadNotification({ ...input, email: null, source: "google_form", address: "89052" }, "abc");
+    const text = send.mock.calls[0][0].text;
+    expect(text).toContain("ZIP:        89052");
+    expect(text).not.toContain("Address:");
+  });
+
+  it("keeps the Address label for a website lead", async () => {
+    await sendLeadNotification({ ...input, address: "123 Main St" }, "abc");
+    const text = send.mock.calls[0][0].text;
+    expect(text).toContain("Address:    123 Main St");
+    expect(text).not.toContain("ZIP:");
+  });
+
   it("names the website form a lead came from", async () => {
     await sendLeadNotification(input, "abc");
     expect(send.mock.calls[0][0].text).toContain(`Submitted from the hero form on ${business.domain}.`);

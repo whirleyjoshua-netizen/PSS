@@ -45,8 +45,8 @@ describe("parseGoogleLead", () => {
       gclid: "gclid-xyz",
       notes: "Google lead form (form 40000000001, campaign 23000000002)",
       isTest: false,
-      key: "k".repeat(20),
     });
+    expect(lead).not.toHaveProperty("key");
   });
 
   it("joins FIRST_NAME and LAST_NAME when FULL_NAME is absent", () => {
@@ -110,11 +110,10 @@ describe("parseGoogleLead", () => {
     expect(parse(noFlag).isTest).toBe(false);
   });
 
-  it("gives a null gclid and undefined key when Google omits them", () => {
+  it("gives a null gclid when Google omits it", () => {
     const { gcl_id: _g, google_key: _k, ...rest } = base;
     const lead = parse(rest);
     expect(lead.gclid).toBeNull();
-    expect(lead.key).toBeUndefined();
   });
 
   it.each([null, "a string", 42, [1, 2]])("rejects a non-object payload %j", (payload) => {
@@ -148,7 +147,6 @@ describe("parseGoogleLead", () => {
     expect(lead.phone).toBe("7025550123");
     expect(lead.email).toBeNull();
     expect(lead.gclid).toBeNull();
-    expect(lead.key).toBeUndefined();
     expect(lead.isTest).toBe(false);
     expect(lead.notes.split("\n")[0]).toBe("Google lead form (form ?, campaign ?)");
   });

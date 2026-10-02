@@ -14,8 +14,8 @@
  *   3. a second insertGoogleLead with the same google_lead_id (Google resending) answers null and
  *      stores no second row;
  *   4. a raw insert of a second row with that google_lead_id THROWS (the unique index);
- *   5. the index is partial (its definition carries WHERE google_lead_id IS NOT NULL), and two raw
- *      inserts with a NULL google_lead_id both succeed.
+ *   5. the index is partial (its definition carries WHERE google_lead_id IS NOT NULL), and NULL
+ *      google_lead_id rows are not constrained (two raw inserts with a NULL google_lead_id both succeed).
  * It deletes its rows, so repeated runs leave nothing behind.
  *
  * IT WRITES TO THE DATABASE IT IS GIVEN. It takes its connection from E2E_POSTGRES_URL alone and
@@ -113,13 +113,13 @@ test("Google lead form insert against a real database", async () => {
 
     const index = await sql`select indexdef from pg_indexes where indexname = 'leads_google_lead_id_key'`;
     const def = String(index[0]?.indexdef ?? "");
-    check(/UNIQUE/i.test(def) && /WHERE \(?google_lead_id IS NOT NULL\)?/i.test(def), "the unique index is partial", def);
+    check(/UNIQUE/i.test(def) && /WHERE \(?google_lead_id IS NOT NULL\)?/i.test(def), "the unique index is partial (WHERE google_lead_id IS NOT NULL)", def);
     const d = randomUUID(); ids.push(d);
     const e = randomUUID(); ids.push(e);
     await rawInsert(d, null);
     await rawInsert(e, null);
     const nulls = await sql`select count(*)::int as n from leads where id = any(${[d, e]}::uuid[]) and google_lead_id is null`;
-    check(nulls[0].n === 2, "two leads with a NULL google_lead_id both insert (the index is partial)", `got ${nulls[0].n}`);
+    check(nulls[0].n === 2, "NULL google_lead_id rows are not constrained (two both insert)", `got ${nulls[0].n}`);
   } finally {
     await sql`delete from leads where id = any(${ids}::uuid[])`;
   }

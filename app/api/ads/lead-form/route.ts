@@ -1,9 +1,7 @@
 import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
-import { after } from "next/server";
 import { parseGoogleLead } from "@/lib/leads/google-lead-form";
 import { GOOGLE_FORM_HEARD_VIA, GOOGLE_FORM_SOURCE, insertGoogleLead } from "@/lib/leads/google-lead-db";
 import { sendLeadNotification } from "@/lib/leads/email";
-import { geocodeLead } from "@/lib/routes/geocode";
 
 /**
  * Google Ads lead form webhook (docs/superpowers/specs/2026-10-02-google-lead-webhook-design.md, Part A).
@@ -17,10 +15,13 @@ import { geocodeLead } from "@/lib/routes/geocode";
  * email got out is still 200. Only when both fail is it 500, so Google retries.
  * A resend of a lead already stored is 200 with no second email.
  * No customer confirmation: there may be no email address, and Google's form
- * shows its own thank-you.
+ * shows its own thank-you. No geocoding: the lead's address is only a ZIP.
+ * A body over 64 KB by its content-length is 413, before it is read.
  */
 
 const MIN_LENGTH = 16;
+/** A real lead is a few hundred bytes; this only stops a huge body being parsed. */
+const MAX_BODY_BYTES = 64 * 1024;
 
 /** Hashing first gives equal-length buffers, so the comparison leaks neither content nor length. */
 const sameSecret = (given: string, expected: string) =>
@@ -34,6 +35,10 @@ const empty = (status: number) => new Response(null, { status });
 export async function POST(request: Request) {
   const expected = process.env.ADS_LEADFORM_KEY ?? "";
   if (expected.length < MIN_LENGTH) return empty(404);
+
+  // No content-length (a chunked body): proceed and parse as usual.
+  const length = Number(request.headers.get("content-length"));
+  if (length > MAX_BODY_BYTES) return empty(413);
 
   let payload: unknown;
   try {
@@ -59,13 +64,11 @@ export async function POST(request: Request) {
   if (lead.isTest) return Response.json({ ok: true });
 
   const id = randomUUID();
-  let storedId: string | null = null;
   let storeFailed = false;
   try {
     const stored = await insertGoogleLead({ ...lead, id });
     // No row back: Google resent a lead already stored, and it was emailed then.
     if (!stored) return Response.json({ ok: true });
-    storedId = stored.id;
   } catch (error) {
     storeFailed = true;
     console.error("Google lead database write failed", error);
@@ -95,12 +98,6 @@ export async function POST(request: Request) {
   } catch (error) {
     emailed = false;
     console.error("Google lead notification email failed", error);
-  }
-
-  // Coordinates for the route planner. Never blocks or fails the response.
-  if (storedId) {
-    const geocodeId = storedId;
-    after(() => geocodeLead(geocodeId));
   }
 
   if (storeFailed && !emailed) {
