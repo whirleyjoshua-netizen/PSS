@@ -15,7 +15,7 @@ beforeEach(() => {
 });
 
 describe("AdminNav", () => {
-  it("links to Jobs, Schedule, Documents and Settings, with no New job link", () => {
+  it("links to Jobs, Schedule, Tasks, Documents and Settings, with no New job link", () => {
     pathname.mockReturnValue("/admin");
     render(<AdminNav email="owner@example.com" />);
 
@@ -25,6 +25,22 @@ describe("AdminNav", () => {
     expect(nav.getByRole("link", { name: "Settings" })).toHaveAttribute("href", "/admin/settings");
     expect(nav.getByRole("link", { name: "Schedule" })).toHaveAttribute("href", "/admin/schedule");
     expect(nav.getByRole("link", { name: "Documents" })).toHaveAttribute("href", "/admin/documents");
+    expect(nav.getByRole("link", { name: "Tasks" })).toHaveAttribute("href", "/admin/tasks");
+    // Order: Tasks sits between Schedule and Documents.
+    expect(nav.getAllByRole("link").map((link) => link.textContent?.trim())).toEqual(
+      expect.arrayContaining(["Jobs", "Schedule", "Tasks", "Documents", "Settings"]));
+    const names = nav.getAllByRole("link").map((link) => link.textContent?.trim());
+    expect(names.indexOf("Tasks")).toBe(names.indexOf("Schedule") + 1);
+    expect(names.indexOf("Documents")).toBe(names.indexOf("Tasks") + 1);
+  });
+
+  it("marks the board and every task page as Tasks", () => {
+    for (const path of ["/admin/tasks", "/admin/tasks/3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c"]) {
+      pathname.mockReturnValue(path);
+      const { unmount } = render(<AdminNav email="owner@example.com" />);
+      expect(within(column()).getByRole("link", { name: "Tasks" })).toHaveAttribute("aria-current", "page");
+      unmount();
+    }
   });
 
   it("marks the Schedule page as active and Jobs as not", () => {
@@ -64,10 +80,10 @@ describe("AdminNav", () => {
       unmount();
     }
   });
-  it("lists the four sections in order", () => {
+  it("lists the five sections in order", () => {
     pathname.mockReturnValue("/admin");
     render(<AdminNav email="owner@example.com" />);
-    expect(within(column()).getAllByRole("link").map((l) => l.textContent)).toEqual(["Jobs", "Schedule", "Documents", "Settings"]);
+    expect(within(column()).getAllByRole("link").map((l) => l.textContent)).toEqual(["Jobs", "Schedule", "Tasks", "Documents", "Settings"]);
   });
 });
 

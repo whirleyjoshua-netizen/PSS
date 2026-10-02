@@ -43,7 +43,7 @@ export default defineConfig({
     // admin-mobile.spec.ts is the mirror image: phone-width only, so desktop skips it.
     { name: "desktop", use: { ...devices["Desktop Chrome"] }, testIgnore: /admin-mobile\.spec\.ts/ },
     // admin.spec.ts, portal.spec.ts, and call.spec.ts run serially, desktop-only
-    { name: "mobile", use: { ...devices["Pixel 7"] }, testIgnore: /(admin|admin-access|portal|call|follow-ups|questionnaire|stages|team|appointments|install|routes|dc-quote|documents)\.spec\.ts/ },
+    { name: "mobile", use: { ...devices["Pixel 7"] }, testIgnore: /(admin|admin-access|portal|call|follow-ups|questionnaire|stages|team|appointments|install|routes|dc-quote|documents|tasks)\.spec\.ts/ },
   ],
 
   // Tests run against a production build, so what is verified is what ships.
@@ -58,7 +58,7 @@ export default defineConfig({
       ? {
           POSTGRES_URL: process.env.E2E_POSTGRES_URL,
           // Each spec signs in as its own owner so their cleanups can't collide
-          ADMIN_EMAILS: "e2e-owner@example.com,e2e-mobile@example.com,e2e-portal-owner@example.com,e2e-call-owner@example.com,e2e-followup-owner@example.com,e2e-questionnaire-owner@example.com,e2e-stages-owner@example.com,e2e-team-owner@example.com,e2e-appt-owner@example.com,e2e-install@example.com,e2e-routes-owner@example.com,e2e-access-owner@example.com,e2e-dc-owner@example.com,e2e-docs-owner@example.com",
+          ADMIN_EMAILS: "e2e-owner@example.com,e2e-mobile@example.com,e2e-portal-owner@example.com,e2e-call-owner@example.com,e2e-followup-owner@example.com,e2e-questionnaire-owner@example.com,e2e-stages-owner@example.com,e2e-team-owner@example.com,e2e-appt-owner@example.com,e2e-install@example.com,e2e-routes-owner@example.com,e2e-access-owner@example.com,e2e-dc-owner@example.com,e2e-docs-owner@example.com,e2e-tasks-owner@example.com,e2e-tasks-mate@example.com",
           ADMIN_BASE_URL: baseURL,
           // The e2e run posts real leads to the consultation API; this must
           // never send real email through Resend.

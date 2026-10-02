@@ -42,6 +42,8 @@ describe("admin access store", () => {
     expect(flat).toMatch(/delete from admin_login_tokens where used_at is null and email in \(select email from removed\)/);
     expect(flat).toMatch(/delete from admin_access where email = \?/);
     expect(sql.mock.calls[0]).toContain("a@x.com");
+    // Their open tasks become unassigned in the same statement; done tasks keep the name as history.
+    expect(flat).toMatch(/update tasks set assignee_email = null, updated_at = now\(\) where status <> 'done' and assignee_email in \(select email from removed\)/);
   });
 
   it("reports removing an unknown address as false", async () => {

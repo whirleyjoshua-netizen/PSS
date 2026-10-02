@@ -3,6 +3,7 @@
     { "path": "/api/cron/review-requests", "schedule": "0 17 * * *" },
     { "path": "/api/cron/calendar", "schedule": "0 16 * * *" },
     { "path": "/api/cron/follow-ups", "schedule": "0 14 * * *" },
-    { "path": "/api/cron/dc-quotes", "schedule": "0 15 * * *" }
+    { "path": "/api/cron/dc-quotes", "schedule": "0 15 * * *" },
+    { "path": "/api/cron/tasks", "schedule": "0 14 * * *" }
   ]
 }
