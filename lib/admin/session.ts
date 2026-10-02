@@ -5,10 +5,9 @@ import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { isAllowed } from "./allowlist";
 import { hashToken, newToken } from "./tokens";
+import { SESSION_COOKIE, sessionCookieOptions } from "./session-cookie";
 
-export const SESSION_COOKIE = "pss_admin";
-/** The cookie outlives any session; the database decides when a session ends. */
-const COOKIE_SECONDS = 60 * 60 * 24 * 400;
+export { SESSION_COOKIE };
 
 export async function createSession(email: string): Promise<void> {
   const sql = db();
@@ -19,13 +18,7 @@ export async function createSession(email: string): Promise<void> {
     insert into admin_sessions (token_hash, email, expires_at)
     values (${hashToken(token)}, ${email}, now() + interval '30 days')`;
 
-  (await cookies()).set(SESSION_COOKIE, token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    maxAge: COOKIE_SECONDS,
-  });
+  (await cookies()).set(SESSION_COOKIE, token, sessionCookieOptions());
 }
 
 /**

@@ -9,6 +9,7 @@ vi.mock("@/lib/admin/session", () => ({ getAdmin: vi.fn(async () => null) }));
 
 const admin = await import("@/app/admin/layout");
 const root = await import("@/app/layout");
+const site = await import("@/app/(site)/layout");
 
 describe("admin layout metadata", () => {
   it("links the PSS Ops manifest and the iOS home-screen tags", () => {
@@ -17,7 +18,9 @@ describe("admin layout metadata", () => {
       robots: { index: false, follow: false },
       manifest: "/ops.webmanifest",
       appleWebApp: { capable: true, title: "PSS Ops", statusBarStyle: "black-translucent" },
-      icons: { apple: "/ops/icon-180.png" },
+      icons: { icon: "/icon.svg", apple: "/ops/icon-180.png" },
+      // Next writes only mobile-web-app-capable for appleWebApp.capable; older iOS reads this one.
+      other: { "apple-mobile-web-app-capable": "yes" },
     });
   });
 
@@ -28,5 +31,12 @@ describe("admin layout metadata", () => {
   it("leaves the public site uninstallable as PSS Ops", () => {
     expect(root.metadata).not.toHaveProperty("manifest");
     expect(root.metadata).not.toHaveProperty("appleWebApp");
+  });
+
+  it("gives the public site's own layout no manifest or iOS app tags either", () => {
+    const metadata = (site as { metadata?: object }).metadata ?? {};
+    expect(metadata).not.toHaveProperty("manifest");
+    expect(metadata).not.toHaveProperty("appleWebApp");
+    expect(JSON.stringify(metadata)).not.toContain("apple-mobile-web-app");
   });
 });

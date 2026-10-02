@@ -79,8 +79,9 @@ function CodeForm({ email, onDifferentEmail }: { email: string; onDifferentEmail
           type="text"
           inputMode="numeric"
           autoComplete="one-time-code"
-          pattern="\d{3}\s?\d{3}"
-          maxLength={7}
+          // Pasted codes may carry spaces around them; the server strips every space.
+          pattern="\s*\d{3}\s?\d{3}\s*"
+          maxLength={12}
           required
           className={CONTROL}
         />

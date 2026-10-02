@@ -9,7 +9,10 @@ export const metadata: Metadata = {
   // Only admin pages link the manifest, so "Add to Home Screen" from the public site isn't PSS Ops.
   manifest: "/ops.webmanifest",
   appleWebApp: { capable: true, title: "PSS Ops", statusBarStyle: "black-translucent" },
-  icons: { apple: "/ops/icon-180.png" },
+  // Setting icons here replaces the root's file-based icon, so the tab icon is named again.
+  icons: { icon: "/icon.svg", apple: "/ops/icon-180.png" },
+  // Next writes only mobile-web-app-capable for appleWebApp.capable; older iOS reads this one.
+  other: { "apple-mobile-web-app-capable": "yes" },
 };
 
 /** Draw under the notch and home indicator; the safe-area padding below keeps content clear of them. */

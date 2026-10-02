@@ -52,9 +52,13 @@ describe("SignInForm", () => {
     expect(code).toHaveAttribute("name", "code");
     expect(code).toHaveAttribute("autocomplete", "one-time-code");
     expect(code).toHaveAttribute("inputmode", "numeric");
-    // Room for a pasted "123 456": the server strips the space.
-    expect(code).toHaveAttribute("pattern", "\\d{3}\\s?\\d{3}");
-    expect(code).toHaveAttribute("maxlength", "7");
+    // Room for a pasted " 123 456 " (spaces around it too): the server strips the spaces.
+    expect(code).toHaveAttribute("pattern", "\\s*\\d{3}\\s?\\d{3}\\s*");
+    expect(code).toHaveAttribute("maxlength", "12");
+    // As the browser applies it: anchored, with the v flag.
+    const accepts = new RegExp(`^(?:${code.getAttribute("pattern")})$`, "v");
+    for (const typed of ["123456", "123 456", " 123 456 ", "123456 ", "\t123456"]) expect(accepts.test(typed), typed).toBe(true);
+    for (const typed of ["12345", "1234567", "12a456", "123  456"]) expect(accepts.test(typed), typed).toBe(false);
     expect(code).toBeRequired();
     const hidden = container.querySelector<HTMLInputElement>('input[type="hidden"][name="email"]');
     expect(hidden?.value).toBe("owner@example.com");
