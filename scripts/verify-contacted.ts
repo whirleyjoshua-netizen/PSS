@@ -1,35 +1,38 @@
 /**
  * Behavioural proof of the Contacted stage: addContact in lib/admin/jobs.ts, logCall in
- * lib/admin/calls.ts, leads_status_check, and migrations 011 and 033.
+ * lib/admin/calls.ts, leads_status_check, and the five migrations that define that check
+ * (002, 011, 012, 030 and 033).
  *
  * THIS IS NOT AUTOMATED COVERAGE. It is a script you run by hand, it is in no
  * suite, and CI does not execute it. Nothing runs it for you. If you change addContact,
- * logCall, callStageMove, leads_status_check or migrations 011 / 033, run it yourself —
+ * logCall, callStageMove, leads_status_check or migrations 002 / 011 / 012 / 030 / 033, run it yourself —
  * and if you cannot, say the Contacted stage rules are unverified rather than assuming they hold.
  *
  * Why it exists: the unit tests mock the database, so they pin the SQL *text*, which is
  * a tripwire, not a proof. Whether the check really accepts 'contacted', whether a contact
  * really moves only a New job, whether a second contact really logs no second stage event,
- * and whether re-running 011 really leaves Contacted jobs alone are things only the database
+ * and whether re-running the status migrations really leaves Contacted jobs alone are things only the database
  * can answer. This script calls the real functions — no mocks.
  *
  * What it does, against a throwaway database, on leads of its own named "VERIFY Contacted <stamp>":
  *   1. a raw update to status 'contacted' succeeds — the check accepts it;
- *   2. addContact on a New lead returns true, moves it to contacted, logs one contact event
- *      and exactly one stage event new → contacted;
+ *   2. addContact on a New lead (its stage_changed_at backdated two days first) returns true,
+ *      moves it to contacted, sets stage_changed_at forward to within the last minute, logs one
+ *      contact event and exactly one stage event new → contacted;
  *   3. addContact again: still contacted, two contact events, still one stage event;
  *   4. addContact on a Quoted lead: stays quoted, no stage event;
  *   5. logCall "talked" on a New lead moves it to contacted with one stage event;
  *   6. logCall "booked" with a visit on that Contacted lead moves it to visit_booked, with one
  *      stage event from contacted;
  *   7. logCall "no_answer" on a New lead leaves it new;
- *   8. every statement of 011 and 033 re-runs, and a Contacted lead is STILL contacted —
- *      the regression the 011 edit exists for;
+ *   8. every statement of all five status files — 002, 011, 012, 030 and 033, in that order,
+ *      as migrate.mjs runs them — re-runs with a Contacted lead present; the lead is STILL
+ *      contacted (the regression the 011 edit exists for) and leads_status_check still exists;
  *   9. a raw update to the typo 'contactd' THROWS leads_status_check.
  * Then it deletes its job_events, appointments and leads, so repeated runs leave no residue.
  *
  * IT WRITES TO THE DATABASE IT IS GIVEN. Point it only at a Neon test branch. Step 8 re-runs
- * two migrations against the whole branch.
+ * five migrations against the whole branch.
  * It takes its connection from E2E_POSTGRES_URL alone — never POSTGRES_URL,
  * DATABASE_URL or .env.local, all of which may hold production credentials —
  * and it refuses to start if that URL looks like production (ep-cold-term).
@@ -46,6 +49,8 @@
  *   - in addContact, delete `and status = 'new'` — step 3 "still exactly one stage event
  *     after the second contact" fails first; with that one check disabled, step 4
  *     "addContact leaves a quoted lead quoted" fails too;
+ *   - in addContact, delete `stage_changed_at = now(), ` — step 2 "addContact sets
+ *     stage_changed_at forward" must fail;
  *   - in 011_stages_contact_log.sql, put back `update leads set status = 'new' where
  *     status = 'contacted';` above the first alter — step 8 must fail.
  * Put each back.
@@ -168,9 +173,18 @@ test("Contacted stage against a real database", async () => {
 
     // 2. addContact on a New lead: contacted, one contact event, one stage event new → contacted.
     const fresh = await newLead("contact");
+    // Backdate the stage clock so "set forward" is distinguishable from the insert default.
+    await sql`update leads set stage_changed_at = now() - interval '2 days' where id = ${fresh}`;
+    const backdated = await sql`select stage_changed_at < now() - interval '1 day' as old from leads where id = ${fresh}`;
+    check(backdated[0]?.old === true, "the new lead's stage_changed_at is backdated two days", JSON.stringify(backdated));
     const added = await addContact(fresh, "Left a voicemail, then spoke", ACTOR);
     check(added === true, "addContact on a new lead returns true", `returned ${added}`);
     check((await statusOf(fresh)) === "contacted", "addContact moves a new lead to contacted", `status is ${await statusOf(fresh)}`);
+    const clock = await sql`
+      select stage_changed_at > now() - interval '1 minute' and stage_changed_at <= now() as recent, stage_changed_at
+      from leads where id = ${fresh}`;
+    check(clock[0]?.recent === true, "addContact sets stage_changed_at forward to within the last minute",
+      `stage_changed_at is ${clock[0]?.stage_changed_at}`);
     const contacts1 = await countKind(fresh, "contact");
     check(contacts1 === 1, "one contact event", `found ${contacts1}`);
     const stages1 = await stageEvents(fresh);
@@ -215,14 +229,19 @@ test("Contacted stage against a real database", async () => {
     check(await logCall(silent, call({ outcome: "no_answer" }), ACTOR), "logCall no_answer returns true", "returned false");
     check((await statusOf(silent)) === "new", "a no-answer call leaves a new lead new", `status is ${await statusOf(silent)}`);
 
-    // 8. Re-running 011 and 033 leaves a Contacted lead contacted.
+    // 8. Re-running every file that defines the stage check, in migrate.mjs's order, leaves a
+    //    Contacted lead contacted and the check in place.
     check((await statusOf(raw)) === "contacted", "before the re-run the lead is contacted", `status is ${await statusOf(raw)}`);
-    for (const file of ["db/migrations/011_stages_contact_log.sql", "db/migrations/033_contacted_stage.sql"]) {
-      for (const statement of migrationStatements(file)) await sql.query(statement);
+    const STATUS_FILES = ["002_job_tracker.sql", "011_stages_contact_log.sql", "012_completed_stage.sql",
+      "030_deposit_flow.sql", "033_contacted_stage.sql"];
+    for (const file of STATUS_FILES) {
+      for (const statement of migrationStatements(`db/migrations/${file}`)) await sql.query(statement);
     }
-    console.log("  ok  migrations 011 and 033 re-run without error");
-    check((await statusOf(raw)) === "contacted", "after re-running 011 and 033 a contacted lead is still contacted",
+    console.log("  ok  migrations 002, 011, 012, 030 and 033 re-run without error");
+    check((await statusOf(raw)) === "contacted", "after re-running all five status files a contacted lead is still contacted",
       `status is ${await statusOf(raw)}`);
+    const constraint = await sql`select 1 from pg_constraint where conname = 'leads_status_check'`;
+    check(constraint.length === 1, "leads_status_check still exists after the re-run", `found ${constraint.length}`);
 
     // 9. A typo is refused by the database.
     const typo = await throwsWith(() => sql`update leads set status = 'contactd' where id = ${silent}`);
