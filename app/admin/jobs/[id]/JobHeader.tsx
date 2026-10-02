@@ -75,7 +75,7 @@ export function JobHeader({ job, now, team, defaultMinutes, parent = null, delet
           <CallButton jobId={job.id} name={job.name} phone={job.phone} />
           <a href={`sms:+1${job.phone}`} className={ACTION_LINK}>Text</a>
           {job.email ? <a href={`mailto:${job.email}`} className={ACTION_LINK}>Email</a> : null}
-          <ScheduleDialog jobId={job.id} defaultMinutes={defaultMinutes} />
+          <ScheduleDialog jobId={job.id} gateCode={job.gateCode ?? null} defaultMinutes={defaultMinutes} />
           <details className="sm:relative">
             <summary aria-label="More actions" className={`${ACTION_LINK} cursor-pointer list-none [&::-webkit-details-marker]:hidden`}>
               <span aria-hidden="true">•••</span>

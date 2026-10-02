@@ -75,6 +75,7 @@ describe("ScheduleDialog", () => {
     expect(html).toContain("<summary");
     expect(html).toContain('name="startsAt"');
     expect(html).toContain('name="kind"');
+    expect(html).toContain('name="designerNotes"');
     expect(html).toContain("Save");
     expect(html).not.toContain("<dialog");
   });
@@ -160,6 +161,78 @@ describe("ScheduleDialog", () => {
     expect(screen.getByLabelText("All day")).not.toBeChecked();
     expect(screen.getByRole("radio", { name: "Service" })).toBeChecked();
     expect(screen.getByLabelText("Date and time")).toHaveValue("");
+  });
+
+  it("shows the client's gate code first, editable, and books what was typed", async () => {
+    const user = userEvent.setup();
+    render(<ScheduleDialog jobId={ID} defaultMinutes={MINUTES} gateCode="#4321" />);
+    await user.click(screen.getByRole("button", { name: "Schedule" }));
+    const gate = screen.getByLabelText("Gate code");
+    expect(gate).toHaveValue("#4321");
+    expect(gate).toHaveAttribute("maxLength", "40");
+    // At the top: the first control in the form.
+    expect(gate.closest("form")!.querySelector("input, select, textarea")).toBe(gate);
+    await user.clear(gate);
+    await user.type(gate, "#9999");
+    await user.type(screen.getByLabelText("Date and time"), "2026-09-20T10:00");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect((bookAppointment.mock.calls[0][2] as FormData).get("gateCode")).toBe("#9999");
+  });
+
+  it("shows an empty gate code field for a client without one", async () => {
+    const user = userEvent.setup();
+    render(<ScheduleDialog jobId={ID} defaultMinutes={MINUTES} gateCode={null} />);
+    await user.click(screen.getByRole("button", { name: "Schedule" }));
+    expect(screen.getByLabelText("Gate code")).toHaveValue("");
+  });
+
+  it("sends no gate code at all when it was not given one, so the client's code is left alone", async () => {
+    const user = userEvent.setup();
+    render(<ScheduleDialog jobId={ID} defaultMinutes={MINUTES} />);
+    await user.click(screen.getByRole("button", { name: "Schedule" }));
+    expect(screen.queryByLabelText("Gate code")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect((bookAppointment.mock.calls[0][2] as FormData).has("gateCode")).toBe(false);
+  });
+
+  it("takes designer notes below the time fields and books them", async () => {
+    const user = userEvent.setup();
+    render(<ScheduleDialog jobId={ID} defaultMinutes={MINUTES} />);
+    await user.click(screen.getByRole("button", { name: "Schedule" }));
+    const notes = screen.getByLabelText("Designer notes");
+    expect(notes.tagName).toBe("TEXTAREA");
+    expect(notes).toHaveAttribute("maxLength", "2000");
+    // Below the time fields: after Length, the last of them.
+    expect(screen.getByLabelText("Length (hours)").compareDocumentPosition(notes) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    await user.type(notes, "Side gate sticks");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect((bookAppointment.mock.calls[0][2] as FormData).get("designerNotes")).toBe("Side gate sticks");
+  });
+
+  it("pre-fills the notes of the appointment being rescheduled, so they are kept", async () => {
+    const user = userEvent.setup();
+    render(<ScheduleDialog jobId={ID} defaultMinutes={MINUTES} label="Reschedule" kind="measure"
+      startsAt="2026-10-02T09:00" gateCode="#4321" designerNotes={"Side gate sticks\nDog in the yard"} />);
+    await user.click(screen.getByRole("button", { name: "Reschedule" }));
+    expect(screen.getByLabelText("Designer notes")).toHaveValue("Side gate sticks\nDog in the yard");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    const data = bookAppointment.mock.calls[0][2] as FormData;
+    expect(data.get("designerNotes")).toBe("Side gate sticks\nDog in the yard");
+    expect(data.get("gateCode")).toBe("#4321");
+  });
+
+  it("keeps the typed notes and gate code when the submit fails", async () => {
+    bookAppointment.mockResolvedValueOnce({
+      error: "Pick a date and time", values: { startsAt: "", kind: "consultation", designerNotes: "Typed notes", gateCode: "#77" },
+    });
+    const user = userEvent.setup();
+    render(<ScheduleDialog jobId={ID} defaultMinutes={MINUTES} gateCode="#4321" />);
+    await user.click(screen.getByRole("button", { name: "Schedule" }));
+    await user.type(screen.getByLabelText("Designer notes"), "Typed notes");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await screen.findByRole("alert");
+    expect(screen.getByLabelText("Designer notes")).toHaveValue("Typed notes");
+    expect(screen.getByLabelText("Gate code")).toHaveValue("#77");
   });
 
   it("carries the window and length of the appointment being moved", async () => {

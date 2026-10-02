@@ -11,23 +11,27 @@ import { ScheduleDialog } from "./ScheduleDialog";
  * Every appointment on the job, and what each one still needs. A booking is only a plan until
  * Confirm schedule puts it on the calendar and tells the customer.
  */
-export function AppointmentsCard({ jobId, appointments, defaultMinutes }: {
+export function AppointmentsCard({ jobId, appointments, defaultMinutes, gateCode }: {
   jobId: string; appointments: Appointment[]; defaultMinutes: Record<AppointmentKind, number>;
+  /** The client's gate code, editable from the booking dialogs. Absent: the dialogs leave it alone. */
+  gateCode?: string | null;
 }) {
   return (
     <StatusCard title="Appointments" value={null} empty={appointments.length ? undefined : "Nothing scheduled"}>
       {appointments.length ? (
         <ul className="flex flex-col gap-3">
-          {appointments.map((appointment) => <Row key={appointment.id} jobId={jobId} appointment={appointment} defaultMinutes={defaultMinutes} />)}
+          {appointments.map((appointment) => (
+            <Row key={appointment.id} jobId={jobId} appointment={appointment} defaultMinutes={defaultMinutes} gateCode={gateCode} />
+          ))}
         </ul>
       ) : null}
-      {appointments.length ? null : <ScheduleDialog jobId={jobId} defaultMinutes={defaultMinutes} />}
+      {appointments.length ? null : <ScheduleDialog jobId={jobId} gateCode={gateCode} defaultMinutes={defaultMinutes} />}
     </StatusCard>
   );
 }
 
-function Row({ jobId, appointment, defaultMinutes }: {
-  jobId: string; appointment: Appointment; defaultMinutes: Record<AppointmentKind, number>;
+function Row({ jobId, appointment, defaultMinutes, gateCode }: {
+  jobId: string; appointment: Appointment; defaultMinutes: Record<AppointmentKind, number>; gateCode?: string | null;
 }) {
   const style = APPOINTMENT_STYLE[appointment.kind];
   const confirmed = appointment.confirmedAt !== null;
@@ -49,7 +53,8 @@ function Row({ jobId, appointment, defaultMinutes }: {
         {confirmed ? null : <ConfirmScheduleButton appointmentId={appointment.id} jobId={jobId} />}
         <ScheduleDialog jobId={jobId} label="Reschedule" kind={appointment.kind} allDay={appointment.allDay}
           startsAt={toLocalInput(appointment.startsAt)} windowStart={appointment.windowStart}
-          windowEnd={appointment.windowEnd} durationMinutes={appointment.durationMinutes} defaultMinutes={defaultMinutes} />
+          windowEnd={appointment.windowEnd} durationMinutes={appointment.durationMinutes} defaultMinutes={defaultMinutes}
+          gateCode={gateCode} designerNotes={appointment.designerNotes} />
         {confirmed ? <CancelAppointmentButton appointmentId={appointment.id} jobId={jobId} /> : null}
       </div>
     </li>

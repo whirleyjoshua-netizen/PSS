@@ -67,7 +67,7 @@ export function OverviewTab({ job, editing, now, measurements, allWindows, measu
         </section>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:col-span-3 lg:grid-cols-4">
-          <div className="grid sm:col-span-2"><AppointmentsCard jobId={job.id} appointments={appointments} defaultMinutes={defaultMinutes} /></div>
+          <div className="grid sm:col-span-2"><AppointmentsCard jobId={job.id} appointments={appointments} defaultMinutes={defaultMinutes} gateCode={job.gateCode ?? null} /></div>
           <StatusCard title="Measurements" value={measurements.length ? `${plural(windowCount(measurements), "window")} · ${measureSource === "official" ? "official" : "designer"}` : null}
             detail={lastMeasured ? `Updated ${formatWhen(lastMeasured)}` : undefined} empty="No windows measured yet"
             actions={[

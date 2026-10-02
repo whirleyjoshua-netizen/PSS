@@ -51,6 +51,11 @@ describe("JobHeader", () => {
     expect(screen.getByRole("listitem", { current: "step" })).toHaveTextContent("New lead");
   });
 
+  it("puts the client's gate code in the Schedule dialog", () => {
+    render(<JobHeader job={{ ...job, gateCode: "#4321" }} now={now} team={team} defaultMinutes={MINUTES} />);
+    expect(screen.getByLabelText("Gate code")).toHaveValue("#4321");
+  });
+
   it("has call, text, email and schedule actions", () => {
     render(<JobHeader job={job} now={now} team={team} defaultMinutes={MINUTES} />);
     expect(screen.getByRole("link", { name: "Log a call" })).toBeInTheDocument();

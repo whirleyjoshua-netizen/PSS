@@ -7,25 +7,10 @@ import { APPOINTMENT_KINDS, type AppointmentKind } from "@/lib/admin/appointment
 import { hoursLabel, WINDOW_OPTIONS } from "@/lib/routes/window";
 import { bookAppointment } from "../appointment-actions";
 import type { FormState } from "../actions";
+import { closeModal, openModal, subscribeNothing } from "./modal";
 import { ACTION_LINK } from "./ui";
 
 const CONTROL = "min-h-11 w-full border border-rule bg-ivory px-4 py-3";
-
-/** Nothing to subscribe to: the store's only job is to differ between server and browser. */
-const subscribeNothing = () => () => {};
-
-// showModal/close are missing in jsdom and in very old browsers; the open attribute still shows the dialog.
-function open(element: HTMLDialogElement | null) {
-  if (!element) return;
-  if (typeof element.showModal === "function") element.showModal();
-  else element.setAttribute("open", "");
-}
-
-function close(element: HTMLDialogElement | null) {
-  if (!element) return;
-  if (typeof element.close === "function") element.close();
-  else element.removeAttribute("open");
-}
 
 type Props = {
   jobId: string;
@@ -42,6 +27,13 @@ type Props = {
   durationMinutes?: number | null;
   /** Each kind's usual length, which pre-fills Length until the owner types one. */
   defaultMinutes: Record<AppointmentKind, number>;
+  /**
+   * The client's gate code (null when there is none), shown at the top and saved with the booking.
+   * Absent: no gate code field, and the booking leaves the client's gate code alone.
+   */
+  gateCode?: string | null;
+  /** The designer notes of the appointment being moved, so a reschedule keeps them. */
+  designerNotes?: string | null;
   className?: string;
 };
 
@@ -52,6 +44,7 @@ type Props = {
 export function ScheduleDialog({
   jobId, label = "Schedule", kind = "consultation", startsAt = "", allDay = false,
   windowStart = null, windowEnd = null, durationMinutes = null, defaultMinutes, className = ACTION_LINK,
+  gateCode, designerNotes = null,
 }: Props) {
   const [state, action, pending] = useActionState<FormState, FormData>(bookAppointment.bind(null, jobId), {});
   // False on the server and through hydration, true once this is running in a browser — which is
@@ -62,7 +55,7 @@ export function ScheduleDialog({
   // field ids have to be unique per instance or the labels point at the wrong inputs.
   const uid = useId();
   // A saved booking is done with: close the modal so the refreshed card shows underneath.
-  useEffect(() => { if (state.ok) close(dialog.current); }, [state]);
+  useEffect(() => { if (state.ok) closeModal(dialog.current); }, [state]);
   // A length the owner typed, or one carried from the appointment being moved, stays put when the
   // kind changes; an untouched length follows the picked kind's default.
   // A failed submit redraws the window as it was picked, so half a window is not lost. A select only
@@ -70,7 +63,9 @@ export function ScheduleDialog({
   // The date, kind and all-day are not remounted: React 19 resets the form after the action, and the
   // reset restores each input's defaultValue/defaultChecked, which now come from the echo. An unticked
   // checkbox is absent from the echo, so once values came back, a missing allDay means unticked.
-  const seeded = (name: "windowStart" | "windowEnd" | "startsAt" | "kind", fallback: string | null) => {
+  const seeded = (
+    name: "windowStart" | "windowEnd" | "startsAt" | "kind" | "gateCode" | "designerNotes", fallback: string | null,
+  ) => {
     const echoed = state.values?.[name];
     return typeof echoed === "string" ? echoed : fallback ?? "";
   };
@@ -81,6 +76,13 @@ export function ScheduleDialog({
 
   const fields = (
     <form action={action} className="flex flex-col gap-4 text-sm">
+      {gateCode !== undefined ? (
+        <label htmlFor={`gateCode-${uid}`} className="flex flex-col gap-2">
+          Gate code
+          <input id={`gateCode-${uid}`} name="gateCode" type="text" maxLength={40} autoComplete="off" className={CONTROL}
+            defaultValue={seeded("gateCode", gateCode)} />
+        </label>
+      ) : null}
       <label htmlFor={`startsAt-${uid}`} className="flex flex-col gap-2">
         Date and time
         <input id={`startsAt-${uid}`} name="startsAt" type="datetime-local" className={CONTROL} defaultValue={seeded("startsAt", startsAt)} />
@@ -126,11 +128,16 @@ export function ScheduleDialog({
         <input id={`hours-${uid}`} name="hours" type="number" step="0.25" min="0.25" max="12" inputMode="decimal"
           className={CONTROL} value={hours} onChange={(e) => { setHours(e.target.value); setTouched(true); }} />
       </label>
+      <label htmlFor={`designerNotes-${uid}`} className="flex flex-col gap-2">
+        Designer notes
+        <textarea id={`designerNotes-${uid}`} name="designerNotes" rows={4} maxLength={2000} className={CONTROL}
+          defaultValue={seeded("designerNotes", designerNotes)} />
+      </label>
       <div className="flex flex-wrap items-center gap-4">
         <Button type="submit" variant="solid" disabled={pending}>{pending ? "Saving…" : "Save"}</Button>
         {enhanced ? (
           <button type="button" className="text-sm underline underline-offset-4"
-            onClick={() => close(dialog.current)}>Close</button>
+            onClick={() => closeModal(dialog.current)}>Close</button>
         ) : null}
         {state.error ? <p role="alert" className="w-full text-sm text-overdue">{state.error}</p> : null}
       </div>
@@ -149,7 +156,7 @@ export function ScheduleDialog({
 
   return (
     <>
-      <button type="button" className={className} onClick={() => open(dialog.current)}>{label}</button>
+      <button type="button" className={className} onClick={() => openModal(dialog.current)}>{label}</button>
       <dialog ref={dialog} aria-label={label} className="w-[min(28rem,92vw)] border border-rule bg-ivory p-5 backdrop:bg-charcoal/40">
         {fields}
       </dialog>

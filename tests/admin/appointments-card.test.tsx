@@ -187,6 +187,23 @@ describe("AppointmentsCard", () => {
     expect(row).not.toHaveTextContent(/\d h/);
   });
 
+  it("hands the notes and the client's gate code to Reschedule", async () => {
+    const user = userEvent.setup();
+    render(<AppointmentsCard jobId={ID} defaultMinutes={MINUTES} gateCode="#4321"
+      appointments={[appointment({ designerNotes: "Side gate sticks" })]} />);
+    await user.click(screen.getByRole("button", { name: "Reschedule" }));
+    const dialog = screen.getByRole("dialog", { name: "Reschedule" });
+    expect(within(dialog).getByLabelText("Designer notes")).toHaveValue("Side gate sticks");
+    expect(within(dialog).getByLabelText("Gate code")).toHaveValue("#4321");
+  });
+
+  it("hands the client's gate code to the empty card's Schedule", async () => {
+    const user = userEvent.setup();
+    render(<AppointmentsCard jobId={ID} defaultMinutes={MINUTES} gateCode="#4321" appointments={[]} />);
+    await user.click(within(card()).getByRole("button", { name: "Schedule" }));
+    expect(screen.getByLabelText("Gate code")).toHaveValue("#4321");
+  });
+
   it("hands the window and length to Reschedule", async () => {
     const user = userEvent.setup();
     render(<AppointmentsCard jobId={ID} defaultMinutes={MINUTES} appointments={[appointment({
