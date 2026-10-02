@@ -51,7 +51,7 @@ const version: StoredVersion = {
   dealerTotalCents: quote.dealerTotalCents, waiveHandling: false, noInstall: false,
   installQuoteId: null, installCents: null, productsCents: null, clientTotalCents: null,
   contractFileId: null, sentAt: null, signedAt: null, createdAt: new Date("2026-09-27T19:30:00Z"),
-  quoteFileId: null, offeredAt: null, approvedAt: null,
+  quoteFileId: null, offeredAt: null, approvedAt: null, handlingFoldedCents: null,
   lines: quote.lines.map((l) => ({ ...l, pctOverride: null, markupPct: null, sellUnitCents: null, markupOverridden: false })),
 };
 const line = version.lines[0];
@@ -102,7 +102,9 @@ describe("loadReview", () => {
     expect(review!.olderVersions.map((v) => v.id)).toEqual([V0]);
     expect(review!.install).toEqual(install);
     expect(review!.blockers).toEqual([]);
-    expect(review!.priced.lines[0]).toMatchObject({ pct: 60, source: "rule", sellUnitCents: 39300 });
+    // The handling fee is built into the line price (one line, so all of it).
+    expect(review!.priced.lines[0]).toMatchObject({ pct: 60, source: "rule", sellUnitCents: 39300 + version.handlingFeeCents / line.qty });
+    expect(review!.priced).toMatchObject({ handlingChargedCents: 0, handlingFoldedCents: version.handlingFeeCents });
     expect(review!.priced.installCents).toBe(25000);
     expect(review!.fingerprint).toBe(pricingFingerprint(review!.priced));
   });
@@ -120,11 +122,20 @@ describe("loadReview", () => {
       const review = await loadReview(JOB);
       expect(review!.priced).toEqual({
         lines: [{ position: line.position, pct: 60, source: "rule", sellUnitCents: 39300, sellExtendedCents: productsCents, marginCents: productsCents - line.costExtendedCents }],
-        productsCents, handlingChargedCents: version.handlingFeeCents, oversizedCents: version.oversizedFeeCents,
+        productsCents, handlingChargedCents: version.handlingFeeCents, handlingFoldedCents: 0, oversizedCents: version.oversizedFeeCents,
         installCents: 25000, installQuoteId: INSTALL, clientTotalCents: frozenTotal, costCents: version.dealerTotalCents,
         marginCents: frozenTotal - 25000 - version.dealerTotalCents, waiveHandling: false, blockers: [],
       });
       expect(review!.install).toEqual(install);
+    });
+
+    it("a version sent with the fee built into its prices prints no handling line", async () => {
+      const foldedUnit = 39300 + version.handlingFeeCents / line.qty;
+      store.listVersions.mockResolvedValue([{ ...offered, handlingFoldedCents: version.handlingFeeCents,
+        productsCents: foldedUnit * line.qty, lines: [{ ...offered.lines[0], sellUnitCents: foldedUnit }] }]);
+      const review = await loadReview(JOB);
+      expect(review!.priced).toMatchObject({ handlingChargedCents: 0, handlingFoldedCents: version.handlingFeeCents, clientTotalCents: frozenTotal });
+      expect(review!.priced.lines[0].sellUnitCents).toBe(foldedUnit);
     });
 
     it("keeps a waived fee, an override and no installation as they were sent", async () => {
@@ -228,6 +239,10 @@ describe("sendQuote", () => {
     for (const figure of [priced.installQuoteId, priced.installCents, priced.productsCents, priced.clientTotalCents, FILE, V1, JOB, OWNER]) {
       expect(values).toContain(figure);
     }
+    // The fee built into the prices is frozen with them, so the contract later prints no handling line either.
+    expect(text(sql.mock.calls[0])).toContain("handling_folded_cents = ?");
+    expect(values[text(sql.mock.calls[0]).split("?").findIndex((part) => part.endsWith("handling_folded_cents = "))]).toBe(priced.handlingFoldedCents);
+    expect(printed.handlingChargedCents).toBe(0);
     expect(values).toContain(`Sent Quote PSS-1042 v1.pdf for ${formatCents(priced.clientTotalCents)}`);
   });
 

@@ -247,7 +247,11 @@ export function QuoteReview({ jobId, review, now }: { jobId: string; review: Rev
 
       <dl className="flex max-w-xl flex-col self-end">
         <Total label="Products" value={formatCents(priced.productsCents)} />
-        <Total label="HD handling fee" value={formatCents(priced.handlingChargedCents)}>
+        {/* The fee is built into the line prices (and Products), so it is shown, muted, outside the sum.
+            Only a version sent before that prints it as its own line. */}
+        <Total label="HD handling fee" muted={priced.handlingChargedCents === 0}
+          value={priced.handlingChargedCents > 0 ? formatCents(priced.handlingChargedCents)
+            : priced.waiveHandling ? "Waived" : `${formatCents(priced.handlingFoldedCents)} in line prices`}>
           <Choice label="Waive" checked={priced.waiveHandling} locked={locked} busy={choosing} resets={refusals} onChange={(checked) => choose({ waiveHandling: checked })} />
         </Total>
         {priced.oversizedCents > 0 ? <Total label="Oversized" value={formatCents(priced.oversizedCents)} /> : null}

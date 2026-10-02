@@ -38,9 +38,12 @@ function frozenPrice(version: StoredVersion): PricedVersion {
   });
   const installCents = version.installCents ?? 0;
   const clientTotalCents = version.clientTotalCents;
+  // Sent with the fee built into the line prices, or (before migration 037) as its own line.
+  const folded = version.handlingFoldedCents !== null;
   return {
     lines, productsCents: version.productsCents,
-    handlingChargedCents: version.waiveHandling ? 0 : version.handlingFeeCents, oversizedCents: version.oversizedFeeCents,
+    handlingChargedCents: folded || version.waiveHandling ? 0 : version.handlingFeeCents,
+    handlingFoldedCents: version.handlingFoldedCents ?? 0, oversizedCents: version.oversizedFeeCents,
     installCents, installQuoteId: version.installQuoteId, clientTotalCents, costCents: version.dealerTotalCents,
     // As priceVersion computes it: product margin, installation excluded.
     marginCents: clientTotalCents === null ? null : clientTotalCents - installCents - version.dealerTotalCents,
@@ -202,6 +205,7 @@ export async function sendQuote(input: { jobId: string; versionId: string; finge
       offered as (
         update dc_quote_versions set status = 'offered', install_quote_id = ${priced.installQuoteId}, install_cents = ${priced.installCents},
           products_cents = ${priced.productsCents}, client_total_cents = ${priced.clientTotalCents},
+          handling_folded_cents = ${priced.handlingFoldedCents},
           quote_file_id = ${file.id}, offered_at = now(), offered_by = ${input.actor}
         where id = ${version.id} and lead_id = ${job.id} and status = 'draft'
           and version = (select max(version) from dc_quote_versions where lead_id = ${job.id})

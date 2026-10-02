@@ -9,7 +9,11 @@ export type PricingInput = {
 };
 export type PricedLine = { position: number; pct: number | null; source: "rule" | "override" | "missing"; sellUnitCents: number | null; sellExtendedCents: number | null; marginCents: number | null };
 export type PricedVersion = {
-  lines: PricedLine[]; productsCents: number | null; handlingChargedCents: number; oversizedCents: number;
+  /**
+   * handlingChargedCents is the fee as its own printed line: always 0 now, and kept for versions sent
+   * before the fee was built into line prices. handlingFoldedCents is the part of it inside the line prices.
+   */
+  lines: PricedLine[]; productsCents: number | null; handlingChargedCents: number; handlingFoldedCents: number; oversizedCents: number;
   installCents: number; installQuoteId: string | null; clientTotalCents: number | null;
   costCents: number; marginCents: number | null; waiveHandling: boolean; blockers: string[];
 };
@@ -24,37 +28,65 @@ export function ruleFor(rules: Record<string, number>, collection: string): numb
 }
 
 /**
+ * Builds the handling fee into the line prices (owner, 2026-10-02: the quote shows no handling line).
+ * Each line takes a share in proportion to its markup price, as whole cents per unit, so every line still
+ * reads unit × qty; the cents left over go to the lowest-quantity lines first. With a qty-1 line the
+ * whole fee goes in; with none, under the smallest qty in cents may be left off. Never more than the fee.
+ * Answers the extra cents per unit for each line, in the lines' order.
+ */
+export function foldFee(lines: { qty: number; extendedCents: number }[], feeCents: number): number[] {
+  const total = lines.reduce((sum, l) => sum + l.extendedCents, 0);
+  const extra = lines.map((l) => (total > 0 ? Math.floor(Math.floor((feeCents * l.extendedCents) / total) / l.qty) : 0));
+  let left = feeCents - extra.reduce((sum, e, i) => sum + e * lines[i].qty, 0);
+  const byQty = lines.map((l, i) => i).sort((a, b) => lines[a].qty - lines[b].qty || a - b);
+  for (const i of byQty) {
+    const add = Math.floor(left / lines[i].qty);
+    extra[i] += add;
+    left -= add * lines[i].qty;
+  }
+  return extra;
+}
+
+/**
  * The whole price of one quote version. Pure, and the only place a sell price is computed:
  * the review screen, the Send action's recomputation and the contract all call this.
  */
 export function priceVersion(input: PricingInput): PricedVersion {
   // Keyed like ruleFor, so "Duette" and "DUETTE" are named once (first spelling wins).
   const missing = new Map<string, string>();
-  const lines: PricedLine[] = input.lines.map((line) => {
+  const marked = input.lines.map((line) => {
     const rule = ruleFor(input.rules, line.collection);
     const pct = line.pctOverride ?? rule;
-    if (pct === null) {
-      if (!missing.has(key(line.collection))) missing.set(key(line.collection), line.collection.trim());
-      return { position: line.position, pct: null, source: "missing", sellUnitCents: null, sellExtendedCents: null, marginCents: null };
-    }
-    const unit = sellUnitCents(line.msrpUnitCents, pct);
-    const extended = unit * line.qty;
-    return {
-      position: line.position, pct, source: line.pctOverride === null ? "rule" : "override",
-      sellUnitCents: unit, sellExtendedCents: extended, marginCents: extended - line.costExtendedCents,
-    };
+    if (pct === null && !missing.has(key(line.collection))) missing.set(key(line.collection), line.collection.trim());
+    return { line, pct, unit: pct === null ? null : sellUnitCents(line.msrpUnitCents, pct) };
   });
 
   const blockers = [...missing.values()].map((name) => `Set a markup for ${name} first.`);
   if (!input.install && !input.noInstall) blockers.push("Save an installation price, or tick No installation.");
 
-  const handlingChargedCents = input.waiveHandling ? 0 : input.handlingFeeCents;
+  const feeCents = input.waiveHandling ? 0 : input.handlingFeeCents;
+  // The fee can only be spread once every line has a price.
+  const extra = missing.size > 0 ? marked.map(() => 0) : foldFee(marked.map((m) => ({ qty: m.line.qty, extendedCents: m.unit! * m.line.qty })), feeCents);
+  const lines: PricedLine[] = marked.map(({ line, pct, unit }, i) => {
+    if (pct === null || unit === null) {
+      return { position: line.position, pct: null, source: "missing", sellUnitCents: null, sellExtendedCents: null, marginCents: null };
+    }
+    const sell = unit + extra[i];
+    return {
+      position: line.position, pct, source: line.pctOverride === null ? "rule" : "override",
+      sellUnitCents: sell, sellExtendedCents: sell * line.qty,
+      // On the markup price: the fee is the manufacturer's, not margin.
+      marginCents: unit * line.qty - line.costExtendedCents,
+    };
+  });
+
+  const handlingFoldedCents = missing.size > 0 ? 0 : extra.reduce((sum, e, i) => sum + e * marked[i].line.qty, 0);
   const install = input.noInstall ? null : input.install;
   const installCents = install?.totalCents ?? 0;
   const productsCents = missing.size > 0 ? null : lines.reduce((sum, l) => sum + (l.sellExtendedCents ?? 0), 0);
-  const clientTotalCents = productsCents === null ? null : productsCents + handlingChargedCents + input.oversizedFeeCents + installCents;
+  const clientTotalCents = productsCents === null ? null : productsCents + input.oversizedFeeCents + installCents;
   return {
-    lines, productsCents, handlingChargedCents, oversizedCents: input.oversizedFeeCents,
+    lines, productsCents, handlingChargedCents: 0, handlingFoldedCents, oversizedCents: input.oversizedFeeCents,
     installCents, installQuoteId: install?.id ?? null, clientTotalCents,
     costCents: input.dealerTotalCents,
     // Product margin: installation is excluded.
@@ -84,7 +116,7 @@ export function sendBlockers(priced: PricedVersion, context: SendContext): strin
 export function pricingFingerprint(p: PricedVersion): string {
   return JSON.stringify({
     lines: p.lines.map((l) => [l.position, l.pct, l.sellUnitCents, l.sellExtendedCents]),
-    handling: p.handlingChargedCents, waive: p.waiveHandling, oversized: p.oversizedCents,
+    handling: p.handlingChargedCents, folded: p.handlingFoldedCents, waive: p.waiveHandling, oversized: p.oversizedCents,
     install: [p.installQuoteId, p.installCents], total: p.clientTotalCents,
   });
 }

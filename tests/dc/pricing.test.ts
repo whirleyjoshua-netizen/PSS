@@ -15,24 +15,52 @@ const base: PricingInput = {
 const OK_CONTEXT = { hasTerms: true, isLatest: true, versionStatus: "draft", jobStatus: "visit_booked", customerEmail: "a@b.com" };
 
 describe("priceVersion", () => {
-  it("prices each line at % of MSRP and totals products + handling + install", () => {
+  it("prices each line at % of MSRP, builds the handling fee into the line prices, and totals products + install", () => {
     const p = priceVersion(base);
-    expect(p.lines.map((l) => [l.position, l.sellUnitCents, l.sellExtendedCents])).toEqual([[1, 39300, 39300], [3, 33740, 67480]]);
-    expect(p.productsCents).toBe(106780);
+    // Markup: 39300 and 2 × 33740 = 106780. The $66 fee goes 39300 : 67480, rounded to whole cents per unit,
+    // and the cent left over goes to the qty-1 line.
+    expect(p.lines.map((l) => [l.position, l.sellUnitCents, l.sellExtendedCents])).toEqual([[1, 41730, 41730], [3, 35825, 71650]]);
+    expect(p.handlingFoldedCents).toBe(6600);
+    expect(p.handlingChargedCents).toBe(0);
+    expect(p.productsCents).toBe(106780 + 6600);
     expect(p.clientTotalCents).toBe(106780 + 6600 + 25000);
     expect(p.costCents).toBe(73333);
-    // Product margin excludes installation.
+    // Product margin excludes installation; each line's margin is on its markup price, before the fee.
     expect(p.marginCents).toBe(106780 + 6600 - 73333);
+    expect(p.lines.map((l) => l.marginCents)).toEqual([39300 - 33667, 67480 - 33066]);
     expect(p.blockers).toEqual([]);
   });
-  it("waiving handling drops it from the client total only", () => {
+  it("the printed lines, installation and oversize charge always add up to the total exactly", () => {
+    for (const fee of [0, 1, 6600, 6601, 9999, 12345]) {
+      for (const oversized of [0, 4500]) {
+        const p = priceVersion({ ...base, handlingFeeCents: fee, oversizedFeeCents: oversized });
+        const lines = p.lines.reduce((sum, l) => sum + l.sellExtendedCents!, 0);
+        expect(lines).toBe(p.productsCents);
+        expect(lines + p.installCents + p.oversizedCents).toBe(p.clientTotalCents);
+        expect(p.lines.every((l, i) => l.sellExtendedCents === l.sellUnitCents! * base.lines[i].qty)).toBe(true);
+      }
+    }
+  });
+  it("with a qty-1 line the whole fee is built in; with none, at most a few cents are left off, never added", () => {
+    expect(priceVersion({ ...base, handlingFeeCents: 6601 }).handlingFoldedCents).toBe(6601);
+    const noSingles = { ...base, lines: [{ ...base.lines[1], position: 1, qty: 3 }, { ...base.lines[1], position: 2, qty: 4 }] };
+    for (const fee of [6600, 6601, 6602, 6603, 7001]) {
+      const p = priceVersion({ ...noSingles, handlingFeeCents: fee });
+      expect(p.handlingFoldedCents).toBeLessThanOrEqual(fee);
+      expect(fee - p.handlingFoldedCents).toBeLessThan(3);
+    }
+  });
+  it("waiving handling builds nothing in: line prices are the markup prices", () => {
     const p = priceVersion({ ...base, waiveHandling: true });
     expect(p.handlingChargedCents).toBe(0);
+    expect(p.handlingFoldedCents).toBe(0);
+    expect(p.lines.map((l) => l.sellUnitCents)).toEqual([39300, 33740]);
     expect(p.clientTotalCents).toBe(106780 + 25000);
     expect(p.costCents).toBe(73333);
   });
   it("an override beats the rule and is marked", () => {
-    const p = priceVersion({ ...base, lines: [{ ...base.lines[0], pctOverride: 50 }] });
+    // Handling waived, so the line price is the markup price alone.
+    const p = priceVersion({ ...base, waiveHandling: true, lines: [{ ...base.lines[0], pctOverride: 50 }] });
     expect(p.lines[0]).toMatchObject({ pct: 50, source: "override", sellUnitCents: 32750 });
   });
   it("a collection with no rule blocks, naming it once, and leaves totals unknown", () => {
@@ -48,7 +76,7 @@ describe("priceVersion", () => {
   });
   it("finds a rule regardless of case and surrounding space", () => {
     expect(ruleFor({ Duette: 60 }, " duette ")).toBe(60);
-    const p = priceVersion({ ...base, lines: [{ ...base.lines[0], collection: "DUETTE" }] });
+    const p = priceVersion({ ...base, waiveHandling: true, lines: [{ ...base.lines[0], collection: "DUETTE" }] });
     expect(p.lines[0].sellUnitCents).toBe(39300);
   });
   it("no install quote blocks unless 'No installation' is ticked", () => {
