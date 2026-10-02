@@ -95,9 +95,11 @@ export async function consumeSignIn(token: string): Promise<string | null> {
 }
 
 /**
- * Signs in with the emailed code. One statement: picks the newest usable sign-in for the address,
- * uses it if the code matches, otherwise counts a wrong try. After CODE_TRIES wrong tries that
- * sign-in no longer accepts a code. `for update` serializes two guesses at the same row.
+ * Signs in with the emailed code. One statement: picks the newest unused, unexpired sign-in for the
+ * address, uses it if the code matches, otherwise counts a wrong try. After CODE_TRIES wrong tries
+ * that sign-in no longer accepts a code. The attempts guard sits in the two updates, not in the
+ * pick, so a locked newest sign-in stays the target and an older one never takes over; it also
+ * keeps the counter at most CODE_TRIES. `for update` serializes two guesses at the same row.
  */
 export async function consumeSignInCode(rawEmail: string, rawCode: string): Promise<string | null> {
   const email = rawEmail.trim().toLowerCase();
@@ -108,16 +110,18 @@ export async function consumeSignInCode(rawEmail: string, rawCode: string): Prom
     with target as (
       select token_hash from admin_login_tokens
       where email = ${email} and used_at is null and expires_at > now()
-        and code_hash is not null and code_attempts < ${CODE_TRIES}::int
+        and code_hash is not null
       order by created_at desc limit 1
       for update
     ), used as (
       update admin_login_tokens set used_at = now()
       where token_hash = (select token_hash from target) and code_hash = ${hash}
+        and code_attempts < ${CODE_TRIES}::int
       returning email
     ), missed as (
       update admin_login_tokens set code_attempts = code_attempts + 1
       where token_hash = (select token_hash from target) and code_hash <> ${hash}
+        and code_attempts < ${CODE_TRIES}::int
     )
     select email from used`;
   const found = rows[0]?.email as string | undefined;

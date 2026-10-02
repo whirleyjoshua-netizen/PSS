@@ -183,6 +183,25 @@ describe("consumeSignInCode", () => {
     expect(calls[0]).toContain(codeHash("owner@example.com", "012345"));
   });
 
+  it("locks only the latest sign-in: the attempts guard sits in the updates, not in the pick", async () => {
+    sql.mockResolvedValue([]);
+    await consumeSignInCode("owner@example.com", "012345");
+
+    const call = sql.mock.calls.find((c) => text(c).includes("admin_login_tokens"))!;
+    const query = text(call).replace(/\s+/g, " ");
+    const between = (from: string, to: string) => {
+      const start = query.indexOf(from);
+      const end = query.indexOf(to, start);
+      expect(start, from).toBeGreaterThanOrEqual(0);
+      expect(end, to).toBeGreaterThan(start);
+      return query.slice(start, end);
+    };
+    // A locked newest sign-in must not let the pick fall through to an older one.
+    expect(between("with target as (", "), used as (")).not.toContain("code_attempts");
+    expect(between("), used as (", "), missed as (")).toContain("code_attempts < ?::int");
+    expect(between("), missed as (", "select email from used")).toContain("code_attempts < ?::int");
+  });
+
   it("strips spaces from the code before checking it", async () => {
     sql.mockResolvedValue([]);
     await consumeSignInCode("owner@example.com", " 012 345 ");
