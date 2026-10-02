@@ -201,11 +201,21 @@ describe("AppointmentsCard", () => {
     expect(within(dialog).getByLabelText("Gate code")).toHaveValue("#4321");
   });
 
+  it("marks Reschedule as editing that appointment's notes, even when it has none", async () => {
+    const user = userEvent.setup();
+    render(<AppointmentsCard jobId={ID} defaultMinutes={MINUTES}
+      appointments={[appointment({ kind: "measure", designerNotes: null })]} />);
+    await user.click(screen.getByRole("button", { name: "Reschedule" }));
+    const dialog = screen.getByRole("dialog", { name: "Reschedule" });
+    expect(dialog.querySelector('input[type="hidden"][name="notesFor"]')).toHaveValue("measure");
+  });
+
   it("hands the client's gate code to the empty card's Schedule", async () => {
     const user = userEvent.setup();
     render(<AppointmentsCard jobId={ID} defaultMinutes={MINUTES} gateCode="#4321" appointments={[]} />);
     await user.click(within(card()).getByRole("button", { name: "Schedule" }));
     expect(screen.getByLabelText("Gate code")).toHaveValue("#4321");
+    expect(card().querySelector('[name="notesFor"]')).toBeNull();
   });
 
   it("hands the window and length to Reschedule", async () => {

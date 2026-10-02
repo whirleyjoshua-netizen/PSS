@@ -14,6 +14,7 @@ const ACTOR = "owner@example.com";
 const STARTS = new Date("2026-09-20T17:00:00Z"); // 10:00 AM in Las Vegas
 
 const NO_TIMING = { windowStart: null, windowEnd: null, durationMinutes: null };
+const NO_DETAILS = { designerNotes: null, keepNotes: false };
 
 const row = {
   id: APPT, lead_id: JOB, kind: "consultation", starts_at: "2026-09-20T17:00:00Z",
@@ -69,7 +70,7 @@ describe("saveAppointment", () => {
   // Which body is logged is decided by a SQL CASE, so this checks that both are passed for it to choose.
   it("upserts on (lead_id, kind) and passes both pending bodies in one statement", async () => {
     sql.mockResolvedValue([{ job: 1 }]);
-    expect(await appointments.saveAppointment(JOB, "consultation", STARTS, false, NO_TIMING, ACTOR)).toBe("ok");
+    expect(await appointments.saveAppointment(JOB, "consultation", STARTS, false, NO_TIMING, ACTOR, NO_DETAILS)).toBe("ok");
     expect(sql).toHaveBeenCalledOnce();
     const statement = flat(sql.mock.calls[0]);
     expect(statement).toContain("insert into appointments");
@@ -83,7 +84,7 @@ describe("saveAppointment", () => {
 
   it("always saves as unconfirmed, and replaces rather than inserting a second row for the kind", async () => {
     sql.mockResolvedValue([{ job: 1 }]);
-    await appointments.saveAppointment(JOB, "measure", STARTS, false, NO_TIMING, ACTOR);
+    await appointments.saveAppointment(JOB, "measure", STARTS, false, NO_TIMING, ACTOR, NO_DETAILS);
     const statement = flat(sql.mock.calls[0]);
     expect(statement).toContain("confirmed_at = null");
     expect(statement).toContain("confirmed_by = null");
@@ -92,7 +93,7 @@ describe("saveAppointment", () => {
 
   it("saves the arrival window and length, and a timing change resets confirmation", async () => {
     sql.mockResolvedValue([{ job: 1 }]);
-    await appointments.saveAppointment(JOB, "install", STARTS, false, { windowStart: "08:00", windowEnd: "10:00", durationMinutes: 240 }, ACTOR);
+    await appointments.saveAppointment(JOB, "install", STARTS, false, { windowStart: "08:00", windowEnd: "10:00", durationMinutes: 240 }, ACTOR, NO_DETAILS);
     const statement = flat(sql.mock.calls[0]);
     expect(statement).toContain("window_start, window_end, duration_minutes");
     expect(statement).toContain("?::time, ?::time, ?::integer");
@@ -106,7 +107,7 @@ describe("saveAppointment", () => {
 
   it("describes an all-day appointment by its date", async () => {
     sql.mockResolvedValue([{ job: 1 }]);
-    await appointments.saveAppointment(JOB, "install", STARTS, true, NO_TIMING, ACTOR);
+    await appointments.saveAppointment(JOB, "install", STARTS, true, NO_TIMING, ACTOR, NO_DETAILS);
     expect(sql.mock.calls[0]).toContain("Install set for Sep 20, 2026 — pending confirmation");
     expect(sql.mock.calls[0]).toContain("Install moved to Sep 20, 2026 — pending confirmation");
     expect(sql.mock.calls[0]).toContain(true);
@@ -114,25 +115,53 @@ describe("saveAppointment", () => {
 
   it("returns missing when the job is gone", async () => {
     sql.mockResolvedValue([{ job: 0 }]);
-    expect(await appointments.saveAppointment(JOB, "service", STARTS, false, NO_TIMING, ACTOR)).toBe("missing");
+    expect(await appointments.saveAppointment(JOB, "service", STARTS, false, NO_TIMING, ACTOR, NO_DETAILS)).toBe("missing");
   });
 
   it("returns missing for a non-uuid job id, without touching the database", async () => {
-    expect(await appointments.saveAppointment("../etc", "service", STARTS, false, NO_TIMING, ACTOR)).toBe("missing");
+    expect(await appointments.saveAppointment("../etc", "service", STARTS, false, NO_TIMING, ACTOR, NO_DETAILS)).toBe("missing");
     expect(sql).not.toHaveBeenCalled();
   });
   it("saves the designer notes, and a reschedule replaces them with what the dialog sent", async () => {
     sql.mockResolvedValue([{ job: 1 }]);
-    await appointments.saveAppointment(JOB, "measure", STARTS, false, NO_TIMING, ACTOR, { designerNotes: "Bring samples" });
+    await appointments.saveAppointment(JOB, "measure", STARTS, false, NO_TIMING, ACTOR, { designerNotes: "Bring samples", keepNotes: false });
     const statement = flat(sql.mock.calls[0]);
     expect(statement).toContain("duration_minutes, designer_notes, confirmed_at, confirmed_by)");
-    expect(statement).toMatch(/on conflict \(lead_id, kind\) do update set[^;]*designer_notes = excluded\.designer_notes/);
+    expect(statement).toMatch(
+      /on conflict \(lead_id, kind\) do update set[^;]*designer_notes = case when \?::boolean then appointments\.designer_notes else excluded\.designer_notes end/,
+    );
     expect(sql.mock.calls[0]).toContain("Bring samples");
+  });
+
+  // The value bound just before "::boolean then appointments.designer_notes" is the keepNotes flag.
+  const keepFlag = (call: unknown[]) => {
+    const at = text(call).split("?").findIndex((part) => part.startsWith("::boolean then appointments.designer_notes"));
+    expect(at).toBeGreaterThan(0);
+    return call[at];
+  };
+
+  it("keeps the row's existing notes when keepNotes is set, and a new row then gets none", async () => {
+    sql.mockResolvedValue([{ job: 1 }]);
+    await appointments.saveAppointment(JOB, "measure", STARTS, false, NO_TIMING, ACTOR, { designerNotes: "ignored", keepNotes: true });
+    expect(sql).toHaveBeenCalledOnce();
+    expect(keepFlag(sql.mock.calls[0])).toBe(true);
+    // The inserted value is null, so keepNotes can never put notes on a new row.
+    const values = text(sql.mock.calls[0]).split("?");
+    const at = values.findIndex((part) => part.startsWith("::text, null, null"));
+    expect(at).toBeGreaterThan(0);
+    expect(sql.mock.calls[0][at]).toBeNull();
+    expect(sql.mock.calls[0]).not.toContain("ignored");
+  });
+
+  it("replaces the notes, even with none, when keepNotes is not set", async () => {
+    sql.mockResolvedValue([{ job: 1 }]);
+    await appointments.saveAppointment(JOB, "measure", STARTS, false, NO_TIMING, ACTOR, { designerNotes: null, keepNotes: false });
+    expect(keepFlag(sql.mock.calls[0])).toBe(false);
   });
 
   it("saves a changed gate code to the client in the same statement, and keeps it out of the log line", async () => {
     sql.mockResolvedValue([{ job: 1 }]);
-    await appointments.saveAppointment(JOB, "consultation", STARTS, false, NO_TIMING, ACTOR, { designerNotes: null, gateCode: "#4321" });
+    await appointments.saveAppointment(JOB, "consultation", STARTS, false, NO_TIMING, ACTOR, { designerNotes: null, keepNotes: false, gateCode: "#4321" });
     expect(sql).toHaveBeenCalledOnce();
     const statement = flat(sql.mock.calls[0]);
     expect(statement).toContain("update leads set gate_code = ?::text, updated_at = now() where id = ? and ?::boolean and gate_code is distinct from ?::text");
@@ -146,7 +175,7 @@ describe("saveAppointment", () => {
 
   it("leaves the gate code alone when none was sent", async () => {
     sql.mockResolvedValue([{ job: 1 }]);
-    await appointments.saveAppointment(JOB, "consultation", STARTS, false, NO_TIMING, ACTOR, { designerNotes: null });
+    await appointments.saveAppointment(JOB, "consultation", STARTS, false, NO_TIMING, ACTOR, NO_DETAILS);
     // The value bound just before "::boolean and gate_code" is the flag: false, so the leads update matches no row.
     const at = text(sql.mock.calls[0]).split("?").findIndex((part) => part.startsWith("::boolean and gate_code"));
     expect(at).toBeGreaterThan(0);

@@ -219,6 +219,27 @@ describe("ScheduleDialog", () => {
     const data = bookAppointment.mock.calls[0][2] as FormData;
     expect(data.get("designerNotes")).toBe("Side gate sticks\nDog in the yard");
     expect(data.get("gateCode")).toBe("#4321");
+    // The notes belong to the measure being moved, so clearing them is an edit, not an omission.
+    expect(data.get("notesFor")).toBe("measure");
+  });
+
+  it("marks a Reschedule's notes as that appointment's even when it has none, with or without JavaScript", async () => {
+    const props = { jobId: ID, defaultMinutes: MINUTES, label: "Reschedule", kind: "install" as const, designerNotes: null };
+    expect(renderToStaticMarkup(<ScheduleDialog {...props} />)).toMatch(/<input type="hidden" name="notesFor" value="install"\/>/);
+    const user = userEvent.setup();
+    render(<ScheduleDialog {...props} />);
+    await user.click(screen.getByRole("button", { name: "Reschedule" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect((bookAppointment.mock.calls[0][2] as FormData).get("notesFor")).toBe("install");
+  });
+
+  it("sends no notesFor from a plain Schedule, so blank notes never wipe an existing appointment's", async () => {
+    expect(renderToStaticMarkup(<ScheduleDialog jobId={ID} defaultMinutes={MINUTES} gateCode="#4321" />)).not.toContain("notesFor");
+    const user = userEvent.setup();
+    render(<ScheduleDialog jobId={ID} defaultMinutes={MINUTES} gateCode="#4321" />);
+    await user.click(screen.getByRole("button", { name: "Schedule" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect((bookAppointment.mock.calls[0][2] as FormData).has("notesFor")).toBe(false);
   });
 
   it("keeps the typed notes and gate code when the submit fails", async () => {

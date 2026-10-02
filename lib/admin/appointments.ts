@@ -29,6 +29,12 @@ export type Appointment = {
  */
 export type AppointmentDetails = { designerNotes: string | null; gateCode?: string | null };
 
+/**
+ * A booking's details. keepNotes leaves an existing row's notes as they are (a new row gets none):
+ * a booking that did not come from that appointment's own Reschedule must never wipe its notes.
+ */
+export type BookingDetails = AppointmentDetails & { keepNotes: boolean };
+
 function toAppointment(row: Record<string, unknown>): Appointment {
   return {
     id: row.id as string,
@@ -64,12 +70,12 @@ export type SaveResult = "ok" | "missing";
 /**
  * Books or moves one appointment and logs it, in one statement. A saved appointment is always
  * unconfirmed: only the confirm path sets confirmed_at, and only a confirmed row mirrors to the job.
- * The same statement saves the designer notes and, when details.gateCode is given and differs, the
- * client's gate code. Neither goes into the log line.
+ * The same statement saves the designer notes (or, with details.keepNotes, keeps the row's own) and,
+ * when details.gateCode is given and differs, the client's gate code. Neither goes into the log line.
  */
 export async function saveAppointment(
   jobId: string, kind: AppointmentKind, startsAt: Date, allDay: boolean, timing: AppointmentTiming, actor: string,
-  details: AppointmentDetails = { designerNotes: null },
+  details: BookingDetails,
 ): Promise<SaveResult> {
   if (!isUuid(jobId)) return "missing";
   const when = whenLabel(startsAt, allDay);
@@ -77,6 +83,8 @@ export async function saveAppointment(
   const movedBody = `${kindLabel(kind)} moved to ${when} — pending confirmation`;
   const setGate = details.gateCode !== undefined;
   const gateCode = details.gateCode ?? null;
+  const keepNotes = details.keepNotes;
+  const notes = keepNotes ? null : details.designerNotes;
   const [result] = await db()`
     with target as (select id from leads where id = ${jobId}),
     prev as (select id from appointments where lead_id = ${jobId} and kind = ${kind}),
@@ -89,10 +97,11 @@ export async function saveAppointment(
       insert into appointments (lead_id, kind, starts_at, all_day, window_start, window_end, duration_minutes, designer_notes, confirmed_at, confirmed_by)
       select id, ${kind}, ${startsAt}::timestamptz, ${allDay}::boolean,
              ${timing.windowStart}::time, ${timing.windowEnd}::time, ${timing.durationMinutes}::integer,
-             ${details.designerNotes}::text, null, null
+             ${notes}::text, null, null
         from target
       on conflict (lead_id, kind) do update set
-        starts_at = excluded.starts_at, all_day = excluded.all_day, designer_notes = excluded.designer_notes,
+        starts_at = excluded.starts_at, all_day = excluded.all_day,
+        designer_notes = case when ${keepNotes}::boolean then appointments.designer_notes else excluded.designer_notes end,
         window_start = excluded.window_start, window_end = excluded.window_end,
         duration_minutes = excluded.duration_minutes,
         confirmed_at = null, confirmed_by = null, updated_at = now()

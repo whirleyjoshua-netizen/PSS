@@ -176,7 +176,7 @@ test("designer notes and the event-body hash against a real database", async () 
 
   try {
     // 2. Book with notes and a gate code.
-    const booked = await saveAppointment(lead, "measure", AT, false, NO_TIMING, ACTOR, { designerNotes: NOTES_1, gateCode: GATE_1 });
+    const booked = await saveAppointment(lead, "measure", AT, false, NO_TIMING, ACTOR, { designerNotes: NOTES_1, keepNotes: false, gateCode: GATE_1 });
     check(booked === "ok", "booking a measure with notes and a gate code is accepted", `saveAppointment returned ${booked}`);
     const first = await appointmentRow(lead);
     check(first.designer_notes === NOTES_1, "the notes are on the appointment, line break kept", `designer_notes is ${JSON.stringify(first.designer_notes)}`);
@@ -253,7 +253,7 @@ test("designer notes and the event-body hash against a real database", async () 
 
     // 10. A reschedule keeps the notes the dialog sends, and un-confirms as before.
     const later = new Date(AT.getTime() + 24 * 60 * 60 * 1000);
-    await saveAppointment(lead, "measure", later, false, NO_TIMING, ACTOR, { designerNotes: NOTES_2 });
+    await saveAppointment(lead, "measure", later, false, NO_TIMING, ACTOR, { designerNotes: NOTES_2, keepNotes: false });
     const moved = await appointmentRow(lead);
     check(moved.designer_notes === NOTES_2, "a reschedule keeps the notes it was given", `designer_notes is ${JSON.stringify(moved.designer_notes)}`);
     check(moved.confirmed_at === null, "a reschedule still un-confirms", `confirmed_at is ${moved.confirmed_at}`);

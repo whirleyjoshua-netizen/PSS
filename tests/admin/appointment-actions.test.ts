@@ -75,7 +75,7 @@ describe("bookAppointment", () => {
     expect(await actions.bookAppointment(JOB, {}, booking())).toEqual({ ok: true });
     expect(appointments.saveAppointment).toHaveBeenCalledWith(
       JOB, "consultation", STARTS, false, { windowStart: null, windowEnd: null, durationMinutes: null }, "owner@example.com",
-      { designerNotes: null },
+      { designerNotes: null, keepNotes: true },
     );
   });
 
@@ -83,21 +83,45 @@ describe("bookAppointment", () => {
     await actions.bookAppointment(JOB, {}, booking({ windowStart: "08:00", windowEnd: "10:00", hours: "1.5" }));
     expect(appointments.saveAppointment).toHaveBeenCalledWith(
       JOB, "consultation", STARTS, false, { windowStart: "08:00", windowEnd: "10:00", durationMinutes: 90 }, "owner@example.com",
-      { designerNotes: null },
+      { designerNotes: null, keepNotes: true },
     );
   });
 
   it("saves the designer notes and the gate code the dialog sent", async () => {
     await actions.bookAppointment(JOB, {}, booking({ designerNotes: " Side gate sticks ", gateCode: " #4321 " }));
-    expect(appointments.saveAppointment.mock.calls[0][6]).toEqual({ designerNotes: "Side gate sticks", gateCode: "#4321" });
+    expect(appointments.saveAppointment.mock.calls[0][6]).toEqual({ designerNotes: "Side gate sticks", keepNotes: false, gateCode: "#4321" });
   });
 
   it("clears the gate code when the dialog sent it blank, and leaves it alone when the field was absent", async () => {
     await actions.bookAppointment(JOB, {}, booking({ gateCode: "" }));
-    expect(appointments.saveAppointment.mock.calls[0][6]).toEqual({ designerNotes: null, gateCode: null });
+    expect(appointments.saveAppointment.mock.calls[0][6]).toEqual({ designerNotes: null, keepNotes: true, gateCode: null });
     await actions.bookAppointment(JOB, {}, booking());
-    expect(appointments.saveAppointment.mock.calls[1][6]).toEqual({ designerNotes: null });
+    expect(appointments.saveAppointment.mock.calls[1][6]).toEqual({ designerNotes: null, keepNotes: true });
     expect(appointments.saveAppointment.mock.calls[1][6]).not.toHaveProperty("gateCode");
+  });
+
+  describe("never silently wipes an appointment's notes", () => {
+    const sent = () => appointments.saveAppointment.mock.calls[0][6];
+
+    it("a header Schedule (no notesFor) with blank notes keeps the existing row's notes", async () => {
+      await actions.bookAppointment(JOB, {}, booking({ kind: "measure", designerNotes: "  " }));
+      expect(sent()).toEqual({ designerNotes: null, keepNotes: true });
+    });
+
+    it("a Reschedule of that kind with the notes cleared clears them", async () => {
+      await actions.bookAppointment(JOB, {}, booking({ kind: "measure", notesFor: "measure", designerNotes: "" }));
+      expect(sent()).toEqual({ designerNotes: null, keepNotes: false });
+    });
+
+    it("a Reschedule switched to another kind with blank notes keeps the target row's notes", async () => {
+      await actions.bookAppointment(JOB, {}, booking({ kind: "install", notesFor: "measure", designerNotes: "" }));
+      expect(sent()).toEqual({ designerNotes: null, keepNotes: true });
+    });
+
+    it("typed notes on a header Schedule set them", async () => {
+      await actions.bookAppointment(JOB, {}, booking({ kind: "measure", designerNotes: "Bring samples" }));
+      expect(sent()).toEqual({ designerNotes: "Bring samples", keepNotes: false });
+    });
   });
 
   it("refuses notes over 2000 characters, echoing them back", async () => {
@@ -119,7 +143,7 @@ describe("bookAppointment", () => {
     await actions.bookAppointment(JOB, {}, booking({ kind: "install", allDay: "on" }));
     expect(appointments.saveAppointment).toHaveBeenCalledWith(
       JOB, "install", STARTS, true, { windowStart: null, windowEnd: null, durationMinutes: null }, "owner@example.com",
-      { designerNotes: null },
+      { designerNotes: null, keepNotes: true },
     );
   });
 

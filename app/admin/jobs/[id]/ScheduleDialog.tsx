@@ -32,7 +32,11 @@ type Props = {
    * Absent: no gate code field, and the booking leaves the client's gate code alone.
    */
   gateCode?: string | null;
-  /** The designer notes of the appointment being moved, so a reschedule keeps them. */
+  /**
+   * The designer notes of the appointment being moved (null when it has none), so a reschedule keeps
+   * them. Given means this is that appointment's Reschedule: the form says so (notesFor = its kind),
+   * so a cleared textarea clears its notes. Absent (a plain Schedule): blank notes keep any existing ones.
+   */
   designerNotes?: string | null;
   className?: string;
 };
@@ -44,7 +48,7 @@ type Props = {
 export function ScheduleDialog({
   jobId, label = "Schedule", kind = "consultation", startsAt = "", allDay = false,
   windowStart = null, windowEnd = null, durationMinutes = null, defaultMinutes, className = ACTION_LINK,
-  gateCode, designerNotes = null,
+  gateCode, designerNotes,
 }: Props) {
   const [state, action, pending] = useActionState<FormState, FormData>(bookAppointment.bind(null, jobId), {});
   // False on the server and through hydration, true once this is running in a browser — which is
@@ -76,6 +80,7 @@ export function ScheduleDialog({
 
   const fields = (
     <form action={action} className="flex flex-col gap-4 text-sm">
+      {designerNotes !== undefined ? <input type="hidden" name="notesFor" value={kind} /> : null}
       {gateCode !== undefined ? (
         <label htmlFor={`gateCode-${uid}`} className="flex flex-col gap-2">
           Gate code
@@ -131,7 +136,7 @@ export function ScheduleDialog({
       <label htmlFor={`designerNotes-${uid}`} className="flex flex-col gap-2">
         Designer notes
         <textarea id={`designerNotes-${uid}`} name="designerNotes" rows={4} maxLength={2000} className={CONTROL}
-          defaultValue={seeded("designerNotes", designerNotes)} />
+          defaultValue={seeded("designerNotes", designerNotes ?? null)} />
       </label>
       <div className="flex flex-wrap items-center gap-4">
         <Button type="submit" variant="solid" disabled={pending}>{pending ? "Saving…" : "Save"}</Button>

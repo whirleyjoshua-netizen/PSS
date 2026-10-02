@@ -48,8 +48,13 @@ export async function bookAppointment(jobId: string, _prev: FormState, formData:
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message, values };
   const { kind, startsAt, allDay, windowStart, windowEnd, durationMinutes, designerNotes, gateCode } = parsed.data;
+  // The notes are that appointment's own only when this is its Reschedule (notesFor names its kind):
+  // then they win, even cleared. Any other booking onto a kind that already has notes keeps them
+  // unless it typed new ones, so a plain Schedule or a switched kind never silently wipes them.
+  const ownNotes = formData.get("notesFor") === kind;
   const saved = await saveAppointment(
-    jobId, kind, startsAt, allDay, { windowStart, windowEnd, durationMinutes }, email, details(formData, designerNotes, gateCode),
+    jobId, kind, startsAt, allDay, { windowStart, windowEnd, durationMinutes }, email,
+    { ...details(formData, designerNotes, gateCode), keepNotes: !ownNotes && designerNotes === null },
   );
   if (saved === "missing") return MISSING;
   await mirrorToJob(jobId);
