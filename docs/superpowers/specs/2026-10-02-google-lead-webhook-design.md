@@ -28,7 +28,7 @@ The Search campaign now has a Google lead form asset ("Free In-Home Consultation
    - google_lead_id: `lead_id`.
    - notes: "Google lead form (form <form_id>, campaign <campaign_id>)" plus any notes above.
    - assigned_to: the Settings default, as for website leads.
-6. One insert statement with `on conflict (google_lead_id) do nothing returning id`. No row returned → it is a resend: respond 200, send no email.
+6. One insert statement with `on conflict (google_lead_id) where google_lead_id is not null do nothing returning id` (the `where` must repeat the partial unique index predicate, or Postgres cannot infer the index). No row returned → it is a resend: respond 200, send no email.
 7. New lead → send the same owner notification email as website leads, and geocode it after the response (as the consultation route does). No customer confirmation email (there may be no email address, and the Google form shows its own thank-you).
 8. Never-lose rule, same as the consultation route: if the insert fails but the email goes out, respond 200; if both fail, respond 500 so Google retries.
 

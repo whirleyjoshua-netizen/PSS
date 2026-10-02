@@ -15,7 +15,7 @@
 - Endpoint: `POST /api/ads/lead-form`. Off (404) unless `ADS_LEADFORM_KEY` is set and ≥ 16 characters. Wrong/missing `google_key` → 403. Bad body → 400. `is_test: true` → 200, no insert, no email.
 - Stored source: `google_form`; heard_via "Google lead form"; utm_source `google`, utm_medium `cpc`; admin shows "Google lead form".
 - Migration number: **039**, file `db/migrations/039_google_lead_id.sql`, additive only.
-- One SQL statement per write (`insert … on conflict (google_lead_id) do nothing returning id`); never separate `db()` calls for one write.
+- One SQL statement per write (`insert … on conflict (google_lead_id) where google_lead_id is not null do nothing returning id`); never separate `db()` calls for one write.
 - Never lose a lead: insert fails + email sent → 200; both fail → 500.
 - No customer confirmation email for Google leads.
 - Ads tag id: `AW-18438614507`, public (tracked) pages only.
