@@ -422,6 +422,17 @@ describe("the event body: gate code and designer notes", () => {
     expect(store.saveLink).toHaveBeenCalledWith({ ...link, changeKey: "ck2", bodyHash: bodyHash(wantedText()) });
   });
 
+  it("a failed body PATCH leaves saveLink uncalled and the old hash in place", async () => {
+    store.getLinks.mockResolvedValue([link]); // holds the hash of the body without notes
+    store.getCalendarJob.mockResolvedValue(gated());
+    graphFetch.mockResolvedValueOnce(Response.json(event())).mockResolvedValueOnce(new Response("down", { status: 500 }));
+    await expect(sync.syncJobCalendar(ID)).resolves.toBeUndefined();
+    expect(calls()).toEqual(["GET users/jobs@example.com/events/e1", "PATCH users/jobs@example.com/events/e1"]);
+    expect(store.recordError).toHaveBeenCalledWith(expect.stringMatching(/500/));
+    // No new hash is stored, so the stored one still differs and the body goes again next pass.
+    expect(store.saveLink).not.toHaveBeenCalled();
+  });
+
   it("sends no body when the stored hash matches, whatever Outlook's copy of the body says", async () => {
     store.getLinks.mockResolvedValue([{ ...link, bodyHash: bodyHash(wantedText()) }]);
     store.getCalendarJob.mockResolvedValue(gated());
