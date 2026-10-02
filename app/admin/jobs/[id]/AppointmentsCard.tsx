@@ -4,6 +4,7 @@ import { APPOINTMENT_STYLE, kindLabel, type AppointmentKind } from "@/lib/admin/
 import { formatShortDate, formatWhen, toLocalInput } from "@/lib/admin/time";
 import { hoursLabel, adminWindowLabel } from "@/lib/routes/window";
 import { CancelAppointmentButton, ConfirmScheduleButton } from "./AppointmentActions";
+import { NotesDialog } from "./NotesDialog";
 import { StatusCard } from "./OverviewCards";
 import { ScheduleDialog } from "./ScheduleDialog";
 
@@ -48,6 +49,13 @@ function Row({ jobId, appointment, defaultMinutes, gateCode }: {
       {arrives ? <span className="text-xs text-ink-soft">Arrives {arrives}</span> : null}
       {appointment.durationMinutes ? <span className="text-xs text-ink-soft">{hoursLabel(appointment.durationMinutes)} h</span> : null}
       <span className="text-xs text-ink-soft">{confirmed ? "Confirmed" : "Pending confirmation"}</span>
+      {/* Owner-only, like the gate code: the portal and the customer's emails never show these. */}
+      {appointment.designerNotes ? (
+        <div className="w-full text-sm">
+          <span className="text-xs uppercase tracking-wide text-ink-soft">Designer notes</span>
+          <p className="whitespace-pre-wrap">{appointment.designerNotes}</p>
+        </div>
+      ) : null}
       {/* A div, not a span: these hold forms, which a span may not contain. */}
       <div className="flex w-full flex-wrap items-center gap-2">
         {confirmed ? null : <ConfirmScheduleButton appointmentId={appointment.id} jobId={jobId} />}
@@ -55,6 +63,7 @@ function Row({ jobId, appointment, defaultMinutes, gateCode }: {
           startsAt={toLocalInput(appointment.startsAt)} windowStart={appointment.windowStart}
           windowEnd={appointment.windowEnd} durationMinutes={appointment.durationMinutes} defaultMinutes={defaultMinutes}
           gateCode={gateCode} designerNotes={appointment.designerNotes} />
+        <NotesDialog appointmentId={appointment.id} jobId={jobId} designerNotes={appointment.designerNotes} gateCode={gateCode} />
         {confirmed ? <CancelAppointmentButton appointmentId={appointment.id} jobId={jobId} /> : null}
       </div>
     </li>

@@ -9,7 +9,7 @@ vi.mock("@/app/admin/jobs/actions", () => ({
 vi.mock("@/app/admin/jobs/contact-actions", () => ({ logContactAction: vi.fn(async () => ({})) }));
 vi.mock("@/app/admin/jobs/appointment-actions", () => ({
   bookAppointment: vi.fn(async () => ({})), confirmSchedule: vi.fn(async () => ({})),
-  cancelAppointmentAction: vi.fn(async () => ({})),
+  cancelAppointmentAction: vi.fn(async () => ({})), updateAppointmentNotes: vi.fn(async () => ({})),
 }));
 vi.mock("@/app/admin/jobs/follow-up-actions", () => ({ saveFollowUp: vi.fn(async () => ({})), clearFollowUpAction: vi.fn(async () => {}) }));
 const { JobHeader } = await import("@/app/admin/jobs/[id]/JobHeader");

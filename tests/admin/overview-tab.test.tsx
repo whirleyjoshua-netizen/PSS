@@ -10,7 +10,7 @@ vi.mock("@/app/admin/jobs/actions", () => ({
 }));
 vi.mock("@/app/admin/jobs/appointment-actions", () => ({
   bookAppointment: vi.fn(async () => ({})), confirmSchedule: vi.fn(async () => ({})),
-  cancelAppointmentAction: vi.fn(async () => ({})),
+  cancelAppointmentAction: vi.fn(async () => ({})), updateAppointmentNotes: vi.fn(async () => ({})),
 }));
 vi.mock("@/app/admin/jobs/measure-actions", () => ({ removeMeasurement: vi.fn(), removeFile: vi.fn(), setFileShared: vi.fn() }));
 const { OverviewTab } = await import("@/app/admin/jobs/[id]/OverviewTab");

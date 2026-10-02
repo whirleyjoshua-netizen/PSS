@@ -7,13 +7,17 @@ import type { FormState } from "@/app/admin/jobs/actions";
 
 const confirmSchedule = vi.fn<(...args: unknown[]) => Promise<FormState>>(async () => ({ ok: true }));
 const cancelAppointmentAction = vi.fn<(...args: unknown[]) => Promise<FormState>>(async () => ({ ok: true }));
+const updateAppointmentNotes = vi.fn<(...args: unknown[]) => Promise<FormState>>(async () => ({ ok: true }));
+const bookAppointment = vi.fn<(...args: unknown[]) => Promise<FormState>>(async () => ({}));
 vi.mock("@/app/admin/jobs/appointment-actions", () => ({
-  bookAppointment: vi.fn(async () => ({})), confirmSchedule, cancelAppointmentAction,
+  bookAppointment, confirmSchedule, cancelAppointmentAction, updateAppointmentNotes,
 }));
 
 beforeEach(() => {
   confirmSchedule.mockClear().mockResolvedValue({ ok: true });
   cancelAppointmentAction.mockClear().mockResolvedValue({ ok: true });
+  updateAppointmentNotes.mockClear().mockResolvedValue({ ok: true });
+  bookAppointment.mockClear();
 });
 
 const { AppointmentsCard } = await import("@/app/admin/jobs/[id]/AppointmentsCard");
@@ -213,5 +217,63 @@ describe("AppointmentsCard", () => {
     expect(screen.getByLabelText("Length (hours)")).toHaveValue(1.5);
     expect(screen.getByRole("combobox", { name: "From" })).toHaveValue("08:00");
     expect(screen.getByRole("combobox", { name: "To" })).toHaveValue("10:00");
+  });
+
+  it("shows an appointment's designer notes with their line breaks kept", () => {
+    render(<AppointmentsCard jobId={ID} defaultMinutes={MINUTES} appointments={[appointment({ designerNotes: "Side gate sticks\n  Dog in the yard" })]} />);
+    const row = within(card()).getByRole("listitem");
+    const notes = within(row).getByText((_, element) => element?.tagName === "P" && element.textContent === "Side gate sticks\n  Dog in the yard");
+    expect(notes.className).toMatch(/whitespace-pre-wrap/);
+  });
+
+  it("shows no notes block for an appointment without notes", () => {
+    render(<AppointmentsCard jobId={ID} defaultMinutes={MINUTES} appointments={[appointment()]} />);
+    expect(within(card()).getByRole("listitem").querySelector(".whitespace-pre-wrap")).toBeNull();
+  });
+
+  it("offers Edit notes on pending and confirmed appointments alike", () => {
+    render(<AppointmentsCard jobId={ID} defaultMinutes={MINUTES} appointments={[
+      appointment(),
+      appointment({ id: "b", kind: "measure", confirmedAt: new Date("2026-09-18T12:00:00Z"), confirmedBy: "owner@example.com" }),
+    ]} />);
+    const rows = within(card()).getAllByRole("listitem");
+    for (const row of rows) expect(within(row).getByRole("button", { name: "Edit notes" })).toBeInTheDocument();
+  });
+
+  it("edits just the notes and the gate code of this appointment, never rebooking it", async () => {
+    const user = userEvent.setup();
+    render(<AppointmentsCard jobId={ID} defaultMinutes={MINUTES} gateCode="#4321" appointments={[appointment({
+      confirmedAt: new Date("2026-09-18T12:00:00Z"), confirmedBy: "owner@example.com", designerNotes: "Old note",
+    })]} />);
+    await user.click(screen.getByRole("button", { name: "Edit notes" }));
+    const dialog = screen.getByRole("dialog", { name: "Edit notes" });
+    const notes = within(dialog).getByLabelText("Designer notes");
+    expect(notes).toHaveValue("Old note");
+    expect(within(dialog).getByLabelText("Gate code")).toHaveValue("#4321");
+    await user.clear(notes);
+    await user.type(notes, "New note");
+    await user.click(within(dialog).getByRole("button", { name: "Save notes" }));
+    expect(updateAppointmentNotes).toHaveBeenCalled();
+    expect(updateAppointmentNotes.mock.calls[0].slice(0, 2)).toEqual([APPT, ID]);
+    const data = updateAppointmentNotes.mock.calls[0][3] as FormData;
+    expect(data.get("designerNotes")).toBe("New note");
+    expect(data.get("gateCode")).toBe("#4321");
+    expect(data.has("startsAt")).toBe(false);
+    expect(bookAppointment).not.toHaveBeenCalled();
+  });
+
+  it("shows why a notes edit failed", async () => {
+    updateAppointmentNotes.mockResolvedValue({ error: "Keep the designer notes under 2,000 characters" });
+    const user = userEvent.setup();
+    render(<AppointmentsCard jobId={ID} defaultMinutes={MINUTES} appointments={[appointment()]} />);
+    await user.click(screen.getByRole("button", { name: "Edit notes" }));
+    await user.click(screen.getByRole("button", { name: "Save notes" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Keep the designer notes under 2,000 characters");
+  });
+
+  it("degrades Edit notes to a disclosure holding the same form without JavaScript", () => {
+    const html = renderToStaticMarkup(<AppointmentsCard jobId={ID} defaultMinutes={MINUTES} appointments={[appointment({ designerNotes: "Old note" })]} />);
+    expect(html).toContain("Edit notes</summary>");
+    expect(html).toContain("Save notes");
   });
 });

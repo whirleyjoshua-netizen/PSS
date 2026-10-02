@@ -42,7 +42,7 @@ vi.mock("@/lib/routes/settings", () => ({
 }));
 vi.mock("@/app/admin/jobs/appointment-actions", () => ({
   bookAppointment: vi.fn(async () => ({})), confirmSchedule: vi.fn(async () => ({})),
-  cancelAppointmentAction: vi.fn(async () => ({})),
+  cancelAppointmentAction: vi.fn(async () => ({})), updateAppointmentNotes: vi.fn(async () => ({})),
 }));
 
 vi.mock("@/app/admin/jobs/measure-actions", () => ({
