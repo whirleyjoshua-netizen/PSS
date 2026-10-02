@@ -284,6 +284,18 @@ export function QuoteReview({ jobId, review, now }: { jobId: string; review: Rev
             className="inline-flex min-h-11 items-center justify-center bg-charcoal px-5 text-sm text-ivory disabled:cursor-not-allowed disabled:opacity-40">
             Send quote
           </button>
+          {/* What Send quote would print, marked PREVIEW; nothing is saved or sent. It needs a complete price. */}
+          {!locked ? (priced.blockers.length === 0 ? (
+            <a href={`/admin/jobs/${jobId}/quote-preview`} target="_blank" rel="noreferrer"
+              className="inline-flex min-h-11 items-center justify-center border border-charcoal px-5 text-sm">
+              Preview quote
+            </a>
+          ) : (
+            <button type="button" disabled
+              className="inline-flex min-h-11 items-center justify-center border border-charcoal px-5 text-sm disabled:cursor-not-allowed disabled:opacity-40">
+              Preview quote
+            </button>
+          )) : null}
           {awaitingContract ? (
             <button type="button" onClick={sendContract} disabled={sending}
               className="inline-flex min-h-11 items-center justify-center border border-charcoal px-5 text-sm disabled:opacity-40">

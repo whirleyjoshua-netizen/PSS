@@ -27,7 +27,7 @@ const quoteEmail = { sendQuoteEmail: vi.fn() };
 vi.mock("@/lib/dc/send-quote-email", () => quoteEmail);
 const templates = { liveTemplateOfKind: vi.fn() };
 vi.mock("@/lib/docs/templates", () => templates);
-const { loadReview, sendContract, sendQuote } = await import("@/lib/dc/send");
+const { loadReview, previewQuote, sendContract, sendQuote } = await import("@/lib/dc/send");
 
 const { createFile, deleteFile } = files;
 const text = (call: unknown[]) => (call[0] as TemplateStringsArray).join("?").replace(/\s+/g, " ");
@@ -433,5 +433,48 @@ describe("terms from the Documents page", () => {
     expect(quotePdf.buildQuotePdf).not.toHaveBeenCalled();
     expect(createFile).not.toHaveBeenCalled();
     expect(sql).not.toHaveBeenCalled();
+  });
+});
+
+describe("previewQuote", () => {
+  it("prints exactly what Send quote would print, marked a preview, and writes nothing", async () => {
+    const result = await previewQuote(JOB);
+    expect(result).toEqual({ pdf: new Uint8Array([2]), name: "Quote PSS-1042 v1 PREVIEW.pdf" });
+    const [previewed, options] = quotePdf.buildQuotePdf.mock.calls[0];
+    expect(options).toEqual({ preview: true });
+
+    quotePdf.buildQuotePdf.mockClear();
+    await send();
+    const [sent] = quotePdf.buildQuotePdf.mock.calls[0];
+    expect({ ...previewed, date: null }).toEqual({ ...sent, date: null });
+  });
+
+  it("writes nothing, shares nothing and emails no one", async () => {
+    await previewQuote(JOB);
+    expect(createFile).not.toHaveBeenCalled();
+    expect(sql).not.toHaveBeenCalled();
+    expect(quoteEmail.sendQuoteEmail).not.toHaveBeenCalled();
+  });
+
+  it("previews even when Send is blocked by something other than the price", async () => {
+    jobs.getJob.mockResolvedValue({ ...job, email: null });
+    expect(await previewQuote(JOB)).toMatchObject({ name: "Quote PSS-1042 v1 PREVIEW.pdf" });
+  });
+
+  it("refuses while a line has no price", async () => {
+    store.listMarkupRules.mockResolvedValue({});
+    expect(await previewQuote(JOB)).toEqual({ error: "Set a markup for Duette first." });
+    expect(quotePdf.buildQuotePdf).not.toHaveBeenCalled();
+  });
+
+  it("refuses while no installation price is chosen", async () => {
+    installs.listInstallQuotes.mockResolvedValue([]);
+    expect(await previewQuote(JOB)).toEqual({ error: "Save an installation price, or tick No installation." });
+    expect(quotePdf.buildQuotePdf).not.toHaveBeenCalled();
+  });
+
+  it("says so when the job has no quote", async () => {
+    store.listVersions.mockResolvedValue([]);
+    expect(await previewQuote(JOB)).toEqual({ error: "This job has no Direct Connect quote." });
   });
 });

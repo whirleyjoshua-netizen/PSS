@@ -59,3 +59,26 @@ describe("buildQuotePdf", () => {
     ]);
   });
 });
+
+describe("buildQuotePdf preview", () => {
+  const PREVIEW = "PREVIEW · Not sent to the client";
+  const many: ContractInput = { ...input, lines: Array.from({ length: 30 }, () => input.lines[0]) };
+
+  it("marks every page as a preview, and nothing else changes", async () => {
+    const drawn = spyOnDrawText();
+    const bytes = await buildQuotePdf(many, { preview: true });
+    const pages = (await PDFDocument.load(bytes)).getPageCount();
+    expect(pages).toBeGreaterThan(1);
+    expect(drawn.filter((d) => d.text === PREVIEW)).toHaveLength(pages);
+    vi.restoreAllMocks();
+    const real = spyOnDrawText();
+    await buildQuotePdf(many);
+    expect(drawn.filter((d) => d.text !== PREVIEW)).toEqual(real);
+  });
+
+  it("is not marked when it is the real quote", async () => {
+    const drawn = spyOnDrawText();
+    await buildQuotePdf(many);
+    expect(drawn.map((d) => d.text)).not.toContain(PREVIEW);
+  });
+});

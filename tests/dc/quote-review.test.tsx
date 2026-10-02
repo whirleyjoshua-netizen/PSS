@@ -230,6 +230,26 @@ describe("QuoteReview send", () => {
     expect(screen.getByRole("button", { name: "Send quote" })).toBeDisabled();
   });
 
+  it("previews the quote in a new tab, even while Send is blocked by something other than the price", () => {
+    render(<QuoteReview jobId={J} review={review({ blockers: ["Add the client's email address to the job first."] })} />);
+    const link = screen.getByRole("link", { name: "Preview quote" });
+    expect(link).toHaveAttribute("href", `/admin/jobs/${J}/quote-preview`);
+    expect(link).toHaveAttribute("target", "_blank");
+  });
+
+  it("offers no preview while the price is incomplete", () => {
+    const r = review();
+    render(<QuoteReview jobId={J} review={{ ...r, priced: { ...r.priced, blockers: ["Set a markup for PowerView first."] }, blockers: ["Set a markup for PowerView first."] }} />);
+    expect(screen.queryByRole("link", { name: "Preview quote" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Preview quote" })).toBeDisabled();
+  });
+
+  it("offers no preview once the quote has been sent", () => {
+    render(<QuoteReview jobId={J} review={review({ version: version({ status: "offered", offeredAt: new Date("2026-09-21T18:00:00Z") }) })} />);
+    expect(screen.queryByRole("link", { name: "Preview quote" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Preview quote" })).toBeNull();
+  });
+
   it("sends the reviewed version with review.fingerprint unchanged", async () => {
     render(<QuoteReview jobId={J} review={review()} />);
     fireEvent.click(screen.getByRole("button", { name: "Send quote" }));

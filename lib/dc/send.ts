@@ -144,6 +144,21 @@ function pricedInput(job: Job, version: StoredVersion, priced: PricedVersion, pr
 }
 
 /**
+ * The quote PDF as Send quote would build it now, marked PREVIEW, for the owner's eyes only: nothing is
+ * saved, shared or emailed. Refused only while the price is incomplete; Send's other blockers (no email,
+ * the terms) don't change what the quote prints.
+ */
+export async function previewQuote(jobId: string): Promise<{ pdf: Uint8Array; name: string } | { error: string }> {
+  const loaded = await review(jobId);
+  if (!loaded) return { error: "This job has no Direct Connect quote." };
+  const { review: { version, priced }, job } = loaded;
+  if (priced.blockers.length > 0) return { error: priced.blockers[0] };
+  const projectNo = formatProjectNo(job.projectNo) ?? "PSS";
+  const pdf = await buildQuotePdf(pricedInput(job, version, priced, projectNo, new Date()), { preview: true });
+  return { pdf, name: `Quote ${projectNo} v${version.version} PREVIEW.pdf` };
+}
+
+/**
  * Spec §2, Send quote. Recomputes the price, refuses anything the owner did not see (a blocker, a newer
  * version, a changed fingerprint) and anything that would stop the contract later (the terms), builds the
  * quote PDF, then in ONE statement freezes the price (draft → offered), supersedes and unshares every other
