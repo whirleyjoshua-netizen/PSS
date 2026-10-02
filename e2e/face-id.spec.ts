@@ -82,6 +82,8 @@ test("Face ID sign-in with a virtual authenticator", async ({ page, context }) =
   // 3. Sign out.
   await page.getByRole("button", { name: /Sign out/ }).click();
   await expect(page).toHaveURL(/\/admin\/sign-in/);
+  // The proxy must not set the session cookie again on the sign-out action.
+  expect((await context.cookies()).some((cookie) => cookie.name === "pss_admin")).toBe(false);
 
   // 4. Sign in with Face ID: no address typed, straight to Jobs.
   const faceId = page.getByRole("button", { name: "Sign in with Face ID" });

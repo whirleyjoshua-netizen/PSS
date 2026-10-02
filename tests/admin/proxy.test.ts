@@ -3,8 +3,11 @@ import { NextRequest } from "next/server";
 import { proxy } from "@/proxy";
 
 const FOUR_HUNDRED_DAYS = 60 * 60 * 24 * 400;
-const request = (cookie?: string) =>
-  new NextRequest("https://pss.test/admin/jobs", { headers: cookie ? { cookie } : {} });
+const request = (cookie?: string, init: { method?: string; headers?: Record<string, string> } = {}) =>
+  new NextRequest("https://pss.test/admin/jobs", {
+    method: init.method,
+    headers: { ...(cookie ? { cookie } : {}), ...init.headers },
+  });
 
 afterEach(() => vi.unstubAllEnvs());
 
@@ -44,5 +47,24 @@ describe("proxy", () => {
     vi.stubEnv("NODE_ENV", "development");
     const response = proxy(request("pss_admin=abc123"));
     expect(response.cookies.get("pss_admin")?.secure).toBe(false);
+  });
+
+  it("sets no cookie on a POST, so sign-out's delete is never raced", () => {
+    const response = proxy(request("pss_admin=abc123", { method: "POST" }));
+    expect(response.headers.get("x-middleware-next")).toBe("1");
+    expect(response.headers.get("set-cookie")).toBeNull();
+  });
+
+  it("sets no cookie on a server action, whatever its method", () => {
+    const response = proxy(request("pss_admin=abc123", { headers: { "next-action": "abc" } }));
+    expect(response.headers.get("x-middleware-next")).toBe("1");
+    expect(response.headers.get("set-cookie")).toBeNull();
+  });
+
+  it("still re-sets the cookie on a GET and a HEAD page load", () => {
+    for (const method of ["GET", "HEAD"]) {
+      const response = proxy(request("pss_admin=abc123", { method }));
+      expect(response.headers.get("set-cookie") ?? "", method).toContain("pss_admin=abc123");
+    }
   });
 });

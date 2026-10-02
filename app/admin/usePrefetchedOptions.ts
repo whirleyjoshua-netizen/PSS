@@ -122,5 +122,8 @@ export function usePrefetchedOptions<T>(fetchOptions: () => Promise<T | null>, e
     return () => clearTimeout(timer);
   }, [failures, fetched, enabled, load]);
 
-  return { ready: fetched !== null, failed: failures > 0, take, refresh };
+  /** True while a fetch is on its way. Read in a tap, so it is a function over the ref. */
+  const isLoading = useCallback(() => loading.current, []);
+
+  return { ready: fetched !== null, failed: failures > 0, take, refresh, isLoading };
 }

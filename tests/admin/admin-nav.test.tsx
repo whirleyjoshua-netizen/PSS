@@ -114,6 +114,13 @@ describe("phone header", () => {
     ]) expect(header, name).toHaveClass(name);
   });
 
+  it("scrolls the open menu inside the sticky header when it is taller than the screen", () => {
+    pathname.mockReturnValue("/admin");
+    const { container } = render(<AdminNav email="owner@example.com" />);
+    const menu = container.querySelector("header details > div")!;
+    for (const name of ["max-h-[calc(100dvh-3.5rem)]", "overflow-y-auto"]) expect(menu, name).toHaveClass(name);
+  });
+
   it("offers Refresh beside the Menu, outside its summary, since the home-screen app has no pull-to-refresh", () => {
     pathname.mockReturnValue("/admin");
     const { container } = render(<AdminNav email="owner@example.com" />);

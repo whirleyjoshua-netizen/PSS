@@ -105,7 +105,8 @@ export function AdminNav({ email }: { email: string }) {
             <Logo tone="dark" className="text-[0.95rem]" />
             <span className="text-sm text-sidebar-muted">Menu</span>
           </summary>
-          <div className="flex flex-col gap-4 pb-4">
+          {/* Scrolls inside the sticky header when taller than the screen below the 3.5rem summary. */}
+          <div className="flex max-h-[calc(100dvh-3.5rem)] flex-col gap-4 overflow-y-auto pb-4">
             <nav aria-label="Admin">
               <NavLinks pathname={pathname} />
             </nav>

@@ -143,6 +143,26 @@ describe("TurnOnFaceId on the Jobs board", () => {
     expect(browser.startRegistration).toHaveBeenCalledWith({ optionsJSON: OPTIONS });
   });
 
+  it("ignores further taps while it is getting ready, so no second request starts", async () => {
+    beginFaceIdSetup.mockResolvedValue(null);
+    render(<TurnOnFaceId place="board" />);
+    const button = await readyButton();
+    let resolve!: (options: typeof OPTIONS) => void;
+    beginFaceIdSetup.mockReturnValue(new Promise((r) => (resolve = r)));
+
+    fireEvent.click(button);
+    expect(beginFaceIdSetup).toHaveBeenCalledTimes(2);
+    fireEvent.click(screen.getByRole("button", PHONE_BUTTON));
+    fireEvent.click(screen.getByRole("button", PHONE_BUTTON));
+    expect(beginFaceIdSetup).toHaveBeenCalledTimes(2);
+    expect(browser.startRegistration).not.toHaveBeenCalled();
+    expect(screen.getByRole("status")).toHaveTextContent("Getting Face ID ready…");
+
+    await act(async () => resolve(OPTIONS));
+    fireEvent.click(screen.getByRole("button", PHONE_BUTTON));
+    expect(browser.startRegistration).toHaveBeenCalledWith({ optionsJSON: OPTIONS });
+  });
+
   it("after a failed fetch tries again by itself, and stops once hidden with Not now", async () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
     beginFaceIdSetup.mockResolvedValue(null);

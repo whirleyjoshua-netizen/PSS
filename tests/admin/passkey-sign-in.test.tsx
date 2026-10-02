@@ -181,6 +181,26 @@ describe("PasskeySignIn", () => {
     expect(browser.startAuthentication).toHaveBeenCalledWith({ optionsJSON: OPTIONS });
   });
 
+  it("ignores further taps while it is getting ready, so no second request starts", async () => {
+    beginFaceIdSignIn.mockResolvedValue(null);
+    render(<PasskeySignIn />);
+    await ready();
+    const options = deferred<typeof OPTIONS>();
+    beginFaceIdSignIn.mockReturnValue(options.promise);
+
+    fireEvent.click(screen.getByRole("button", BUTTON));
+    expect(beginFaceIdSignIn).toHaveBeenCalledTimes(2);
+    fireEvent.click(screen.getByRole("button", BUTTON));
+    fireEvent.click(screen.getByRole("button", BUTTON));
+    expect(beginFaceIdSignIn).toHaveBeenCalledTimes(2);
+    expect(browser.startAuthentication).not.toHaveBeenCalled();
+    expect(screen.getByRole("status")).toHaveTextContent("Getting Face ID ready…");
+
+    await act(async () => options.resolve(OPTIONS));
+    fireEvent.click(screen.getByRole("button", BUTTON));
+    expect(browser.startAuthentication).toHaveBeenCalledWith({ optionsJSON: OPTIONS });
+  });
+
   it("after a failed fetch tries again by itself at 2s, 5s, 15s, then every 30s", async () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
     beginFaceIdSignIn.mockResolvedValue(null);

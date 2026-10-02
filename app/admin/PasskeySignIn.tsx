@@ -40,6 +40,8 @@ export function PasskeySignIn() {
   const signIn = () => {
     const optionsJSON = prefetched.take();
     if (!optionsJSON) {
+      // Already asked and still waiting: another tap would only start a parallel request.
+      if (waiting && prefetched.isLoading()) return;
       // The last fetch failed. Ask again now; the passkey sheet comes on the next tap, once ready.
       setError(null);
       setWaiting(true);
