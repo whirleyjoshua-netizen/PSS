@@ -57,7 +57,7 @@ export default function AboutPage() {
                 alt="Josh sitting in an armchair with their baby son and young daughter on his lap, all three in black, the daughter smiling in green sneakers"
                 fill
                 sizes="(min-width: 1024px) 24rem, 100vw"
-                className="object-cover object-[center_35%]"
+                className="object-cover"
               />
             </div>
             <div className="relative aspect-4/5 w-full overflow-hidden bg-sand">
@@ -66,7 +66,7 @@ export default function AboutPage() {
                 alt="Shade smiling in an armchair with their baby son and young daughter on her lap, the daughter grinning with a hand to her cheek"
                 fill
                 sizes="(min-width: 1024px) 24rem, 100vw"
-                className="object-cover object-[center_35%]"
+                className="object-cover"
               />
             </div>
           </div>
