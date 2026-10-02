@@ -15,3 +15,15 @@ describe("Logo", () => {
     expect(shapes(container)).toMatchSnapshot();
   });
 });
+
+describe("Logo lockup proportions", () => {
+  it("the website's Tailwind classes are the print master's LOCKUP ratios", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { LOCKUP } = await import("@/lib/brand/logo-geometry");
+    const source = readFileSync("components/brand/Logo.tsx", "utf8");
+    for (const cls of [`h-[${LOCKUP.markHeight}em]`, `gap-[${LOCKUP.gap}em]`, `mt-[${LOCKUP.subTop}em]`, `w-[${LOCKUP.ruleLead}em]`, `gap-[${LOCKUP.ruleGap}em]`, "opacity-80"]) {
+      expect(source).toContain(cls);
+    }
+    expect(LOCKUP.ruleOpacity).toBe(0.8);
+  });
+});
