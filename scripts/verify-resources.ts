@@ -18,7 +18,8 @@
  * IT WRITES TO THE DATABASE IT IS GIVEN. It takes its connection from E2E_POSTGRES_URL alone and
  * refuses production (ep-cold-term).
  *
- * Usage: E2E_POSTGRES_URL='<neon test branch url>' npx vitest run --config scripts/verify-resources.config.mts
+ * Usage: E2E_POSTGRES_URL='<neon test branch url>' npx vitest run --config scripts/verify-resources.config.mts --disableConsoleIntercept
+ *   (without the flag, vitest hides a passing test's "ok" lines)
  *
  * To watch it fail: delete `on conflict do nothing` in createResource (step 3 throws), or delete the
  * pathname check from migration 036 on a fresh branch (step 5 "wrong folder" fails).
