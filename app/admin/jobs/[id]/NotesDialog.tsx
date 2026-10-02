@@ -50,6 +50,8 @@ export function NotesDialog({ appointmentId, jobId, designerNotes, gateCode }: {
         <textarea id={`notes-${uid}`} name="designerNotes" rows={5} maxLength={2000} className={CONTROL}
           defaultValue={seeded("designerNotes", designerNotes)} />
       </label>
+      {/* The gate code the page loaded, so the action saves the field only when it was changed here. */}
+      {gateCode !== undefined ? <input type="hidden" name="gateCodeWas" value={gateCode ?? ""} /> : null}
       <div className="flex flex-wrap items-center gap-4">
         <Button type="submit" variant="solid" disabled={pending}>{pending ? "Saving…" : "Save notes"}</Button>
         {enhanced ? (

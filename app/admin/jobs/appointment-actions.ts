@@ -7,6 +7,7 @@ import {
 } from "@/lib/admin/appointments";
 import { getJob, setStage } from "@/lib/admin/jobs";
 import { appointmentNotesSchema, appointmentSchema } from "@/lib/admin/schema";
+import { gateCodeField } from "@/lib/leads/questionnaire-schema";
 import { requireAdmin } from "@/lib/admin/session";
 import { sendAppointmentConfirmation } from "@/lib/appointments/send";
 import { syncJobCalendar } from "@/lib/calendar/sync";
@@ -16,10 +17,19 @@ const GONE: FormState = { error: "That appointment no longer exists." };
 
 /**
  * A form that does not carry the gate code field leaves the client's gate code alone; one that
- * carries it blank clears it. The dialogs show the field only when they were given the client's code.
+ * carries it blank clears it. The dialogs show the field only when they were given the client's code,
+ * and send gateCodeWas, the code the page loaded: a gate code that was not changed in the dialog is
+ * left alone, so a stale page never reverts a newer code (and a notes-only save writes nothing to the
+ * client). A form without gateCodeWas (an older page) saves the field as sent.
  */
-const details = (formData: FormData, designerNotes: string | null, gateCode: string | null): AppointmentDetails =>
-  formData.has("gateCode") ? { designerNotes, gateCode } : { designerNotes };
+function details(formData: FormData, designerNotes: string | null, gateCode: string | null): AppointmentDetails {
+  if (!formData.has("gateCode")) return { designerNotes };
+  if (formData.has("gateCodeWas")) {
+    const was = gateCodeField.safeParse(formData.get("gateCodeWas"));
+    if (was.success && was.data === gateCode) return { designerNotes };
+  }
+  return { designerNotes, gateCode };
+}
 
 // Every action calls requireAdmin() before reading its input.
 

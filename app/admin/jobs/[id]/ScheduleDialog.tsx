@@ -80,7 +80,6 @@ export function ScheduleDialog({
 
   const fields = (
     <form action={action} className="flex flex-col gap-4 text-sm">
-      {designerNotes !== undefined ? <input type="hidden" name="notesFor" value={kind} /> : null}
       {gateCode !== undefined ? (
         <label htmlFor={`gateCode-${uid}`} className="flex flex-col gap-2">
           Gate code
@@ -138,6 +137,10 @@ export function ScheduleDialog({
         <textarea id={`designerNotes-${uid}`} name="designerNotes" rows={4} maxLength={2000} className={CONTROL}
           defaultValue={seeded("designerNotes", designerNotes ?? null)} />
       </label>
+      {/* Which appointment's notes these are: only its own Reschedule may clear them. */}
+      {designerNotes !== undefined ? <input type="hidden" name="notesFor" value={kind} /> : null}
+      {/* The gate code the page loaded, so the action saves the field only when it was changed here. */}
+      {gateCode !== undefined ? <input type="hidden" name="gateCodeWas" value={gateCode ?? ""} /> : null}
       <div className="flex flex-wrap items-center gap-4">
         <Button type="submit" variant="solid" disabled={pending}>{pending ? "Saving…" : "Save"}</Button>
         {enhanced ? (

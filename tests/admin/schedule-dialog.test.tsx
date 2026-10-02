@@ -177,6 +177,20 @@ describe("ScheduleDialog", () => {
     await user.type(screen.getByLabelText("Date and time"), "2026-09-20T10:00");
     await user.click(screen.getByRole("button", { name: "Save" }));
     expect((bookAppointment.mock.calls[0][2] as FormData).get("gateCode")).toBe("#9999");
+    // What the page loaded, so the action can tell an untouched gate code from a changed one.
+    expect((bookAppointment.mock.calls[0][2] as FormData).get("gateCodeWas")).toBe("#4321");
+  });
+
+  it("sends an empty gateCodeWas for a client without a gate code, and keeps it after a failed submit", async () => {
+    bookAppointment.mockResolvedValueOnce({ error: "Pick a date and time", values: { gateCode: "#77" } });
+    const user = userEvent.setup();
+    render(<ScheduleDialog jobId={ID} defaultMinutes={MINUTES} gateCode={null} />);
+    await user.click(screen.getByRole("button", { name: "Schedule" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect((bookAppointment.mock.calls[0][2] as FormData).get("gateCodeWas")).toBe("");
+    await screen.findByRole("alert");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect((bookAppointment.mock.calls[1][2] as FormData).get("gateCodeWas")).toBe("");
   });
 
   it("shows an empty gate code field for a client without one", async () => {
@@ -193,6 +207,7 @@ describe("ScheduleDialog", () => {
     expect(screen.queryByLabelText("Gate code")).toBeNull();
     await user.click(screen.getByRole("button", { name: "Save" }));
     expect((bookAppointment.mock.calls[0][2] as FormData).has("gateCode")).toBe(false);
+    expect((bookAppointment.mock.calls[0][2] as FormData).has("gateCodeWas")).toBe(false);
   });
 
   it("takes designer notes below the time fields and books them", async () => {

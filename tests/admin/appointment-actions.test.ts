@@ -100,6 +100,22 @@ describe("bookAppointment", () => {
     expect(appointments.saveAppointment.mock.calls[1][6]).not.toHaveProperty("gateCode");
   });
 
+  describe("a gate code the page loaded never reverts a newer one", () => {
+    it("leaves the client's gate code alone when it was not changed in the dialog", async () => {
+      await actions.bookAppointment(JOB, {}, booking({ gateCode: " #4321 ", gateCodeWas: "#4321" }));
+      expect(appointments.saveAppointment.mock.calls[0][6]).toEqual({ designerNotes: null, keepNotes: true });
+      await actions.bookAppointment(JOB, {}, booking({ gateCode: "", gateCodeWas: "" }));
+      expect(appointments.saveAppointment.mock.calls[1][6]).not.toHaveProperty("gateCode");
+    });
+
+    it("saves the gate code when it was changed in the dialog, cleared included", async () => {
+      await actions.bookAppointment(JOB, {}, booking({ gateCode: "#9999", gateCodeWas: "#4321" }));
+      expect(appointments.saveAppointment.mock.calls[0][6]).toEqual({ designerNotes: null, keepNotes: true, gateCode: "#9999" });
+      await actions.bookAppointment(JOB, {}, booking({ gateCode: " ", gateCodeWas: "#4321" }));
+      expect(appointments.saveAppointment.mock.calls[1][6]).toEqual({ designerNotes: null, keepNotes: true, gateCode: null });
+    });
+  });
+
   describe("never silently wipes an appointment's notes", () => {
     const sent = () => appointments.saveAppointment.mock.calls[0][6];
 
@@ -372,6 +388,21 @@ describe("updateAppointmentNotes", () => {
   it("leaves the gate code alone when the form did not carry it", async () => {
     await actions.updateAppointmentNotes(APPT, JOB, {}, form({ designerNotes: "Side gate sticks" }));
     expect(appointments.setAppointmentNotes.mock.calls[0][2]).toEqual({ designerNotes: "Side gate sticks" });
+  });
+
+  it("leaves the client's gate code alone when it was not changed in the dialog", async () => {
+    await actions.updateAppointmentNotes(APPT, JOB, {}, notes({ gateCodeWas: "#4321" }));
+    expect(appointments.setAppointmentNotes.mock.calls[0][2]).toEqual({ designerNotes: "Side gate sticks" });
+  });
+
+  it("saves the gate code when it was changed in the dialog", async () => {
+    await actions.updateAppointmentNotes(APPT, JOB, {}, notes({ gateCode: "#9999", gateCodeWas: "#4321" }));
+    expect(appointments.setAppointmentNotes.mock.calls[0][2]).toEqual({ designerNotes: "Side gate sticks", gateCode: "#9999" });
+  });
+
+  it("still saves a gate code sent without gateCodeWas, as an older form does", async () => {
+    await actions.updateAppointmentNotes(APPT, JOB, {}, notes());
+    expect(appointments.setAppointmentNotes.mock.calls[0][2]).toEqual({ designerNotes: "Side gate sticks", gateCode: "#4321" });
   });
 
   // The whole point of Edit notes: it is not a reschedule, so it must not send the job back for confirmation.

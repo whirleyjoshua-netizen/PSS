@@ -268,8 +268,20 @@ describe("AppointmentsCard", () => {
     const data = updateAppointmentNotes.mock.calls[0][3] as FormData;
     expect(data.get("designerNotes")).toBe("New note");
     expect(data.get("gateCode")).toBe("#4321");
+    // What the page loaded, so the action can tell an untouched gate code from a changed one.
+    expect(data.get("gateCodeWas")).toBe("#4321");
     expect(data.has("startsAt")).toBe(false);
     expect(bookAppointment).not.toHaveBeenCalled();
+  });
+
+  it("sends no gateCodeWas from Edit notes when it shows no gate code field", async () => {
+    const user = userEvent.setup();
+    render(<AppointmentsCard jobId={ID} defaultMinutes={MINUTES} appointments={[appointment()]} />);
+    await user.click(screen.getByRole("button", { name: "Edit notes" }));
+    await user.click(screen.getByRole("button", { name: "Save notes" }));
+    const data = updateAppointmentNotes.mock.calls[0][3] as FormData;
+    expect(data.has("gateCode")).toBe(false);
+    expect(data.has("gateCodeWas")).toBe(false);
   });
 
   it("shows why a notes edit failed", async () => {
