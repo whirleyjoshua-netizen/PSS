@@ -30,13 +30,15 @@
  *      verifies, but each function deletes its challenge BEFORE verifying, and finishSignIn tells
  *      "challenge consumed, passkey unknown" apart from "challenge not consumed"): a challenge is
  *      used exactly once, an expired one is not used, a register challenge cannot be used as
- *      sign-in, a register challenge is only used for its own address. The run prints one
+ *      sign-in, a register challenge is only used for its own address, and a sign-in challenge
+ *      carrying the same address cannot be used as register. The run prints one
  *      expected "Face ID registration did not verify" stack trace from the dummy response;
  *  11. admin_webauthn_challenges_email_check refuses a 'register' row with a null email;
  *  12. startSignIn stores the 200th live sign-in challenge and refuses the 201st (the rest are
  *      inserted directly to reach the cap);
  *  13. the counter update — finishSignIn's own statement, which this script checks is still
- *      verbatim in lib/admin/passkeys.ts, run directly because reaching it needs a real signature —
+ *      verbatim in lib/admin/passkeys.ts, run directly (that same text, with $1/$2 for its two
+ *      placeholders) because reaching it needs a real signature —
  *      moves 0 → 0 and 0 → 5, and refuses 5 → 3 and 5 → 5;
  *  14. removePasskey cannot delete another address's passkey, and can delete its own;
  *  15. removeAdmin for an added admin deletes their passkeys (and leaves another address's).
@@ -195,10 +197,9 @@ const COUNTER_UPDATE_SOURCE =
   "update admin_passkeys set counter = ${newCounter}, last_used_at = now()\n" +
   "    where id = ${response.id} and (counter < ${newCounter}::bigint or (counter = 0 and ${newCounter}::bigint = 0))\n" +
   "    returning email";
-const counterUpdate = (id: string, newCounter: number) => sql`
-    update admin_passkeys set counter = ${newCounter}, last_used_at = now()
-    where id = ${id} and (counter < ${newCounter}::bigint or (counter = 0 and ${newCounter}::bigint = 0))
-    returning email`;
+/** The same text, run with $1 = the new counter and $2 = the passkey id, so what is asserted is what runs. */
+const COUNTER_UPDATE_QUERY = COUNTER_UPDATE_SOURCE.replaceAll("${newCounter}", "$1").replaceAll("${response.id}", "$2");
+const counterUpdate = (id: string, newCounter: number) => sql.query(COUNTER_UPDATE_QUERY, [newCounter, id]);
 const counterOf = async (id: string): Promise<number> =>
   Number((await sql`select counter from admin_passkeys where id = ${id}`)[0]?.counter);
 
@@ -317,7 +318,8 @@ test("sign-in code, sessions and passkey store against a real database", async (
     const ownAddress = await finishRegistration(OWNER, reg, dummyResponse(), "VERIFY device");
     check(ownAddress === false && !(await challengeExists(reg)),
       "10. a register challenge is consumed for its own address (the dummy response then fails to verify)", `returned ${ownAddress}`);
-    const signInAsReg = await newChallenge("sign-in", null);
+    // It carries OWNER's address, so only the purpose filter can keep finishRegistration off it.
+    const signInAsReg = await newChallenge("sign-in", OWNER);
     await finishRegistration(OWNER, signInAsReg, dummyResponse(), "VERIFY device");
     check(await challengeExists(signInAsReg), "10. a sign-in challenge cannot be consumed as register", "it was deleted");
 
@@ -358,7 +360,7 @@ test("sign-in code, sessions and passkey store against a real database", async (
     // 13. The counter update (finishSignIn's statement; a real signature is needed to reach it).
     const source = readFileSync("lib/admin/passkeys.ts", "utf8");
     check(source.includes(COUNTER_UPDATE_SOURCE), "13. finishSignIn's counter update is still the statement tested here",
-      "lib/admin/passkeys.ts no longer contains it verbatim; update COUNTER_UPDATE_SOURCE and counterUpdate together");
+      "lib/admin/passkeys.ts no longer contains it verbatim; update COUNTER_UPDATE_SOURCE to match");
     const icloud = await newPasskey("icloud", OWNER, 0);
     const zero = await counterUpdate(icloud, 0);
     check(zero.length === 1 && (await counterOf(icloud)) === 0, "13. counter 0 → 0 (iCloud) is accepted", `moved ${zero.length}`);
@@ -368,7 +370,8 @@ test("sign-in code, sessions and passkey store against a real database", async (
     const down = await counterUpdate(counting, 3);
     check(down.length === 0 && (await counterOf(counting)) === 5, "13. counter 5 → 3 is refused and left at 5", `moved ${down.length}`);
     const same = await counterUpdate(counting, 5);
-    check(same.length === 0, "13. counter 5 → 5 (a replayed signature) is refused", `moved ${same.length}`);
+    check(same.length === 0 && (await counterOf(counting)) === 5,
+      "13. counter 5 → 5 (a replayed signature) is refused and left at 5", `moved ${same.length}`);
     const big = await counterUpdate(counting, 3_000_000_000);
     check(big.length === 1 && (await counterOf(counting)) === 3_000_000_000,
       "13. a counter past 32 bits is accepted (bigint, not int)", `moved ${big.length}`);
@@ -403,7 +406,8 @@ test("sign-in code, sessions and passkey store against a real database", async (
       select (select count(*)::int from admin_login_tokens where email = any(${EMAILS}::text[]))
            + (select count(*)::int from admin_sessions where email = any(${EMAILS}::text[]))
            + (select count(*)::int from admin_passkeys where id like ${`${ID_PREFIX}%`} or email = any(${EMAILS}::text[]))
-           + (select count(*)::int from admin_webauthn_challenges where id = any(${challengeIds}::text[]) or id like ${`${ID_PREFIX}%`})
+           + (select count(*)::int from admin_webauthn_challenges where id = any(${challengeIds}::text[]) or id like ${`${ID_PREFIX}%`}
+                                                                     or email = any(${EMAILS}::text[]))
            + (select count(*)::int from admin_access where email = any(${EMAILS}::text[])) as n`;
     if (Number(residue[0].n) !== 0) throw new Error(`FAILED: cleanup left ${residue[0].n} rows behind`);
     console.log("  ok  cleanup removed every token, session, passkey, challenge and access row it made");
