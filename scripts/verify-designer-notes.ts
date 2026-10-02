@@ -28,7 +28,9 @@
  *   8. saveLink stores a body hash, getLinks and getLinkByEvent read it back, a second saveLink
  *      replaces it, and a claim (claimLink) has a null hash;
  *   9. updateDetails reports gateCodeChanged true for a new gate code and false for the same one;
- *  10. rescheduling (saveAppointment again) keeps the notes it is given and un-confirms;
+ *  10. rescheduling (saveAppointment again) keeps the notes it is given and un-confirms; with
+ *      keepNotes true it leaves the row's notes unchanged, with keepNotes false it sets them, and
+ *      keepNotes on a kind with no row yet books it with no notes;
  *  11. a raw update setting 2001 characters of notes THROWS appointments_designer_notes_check.
  * Then it deletes its job_calendar_events, job_events, appointments and lead, so repeated runs leave
  * no residue.
@@ -41,13 +43,18 @@
  *
  * Usage (bash):
  *   E2E_POSTGRES_URL='<neon test branch url>' \
- *     npx vitest run --config scripts/verify-designer-notes.config.mts
+ *     npx vitest run --config scripts/verify-designer-notes.config.mts --silent=false --reporter=verbose
+ *
+ * (--silent=false --reporter=verbose is what shows each "ok" line.)
  *
  * To watch it fail (which is the only way to know it works), one at a time:
  *   - in setAppointmentNotes, add `, confirmed_at = null` after `designer_notes = ${details.designerNotes}::text`
  *     — step 4 "confirmed_at is unchanged" must fail;
  *   - in setAppointmentNotes, change the log body to `'notes: ' || ${details.designerNotes}::text`
- *     — step 4 "no job_events body holds the notes" must fail;
+ *     — step 4 `one event "Measure notes updated"` must fail (it is the first check to see the
+ *     changed body: no event has that exact text any more);
+ *   - in saveAppointment, change the upsert to `designer_notes = excluded.designer_notes`
+ *     — step 10 "keepNotes true leaves the row's notes unchanged" must fail;
  *   - in saveLink, drop `body_hash = excluded.body_hash, ` — step 8 "a second saveLink replaces the hash" must fail.
  * Put each back.
  */
@@ -257,6 +264,19 @@ test("designer notes and the event-body hash against a real database", async () 
     const moved = await appointmentRow(lead);
     check(moved.designer_notes === NOTES_2, "a reschedule keeps the notes it was given", `designer_notes is ${JSON.stringify(moved.designer_notes)}`);
     check(moved.confirmed_at === null, "a reschedule still un-confirms", `confirmed_at is ${moved.confirmed_at}`);
+    // A booking that is not that appointment's own Reschedule keeps its notes (keepNotes true).
+    const kept = await saveAppointment(lead, "measure", AT, false, NO_TIMING, ACTOR, { designerNotes: null, keepNotes: true });
+    check(kept === "ok", "a booking with keepNotes true is accepted", `saveAppointment returned ${kept}`);
+    const keptRow = await appointmentRow(lead);
+    check(keptRow.designer_notes === NOTES_2, "keepNotes true leaves the row's notes unchanged",
+      `designer_notes is ${JSON.stringify(keptRow.designer_notes)} — A BOOKING WIPED THE NOTES`);
+    await saveAppointment(lead, "measure", later, false, NO_TIMING, ACTOR, { designerNotes: NOTES_1, keepNotes: false });
+    check((await appointmentRow(lead)).designer_notes === NOTES_1, "keepNotes false sets the notes it was given",
+      `designer_notes is ${JSON.stringify((await appointmentRow(lead)).designer_notes)}`);
+    await saveAppointment(lead, "install", later, true, NO_TIMING, ACTOR, { designerNotes: "ignored", keepNotes: true });
+    const install = await sql`select designer_notes from appointments where lead_id = ${lead} and kind = 'install'`;
+    check(install.length === 1 && install[0].designer_notes === null, "keepNotes on a kind with no row books it with no notes",
+      `install rows are ${JSON.stringify(install)}`);
 
     // 11. The database itself caps the notes.
     const tooLong = await throwsWith(() => sql`update appointments set designer_notes = ${"x".repeat(2001)} where id = ${first.id}`);
