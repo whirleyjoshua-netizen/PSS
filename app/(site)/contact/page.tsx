@@ -5,7 +5,6 @@ import { Section } from "@/components/ui/Section";
 import { PageHero } from "@/components/product/ProductParts";
 import { ConsultationForm } from "@/components/forms/ConsultationForm";
 import { business } from "@/content/business";
-import { consultationPhoto } from "@/content/gallery";
 import { cityPath } from "@/lib/content/cities";
 
 export const metadata: Metadata = {
@@ -30,10 +29,10 @@ export default function ContactPage() {
           <ConsultationForm />
 
           <aside className="flex flex-col gap-8">
-            <div className="relative aspect-4/3 w-full overflow-hidden bg-sand">
+            <div className="relative aspect-4/5 w-full overflow-hidden bg-sand">
               <Image
-                src={consultationPhoto.src}
-                alt={consultationPhoto.alt}
+                src="/brand/family-backyard-pool.webp"
+                alt="Josh and Shade smiling by a backyard pool under palm trees, each holding one of their two young children"
                 fill
                 sizes="(min-width: 1024px) 22rem, 100vw"
                 className="object-cover"

@@ -45,8 +45,11 @@ describe("/reviews booking block", () => {
 });
 
 describe("/contact", () => {
-  it("shows the consultation photo beside the form", () => {
-    render(<ContactPage />);
-    expect(screen.getByRole("img", { name: consultationPhoto.alt })).toBeInTheDocument();
+  // Owner 2026-10-01: the family photo replaces the install stand-in here.
+  it("shows the owners' family photo beside the form", () => {
+    const { container } = render(<ContactPage />);
+    const img = screen.getByRole("img", { name: /Josh and Shade/ });
+    expect(decodeURIComponent(img.getAttribute("src") ?? "")).toContain("/brand/family-backyard-pool.webp");
+    expect(container.querySelector('img[alt="' + consultationPhoto.alt + '"]')).toBeNull();
   });
 });
