@@ -36,12 +36,15 @@ export async function getResource(id: string): Promise<(Resource & { pathname: s
 
 export async function createResource(input: {
   id: string; name: string; category: string; contentType: string; sizeBytes: number; pathname: string; uploadedBy: string;
-}): Promise<Resource> {
+}): Promise<Resource | null> {
+  // A second save of the same upload (a retry, a double click) changes nothing and answers null:
+  // the caller must not treat it as a failure and delete the file the first save recorded.
   const [row] = await db()`
     insert into company_files (id, name, category, content_type, size_bytes, blob_pathname, uploaded_by)
     values (${input.id}, ${input.name}, ${input.category}, ${input.contentType}, ${input.sizeBytes}, ${input.pathname}, ${input.uploadedBy})
+    on conflict do nothing
     returning id, name, category, content_type, size_bytes, uploaded_by, created_at`;
-  return toResource(row);
+  return row ? toResource(row) : null;
 }
 
 export async function renameResource(id: string, name: string): Promise<boolean> {

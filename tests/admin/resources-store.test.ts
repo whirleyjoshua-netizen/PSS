@@ -47,6 +47,12 @@ describe("writing", () => {
     expect(created).toEqual(resource);
     expect(text(sql.mock.calls[0])).toContain("insert into company_files (id, name, category, content_type, size_bytes, blob_pathname, uploaded_by)");
     expect(values(sql.mock.calls[0])).toEqual([ID, "W-9.pdf", "Licenses", "application/pdf", 52341, PATH, "owner@example.com"]);
+    expect(text(sql.mock.calls[0])).toContain("on conflict do nothing");
+  });
+
+  it("answers null when that upload was already saved", async () => {
+    sql.mockResolvedValue([]);
+    expect(await store.createResource({ id: ID, name: "W-9.pdf", category: "Licenses", contentType: "application/pdf", sizeBytes: 52341, pathname: PATH, uploadedBy: "owner@example.com" })).toBeNull();
   });
 
   it("renames and recategorises one row, answering whether it existed", async () => {
