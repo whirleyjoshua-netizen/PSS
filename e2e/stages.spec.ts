@@ -51,7 +51,7 @@ test("confirming a consultation books a new lead's appointment", async ({ page }
   await expect(page.getByRole("list", { name: "Stage" }).locator('[aria-current="step"]')).toContainText("Appointment booked");
   const [row] = await sql()`select status from leads where id = ${id}`;
   expect(row.status).toBe("visit_booked");
-  const stages = await sql()`select from_status, to_status from job_events where lead_id = ${id} and kind = 'stage'`;
+  const stages = await sql()`select from_status, to_status from job_events where lead_id = ${id} and kind = 'stage' order by created_at`;
   expect(stages).toEqual([{ from_status: "new", to_status: "visit_booked" }]);
 });
 
@@ -71,7 +71,7 @@ test("confirming a consultation books a contacted lead", async ({ page }) => {
   await expect(page.getByRole("list", { name: "Stage" }).locator('[aria-current="step"]')).toContainText("Appointment booked");
   const [row] = await sql()`select status from leads where id = ${id}`;
   expect(row.status).toBe("visit_booked");
-  const stages = await sql()`select from_status, to_status from job_events where lead_id = ${id} and kind = 'stage'`;
+  const stages = await sql()`select from_status, to_status from job_events where lead_id = ${id} and kind = 'stage' order by created_at`;
   expect(stages).toEqual([{ from_status: "contacted", to_status: "visit_booked" }]);
 });
 
@@ -93,7 +93,7 @@ test("mark contacted logs how, shows last contacted, and moves a new lead to Con
   expect(event).toEqual({ kind: "contact", body: "Contacted · Called, Texted — left details on price" });
   const [row] = await sql()`select status from leads where id = ${id}`;
   expect(row.status).toBe("contacted");
-  const stages = await sql()`select from_status, to_status from job_events where lead_id = ${id} and kind = 'stage'`;
+  const stages = await sql()`select from_status, to_status from job_events where lead_id = ${id} and kind = 'stage' order by created_at`;
   expect(stages).toEqual([{ from_status: "new", to_status: "contacted" }]);
 
   // On the board the card now sits in the Contacted column, and no longer in New lead.
