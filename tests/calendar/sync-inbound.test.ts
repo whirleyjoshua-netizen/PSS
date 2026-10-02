@@ -18,21 +18,25 @@ vi.mock("@/lib/calendar/config", () => ({
 vi.mock("@/lib/portal/login", () => ({ portalOrigin: () => "https://pss.example" }));
 
 const sync = await import("@/lib/calendar/sync");
+const { bodyHash, eventText } = await import("@/lib/calendar/events");
 const ID = "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c";
 const PST = "Pacific Standard Time";
-const appt = (kind: string, startsAt: Date, allDay = false) => ({ kind, startsAt, allDay });
+const appt = (kind: string, startsAt: Date, allDay = false, designerNotes: string | null = null) =>
+  ({ kind, startsAt, allDay, designerNotes });
 const jobWith = (...appointments: ReturnType<typeof appt>[]) => ({
   id: ID, name: "Dana Reyes", phone: "7025550134", email: null, address: null, city: "Henderson", treatments: [],
-  status: "visit_booked", visitAt: null, installOn: null, appointments,
+  gateCode: null as string | null, status: "visit_booked", visitAt: null, installOn: null, appointments,
 });
 const job = jobWith(appt("consultation", new Date("2026-09-20T17:00:00Z")));
+/** The hash of the body this job's events carry with no gate code and no notes: what an up-to-date link holds. */
+const HASH = bodyHash(eventText(job, null, `https://pss.example/admin/jobs/${ID}`));
 // Graph's GET sends no $select, so a real event always comes back with its subject.
 const event = (over: Record<string, unknown> = {}) => ({
   id: "e1", changeKey: "ck1", isAllDay: false, subject: "Consultation · Dana Reyes",
   start: { dateTime: "2026-09-20T10:00:00.0000000", timeZone: PST },
   end: { dateTime: "2026-09-20T11:00:00.0000000", timeZone: PST }, ...over,
 });
-const link = { leadId: ID, kind: "consultation", eventId: "e1", changeKey: "ck1" };
+const link = { leadId: ID, kind: "consultation", eventId: "e1", changeKey: "ck1", bodyHash: HASH };
 const calls = () => graphFetch.mock.calls.map(([path, init]) => `${init?.method ?? "GET"} ${path}`);
 
 beforeEach(() => {
@@ -83,6 +87,13 @@ describe("applyOutlookChange (Outlook wins when its changeKey moved)", () => {
     await sync.applyOutlookChange("e1");
     expect(store.setJobDate).not.toHaveBeenCalled();
     expect(store.saveLink).not.toHaveBeenCalled();
+  });
+
+  it("ignores a body typed in Outlook while the admin's body is unchanged (the hash is ours, not Outlook's)", async () => {
+    graphFetch.mockResolvedValueOnce(Response.json(event({ changeKey: "ck3", body: { contentType: "html", content: "<p>typed in Outlook</p>" } })));
+    await sync.applyOutlookChange("e1");
+    expect(store.saveLink).toHaveBeenCalledWith({ ...link, changeKey: "ck3" });
+    expect(calls()).not.toContain("PATCH users/jobs@example.com/events/e1");
   });
 
   it("stores the new changeKey but keeps the date for a text-only edit", async () => {

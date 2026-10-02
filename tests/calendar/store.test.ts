@@ -75,9 +75,22 @@ describe("calendar store", () => {
     expect(sql).not.toHaveBeenCalled();
   });
 
-  it("upserts a link on (lead_id, kind)", async () => {
-    await store.saveLink({ leadId: ID, kind: "consultation", eventId: "e1", changeKey: "ck" });
-    expect(text(sql.mock.calls[0])).toMatch(/on conflict \(lead_id, kind\) do update/);
+  it("upserts a link on (lead_id, kind), body hash included", async () => {
+    await store.saveLink({ leadId: ID, kind: "consultation", eventId: "e1", changeKey: "ck", bodyHash: "h1" });
+    const q = flat(sql.mock.calls[0]);
+    expect(q).toMatch(/on conflict \(lead_id, kind\) do update/);
+    expect(q).toContain("(lead_id, kind, event_id, change_key, body_hash, synced_at)");
+    expect(q).toContain("body_hash = excluded.body_hash");
+    expect(sql.mock.calls[0]).toEqual(expect.arrayContaining([ID, "consultation", "e1", "ck", "h1"]));
+  });
+
+  it("reads each link's body hash, null for a link written before it existed", async () => {
+    sql.mockResolvedValueOnce([{ lead_id: ID, kind: "measure", event_id: "e3", change_key: "ck", body_hash: "h1" }]);
+    expect(await store.getLinkByEvent("e3")).toEqual({ leadId: ID, kind: "measure", eventId: "e3", changeKey: "ck", bodyHash: "h1" });
+    expect(text(sql.mock.calls[0])).toMatch(/change_key, body_hash from job_calendar_events/);
+    sql.mockResolvedValueOnce([{ lead_id: ID, kind: "measure", event_id: "e3", change_key: "ck", body_hash: null }]);
+    expect((await store.getLinks(ID))[0].bodyHash).toBeNull();
+    expect(text(sql.mock.calls[1])).toMatch(/change_key, body_hash, synced_at/);
   });
 
   it("moves the appointment row, not the mirror column, then mirrors", async () => {
@@ -145,7 +158,7 @@ describe("calendar store", () => {
   it("reads each link's synced_at so an abandoned claim can be spotted", async () => {
     sql.mockResolvedValue([{ lead_id: ID, kind: "consultation", event_id: "pending:x", change_key: "", synced_at: "2026-09-14T10:00:00Z" }]);
     expect(await store.getLinks(ID)).toEqual([
-      { leadId: ID, kind: "consultation", eventId: "pending:x", changeKey: "", syncedAt: new Date("2026-09-14T10:00:00Z") },
+      { leadId: ID, kind: "consultation", eventId: "pending:x", changeKey: "", bodyHash: null, syncedAt: new Date("2026-09-14T10:00:00Z") },
     ]);
     expect(text(sql.mock.calls[0])).toMatch(/synced_at/);
   });

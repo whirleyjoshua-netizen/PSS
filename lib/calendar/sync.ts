@@ -3,7 +3,9 @@ import { formatWhen, lasVegasDate } from "@/lib/admin/time";
 import { APPOINTMENT_KINDS, kindLabel } from "@/lib/admin/appointment-kinds";
 import { portalOrigin } from "@/lib/portal/login";
 import { calendarConfig, calendarEnabled } from "./config";
-import { eventSubject, movedTimes, newEventBody, sameValue, trackerValue, type GraphEvent, type Kind } from "./events";
+import {
+  bodyHash, eventSubject, eventText, movedTimes, newEventBody, sameValue, trackerValue, type GraphEvent, type Kind,
+} from "./events";
 import { GraphError, graphFetch } from "./graph";
 import { deleteEvent } from "./remove";
 import * as store from "./store";
@@ -50,6 +52,7 @@ export async function reconcileJob(leadId: string, pushKinds: readonly Kind[] = 
     const allDay = appointment?.allDay ?? false;
     const current = appointment ? (allDay ? lasVegasDate(appointment.startsAt) : appointment.startsAt) : null;
     const wanted = job && job.status !== "lost" ? current : null;
+    const notes = appointment?.designerNotes ?? null;
 
     // Only the sync that wins the claim creates the event. A failed create gives back only its own claim,
     // never a link another sync has written since.
@@ -58,17 +61,18 @@ export async function reconcileJob(leadId: string, pushKinds: readonly Kind[] = 
       const pendingId = await store.claimLink(leadId, kind);
       if (pendingId === null) return;
       let created: { id: string; changeKey: string };
+      const body = newEventBody(kind, job, wanted, jobUrl(job.id), allDay, notes);
       try {
-        const response = await expectOk(
-          await graphFetch(events, { method: "POST", body: newEventBody(kind, job, wanted, jobUrl(job.id), allDay) }), "create",
-        );
+        const response = await expectOk(await graphFetch(events, { method: "POST", body }), "create");
         created = (await response.json()) as { id: string; changeKey: string };
       } catch (error) {
         await store.deleteLink(leadId, kind, pendingId).catch((e) => console.error("Calendar claim release failed", e));
         throw error;
       }
       try {
-        await store.saveLink({ leadId, kind, eventId: created.id, changeKey: created.changeKey });
+        await store.saveLink({
+          leadId, kind, eventId: created.id, changeKey: created.changeKey, bodyHash: bodyHash(body.body.content),
+        });
       } catch (error) {
         // Nothing would point at the new event, so the next sync would create a duplicate: remove it first.
         await deleteEvent(created.id).catch(() => {});
@@ -115,8 +119,9 @@ export async function reconcileJob(leadId: string, pushKinds: readonly Kind[] = 
         await store.setJobDate(leadId, kind, value, `${kindLabel(kind)} moved in Outlook to ${when}`);
       }
       await store.saveLink({ ...link, changeKey: event.changeKey });
-      // Deliberately no subject check here: we just accepted Outlook's change, so we send nothing back
-      // in the same pass. A stale subject on this event is corrected by the next reconcile.
+      // Deliberately no subject or body check here: we just accepted Outlook's change, so we send nothing
+      // back in the same pass. The link keeps its old body hash, so a body the admin changed meanwhile
+      // still differs and goes out on the next reconcile, as does a stale subject.
       continue;
     }
 
@@ -126,17 +131,23 @@ export async function reconcileJob(leadId: string, pushKinds: readonly Kind[] = 
     const subject = job ? eventSubject(kind, job) : null;
     const staleSubject = subject !== null && event.subject !== subject;
     const moved = !sameValue(allDay, trackerValue(allDay, event), wanted);
+    // The body is compared by the hash of the text we last sent, never against Outlook's copy, which
+    // Graph may return as HTML. A null hash (an event from before the hash existed) differs once.
+    const text = job ? eventText(job, notes, jobUrl(job.id)) : null;
+    const hash = text === null ? null : bodyHash(text);
+    const staleBody = hash !== null && hash !== link.bodyHash;
 
-    if (moved || staleSubject) {
+    if (moved || staleSubject || staleBody) {
       const body = {
         ...(moved ? movedTimes(allDay, wanted, event) : {}),
         ...(staleSubject ? { subject } : {}),
+        ...(staleBody ? { body: { contentType: "text", content: text } } : {}),
       };
       const patched = await expectOk(
         await graphFetch(eventPath, { method: "PATCH", body }), "update",
       );
       const { changeKey } = (await patched.json()) as { changeKey: string };
-      await store.saveLink({ ...link, changeKey });
+      await store.saveLink({ ...link, changeKey, bodyHash: staleBody ? hash : link.bodyHash });
     }
   }
 }

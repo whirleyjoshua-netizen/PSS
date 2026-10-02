@@ -10,12 +10,17 @@ export type JobAppointment = { kind: Kind; startsAt: Date; allDay: boolean; desi
 export type CalendarJob = EventJob & {
   status: Stage; visitAt: Date | null; installOn: string | null; appointments: JobAppointment[];
 };
-/** eventId starts with "pending:" while a sync holds the claim to create that event (see claimLink). */
-export type Link = { leadId: string; kind: Kind; eventId: string; changeKey: string; syncedAt?: Date };
+/**
+ * eventId starts with "pending:" while a sync holds the claim to create that event (see claimLink).
+ * bodyHash is the bodyHash() of the text body the admin last wrote to the event; null for a claim
+ * and for an event created before the hash existed, which therefore gets its body written once.
+ */
+export type Link = { leadId: string; kind: Kind; eventId: string; changeKey: string; bodyHash: string | null; syncedAt?: Date };
 
 const toLink = (row: Record<string, unknown>): Link => ({
   leadId: row.lead_id as string, kind: row.kind as Kind,
   eventId: row.event_id as string, changeKey: row.change_key as string,
+  bodyHash: (row.body_hash as string | null) ?? null,
   ...(row.synced_at ? { syncedAt: new Date(row.synced_at as string) } : {}),
 });
 
@@ -49,21 +54,21 @@ export async function getCalendarJob(leadId: string): Promise<CalendarJob | null
 
 export async function getLinks(leadId: string): Promise<Link[]> {
   const rows = await db()`
-    select lead_id, kind, event_id, change_key, synced_at from job_calendar_events where lead_id = ${leadId}`;
+    select lead_id, kind, event_id, change_key, body_hash, synced_at from job_calendar_events where lead_id = ${leadId}`;
   return rows.map(toLink);
 }
 
 export async function getLinkByEvent(eventId: string): Promise<Link | null> {
-  const rows = await db()`select lead_id, kind, event_id, change_key from job_calendar_events where event_id = ${eventId}`;
+  const rows = await db()`select lead_id, kind, event_id, change_key, body_hash from job_calendar_events where event_id = ${eventId}`;
   return rows[0] ? toLink(rows[0]) : null;
 }
 
 export async function saveLink(link: Link): Promise<void> {
   await db()`
-    insert into job_calendar_events (lead_id, kind, event_id, change_key, synced_at)
-    values (${link.leadId}, ${link.kind}, ${link.eventId}, ${link.changeKey}, now())
+    insert into job_calendar_events (lead_id, kind, event_id, change_key, body_hash, synced_at)
+    values (${link.leadId}, ${link.kind}, ${link.eventId}, ${link.changeKey}, ${link.bodyHash}, now())
     on conflict (lead_id, kind) do update
-      set event_id = excluded.event_id, change_key = excluded.change_key, synced_at = now()`;
+      set event_id = excluded.event_id, change_key = excluded.change_key, body_hash = excluded.body_hash, synced_at = now()`;
 }
 
 /**

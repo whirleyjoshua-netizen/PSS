@@ -18,24 +18,28 @@ vi.mock("@/lib/calendar/config", () => ({
 vi.mock("@/lib/portal/login", () => ({ portalOrigin: () => "https://pss.example" }));
 
 const sync = await import("@/lib/calendar/sync");
-const { eventSubject } = await import("@/lib/calendar/events");
+const { bodyHash, eventSubject, eventText } = await import("@/lib/calendar/events");
 const ID = "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c";
 const PST = "Pacific Standard Time";
 const CONSULT_AT = new Date("2026-09-20T17:00:00Z"); // 10:00 AM in Las Vegas
 /** Only confirmed appointments ever reach the sync; the store filters the rest out. */
-const appt = (kind: string, startsAt: Date, allDay = false) => ({ kind, startsAt, allDay });
+const appt = (kind: string, startsAt: Date, allDay = false, designerNotes: string | null = null) =>
+  ({ kind, startsAt, allDay, designerNotes });
 const jobWith = (...appointments: ReturnType<typeof appt>[]) => ({
   id: ID, name: "Dana Reyes", phone: "7025550134", email: null, address: null, city: "Henderson", treatments: [],
-  status: "visit_booked", visitAt: null, installOn: null, appointments,
+  gateCode: null as string | null, status: "visit_booked", visitAt: null, installOn: null, appointments,
 });
 const job = jobWith(appt("consultation", CONSULT_AT));
+const JOB_URL = `https://pss.example/admin/jobs/${ID}`;
+/** The hash of the body this job's events carry with no gate code and no notes: what an up-to-date link holds. */
+const HASH = bodyHash(eventText(job, null, JOB_URL));
 // Graph's GET sends no $select, so a real event always comes back with its subject.
 const event = (over: Record<string, unknown> = {}) => ({
   id: "e1", changeKey: "ck1", isAllDay: false, subject: "Consultation · Dana Reyes",
   start: { dateTime: "2026-09-20T10:00:00.0000000", timeZone: PST },
   end: { dateTime: "2026-09-20T11:00:00.0000000", timeZone: PST }, ...over,
 });
-const link = { leadId: ID, kind: "consultation", eventId: "e1", changeKey: "ck1" };
+const link = { leadId: ID, kind: "consultation", eventId: "e1", changeKey: "ck1", bodyHash: HASH };
 const calls = () => graphFetch.mock.calls.map(([path, init]) => `${init?.method ?? "GET"} ${path}`);
 const subjects = () => graphFetch.mock.calls.filter(([, init]) => init?.method === "POST").map(([, init]) => init.body.subject);
 
@@ -80,7 +84,7 @@ describe("every appointment kind", () => {
     expect(calls()).toEqual(["POST users/jobs@example.com/events"]);
     expect(graphFetch.mock.calls[0][1].body.subject).toBe("Measure · Dana Reyes");
     expect(graphFetch.mock.calls[0][1].body.isAllDay).toBe(false);
-    expect(store.saveLink).toHaveBeenCalledWith({ leadId: ID, kind: "measure", eventId: "e5", changeKey: "ck5" });
+    expect(store.saveLink).toHaveBeenCalledWith({ leadId: ID, kind: "measure", eventId: "e5", changeKey: "ck5", bodyHash: HASH });
   });
 
   it("does nothing for a job with no confirmed appointment", async () => {
@@ -171,7 +175,7 @@ describe("syncJobCalendar (tracker wins)", () => {
     await sync.syncJobCalendar(ID);
     expect(graphFetch.mock.calls[0][1].body.isAllDay).toBe(true);
     expect(graphFetch.mock.calls[0][1].body.start.dateTime).toBe("2026-10-02T00:00:00");
-    expect(store.saveLink).toHaveBeenCalledWith({ leadId: ID, kind: "install", eventId: "e2", changeKey: "c" });
+    expect(store.saveLink).toHaveBeenCalledWith({ leadId: ID, kind: "install", eventId: "e2", changeKey: "c", bodyHash: HASH });
   });
 
   it("creates a timed install when that is how it was booked", async () => {
@@ -389,5 +393,99 @@ describe("a subject Outlook still shows under older wording", () => {
     await sync.syncJobCalendar(ID);
     expect(calls()).toEqual(["GET users/jobs@example.com/events/e1"]);
     expect(store.saveLink).not.toHaveBeenCalled();
+  });
+});
+
+describe("the event body: gate code and designer notes", () => {
+  const NOTES = "Side gate sticks\nBring motorized samples";
+  const gated = (notes: string | null = NOTES) => ({ ...jobWith(appt("consultation", CONSULT_AT, false, notes)), gateCode: "#4321" });
+  const wantedText = (notes: string | null = NOTES) => eventText(gated(notes), notes, JOB_URL);
+  const patches = () => graphFetch.mock.calls.filter(([, init]) => init?.method === "PATCH").map(([, init]) => init.body);
+
+  it("creates the event with the gate code and the appointment's notes, and stores that body's hash", async () => {
+    store.getCalendarJob.mockResolvedValue(gated());
+    graphFetch.mockResolvedValue(Response.json({ id: "e1", changeKey: "ck1" }, { status: 201 }));
+    await sync.syncJobCalendar(ID);
+    const sent = graphFetch.mock.calls[0][1].body.body;
+    expect(sent).toEqual({ contentType: "text", content: wantedText() });
+    expect(sent.content.startsWith("Gate code: #4321\nDesigner notes:\nSide gate sticks\nBring motorized samples\n\nPhone:")).toBe(true);
+    expect(store.saveLink).toHaveBeenCalledWith({ ...link, bodyHash: bodyHash(wantedText()) });
+  });
+
+  it("PATCHes only the body when the notes changed, then stores the new hash and changeKey", async () => {
+    store.getLinks.mockResolvedValue([link]); // holds the hash of the body without notes
+    store.getCalendarJob.mockResolvedValue(gated());
+    graphFetch.mockResolvedValueOnce(Response.json(event())).mockResolvedValueOnce(Response.json({ id: "e1", changeKey: "ck2" }));
+    await sync.syncJobCalendar(ID);
+    expect(calls()).toEqual(["GET users/jobs@example.com/events/e1", "PATCH users/jobs@example.com/events/e1"]);
+    expect(patches()).toEqual([{ body: { contentType: "text", content: wantedText() } }]);
+    expect(store.saveLink).toHaveBeenCalledWith({ ...link, changeKey: "ck2", bodyHash: bodyHash(wantedText()) });
+  });
+
+  it("sends no body when the stored hash matches, whatever Outlook's copy of the body says", async () => {
+    store.getLinks.mockResolvedValue([{ ...link, bodyHash: bodyHash(wantedText()) }]);
+    store.getCalendarJob.mockResolvedValue(gated());
+    // Graph can return the body as HTML; it is never compared, so this changes nothing.
+    graphFetch.mockResolvedValueOnce(Response.json(event({ body: { contentType: "html", content: "<html>typed in Outlook</html>" } })));
+    await sync.syncJobCalendar(ID);
+    expect(calls()).toEqual(["GET users/jobs@example.com/events/e1"]);
+    expect(store.saveLink).not.toHaveBeenCalled();
+  });
+
+  it("writes the body once to an event created before the hash existed", async () => {
+    store.getLinks.mockResolvedValue([{ ...link, bodyHash: null }]);
+    graphFetch.mockResolvedValueOnce(Response.json(event())).mockResolvedValueOnce(Response.json({ id: "e1", changeKey: "ck2" }));
+    await sync.syncJobCalendar(ID);
+    expect(patches()).toEqual([{ body: { contentType: "text", content: eventText(job, null, JOB_URL) } }]);
+    expect(store.saveLink).toHaveBeenCalledWith({ ...link, changeKey: "ck2", bodyHash: HASH });
+
+    // The next pass finds the hash it stored and sends nothing.
+    graphFetch.mockReset();
+    store.saveLink.mockReset();
+    store.getLinks.mockResolvedValue([{ ...link, changeKey: "ck2" }]);
+    graphFetch.mockResolvedValueOnce(Response.json(event({ changeKey: "ck2" })));
+    await sync.syncJobCalendar(ID);
+    expect(calls()).toEqual(["GET users/jobs@example.com/events/e1"]);
+    expect(store.saveLink).not.toHaveBeenCalled();
+  });
+
+  it("moves the time and replaces the body in one PATCH", async () => {
+    store.getLinks.mockResolvedValue([link]);
+    store.getCalendarJob.mockResolvedValue({ ...gated(), appointments: [appt("consultation", new Date("2026-09-21T16:00:00Z"), false, NOTES)] });
+    graphFetch.mockResolvedValueOnce(Response.json(event())).mockResolvedValueOnce(Response.json({ id: "e1", changeKey: "ck2" }));
+    await sync.syncJobCalendar(ID, ["consultation"]);
+    expect(patches()).toHaveLength(1);
+    expect(patches()[0]).toMatchObject({ start: { dateTime: "2026-09-21T09:00:00" }, body: { contentType: "text", content: wantedText() } });
+  });
+
+  it("sends nothing back when Outlook is newer and nothing was pushed, keeping the old hash so the body goes next time", async () => {
+    store.getLinks.mockResolvedValue([link]);
+    store.getCalendarJob.mockResolvedValue(gated());
+    graphFetch.mockResolvedValueOnce(Response.json(event({ changeKey: "ck9" })));
+    await sync.syncJobCalendar(ID);
+    expect(calls()).toEqual(["GET users/jobs@example.com/events/e1"]);
+    expect(store.saveLink).toHaveBeenCalledWith({ ...link, changeKey: "ck9" }); // bodyHash still the old HASH
+
+    // Next pass: the changeKeys agree, the hash still differs, so the body goes out.
+    graphFetch.mockReset();
+    store.saveLink.mockReset();
+    store.getLinks.mockResolvedValue([{ ...link, changeKey: "ck9" }]);
+    graphFetch.mockResolvedValueOnce(Response.json(event({ changeKey: "ck9" }))).mockResolvedValueOnce(Response.json({ id: "e1", changeKey: "ck10" }));
+    await sync.syncJobCalendar(ID);
+    expect(patches()).toEqual([{ body: { contentType: "text", content: wantedText() } }]);
+    expect(store.saveLink).toHaveBeenCalledWith({ ...link, changeKey: "ck10", bodyHash: bodyHash(wantedText()) });
+  });
+
+  it("gives each kind its own notes", async () => {
+    store.getCalendarJob.mockResolvedValue({
+      ...jobWith(appt("consultation", CONSULT_AT, false, "Consult note"), appt("measure", CONSULT_AT, false, "Measure note")),
+      gateCode: null,
+    });
+    graphFetch.mockImplementation(async () => Response.json({ id: "e1", changeKey: "ck1" }, { status: 201 }));
+    await sync.syncJobCalendar(ID);
+    const bodies = graphFetch.mock.calls.filter(([, init]) => init?.method === "POST").map(([, init]) => init.body.body.content as string);
+    expect(bodies[0]).toContain("Designer notes:\nConsult note");
+    expect(bodies[0]).not.toContain("Measure note");
+    expect(bodies[1]).toContain("Designer notes:\nMeasure note");
   });
 });
