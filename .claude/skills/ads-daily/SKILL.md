@@ -95,7 +95,7 @@ Ranges: R1, R2, R3 (leads, spend, CPL) and R4 (CTR, impressions) use since launc
 | R3 | Keyword has ≥ 2 leads and CPL > $112 | Lower its max CPC 15%. Not applicable until P0 |
 | R4 | Keyword spent < $150 with 0 leads | Leave it. Flag only if CTR < 2% with ≥ 100 impressions |
 | R5 | Search term (last 7 days) is DIY, another retailer or brand, a job search, outside the service area, or a product PSS doesn't sell | Negative keyword. Up to 20 per day |
-| R6 | Search term got a click, shows buying intent ("near me", "install", "installation", "cost", "price", "quote", or a service-area city name), and isn't already a keyword | New phrase-match keyword in the matching ad group. At most 5 new keywords in any rolling 7 days (count them in the log) |
+| R6 | Search term got a click, shows buying intent ("near me", "install", "installation", "cost", "price", "quote", or a service-area city name), and isn't already a keyword | New phrase-match keyword in the matching ad group. The keyword is the core product phrase of the search term, not the full query (e.g. "bypass shutters for sliding glass doors near me" → "bypass shutters"); show the original term in the item. At most 5 new keywords in any rolling 7 days (count them in the log) |
 | R7 | Campaign spent < $20/day on each of the last 3 days, and campaign Search lost IS (rank) (last 7 days) > 30% | Before P0: raise the campaign max CPC limit 15%, never above $12. After P0, or when P0 is approved in the same run: raise max CPC 15% on every active keyword, never above $12 |
 | R8 | Campaign cost ≥ the live daily budget ($25 as of 2026-10-02) on each of the last 3 days, and campaign CPL (last 7 days) ≤ $75 | Raise the budget $5/day |
 
