@@ -13,7 +13,7 @@ import { isUuid } from "./jobs";
  * for the transaction, so it matches only when this UPDATE's own CASE set it.
  * Under READ COMMITTED another request may move the row after the prev
  * snapshot; the UPDATE then re-reads the row, its CASE leaves status and
- * stage_changed_at alone (the old, earlier timestamp), and no spurious
+ * stage_changed_at alone (another transaction's timestamp), and no spurious
  * 'stage' event is logged for a move this call didn't make.
  * It also sets the next follow-up, or clears it (a booked call and a call with no call-back time clear it).
  *
