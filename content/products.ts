@@ -459,7 +459,8 @@ export const products: Product[] = [
       "Coordinating edge banding and valances",
     ],
     bestFor: "Living rooms, sunrooms, and organic-modern or desert-contemporary interiors.",
-    image: {
+    // Tall and soft: it reads well at its own shape in the story, not stretched across the hero.
+    storyPhoto: {
       src: "/gallery/woven-wood-shades-hall-window.webp",
       alt: "A natural woven wood shade lowered over a tall window at the end of a hallway, daylight glowing through the grass weave.",
     },

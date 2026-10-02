@@ -29,7 +29,7 @@ describe("category page redesign", () => {
     const roller = screen.getByRole("link", { name: /Roller Shades/ });
     expect(roller).toHaveAttribute("href", "/shades/roller-shades");
     expect(roller.querySelector("img")).not.toBeNull();
-    expect(screen.getByRole("link", { name: /Woven Wood Shades/ }).querySelector("img")).not.toBeNull();
+    expect(screen.getByRole("link", { name: /Woven Wood Shades/ }).querySelector("img")).toBeNull();
 
     expect(screen.getByText(/In our clients/)).toBeInTheDocument();
     expect(screen.getAllByText(new RegExp(FEATURED_REVIEW!.quote.slice(0, 30)))).toHaveLength(1);
