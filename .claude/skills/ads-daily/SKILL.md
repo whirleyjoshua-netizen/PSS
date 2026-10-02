@@ -48,7 +48,9 @@ Maximize clicks allows only one campaign-wide max CPC limit, so R1 and R3 can't 
 3. Open a new tab. Never reuse an old tab ID.
 4. Read the last 7 files in `~/pss/.ads-log/`. Note any bid changes in the last 24 hours and items the owner rejected.
 
-Ads pages reload once after navigating. Wait about 10 seconds and take a screenshot before reading. Every Ads URL takes `?ocid=8525738539`. The date picker sits at the top right. Its menu has Today, Yesterday, Last 7 days, Last 14 days, Last 30 days and Custom.
+Ads pages reload once after navigating. Wait about 10 seconds and take a screenshot before reading. Every Ads URL takes `?ocid=8525738539`. The date button sits top right next to "Last 7 days"; its position moves when banners show, so locate it with find ("date range picker button") rather than fixed coordinates. Its menu has Today, Yesterday, Last 7 days, Last 14 days, Last 30 days and Custom. Because launch was Sep 28, 2026, "Last 7 days" equals since-launch until Oct 4, 2026 — after that use Custom.
+
+Reading tables: get_page_text on Ads pages returns only the "Ask Advisor" AI chat panel. Read tables with `find` ("<name> grid") then `read_page` with that ref_id. Some numeric cells come back blank in read_page; when a number you need is blank, scroll the grid right and take a screenshot/zoom instead.
 
 ## Step 1: Health check
 
@@ -73,10 +75,11 @@ Every range ends yesterday. Never use today's partial day. "Since launch" means 
 - **Campaign row** (Campaigns page), for Yesterday, Last 7 days and since launch (each ending yesterday): Cost, Clicks, Conversions, Cost / conv. Step 4 reports these as read; never sum keyword rows. The Last 7 days Cost / conv. is R8's campaign CPL.
 - **Campaign**, Last 7 days: Search impr. share and Search lost IS (rank).
 - **Daily budget**: the campaign's Budget column on the Campaigns page. This live figure is what Step 1, Step 4 and R8 compare against.
-- **Campaign cost per day**: Campaigns page, date = Last 7 days, Segment → Time → Day. Read the cost for each of the last 3 days (R7, R8).
-- **Bidding**: the campaign's current bidding strategy (campaign Settings → Bidding). Under Maximize clicks, read the campaign max CPC limit. Under Manual CPC, read each active keyword's Max. CPC on the Keywords page.
-- **Search terms** (Insights and reports → Search terms), Last 7 days: each term, its clicks and its cost.
-- **Conversion upload** (Tools → Data manager → File upload, or an HTTPS connection): latest run time, status, rows imported, rows with errors.
+- **Campaign cost per day**: Campaigns page, date = Last 7 days, Segment → Time → Day. Read the cost for each of the last 3 days (R7, R8). Then set Segment back to None (the segment persists on the Campaigns view).
+- **Bidding**: the campaign's current bidding strategy. Path: the "Campaign settings" button at the top right of the campaign's Keywords page → side panel → "Budget and bidding" → click the Bidding row to see "Maximum CPC bid limit". Close the panel with the X at its top left without saving. (https://ads.google.com/aw/campaigns/settings… is a 404.) Under Maximize clicks, read the campaign max CPC limit. Under Manual CPC, read each active keyword's Max. CPC on the Keywords page.
+- **Search terms** (https://ads.google.com/aw/keywords/searchterms?campaignId=24293240304&ocid=8525738539, also Insights and reports → Search terms; /aw/searchterms is a 404), Last 7 days: each term, its clicks and its cost. This report hides low-volume terms. Also read the campaign Overview's "Searches" card (https://ads.google.com/aw/overview?campaignId=24293240304&ocid=8525738539, find "Searches card", read_page), which lists up to 100 searches that got impressions. R5 may use those too; R6 still needs a click, so R6 uses the search terms report only.
+- **Negative list** (https://ads.google.com/aw/keywords/negative?campaignId=24293240304&ocid=8525738539): every campaign negative. It lazy-loads; scroll until the footer reads "1 - N of N".
+- **Conversion upload** (https://ads.google.com/aw/datamanager?ocid=8525738539 → "File upload" row → expand (chevron at the right) to see each connection's Status; or an HTTPS connection): latest run time, status, rows imported, rows with errors.
 - **Prerequisites still open?** (a) Does each conversion action have its own upload, or does one connection map everything to "Consultation request"? (b) Is the HTTPS feed connected?
 
 ## Step 3: Apply the rules
@@ -130,11 +133,11 @@ If no rule fires, say so plainly and propose nothing.
 
 ## Step 5: Apply the approved items only
 
-- P0: campaign Settings → Bidding → change to Manual CPC, then set every active keyword's Max. CPC to the starting bid (the live campaign limit from Step 2, $9.00 as of 2026-10-02) on the Keywords page.
+- P0: the "Campaign settings" button at the top right of the campaign's Keywords page → side panel → "Budget and bidding" → click the Bidding row → "Or, select a bid strategy directly (not recommended)" → Manual CPC, then set every active keyword's Max. CPC to the starting bid (the live campaign limit from Step 2, $9.00 as of 2026-10-02) on the Keywords page.
 - If P0 is approved, apply it before any other item.
 - If P0 and R7 are both approved, apply P0 first, then R7 in its after-P0 form: every active keyword's Max. CPC = starting bid + 15%, never above $12.
 - Keyword bids, pauses and new keywords: Keywords page, or the matching ad group.
-- Negatives: Audiences, keywords and content → Search keywords → Negative search keywords → add at **campaign** level.
+- Negatives: the negative list (https://ads.google.com/aw/keywords/negative?campaignId=24293240304&ocid=8525738539, or Audiences, keywords and content → Search keywords → Negative search keywords) → add at **campaign** level.
 - Every save may trigger "Confirm it's you". If it appears, ask the owner to complete it. Until they do, saves fail silently.
 - Write the log file (Step 7 format) before applying the first item, and update its Decision column after each item. If the session ends partway, the log still shows what was applied.
 
