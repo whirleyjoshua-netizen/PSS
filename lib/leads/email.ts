@@ -2,12 +2,18 @@ import { Resend } from "resend";
 import { adClickLabel } from "./attribution";
 import { business } from "@/content/business";
 import { adminOrigin } from "@/lib/admin/origin";
-import { formatPhone, type ConsultationInput } from "./schema";
+import { formatPhone, type ConsultationInput, type LeadSource } from "./schema";
 
 /** Every owner address in LEAD_NOTIFICATION_EMAIL (comma-separated). */
 export function ownerRecipients(): string[] {
   return (process.env.LEAD_NOTIFICATION_EMAIL ?? "").split(",").map((address) => address.trim()).filter(Boolean);
 }
+
+/** A website lead, or a Google lead form lead (which may have no email address). */
+export type LeadNotificationInput = Omit<ConsultationInput, "email" | "source"> & {
+  email: string | null;
+  source: LeadSource | "google_form";
+};
 
 /**
  * Sends the "you have a new consultation request" email.
@@ -17,7 +23,7 @@ export function ownerRecipients(): string[] {
  * job site than an HTML template would be.
  */
 export async function sendLeadNotification(
-  input: ConsultationInput,
+  input: LeadNotificationInput,
   leadId: string,
 ): Promise<void> {
   const apiKey = process.env.RESEND_API_KEY;
@@ -33,7 +39,7 @@ export async function sendLeadNotification(
     "",
     `Name:       ${input.name}`,
     `Phone:      ${formatPhone(input.phone)}`,
-    `Email:      ${input.email}`,
+    `Email:      ${input.email ?? "(none given)"}`,
     `City:       ${input.city}`,
     input.address ? `Address:    ${input.address}` : null,
     input.treatments?.length ? `Interested: ${input.treatments.join(", ")}` : null,
@@ -47,7 +53,7 @@ export async function sendLeadNotification(
   const { error } = await new Resend(apiKey).emails.send({
     from: `${business.name} <${from}>`,
     to,
-    replyTo: input.email,
+    replyTo: input.email ?? undefined,
     subject: `New consultation request — ${input.name}, ${input.city}`,
     text: lines.join("\n"),
   });

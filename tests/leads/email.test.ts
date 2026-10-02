@@ -54,6 +54,14 @@ describe("sendLeadNotification", () => {
     vi.stubEnv("ADMIN_BASE_URL", "https://pss.test/");
   });
 
+  it("sends a lead with no email address (a Google lead form lead) with no reply-to", async () => {
+    await sendLeadNotification({ ...input, email: null, source: "google_form" }, "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c");
+    const message = send.mock.calls[0][0];
+    expect(message.replyTo).toBeUndefined();
+    expect(message.text).toContain("Email:      (none given)");
+    expect(message.text).not.toContain("null");
+  });
+
   it("opens with a link straight to the job in the tracker", async () => {
     await sendLeadNotification(input, "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c");
     const lines = send.mock.calls[0][0].text.split("\n");
