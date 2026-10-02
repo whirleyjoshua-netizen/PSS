@@ -1,4 +1,5 @@
 import { Header } from "@/components/layout/Header";
+import { PromoBanner } from "@/components/layout/PromoBanner";
 import { Footer } from "@/components/layout/Footer";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { localBusinessSchema } from "@/lib/seo/schema";
@@ -15,6 +16,7 @@ export function SiteChrome({ children }: { children: React.ReactNode }) {
       >
         Skip to content
       </a>
+      <PromoBanner />
       <Header />
       <main id="main" className="flex-1">
         {children}
