@@ -12,7 +12,7 @@ describe("InstallSection", () => {
       "On the iPhone, open premiershadesolutions.com/admin in Safari.",
       "Tap the Share button, then Add to Home Screen, then Add.",
       "Open PSS Ops from the home screen.",
-      "Enter your email, type the 6-digit code from the email, then tap Turn on Face ID so next time it's one tap.",
+      "Enter your email and type the 6-digit code from the email. Then go to Settings, Face ID sign-in, and tap Turn on Face ID so next time it's one tap.",
     ]);
     expect(within(section).getByRole("list").tagName).toBe("OL");
     expect(section).toHaveTextContent("You stay signed in while you use it at least once every 30 days.");

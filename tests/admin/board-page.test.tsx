@@ -184,9 +184,11 @@ describe("board look and conveniences", () => {
     }
   });
 
-  it("offers Face ID for this phone at the top of the board when the phone can do it", async () => {
+  it("does not offer Face ID on the board: it lives in Settings", async () => {
     webauthn.supported = true;
     await open({});
-    expect(await screen.findByRole("button", { name: "Turn on Face ID for this phone" })).toBeInTheDocument();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(screen.queryByRole("button", { name: /Turn on Face ID/ })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Face ID" })).toBeNull();
   });
 });

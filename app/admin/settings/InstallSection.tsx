@@ -10,7 +10,7 @@ export function InstallSection() {
         <li className="px-4 py-2">Tap the Share button, then Add to Home Screen, then Add.</li>
         <li className="px-4 py-2">Open PSS Ops from the home screen.</li>
         <li className="px-4 py-2">
-          Enter your email, type the 6-digit code from the email, then tap Turn on Face ID so next time it&apos;s one
+          Enter your email and type the 6-digit code from the email. Then go to Settings, Face ID sign-in, and tap Turn on Face ID so next time it&apos;s one
           tap.
         </li>
       </ol>

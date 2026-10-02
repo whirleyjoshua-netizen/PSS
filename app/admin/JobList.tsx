@@ -44,9 +44,11 @@ export function JobList({ jobs, now, filter, q }: {
               {jobs.map((job) => {
                 const style = STAGE_STYLE[job.status];
                 return (
-                  <tr key={job.id} className="relative border-b border-rule last:border-0 hover:bg-sand/30">
-                    <td className="px-4 py-3">
-                      {/* One link per row; its overlay makes the whole row clickable. */}
+                  <tr key={job.id} className="border-b border-rule last:border-0 hover:bg-sand/30">
+                    <td className="relative px-4 py-3">
+                      {/* One real link per row. Safari ignores position: relative on a <tr>, so a row-wide
+                          overlay would escape the row and cover the top of the page; each cell anchors its
+                          own overlay instead, and the other cells carry hidden copies of the link. */}
                       <Link
                         href={`/admin/jobs/${job.id}`}
                         className="font-semibold text-charcoal underline-offset-4 after:absolute after:inset-0 hover:underline"
@@ -59,16 +61,19 @@ export function JobList({ jobs, now, filter, q }: {
                         </span>
                       ) : null}
                     </td>
-                    <td className="px-4 py-3 text-ink-soft">{job.city}</td>
-                    <td className="px-4 py-3 text-ink-soft">
+                    <td className="relative px-4 py-3 text-ink-soft"><RowLink id={job.id} />{job.city}</td>
+                    <td className="relative px-4 py-3 text-ink-soft">
+                      <RowLink id={job.id} />
                       {job.assignedName && job.assignedRole ? `${job.assignedName} · ${roleLabel(job.assignedRole)}` : "—"}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="relative px-4 py-3">
+                      <RowLink id={job.id} />
                       <span className={`inline-block border-l-[3px] ${style.left} pl-2 font-medium ${style.tint}`}>
                         {stageLabel(job.status)}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-xs uppercase tracking-[0.1em] text-ink-soft">
+                    <td className="relative px-4 py-3 text-xs uppercase tracking-[0.1em] text-ink-soft">
+                      <RowLink id={job.id} />
                       <span className="inline-flex items-center gap-1.5">
                         <DaysInStage job={job} now={now} />
                       </span>
@@ -86,4 +91,9 @@ export function JobList({ jobs, now, filter, q }: {
       )}
     </section>
   );
+}
+
+/** A hidden copy of the row's link covering one cell, so tapping anywhere on the row opens the job. */
+function RowLink({ id }: { id: string }) {
+  return <Link href={`/admin/jobs/${id}`} aria-hidden="true" tabIndex={-1} className="absolute inset-0" />;
 }

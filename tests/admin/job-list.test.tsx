@@ -44,10 +44,27 @@ describe("JobList", () => {
     expect(link).not.toHaveAttribute("aria-current");
 
     const row = screen.getAllByRole("row")[1];
+    // One link for screen readers and the keyboard; the rest are hidden tap targets.
     expect(within(row).getAllByRole("link")).toHaveLength(1);
-    expect(row.className).toContain("relative");
+    // Safari ignores position: relative on a <tr>, so an overlay anchored to the row escapes it and
+    // covers the top of the page (it sent taps on the Face ID button to a client). Every cell is
+    // its own anchor instead, and every cell is covered by a link to the job.
+    expect(row.className).not.toContain("relative");
+    const cells = within(row).getAllByRole("cell");
+    for (const cell of cells) {
+      expect(cell.className).toContain("relative");
+      const target = cell.querySelector(`a[href="/admin/jobs/${base.id}"]`) as HTMLElement | null;
+      expect(target).not.toBeNull();
+      expect(`${target!.className}`).toMatch(/(^|\s)(after:)?absolute(\s|$)/);
+      expect(`${target!.className}`).toMatch(/(^|\s)(after:)?inset-0(\s|$)/);
+    }
     expect(link.className).toContain("after:absolute");
-    expect(link.className).toContain("after:inset-0");
+    const hidden = Array.from(row.querySelectorAll("a")).filter((a) => a !== link);
+    expect(hidden).toHaveLength(cells.length - 1);
+    for (const a of hidden) {
+      expect(a).toHaveAttribute("aria-hidden", "true");
+      expect(a).toHaveAttribute("tabindex", "-1");
+    }
   });
 
   it("tags a referred job", () => {
