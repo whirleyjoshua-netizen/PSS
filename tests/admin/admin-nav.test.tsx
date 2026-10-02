@@ -2,7 +2,7 @@ import { render, screen, within } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const pathname = vi.fn(() => "/admin");
-vi.mock("next/navigation", () => ({ usePathname: () => pathname() }));
+vi.mock("next/navigation", () => ({ usePathname: () => pathname(), useRouter: () => ({ refresh: vi.fn() }) }));
 vi.mock("@/app/admin/actions", () => ({ signOut: vi.fn(async () => {}) }));
 
 const { AdminNav, initialsFor } = await import("@/app/admin/AdminNav");
@@ -93,6 +93,18 @@ describe("sidebar focus ring", () => {
     const { container } = render(<AdminNav email="owner@example.com" />);
     expect(container.querySelector("aside")).toHaveClass("admin-sidebar");
     expect(container.querySelector("details")).toHaveClass("admin-sidebar");
+  });
+});
+
+describe("phone header", () => {
+  it("clears the notch and offers Refresh beside Menu, since the home-screen app has no pull-to-refresh", () => {
+    pathname.mockReturnValue("/admin");
+    const { container } = render(<AdminNav email="owner@example.com" />);
+    const details = container.querySelector("details")!;
+    expect(details).toHaveClass("pt-[env(safe-area-inset-top)]");
+    const summary = within(details.querySelector("summary")!);
+    expect(summary.getByRole("button", { name: "Refresh" })).toBeInTheDocument();
+    expect(summary.getByText("Menu")).toBeInTheDocument();
   });
 });
 

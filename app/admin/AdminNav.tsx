@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { Logo } from "@/components/brand/Logo";
 import { Icon, type IconName } from "@/components/admin/icons";
 import { signOut } from "./actions";
+import { RefreshButton } from "./RefreshButton";
 
 const LINKS: readonly { href: string; label: string; icon: IconName }[] = [
   { href: "/admin", label: "Jobs", icon: "jobs" },
@@ -97,10 +98,13 @@ export function AdminNav({ email }: { email: string }) {
         <Account email={email} />
       </aside>
 
-      <details className="admin-sidebar bg-sidebar text-sidebar-ink md:hidden">
+      <details className="admin-sidebar bg-sidebar pt-[env(safe-area-inset-top)] text-sidebar-ink md:hidden">
         <summary className="flex min-h-14 cursor-pointer items-center justify-between px-4">
           <Logo tone="dark" className="text-[0.95rem]" />
-          <span className="text-sm text-sidebar-muted">Menu</span>
+          <span className="flex items-center gap-1">
+            <RefreshButton />
+            <span className="text-sm text-sidebar-muted">Menu</span>
+          </span>
         </summary>
         <div className="flex flex-col gap-4 px-2 pb-4">
           <nav aria-label="Admin">
