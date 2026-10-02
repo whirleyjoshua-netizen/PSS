@@ -10,6 +10,12 @@ import { hashToken, newToken } from "./tokens";
 const LINK_MINUTES = 15;
 const LINKS_PER_HOUR = 5;
 const CODE_TRIES = 5;
+/**
+ * Wrong codes allowed per address per day, across all its sign-ins. Past it, no code works until
+ * the day passes; the link and Face ID still do. With the 5-emails-an-hour limit alone, a guesser
+ * could try 25 codes an hour all day.
+ */
+export const DAILY_WRONG_CODES = 15;
 
 /** Six digits, leading zeros allowed. */
 export const newSignInCode = (): string => String(randomInt(0, 1_000_000)).padStart(6, "0");
@@ -100,6 +106,7 @@ export async function consumeSignIn(token: string): Promise<string | null> {
  * that sign-in no longer accepts a code. The attempts guard sits in the two updates, not in the
  * pick, so a locked newest sign-in stays the target and an older one never takes over; it also
  * keeps the counter at most CODE_TRIES. `for update` serializes two guesses at the same row.
+ * The pick also requires fewer than DAILY_WRONG_CODES wrong codes for the address in the last day.
  */
 export async function consumeSignInCode(rawEmail: string, rawCode: string): Promise<string | null> {
   const email = rawEmail.trim().toLowerCase();
@@ -111,6 +118,7 @@ export async function consumeSignInCode(rawEmail: string, rawCode: string): Prom
       select token_hash from admin_login_tokens
       where email = ${email} and used_at is null and expires_at > now()
         and code_hash is not null
+        and (select coalesce(sum(code_attempts), 0) from admin_login_tokens where email = ${email} and created_at > now() - interval '1 day') < ${DAILY_WRONG_CODES}
       order by created_at desc limit 1
       for update
     ), used as (

@@ -19,6 +19,8 @@
  *   2. the same code again returns null;
  *   3. 5 wrong codes leave code_attempts at 5, a 6th wrong one leaves it at 5, and then the RIGHT
  *      code returns null;
+ *  3b. the daily cap: three sign-ins with 5 wrong codes each (15 for the address today) make a
+ *      fourth, fresh sign-in's RIGHT code return null; once those three are over a day old, it works;
  *   4. with two rows, the older row's code returns null and the newer row's code works;
  *   5. an expired row's code fails;
  *   6. a row used by its link (consumeSignIn) makes its code fail;
@@ -57,6 +59,8 @@
  * To watch it fail (which is the only way to know it works), one at a time:
  *   - in consumeSignInCode's `used` update, delete `and code_attempts < ${CODE_TRIES}::int` —
  *     step 3 "after 5 wrong tries the right code returns null" must fail;
+ *   - in consumeSignInCode's `target`, delete the `and (select coalesce(sum(code_attempts), 0) ...)
+ *     < ${DAILY_WRONG_CODES}` line — step 3b "a fresh sign-in's RIGHT code returns null" must fail;
  *   - in consumeSignInCode, delete `order by created_at desc limit 1` — step 4 must fail (the
  *     subquery then returns several rows, which is an error, and counts as the fail);
  *   - in touchSession, delete the `bumped` CTE — step 8 "a 2-day session slides" must fail.
@@ -65,7 +69,7 @@
 import { readFileSync } from "node:fs";
 import { neon } from "@neondatabase/serverless";
 import { test } from "vitest";
-import { codeHash, consumeSignIn, consumeSignInCode } from "../lib/admin/login";
+import { codeHash, consumeSignIn, consumeSignInCode, DAILY_WRONG_CODES } from "../lib/admin/login";
 import { touchSession } from "../lib/admin/session";
 import { finishRegistration, finishSignIn, MAX_WAITING_SIGN_INS, removePasskey, startSignIn } from "../lib/admin/passkeys";
 import { addAdmin, removeAdmin } from "../lib/admin/admin-access";
@@ -233,6 +237,30 @@ test("sign-in code, sessions and passkey store against a real database", async (
     const r3 = await consumeSignInCode(OWNER, "111111");
     check(r3 === null, "3. after 5 wrong tries the right code returns null", `returned ${r3}`);
     check((await tokenRow(t3))?.used_at == null, "3. the locked row is still unused", JSON.stringify(await tokenRow(t3)));
+
+    // 3b. At most DAILY_WRONG_CODES wrong codes per address per day, across its sign-ins.
+    await clearSignIns();
+    const spent: string[] = [];
+    for (const [n, age] of [3, 2, 1].entries()) {
+      spent.push(await newSignIn("121212", { ageMinutes: age }));
+      for (let i = 0; i < 5; i++) {
+        const wrong = await consumeSignInCode(OWNER, `34343${i}`);
+        if (wrong !== null) throw new Error(`FAILED: 3b. sign-in ${n + 1}'s wrong code ${i + 1} returned ${wrong}`);
+      }
+    }
+    const today = Number((await sql`
+      select coalesce(sum(code_attempts), 0)::int as n from admin_login_tokens where email = ${OWNER}`)[0].n);
+    check(today === DAILY_WRONG_CODES, `3b. three sign-ins with 5 wrong codes each count ${DAILY_WRONG_CODES} for the address`, `found ${today}`);
+    const fresh = await newSignIn("565656");
+    const capped = await consumeSignInCode(OWNER, "565656");
+    check(capped === null, "3b. past the daily cap, a fresh sign-in's RIGHT code returns null", `returned ${capped}`);
+    const freshRow = await tokenRow(fresh);
+    check(freshRow?.used_at == null && Number(freshRow?.code_attempts) === 0,
+      "3b. the fresh sign-in is left unused and uncounted", JSON.stringify(freshRow));
+    await sql`update admin_login_tokens set created_at = now() - interval '25 hours'
+              where token_hash = any(${spent.map(hashToken)}::text[])`;
+    const nextDay = await consumeSignInCode(OWNER, "565656");
+    check(nextDay === OWNER, "3b. once those wrong codes are over a day old, the right code works again", `returned ${nextDay}`);
 
     // 4. Only the newest sign-in accepts a code.
     await clearSignIns();

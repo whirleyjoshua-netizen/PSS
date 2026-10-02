@@ -32,7 +32,8 @@ store. Push notifications are a later project; email already notifies the team.
 - Rules: same row as the link (`admin_login_tokens`), so the code expires with it (15 min) and
   using either the link or the code uses both. Only the **latest unused, unexpired** sign-in for that
   email accepts a code. **5 wrong codes** lock that sign-in (`code_attempts`); the person requests
-  a new one. Every failure says the same thing: "That code didn't work. Check it, or request a new
+  a new one. At most 15 wrong codes per address per day; after that only the link or Face ID works
+  until the day passes. Every failure says the same thing: "That code didn't work. Check it, or request a new
   one." The allowlist is re-checked on success, as for the link.
 - Storage: `code_hash = sha256(email + ":" + code)` — never the code. Migration 034 adds
   `code_hash text` and `code_attempts smallint not null default 0` with a 0–5 check. The existing

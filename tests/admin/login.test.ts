@@ -14,7 +14,9 @@ vi.mock("next/server", () => ({
 }));
 const runScheduledWork = () => Promise.all(afterCallbacks.splice(0).map((cb) => cb()));
 
-const { requestSignIn, consumeSignIn, consumeSignInCode, newSignInCode, codeHash } = await import("@/lib/admin/login");
+const { requestSignIn, consumeSignIn, consumeSignInCode, newSignInCode, codeHash, DAILY_WRONG_CODES } = await import(
+  "@/lib/admin/login"
+);
 const { hashToken } = await import("@/lib/admin/tokens");
 
 const text = (call: unknown[]) => (call[0] as TemplateStringsArray).join("?");
@@ -161,7 +163,27 @@ describe("sign-in codes", () => {
   });
 });
 
+const DAILY_CAP =
+  "and (select coalesce(sum(code_attempts), 0) from admin_login_tokens where email = ? and created_at > now() - interval '1 day') < ?";
+
 describe("consumeSignInCode", () => {
+  it("allows at most 15 wrong codes per address per day: past that, no sign-in is picked", async () => {
+    expect(DAILY_WRONG_CODES).toBe(15);
+    sql.mockResolvedValue([]);
+    await consumeSignInCode("Owner@Example.com", "012345");
+
+    const call = sql.mock.calls.find((c) => text(c).includes("admin_login_tokens"))!;
+    const query = text(call).replace(/\s+/g, " ");
+    const start = query.indexOf("with target as (");
+    const pick = query.slice(start, query.indexOf("), used as (", start));
+    expect(pick).toContain(DAILY_CAP);
+    // The cap sits in the pick, before the order, so a capped address finds nothing to use.
+    expect(pick.indexOf(DAILY_CAP)).toBeLessThan(pick.indexOf("order by created_at desc limit 1"));
+    expect(call).toContain(15);
+    // Its email placeholder gets the normalized address.
+    expect(call.filter((value) => value === "owner@example.com").length).toBeGreaterThanOrEqual(2);
+  });
+
   it("picks the newest usable sign-in and uses it or counts a wrong try, in one statement", async () => {
     sql.mockResolvedValue([]);
     await consumeSignInCode(" Owner@Example.com ", "012345");
@@ -196,8 +218,10 @@ describe("consumeSignInCode", () => {
       expect(end, to).toBeGreaterThan(start);
       return query.slice(start, end);
     };
-    // A locked newest sign-in must not let the pick fall through to an older one.
-    expect(between("with target as (", "), used as (")).not.toContain("code_attempts");
+    // A locked newest sign-in must not let the pick fall through to an older one. The pick's only
+    // mention of code_attempts is the address-wide daily sum, never a per-row guard.
+    const pick = between("with target as (", "), used as (");
+    expect(pick.replace(DAILY_CAP, "")).not.toContain("code_attempts");
     expect(between("), used as (", "), missed as (")).toContain("code_attempts < ?::int");
     expect(between("), missed as (", "select email from used")).toContain("code_attempts < ?::int");
   });
