@@ -1,3 +1,5 @@
+import { GOOGLE_FORM_SOURCE } from "./schema";
+
 /**
  * Google Ads offline conversion import: ties what happened to a lead after the
  * form (booked, sold) back to the ad click that produced it. Uploaded under
@@ -15,6 +17,8 @@ export const CONVERSIONS = {
 
 export type ConversionRow = {
   gclid: string;
+  /** The lead's stored source. A Google lead form lead's submit is already Google's own conversion. */
+  source?: string;
   createdAt: Date;
   bookedAt: Date | null;
   soldAt: Date | null;
@@ -34,7 +38,8 @@ export function conversionsCsv(rows: ConversionRow[]): string {
   for (const row of rows) {
     const add = (name: string, at: Date, value = "") =>
       lines.push([cell(row.gclid), name, conversionTime(at), value, value ? "USD" : ""].join(","));
-    add(CONVERSIONS.lead, row.createdAt);
+    // Google counts a lead form submit as that form's conversion; uploading it again would double count.
+    if (row.source !== GOOGLE_FORM_SOURCE) add(CONVERSIONS.lead, row.createdAt);
     if (row.bookedAt) add(CONVERSIONS.booked, row.bookedAt);
     // A sale with no amount entered still counts; Google then uses the action's default value.
     if (row.soldAt) add(CONVERSIONS.sale, row.soldAt, row.soldCents ? (row.soldCents / 100).toFixed(2) : "");

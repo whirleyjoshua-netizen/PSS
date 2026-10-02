@@ -16,7 +16,7 @@ export async function conversionsCsvNow(): Promise<string> {
   // ahead (booked straight to ordered) still reports when it was won. Both lists
   // come from the one stage definition, so a new stage counts without editing this.
   const rows = await db().query(
-    `select l.gclid, l.created_at, l.sold_cents,
+    `select l.gclid, l.source, l.created_at, l.sold_cents,
        (select min(e.created_at) from job_events e where e.lead_id = l.id and e.kind = 'stage'
           and e.to_status = any($2::text[])) as booked_at,
        (select min(e.created_at) from job_events e where e.lead_id = l.id and e.kind = 'stage'
@@ -31,6 +31,7 @@ export async function conversionsCsvNow(): Promise<string> {
   return conversionsCsv(
     rows.map((row): ConversionRow => ({
       gclid: row.gclid as string,
+      source: row.source as string,
       createdAt: new Date(row.created_at as string),
       bookedAt: row.booked_at ? new Date(row.booked_at as string) : null,
       soldAt: row.sold_at ? new Date(row.sold_at as string) : null,

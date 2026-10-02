@@ -23,3 +23,16 @@ describe("CustomerCard address", () => {
     expect(link.getAttribute("rel")).toContain("noopener");
   });
 });
+
+describe("CustomerCard source", () => {
+  it("shows a Google lead form lead as \"Google lead form\", not its stored code", () => {
+    render(<CustomerCard job={{ ...job, source: "google_form" }} referrer={null} />);
+    expect(screen.getByText("Google lead form")).toBeInTheDocument();
+    expect(screen.queryByText("google_form")).toBeNull();
+  });
+
+  it("keeps showing a website lead's form as before", () => {
+    render(<CustomerCard job={job} referrer={null} />);
+    expect(screen.getByText("contact")).toBeInTheDocument();
+  });
+});

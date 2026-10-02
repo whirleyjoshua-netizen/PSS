@@ -5,11 +5,16 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 let pathname = "/";
 vi.mock("next/navigation", () => ({ usePathname: () => pathname }));
+vi.mock("next/script", () => ({
+  default: ({ id, dangerouslySetInnerHTML }: { id: string; dangerouslySetInnerHTML: { __html: string } }) => (
+    <script data-testid={id} dangerouslySetInnerHTML={dangerouslySetInnerHTML} />
+  ),
+}));
 vi.mock("@next/third-parties/google", () => ({
   GoogleAnalytics: ({ gaId }: { gaId: string }) => <span data-testid="ga">{gaId}</span>,
 }));
 
-import { GA_ID, SiteAnalytics, isUntrackedPath } from "@/components/analytics/SiteAnalytics";
+import { ADS_ID, GA_ID, SiteAnalytics, isUntrackedPath } from "@/components/analytics/SiteAnalytics";
 
 const DISABLE = `ga-disable-${GA_ID}`;
 const flag = () => (window as unknown as Record<string, unknown>)[DISABLE];
@@ -65,6 +70,24 @@ describe("SiteAnalytics", () => {
     expect(flag()).toBe(false);
   });
 
+  it("configures the Google Ads tag on a public page, through the gtag GA sets up", () => {
+    at("/shutters");
+    expect(ADS_ID).toBe("AW-18438614507");
+    const script = screen.getByTestId("google-ads-config").innerHTML;
+    expect(script).toContain("gtag('config', 'AW-18438614507')");
+    expect(script).toContain("window['dataLayer'] = window['dataLayer'] || []");
+    expect((window as unknown as Record<string, unknown>)["ga-disable-AW-18438614507"]).toBe(false);
+  });
+
+  it("never loads the Google Ads tag on the admin app or the portal", () => {
+    for (const path of ["/admin", "/admin/jobs/42", "/project", "/project/sign-in"]) {
+      const { unmount } = at(path);
+      expect(screen.queryByTestId("google-ads-config"), path).toBeNull();
+      expect((window as unknown as Record<string, unknown>)["ga-disable-AW-18438614507"], path).toBe(true);
+      unmount();
+    }
+  });
+
   it("never loads GA on the admin app or the portal", () => {
     for (const path of ["/admin", "/admin/auth", "/project", "/project/sign-in"]) {
       const { unmount } = at(path);
@@ -111,6 +134,7 @@ describe("root layout", () => {
   it("mounts GA only through SiteAnalytics, so no route gets the tag unguarded", () => {
     const source = readFileSync(path.resolve(import.meta.dirname, "../../app/layout.tsx"), "utf8");
     expect(source).not.toMatch(/GoogleAnalytics/);
+    expect(source).not.toMatch(/AW-/);
     expect(source).toMatch(/<SiteAnalytics \/>/);
   });
 });

@@ -2,7 +2,7 @@ import { Resend } from "resend";
 import { adClickLabel } from "./attribution";
 import { business } from "@/content/business";
 import { adminOrigin } from "@/lib/admin/origin";
-import { formatPhone, type ConsultationInput, type LeadSource } from "./schema";
+import { GOOGLE_FORM_SOURCE, formatPhone, leadSourceLabel, type ConsultationInput, type LeadSource } from "./schema";
 
 /** Every owner address in LEAD_NOTIFICATION_EMAIL (comma-separated). */
 export function ownerRecipients(): string[] {
@@ -12,7 +12,7 @@ export function ownerRecipients(): string[] {
 /** A website lead, or a Google lead form lead (which may have no email address). */
 export type LeadNotificationInput = Omit<ConsultationInput, "email" | "source"> & {
   email: string | null;
-  source: LeadSource | "google_form";
+  source: LeadSource | typeof GOOGLE_FORM_SOURCE;
 };
 
 /**
@@ -47,7 +47,9 @@ export async function sendLeadNotification(
     input.heardVia ? `Heard via:  ${input.heardVia}` : null,
     adClickLabel(input.attribution) ? `Ad click:   ${adClickLabel(input.attribution)}` : null,
     input.notes ? `\nNotes:\n${input.notes}` : null,
-    `\nSubmitted from the ${input.source} form on ${business.domain}.`,
+    input.source === GOOGLE_FORM_SOURCE
+      ? `\nSubmitted from the ${leadSourceLabel(input.source)}.`
+      : `\nSubmitted from the ${input.source} form on ${business.domain}.`,
   ].filter((line): line is string => line !== null);
 
   const { error } = await new Resend(apiKey).emails.send({

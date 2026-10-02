@@ -10,6 +10,14 @@ export const WINDOW_COUNTS = ["1-5", "6-10", "11-20", "20+"] as const;
 export const LEAD_SOURCES = ["hero", "contact", "booking"] as const;
 export type LeadSource = (typeof LEAD_SOURCES)[number];
 
+/** A lead that came through a Google Ads lead form (app/api/ads/lead-form), not a site form. */
+export const GOOGLE_FORM_SOURCE = "google_form";
+
+/** How the admin and the lead email name where a lead came in: the stored code, except Google's form. */
+export function leadSourceLabel(source: string): string {
+  return source === GOOGLE_FORM_SOURCE ? "Google lead form" : source;
+}
+
 /**
  * Shared by the client forms and the route handler, so a payload that passes
  * in the browser passes on the server. Validation lives in exactly one place.

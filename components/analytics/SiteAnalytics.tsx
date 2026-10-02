@@ -1,9 +1,23 @@
 "use client";
 
+import Script from "next/script";
 import { usePathname } from "next/navigation";
 import { GoogleAnalytics } from "@next/third-parties/google";
 
 export const GA_ID = "G-HP83GW86YX";
+/** The Google Ads tag. It rides on GA's gtag.js: one more `config` on the same dataLayer. */
+export const ADS_ID = "AW-18438614507";
+
+/**
+ * GoogleAnalytics takes a single ID, so the Ads ID is configured by an inline
+ * script on the same `dataLayer` (GoogleAnalytics' default name) that GA's
+ * gtag.js reads. Both are afterInteractive scripts, inserted in render order, so
+ * this runs after GA's init; the `|| []` keeps it safe either way.
+ */
+const ADS_CONFIG = `
+  window['dataLayer'] = window['dataLayer'] || [];
+  function gtag(){window['dataLayer'].push(arguments);}
+  gtag('config', '${ADS_ID}');`;
 
 /**
  * The owners' admin app and the customer portal. Their use would swamp the public
@@ -15,13 +29,13 @@ export function isUntrackedPath(pathname: string): boolean {
   return UNTRACKED.some((path) => pathname === path || pathname.startsWith(`${path}/`));
 }
 
-/** GA's documented per-property off switch, checked by gtag.js before every hit. */
+/** gtag.js's documented per-tag off switch, checked before every hit, for GA and the Ads tag. */
 function setGaDisabled(disabled: boolean) {
-  (window as unknown as Record<string, unknown>)[`ga-disable-${GA_ID}`] = disabled;
+  for (const id of [GA_ID, ADS_ID]) (window as unknown as Record<string, unknown>)[`ga-disable-${id}`] = disabled;
 }
 
 /**
- * GA4 on the public site only. A visit that starts in the admin app or the portal
+ * GA4 and the Google Ads tag on the public site only. A visit that starts in the admin app or the portal
  * never loads it. A visit that starts on the public site has loaded it for good (a
  * script can't be unloaded), and GA counts every client-side URL change as a page
  * view, so moving into those areas throws GA's off switch instead.
@@ -35,5 +49,11 @@ export function SiteAnalytics() {
 
   if (typeof window !== "undefined") setGaDisabled(untracked);
 
-  return untracked ? null : <GoogleAnalytics gaId={GA_ID} />;
+  if (untracked) return null;
+  return (
+    <>
+      <GoogleAnalytics gaId={GA_ID} />
+      <Script id="google-ads-config" dangerouslySetInnerHTML={{ __html: ADS_CONFIG }} />
+    </>
+  );
 }

@@ -60,6 +60,13 @@ describe("sendLeadNotification", () => {
     expect(message.replyTo).toBeUndefined();
     expect(message.text).toContain("Email:      (none given)");
     expect(message.text).not.toContain("null");
+    expect(message.text).toContain("Submitted from the Google lead form.");
+    expect(message.text).not.toContain("google_form");
+  });
+
+  it("names the website form a lead came from", async () => {
+    await sendLeadNotification(input, "abc");
+    expect(send.mock.calls[0][0].text).toContain(`Submitted from the hero form on ${business.domain}.`);
   });
 
   it("opens with a link straight to the job in the tracker", async () => {

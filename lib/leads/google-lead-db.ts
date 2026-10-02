@@ -1,8 +1,9 @@
 import { db } from "@/lib/db";
 import type { GoogleLead } from "./google-lead-form";
+import { GOOGLE_FORM_SOURCE, leadSourceLabel } from "./schema";
 
-export const GOOGLE_FORM_SOURCE = "google_form";
-export const GOOGLE_FORM_HEARD_VIA = "Google lead form";
+export { GOOGLE_FORM_SOURCE };
+export const GOOGLE_FORM_HEARD_VIA = leadSourceLabel(GOOGLE_FORM_SOURCE);
 
 /**
  * Stores a Google lead form lead with the id the caller chose (so the

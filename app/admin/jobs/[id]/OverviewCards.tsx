@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ButtonLink } from "@/components/ui/Button";
 import type { Job } from "@/lib/admin/jobs";
 import { mapsHref } from "@/lib/admin/links";
-import { formatPhone } from "@/lib/leads/schema";
+import { formatPhone, leadSourceLabel } from "@/lib/leads/schema";
 import { finishBudgetLabel } from "@/lib/leads/finish";
 import { treatmentTypeLabels } from "@/lib/leads/treatment-types";
 import { windowCountLabel } from "@/lib/leads/window-count";
@@ -23,7 +23,7 @@ export function CustomerCard({ job, referrer }: { job: Job; referrer: Job | null
       </div>
       <dl className={`${DL} border-t border-rule pt-4`}>
         <dt className="text-ink-soft">Heard about us</dt><dd>{job.heardVia ?? "—"}</dd>
-        <dt className="text-ink-soft">Came in via</dt><dd>{job.source}</dd>
+        <dt className="text-ink-soft">Came in via</dt><dd>{leadSourceLabel(job.source)}</dd>
         {job.adClick ? (
           <>
             <dt className="text-ink-soft">Ad click</dt><dd>{job.adClick}</dd>
