@@ -260,8 +260,19 @@ describe("designer notes and gate code", () => {
 
   it("caps notes at 2000 characters and the gate code at 40", () => {
     expect(designerNotesField.safeParse("x".repeat(2000)).success).toBe(true);
-    expect(designerNotesField.safeParse("x".repeat(2001)).error!.issues[0].message).toBe("Keep the designer notes under 2,000 characters");
+    expect(designerNotesField.safeParse("x".repeat(2001)).error!.issues[0].message).toBe("Keep the designer notes to 2,000 characters or fewer.");
     expect(appointmentSchema.safeParse({ ...base, gateCode: "x".repeat(41) }).error!.issues[0].message).toBe("Keep the gate code under 40 characters");
+  });
+
+  it("counts a browser's \\r\\n line break as one character, as the textarea's maxLength does", () => {
+    // 1990 visible characters and 10 line breaks: 2000 in the textarea, 2010 as the browser submits them.
+    const notes = ["x".repeat(190), ...Array.from({ length: 10 }, () => "y".repeat(180))].join("\r\n");
+    expect(notes).toHaveLength(2010);
+    const parsed = designerNotesField.safeParse(notes);
+    expect(parsed.success).toBe(true);
+    expect(parsed.data).toBe(notes.replace(/\r\n/g, "\n"));
+    expect(parsed.data).not.toContain("\r");
+    expect(designerNotesField.safeParse("x".repeat(2001)).success).toBe(false);
   });
 
   it("parses an Edit notes form", () => {

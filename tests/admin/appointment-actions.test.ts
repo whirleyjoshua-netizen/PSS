@@ -103,7 +103,7 @@ describe("bookAppointment", () => {
   it("refuses notes over 2000 characters, echoing them back", async () => {
     const long = "x".repeat(2001);
     const state = await actions.bookAppointment(JOB, {}, booking({ designerNotes: long, gateCode: "#4321" }));
-    expect(state.error).toBe("Keep the designer notes under 2,000 characters");
+    expect(state.error).toBe("Keep the designer notes to 2,000 characters or fewer.");
     expect(state.values).toMatchObject({ designerNotes: long, gateCode: "#4321" });
     expect(appointments.saveAppointment).not.toHaveBeenCalled();
   });

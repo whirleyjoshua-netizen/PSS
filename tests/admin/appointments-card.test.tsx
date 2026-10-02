@@ -263,12 +263,12 @@ describe("AppointmentsCard", () => {
   });
 
   it("shows why a notes edit failed", async () => {
-    updateAppointmentNotes.mockResolvedValue({ error: "Keep the designer notes under 2,000 characters" });
+    updateAppointmentNotes.mockResolvedValue({ error: "Keep the designer notes to 2,000 characters or fewer." });
     const user = userEvent.setup();
     render(<AppointmentsCard jobId={ID} defaultMinutes={MINUTES} appointments={[appointment()]} />);
     await user.click(screen.getByRole("button", { name: "Edit notes" }));
     await user.click(screen.getByRole("button", { name: "Save notes" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Keep the designer notes under 2,000 characters");
+    expect(await screen.findByRole("alert")).toHaveTextContent("Keep the designer notes to 2,000 characters or fewer.");
   });
 
   it("degrades Edit notes to a disclosure holding the same form without JavaScript", () => {

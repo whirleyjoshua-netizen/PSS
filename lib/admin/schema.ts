@@ -65,13 +65,20 @@ export const hoursField = z
 const optionalClock = z.preprocess(blank, clockField.optional());
 const optionalHours = z.preprocess(blank, hoursField.optional());
 
+/** A browser counts a line break as one character against maxLength but submits it as \r\n. */
+const unixLineBreaks = (value: unknown) => (typeof value === "string" ? value.replace(/\r\n?/g, "\n") : value);
+
 /**
  * One appointment's designer notes: optional, trimmed, at most 2000 characters (the database check in
- * migration 035), with a browser's \r\n line breaks stored as \n. Blank is null.
+ * migration 035). Line breaks become \n BEFORE the length check, so the limit matches the textarea's
+ * maxLength. Blank is null.
  */
 export const designerNotesField = z
-  .preprocess(blank, z.string().trim().max(2000, "Keep the designer notes under 2,000 characters").optional())
-  .transform((value) => (value === undefined ? null : value.replace(/\r\n?/g, "\n")));
+  .preprocess(
+    (value) => blank(unixLineBreaks(value)),
+    z.string().trim().max(2000, "Keep the designer notes to 2,000 characters or fewer.").optional(),
+  )
+  .transform((value) => value ?? null);
 
 /**
  * One booking from the Schedule button. The saved appointment is always pending: nothing here
