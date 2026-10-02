@@ -9,6 +9,7 @@ describe("conversionsCsv", () => {
       bookedAt: new Date("2026-09-15T17:00:00Z"),
       soldAt: new Date("2026-09-20T18:30:00Z"),
       soldCents: 245000,
+      source: "hero",
     }]);
     expect(csv.split("\n")).toEqual([
       "Google Click ID,Conversion Name,Conversion Time,Conversion Value,Conversion Currency",
@@ -20,11 +21,11 @@ describe("conversionsCsv", () => {
   });
   it("still reports a sale whose amount was never entered, without a value", () => {
     const csv = conversionsCsv([{ gclid: "x", createdAt: new Date("2026-09-14T00:00:00Z"), bookedAt: null,
-      soldAt: new Date("2026-09-20T18:30:00Z"), soldCents: null }]);
+      soldAt: new Date("2026-09-20T18:30:00Z"), soldCents: null, source: "contact" }]);
     expect(csv.trim().split("\n")[2]).toBe("x,Sale,2026-09-20 18:30:00+00:00,,");
   });
   it("writes only the lead for a job that has gone nowhere yet", () => {
-    const csv = conversionsCsv([{ gclid: "x", createdAt: new Date("2026-09-14T00:00:00Z"), bookedAt: null, soldAt: null, soldCents: null }]);
+    const csv = conversionsCsv([{ gclid: "x", createdAt: new Date("2026-09-14T00:00:00Z"), bookedAt: null, soldAt: null, soldCents: null, source: null }]);
     expect(csv.trim().split("\n")).toHaveLength(2);
   });
 

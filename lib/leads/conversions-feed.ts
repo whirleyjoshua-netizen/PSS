@@ -31,7 +31,7 @@ export async function conversionsCsvNow(): Promise<string> {
   return conversionsCsv(
     rows.map((row): ConversionRow => ({
       gclid: row.gclid as string,
-      source: row.source as string,
+      source: (row.source as string | null) ?? null,
       createdAt: new Date(row.created_at as string),
       bookedAt: row.booked_at ? new Date(row.booked_at as string) : null,
       soldAt: row.sold_at ? new Date(row.sold_at as string) : null,

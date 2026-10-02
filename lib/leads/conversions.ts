@@ -18,7 +18,7 @@ export const CONVERSIONS = {
 export type ConversionRow = {
   gclid: string;
   /** The lead's stored source. A Google lead form lead's submit is already Google's own conversion. */
-  source?: string;
+  source: string | null;
   createdAt: Date;
   bookedAt: Date | null;
   soldAt: Date | null;

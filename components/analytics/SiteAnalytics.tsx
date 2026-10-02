@@ -29,7 +29,10 @@ export function isUntrackedPath(pathname: string): boolean {
   return UNTRACKED.some((path) => pathname === path || pathname.startsWith(`${path}/`));
 }
 
-/** gtag.js's documented per-tag off switch, checked before every hit, for GA and the Ads tag. */
+/**
+ * GA's off switch, checked by gtag.js before every hit. Google documents `ga-disable-<id>` for GA
+ * measurement IDs only; it is also set for the Ads ID, which is harmless if Google ignores it.
+ */
 function setGaDisabled(disabled: boolean) {
   for (const id of [GA_ID, ADS_ID]) (window as unknown as Record<string, unknown>)[`ga-disable-${id}`] = disabled;
 }
