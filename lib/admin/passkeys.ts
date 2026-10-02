@@ -37,8 +37,13 @@ const looksLikeResponse = (response: unknown): response is { id: string } =>
   typeof (response as { id?: unknown }).id === "string" &&
   (response as { id: string }).id.length > 0 && (response as { id: string }).id.length <= 1024;
 
-/** Unauthenticated sign-in challenges waiting at once. Past this, sign-in is refused, not stored. */
-export const MAX_WAITING_SIGN_INS = 200;
+/**
+ * Unauthenticated sign-in challenges waiting at once. Past this, sign-in is refused, not stored.
+ * It bounds the table against a flood of anonymous requests. It is set high because a flood no
+ * longer leaves the Face ID button dead: a refused fetch is retried by itself (usePrefetchedOptions),
+ * and each waiting challenge expires within 5 minutes.
+ */
+export const MAX_WAITING_SIGN_INS = 5000;
 
 /**
  * One statement: clears expired challenges and stores this one for 5 minutes. A sign-in challenge

@@ -155,11 +155,11 @@ describe("startSignIn", () => {
     expect(insert).toContain(
       "insert into admin_webauthn_challenges (id, challenge, purpose, email, expires_at) select ?, ?, 'sign-in', null, now() + interval '5 minutes'",
     );
-    expect(params(sql.mock.calls[0])).toEqual([challengeId, options.challenge, 200]);
+    expect(params(sql.mock.calls[0])).toEqual([challengeId, options.challenge, 5000]);
   });
 
-  it("refuses once 200 sign-ins are already waiting, counting only live ones, in the same statement", async () => {
-    // The insert's own condition finds 200 live rows, so nothing is stored and no row comes back.
+  it("refuses once 5000 sign-ins are already waiting, counting only live ones, in the same statement", async () => {
+    // The insert's own condition finds 5000 live rows, so nothing is stored and no row comes back.
     sql.mockResolvedValueOnce([]);
     expect(await startSignIn()).toBeNull();
     expect(sql).toHaveBeenCalledTimes(1);
@@ -167,7 +167,7 @@ describe("startSignIn", () => {
     expect(text(sql.mock.calls[0])).toMatch(
       /where \(select count\(\*\) from admin_webauthn_challenges where purpose = 'sign-in' and expires_at > now\(\)\) < \? returning id$/,
     );
-    expect(params(sql.mock.calls[0]).at(-1)).toBe(200);
+    expect(params(sql.mock.calls[0]).at(-1)).toBe(5000);
   });
 });
 

@@ -117,11 +117,44 @@ describe("TurnOnFaceId on the Jobs board", () => {
     expect(localStorage.getItem("pss_passkey")).toBeNull();
   });
 
-  it("shows the failure when its options cannot be fetched", async () => {
+  it("when its options cannot be fetched, keeps the button on with no failure shown before a tap", async () => {
     beginFaceIdSetup.mockRejectedValue(new Error("network down"));
     render(<TurnOnFaceId place="board" />);
-    expect(await screen.findByRole("alert")).toHaveTextContent(FAILED);
-    expect(screen.getByRole("button", PHONE_BUTTON)).toBeDisabled();
+    await readyButton();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("a tap while options are missing asks for them again and says so, without starting registration", async () => {
+    beginFaceIdSetup.mockResolvedValue(null);
+    render(<TurnOnFaceId place="board" />);
+    const button = await readyButton();
+    expect(beginFaceIdSetup).toHaveBeenCalledTimes(1);
+    let resolve!: (options: typeof OPTIONS) => void;
+    beginFaceIdSetup.mockReturnValue(new Promise((r) => (resolve = r)));
+
+    fireEvent.click(button);
+    expect(browser.startRegistration).not.toHaveBeenCalled();
+    expect(beginFaceIdSetup).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole("status")).toHaveTextContent("Getting Face ID ready…");
+
+    await act(async () => resolve(OPTIONS));
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", PHONE_BUTTON));
+    expect(browser.startRegistration).toHaveBeenCalledWith({ optionsJSON: OPTIONS });
+  });
+
+  it("after a failed fetch tries again by itself, and stops once hidden with Not now", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+    beginFaceIdSetup.mockResolvedValue(null);
+    render(<TurnOnFaceId place="board" />);
+    await act(async () => {});
+    await act(async () => {});
+    expect(beginFaceIdSetup).toHaveBeenCalledTimes(1);
+    await act(async () => vi.advanceTimersByTime(2000));
+    expect(beginFaceIdSetup).toHaveBeenCalledTimes(2);
+    fireEvent.click(screen.getByRole("button", { name: "Not now" }));
+    await act(async () => vi.advanceTimersByTime(10 * 60 * 1000));
+    expect(beginFaceIdSetup).toHaveBeenCalledTimes(2);
   });
 
   it("stays hidden when the browser has no passkeys, or no Face ID / Touch ID", async () => {

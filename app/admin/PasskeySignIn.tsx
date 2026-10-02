@@ -8,6 +8,7 @@ import { beginFaceIdSignIn, completeFaceIdSignIn } from "./passkey-actions";
 import { usePrefetchedOptions } from "./usePrefetchedOptions";
 
 const FAILED = "Face ID sign-in didn't work. Try again, or use the email code.";
+const GETTING_READY = "Getting Face ID ready…";
 /** Set by TurnOnFaceId once this browser has a passkey. */
 const MARKER = "pss_passkey";
 const subscribeNothing = () => () => {};
@@ -31,12 +32,21 @@ export function PasskeySignIn() {
   const prefetched = usePrefetchedOptions(beginFaceIdSignIn, supported);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  // Tapped while no options were in hand: asking for them, and saying so until they land.
+  const [waiting, setWaiting] = useState(false);
 
   if (!supported) return null;
 
   const signIn = () => {
     const optionsJSON = prefetched.take();
-    if (!optionsJSON) return;
+    if (!optionsJSON) {
+      // The last fetch failed. Ask again now; the passkey sheet comes on the next tap, once ready.
+      setError(null);
+      setWaiting(true);
+      prefetched.refresh();
+      return;
+    }
+    setWaiting(false);
     // Called inside the tap, before any await: iPhone Safari shows the passkey sheet only then.
     const answer = startAuthentication({ optionsJSON });
     setError(null);
@@ -63,13 +73,16 @@ export function PasskeySignIn() {
     });
   };
 
-  const shown = error ?? (prefetched.failed ? FAILED : null);
+  // Off while the first options are on their way, or during an attempt. On once they land, and
+  // also while a fetch has failed, so a tap can ask again.
+  const off = pending || (!prefetched.ready && !prefetched.failed);
   return (
     <div className="flex flex-col gap-4">
-      <Button type="button" variant="solid" className="w-full" onClick={signIn} disabled={pending || !prefetched.ready}>
+      <Button type="button" variant="solid" className="w-full" onClick={signIn} disabled={off}>
         {pending ? "Signing in…" : "Sign in with Face ID"}
       </Button>
-      {shown ? <p role="alert" className="text-sm text-charcoal">{shown}</p> : null}
+      {waiting && !prefetched.ready ? <p role="status" className="text-sm text-ink-soft">{GETTING_READY}</p> : null}
+      {error ? <p role="alert" className="text-sm text-charcoal">{error}</p> : null}
       <p className="flex items-center gap-3 text-xs uppercase tracking-[0.14em] text-ink-soft">
         <span aria-hidden="true" className="h-px flex-1 bg-rule" />
         or use your email

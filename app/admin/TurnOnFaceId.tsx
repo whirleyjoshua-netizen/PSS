@@ -12,6 +12,7 @@ const MARKER = "pss_passkey";
 /** "Not now" hides the board card until the app is closed. */
 const NOT_NOW = "pss_passkey_not_now";
 const FAILED = "Face ID couldn't be turned on. Try again.";
+const GETTING_READY = "Getting Face ID ready…";
 
 // Storage can throw (private browsing, blocked site data). It is only ever a convenience here.
 const read = (storage: () => Storage, key: string): string | null => {
@@ -46,6 +47,8 @@ export function TurnOnFaceId({ place }: { place: "board" | "settings" }) {
   const [view, setView] = useState<View>("hidden");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  // Tapped while no options were in hand: asking for them, and saying so until they land.
+  const [waiting, setWaiting] = useState(false);
   const noun = place === "board" ? "phone" : "device";
   // Fetched only while the button is offered, so a hidden card never creates a challenge.
   const prefetched = usePrefetchedOptions(beginFaceIdSetup, view === "offer");
@@ -69,7 +72,14 @@ export function TurnOnFaceId({ place }: { place: "board" | "settings" }) {
 
   const turnOn = () => {
     const optionsJSON = prefetched.take();
-    if (!optionsJSON) return;
+    if (!optionsJSON) {
+      // The last fetch failed. Ask again now; the passkey sheet comes on the next tap, once ready.
+      setError(null);
+      setWaiting(true);
+      prefetched.refresh();
+      return;
+    }
+    setWaiting(false);
     // Called inside the tap, before any await: iPhone Safari shows the passkey sheet only then.
     const answer = startRegistration({ optionsJSON });
     setError(null);
@@ -110,16 +120,19 @@ export function TurnOnFaceId({ place }: { place: "board" | "settings" }) {
     setView("hidden");
   };
 
-  const shown = error ?? (prefetched.failed ? FAILED : null);
+  // Off while the first options are on their way, or during an attempt. On once they land, and
+  // also while a fetch has failed, so a tap can ask again.
+  const off = pending || (!prefetched.ready && !prefetched.failed);
   const body =
     view === "on" ? (
       <p role="status" className="text-sm text-charcoal">Face ID is on for this {noun}</p>
     ) : (
       <>
-        <Button type="button" variant="solid" onClick={turnOn} disabled={pending || !prefetched.ready}>
+        <Button type="button" variant="solid" onClick={turnOn} disabled={off}>
           {pending ? "Turning on…" : `Turn on Face ID for this ${noun}`}
         </Button>
-        {shown ? <p role="alert" className="text-sm text-charcoal">{shown}</p> : null}
+        {waiting && !prefetched.ready ? <p role="status" className="text-sm text-ink-soft">{GETTING_READY}</p> : null}
+        {error ? <p role="alert" className="text-sm text-charcoal">{error}</p> : null}
         {place === "board" ? (
           <button
             type="button"

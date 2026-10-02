@@ -152,16 +152,84 @@ describe("PasskeySignIn", () => {
     expect(browser.startAuthentication).toHaveBeenCalledWith({ optionsJSON: FRESH });
   });
 
-  it("shows the failure when the server will not start a sign-in, and tries again on return to the app", async () => {
+  it("never shows the failure before any tap when options cannot be fetched, and keeps the button on", async () => {
     beginFaceIdSignIn.mockResolvedValue(null);
     render(<PasskeySignIn />);
-    expect(await screen.findByRole("alert")).toHaveTextContent(FAILED);
-    expect(screen.getByRole("button", BUTTON)).toBeDisabled();
-
-    beginFaceIdSignIn.mockResolvedValue(OPTIONS);
-    act(() => setVisibility("visible"));
     await ready();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
+  it("a tap while options are missing asks for them again and says so, without starting a sign-in", async () => {
+    beginFaceIdSignIn.mockResolvedValue(null);
+    render(<PasskeySignIn />);
+    await ready();
+    expect(beginFaceIdSignIn).toHaveBeenCalledTimes(1);
+    const options = deferred<typeof OPTIONS>();
+    beginFaceIdSignIn.mockReturnValue(options.promise);
+
+    fireEvent.click(screen.getByRole("button", BUTTON));
+    expect(browser.startAuthentication).not.toHaveBeenCalled();
+    expect(beginFaceIdSignIn).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole("status")).toHaveTextContent("Getting Face ID ready…");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+
+    await act(async () => options.resolve(OPTIONS));
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    // The passkey sheet comes on the next tap, inside that tap.
+    fireEvent.click(screen.getByRole("button", BUTTON));
+    expect(browser.startAuthentication).toHaveBeenCalledWith({ optionsJSON: OPTIONS });
+  });
+
+  it("after a failed fetch tries again by itself at 2s, 5s, 15s, then every 30s", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+    beginFaceIdSignIn.mockResolvedValue(null);
+    render(<PasskeySignIn />);
+    await act(async () => {});
+    expect(beginFaceIdSignIn).toHaveBeenCalledTimes(1);
+    let calls = 1;
+    for (const wait of [2000, 5000, 15000, 30000, 30000, 30000]) {
+      await act(async () => vi.advanceTimersByTime(wait - 1));
+      expect(beginFaceIdSignIn).toHaveBeenCalledTimes(calls);
+      await act(async () => vi.advanceTimersByTime(1));
+      expect(beginFaceIdSignIn).toHaveBeenCalledTimes(++calls);
+    }
+
+    // Once options land, the retries stop: next comes the 4-minute refresh.
+    beginFaceIdSignIn.mockResolvedValue(OPTIONS);
+    await act(async () => vi.advanceTimersByTime(30000));
+    expect(beginFaceIdSignIn).toHaveBeenCalledTimes(++calls);
+    expect(screen.getByRole("button", BUTTON)).toBeEnabled();
+    await act(async () => vi.advanceTimersByTime(FOUR_MINUTES - 1000));
+    expect(beginFaceIdSignIn).toHaveBeenCalledTimes(calls);
+    fireEvent.click(screen.getByRole("button", BUTTON));
+    expect(browser.startAuthentication).toHaveBeenCalledWith({ optionsJSON: OPTIONS });
+  });
+
+  it("waits for the page to be on screen before retrying, and retries on return", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+    beginFaceIdSignIn.mockResolvedValue(null);
+    render(<PasskeySignIn />);
+    await act(async () => {});
+    act(() => setVisibility("hidden"));
+    await act(async () => vi.advanceTimersByTime(60_000));
+    expect(beginFaceIdSignIn).toHaveBeenCalledTimes(1);
+
+    beginFaceIdSignIn.mockResolvedValue(OPTIONS);
+    await act(async () => setVisibility("visible"));
+    expect(beginFaceIdSignIn).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole("button", BUTTON)).toBeEnabled();
+  });
+
+  it("stops retrying once gone from the screen", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+    beginFaceIdSignIn.mockResolvedValue(null);
+    const { unmount } = render(<PasskeySignIn />);
+    await act(async () => {});
+    expect(beginFaceIdSignIn).toHaveBeenCalledTimes(1);
+    unmount();
+    await act(async () => vi.advanceTimersByTime(10 * 60 * 1000));
+    expect(beginFaceIdSignIn).toHaveBeenCalledTimes(1);
   });
 
   it("shows the server's failure exactly", async () => {

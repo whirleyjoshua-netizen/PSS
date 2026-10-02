@@ -34,8 +34,8 @@
  *      carrying the same address cannot be used as register. The run prints one
  *      expected "Face ID registration did not verify" stack trace from the dummy response;
  *  11. admin_webauthn_challenges_email_check refuses a 'register' row with a null email;
- *  12. startSignIn stores the 200th live sign-in challenge and refuses the 201st (the rest are
- *      inserted directly to reach the cap);
+ *  12. startSignIn stores the MAX_WAITING_SIGN_INS-th (5000th) live sign-in challenge and refuses
+ *      the next (the rest are inserted directly, in one insert ... select from generate_series);
  *  13. the counter update — finishSignIn's own statement, which this script checks is still
  *      verbatim in lib/admin/passkeys.ts, run directly (that same text, with $1/$2 for its two
  *      placeholders) because reaching it needs a real signature —
@@ -342,16 +342,16 @@ test("sign-in code, sessions and passkey store against a real database", async (
       from generate_series(1, ${fill}::int) g
       returning id`;
     challengeIds.push(...filled.map((row) => row.id as string));
-    const at199 = Number((await sql`
+    const belowCap = Number((await sql`
       select count(*)::int as n from admin_webauthn_challenges where purpose = 'sign-in' and expires_at > now()`)[0].n);
-    check(at199 === MAX_WAITING_SIGN_INS - 1, `12. ${MAX_WAITING_SIGN_INS - 1} live sign-in challenges after filling`, `found ${at199}`);
+    check(belowCap === MAX_WAITING_SIGN_INS - 1, `12. ${MAX_WAITING_SIGN_INS - 1} live sign-in challenges after filling`, `found ${belowCap}`);
     const nth = await startSignIn();
     if (nth) challengeIds.push(nth.challengeId);
     check(nth !== null && (await challengeExists(nth.challengeId)),
       `12. startSignIn stores the ${MAX_WAITING_SIGN_INS}th live sign-in challenge`, `returned ${JSON.stringify(nth)}`);
     const refused = await startSignIn();
     if (refused) challengeIds.push(refused.challengeId);
-    check(refused === null, `12. startSignIn refuses the ${MAX_WAITING_SIGN_INS + 1}st`, `returned ${JSON.stringify(refused)}`);
+    check(refused === null, `12. startSignIn refuses the next one (${MAX_WAITING_SIGN_INS + 1})`, `returned ${JSON.stringify(refused)}`);
     const atCap = Number((await sql`
       select count(*)::int as n from admin_webauthn_challenges where purpose = 'sign-in' and expires_at > now()`)[0].n);
     check(atCap === MAX_WAITING_SIGN_INS, `12. exactly ${MAX_WAITING_SIGN_INS} live sign-in challenges remain`, `found ${atCap}`);

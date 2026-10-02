@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 /** Server options live 5 minutes. Fetch fresh ones a minute before that. */
 export const OPTIONS_STALE_MS = 4 * 60 * 1000;
+/** After a failed fetch, try again after 2s, 5s, 15s, then every 30s, so the button never stays dead. */
+export const RETRY_DELAYS_MS = [2000, 5000, 15000, 30000];
 
 type Fetched<T> = { options: T; fetchedAt: number };
 
@@ -16,10 +18,18 @@ type Fetched<T> = { options: T; fetchedAt: number };
  * timer was paused in the background), and again whenever `refresh` is called. `take` hands over
  * the options once and forgets them, so one set is never used twice. Call `refresh` once the
  * attempt is over (not before: a new fetch replaces the challenge the attempt is answering).
+ *
+ * A failed fetch is retried by itself (RETRY_DELAYS_MS) while the page is on screen, so a server
+ * hiccup or a flood of waiting sign-ins never leaves the button dead for long.
+ *
+ * Two tabs: the challenge lives in one cookie, so a second tab's prefetch replaces the first tab's
+ * challenge and the first tab's next try fails. That is acceptable: the failure triggers a fresh
+ * fetch, and the following tap works.
  */
 export function usePrefetchedOptions<T>(fetchOptions: () => Promise<T | null>, enabled: boolean) {
   const [fetched, setFetched] = useState<Fetched<T> | null>(null);
-  const [failed, setFailed] = useState(false);
+  // Failed fetches in a row since options last landed. Each one schedules the next retry.
+  const [failures, setFailures] = useState(0);
   // Mirrors `fetched` for the click and the visibility listener, which must read it synchronously.
   const current = useRef<Fetched<T> | null>(null);
   const loading = useRef(false);
@@ -40,18 +50,18 @@ export function usePrefetchedOptions<T>(fetchOptions: () => Promise<T | null>, e
         if (request !== latest.current) return;
         loading.current = false;
         if (!options) {
-          setFailed(true);
+          setFailures((count) => count + 1);
           return;
         }
         const next = { options, fetchedAt: Date.now() };
         current.current = next;
         setFetched(next);
-        setFailed(false);
+        setFailures(0);
       },
       () => {
         if (request !== latest.current) return;
         loading.current = false;
-        setFailed(true);
+        setFailures((count) => count + 1);
       },
     );
   }, [fetchOptions]);
@@ -101,5 +111,16 @@ export function usePrefetchedOptions<T>(fetchOptions: () => Promise<T | null>, e
     return () => clearTimeout(timer);
   }, [fetched, enabled, refresh]);
 
-  return { ready: fetched !== null, failed, take, refresh };
+  useEffect(() => {
+    if (!failures || fetched || !enabled) return;
+    const delay = RETRY_DELAYS_MS[Math.min(failures, RETRY_DELAYS_MS.length) - 1];
+    const timer = setTimeout(() => {
+      // Off screen the retry waits: the visibility listener fetches on return.
+      if (document.visibilityState !== "visible" || loading.current || inUse.current || current.current) return;
+      load();
+    }, delay);
+    return () => clearTimeout(timer);
+  }, [failures, fetched, enabled, load]);
+
+  return { ready: fetched !== null, failed: failures > 0, take, refresh };
 }
