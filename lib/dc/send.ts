@@ -152,6 +152,8 @@ export async function previewQuote(jobId: string): Promise<{ pdf: Uint8Array; na
   const loaded = await review(jobId);
   if (!loaded) return { error: "This job has no Direct Connect quote." };
   const { review: { version, priced }, job } = loaded;
+  // Once sent, the real quote is in Files; a copy stamped "Not sent", dated today, would be false.
+  if (version.status !== "draft") return { error: "This quote has been sent. Its PDF is in Files." };
   if (priced.blockers.length > 0) return { error: priced.blockers[0] };
   const projectNo = formatProjectNo(job.projectNo) ?? "PSS";
   const pdf = await buildQuotePdf(pricedInput(job, version, priced, projectNo, new Date()), { preview: true });

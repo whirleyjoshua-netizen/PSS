@@ -473,6 +473,12 @@ describe("previewQuote", () => {
     expect(quotePdf.buildQuotePdf).not.toHaveBeenCalled();
   });
 
+  it.each(["offered", "sent", "signed"] as const)("refuses a %s version: the sent quote is in Files", async (status) => {
+    store.listVersions.mockResolvedValue([{ ...offered, status }]);
+    expect(await previewQuote(JOB)).toEqual({ error: "This quote has been sent. Its PDF is in Files." });
+    expect(quotePdf.buildQuotePdf).not.toHaveBeenCalled();
+  });
+
   it("says so when the job has no quote", async () => {
     store.listVersions.mockResolvedValue([]);
     expect(await previewQuote(JOB)).toEqual({ error: "This job has no Direct Connect quote." });

@@ -3,6 +3,7 @@ import { PDFDocument, PDFPage } from "pdf-lib";
 import type { ContractInput } from "@/lib/dc/contract-layout";
 import { renderContractPdf } from "@/lib/dc/contract-pdf";
 import { buildQuotePdf } from "@/lib/dc/quote-pdf";
+import { MARGIN } from "@/lib/pdf/text";
 
 const input: ContractInput = {
   projectNo: "PSS-1042", version: 1, date: new Date("2026-09-28T12:00:00Z"),
@@ -69,7 +70,11 @@ describe("buildQuotePdf preview", () => {
     const bytes = await buildQuotePdf(many, { preview: true });
     const pages = (await PDFDocument.load(bytes)).getPageCount();
     expect(pages).toBeGreaterThan(1);
-    expect(drawn.filter((d) => d.text === PREVIEW)).toHaveLength(pages);
+    const marks = drawn.filter((d) => d.text === PREVIEW);
+    expect(marks).toHaveLength(pages);
+    // Below the margin, where the priced pages never draw.
+    for (const m of marks) expect(m.y).toBeLessThan(MARGIN);
+    expect(Math.min(...drawn.filter((d) => d.text !== PREVIEW).map((d) => d.y))).toBeGreaterThanOrEqual(MARGIN);
     vi.restoreAllMocks();
     const real = spyOnDrawText();
     await buildQuotePdf(many);
