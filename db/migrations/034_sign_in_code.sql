@@ -32,3 +32,10 @@ create table if not exists admin_webauthn_challenges (
   expires_at  timestamptz not null,
   constraint admin_webauthn_challenges_purpose_check check (purpose in ('register', 'sign-in'))
 );
+
+-- A register challenge always carries the address it binds to. Dropped first so a re-run, or a
+-- branch that already has the table, ends with exactly this check.
+alter table admin_webauthn_challenges drop constraint if exists admin_webauthn_challenges_email_check;
+alter table admin_webauthn_challenges add constraint admin_webauthn_challenges_email_check check (purpose = 'sign-in' or email is not null);
+-- The sweep of expired challenges and the count of waiting sign-ins both filter on expiry.
+create index if not exists admin_webauthn_challenges_expires_idx on admin_webauthn_challenges (expires_at);

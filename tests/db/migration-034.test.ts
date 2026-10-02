@@ -15,7 +15,7 @@ describe("migration 034", () => {
     expect(statements.length).toBeGreaterThan(0);
     for (const s of statements) {
       expect(s).toMatch(
-        /^(alter table admin_login_tokens (add column if not exists|drop constraint if exists|add constraint)|create table if not exists |create index if not exists )/,
+        /^(alter table admin_login_tokens (add column if not exists|drop constraint if exists|add constraint)|alter table admin_webauthn_challenges (drop constraint if exists|add constraint)|create table if not exists |create index if not exists )/,
       );
     }
   });
@@ -69,6 +69,23 @@ describe("migration 034", () => {
     ]) expect(challenges).toContain(column);
     expect(challenges).toContain(
       "constraint admin_webauthn_challenges_purpose_check check (purpose in ('register', 'sign-in'))",
+    );
+  });
+
+  it("requires an address on every register challenge, dropping the check before it adds it so an existing table gets it", () => {
+    const drop = statements.indexOf(
+      "alter table admin_webauthn_challenges drop constraint if exists admin_webauthn_challenges_email_check",
+    );
+    const add = statements.indexOf(
+      "alter table admin_webauthn_challenges add constraint admin_webauthn_challenges_email_check check (purpose = 'sign-in' or email is not null)",
+    );
+    expect(drop).toBeGreaterThan(statements.findIndex((s) => s.startsWith("create table if not exists admin_webauthn_challenges (")));
+    expect(add).toBeGreaterThan(drop);
+  });
+
+  it("indexes challenges by expiry, for the sweep and the count of waiting sign-ins", () => {
+    expect(statements).toContain(
+      "create index if not exists admin_webauthn_challenges_expires_idx on admin_webauthn_challenges (expires_at)",
     );
   });
 });
