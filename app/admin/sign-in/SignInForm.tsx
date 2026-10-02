@@ -72,8 +72,8 @@ function CodeForm({ email, onDifferentEmail }: { email: string; onDifferentEmail
           type="text"
           inputMode="numeric"
           autoComplete="one-time-code"
-          pattern="\d{6}"
-          maxLength={6}
+          pattern="\d{3}\s?\d{3}"
+          maxLength={7}
           required
           className={CONTROL}
         />

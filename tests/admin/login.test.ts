@@ -202,6 +202,26 @@ describe("consumeSignInCode", () => {
     expect(between("), missed as (", "select email from used")).toContain("code_attempts < ?::int");
   });
 
+  it("uses a sign-in only when the code matches, counts a miss only when it does not, and locks the row", async () => {
+    sql.mockResolvedValue([]);
+    await consumeSignInCode("owner@example.com", "012345");
+
+    const call = sql.mock.calls.find((c) => text(c).includes("admin_login_tokens"))!;
+    const query = text(call).replace(/\s+/g, " ");
+    const section = (from: string, to: string) => {
+      const start = query.indexOf(from);
+      const end = query.indexOf(to, start);
+      expect(start, from).toBeGreaterThanOrEqual(0);
+      expect(end, to).toBeGreaterThan(start);
+      return query.slice(start, end);
+    };
+    // Without the match, any six digits would sign in.
+    expect(section("), used as (", "), missed as (")).toContain("code_hash = ?");
+    expect(section("), missed as (", "select email from used")).toContain("code_hash <> ?");
+    // Two guesses at the same sign-in wait for each other.
+    expect(section("with target as (", "), used as (")).toContain("for update");
+  });
+
   it("strips spaces from the code before checking it", async () => {
     sql.mockResolvedValue([]);
     await consumeSignInCode("owner@example.com", " 012 345 ");
