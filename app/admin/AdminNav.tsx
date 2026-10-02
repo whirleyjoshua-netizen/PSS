@@ -12,6 +12,7 @@ const LINKS: readonly { href: string; label: string; icon: IconName }[] = [
   { href: "/admin/schedule", label: "Schedule", icon: "calendar" },
   { href: "/admin/tasks", label: "Tasks", icon: "check" },
   { href: "/admin/documents", label: "Documents", icon: "document" },
+  { href: "/admin/resources", label: "Resources", icon: "folder" },
   { href: "/admin/settings", label: "Settings", icon: "settings" },
 ];
 

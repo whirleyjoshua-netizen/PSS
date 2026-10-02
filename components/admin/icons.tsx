@@ -13,6 +13,7 @@ const PATHS = {
   phone: "M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a1 1 0 0 1-1 1A16 16 0 0 1 4 5a1 1 0 0 1 1-1z",
   calendar: "M5 6h14v14H5zM5 10h14M9 4v4M15 4v4",
   document: "M7 3h7l4 4v14H7zM14 3v4h4M10 12h5M10 16h5",
+  folder: "M3 6h6l2 2h10v11H3zM3 10h18",
   cart: "M4 5h2l2 10h10l2-7H7M9 20a1 1 0 1 0 0-2 1 1 0 0 0 0 2zM17 20a1 1 0 1 0 0-2 1 1 0 0 0 0 2z",
   box: "M4 8l8-4 8 4v8l-8 4-8-4zM4 8l8 4 8-4M12 12v8",
   ruler: "M3 14l7-7 7 7-7 7zM8 9l2 2M11 6l2 2M14 9l2 2",

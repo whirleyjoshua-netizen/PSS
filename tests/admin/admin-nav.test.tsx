@@ -81,10 +81,18 @@ describe("AdminNav", () => {
       unmount();
     }
   });
-  it("lists the five sections in order", () => {
+  it("lists the six sections in order", () => {
     pathname.mockReturnValue("/admin");
     render(<AdminNav email="owner@example.com" />);
-    expect(within(column()).getAllByRole("link").map((l) => l.textContent)).toEqual(["Jobs", "Schedule", "Tasks", "Documents", "Settings"]);
+    expect(within(column()).getAllByRole("link").map((l) => l.textContent)).toEqual(["Jobs", "Schedule", "Tasks", "Documents", "Resources", "Settings"]);
+  });
+
+  it("marks the Resources page as Resources", () => {
+    pathname.mockReturnValue("/admin/resources");
+    render(<AdminNav email="owner@example.com" />);
+    const link = within(column()).getByRole("link", { name: "Resources" });
+    expect(link).toHaveAttribute("href", "/admin/resources");
+    expect(link).toHaveAttribute("aria-current", "page");
   });
 });
 
