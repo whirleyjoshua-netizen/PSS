@@ -28,8 +28,11 @@ describe("/about — Meet the family", () => {
     const srcs = Array.from(container.querySelectorAll("img")).map((img) =>
       decodeURIComponent(img.getAttribute("src") ?? ""),
     );
-    expect(srcs.some((src) => src.includes("/brand/family-pumpkin.webp"))).toBe(true);
-    expect(srcs.some((src) => src.includes("/brand/owners-family.webp"))).toBe(true);
+    // Owner 2026-10-01: Josh with both kids and Shade with both kids; the
+    // three-of-us photo moved to the homepage.
+    expect(srcs.some((src) => src.includes("/brand/josh-with-kids.webp"))).toBe(true);
+    expect(srcs.some((src) => src.includes("/brand/shade-with-kids.webp"))).toBe(true);
+    expect(srcs.some((src) => /family-pumpkin|owners-family/.test(src))).toBe(false);
     for (const img of container.querySelectorAll("img")) {
       expect((img.getAttribute("alt") ?? "").length).toBeGreaterThan(20);
     }

@@ -5,7 +5,7 @@ import { Section, SectionHeading, Eyebrow } from "@/components/ui/Section";
 import { ButtonLink } from "@/components/ui/Button";
 import { business } from "@/content/business";
 import { categories } from "@/content/products";
-import { consultationPhoto, gallery } from "@/content/gallery";
+import { gallery } from "@/content/gallery";
 import { testimonials } from "@/content/testimonials";
 import { getProductsIn } from "@/lib/content/products";
 import { cityPath } from "@/lib/content/cities";
@@ -194,10 +194,11 @@ export function FamilySection() {
   return (
     <Section tone="ivory">
       <div className="grid items-center gap-12 lg:grid-cols-2">
+        {/* Owner 2026-10-01: the three of them here; the children are never named. */}
         <div className="relative mx-auto aspect-4/3 w-full overflow-hidden bg-sand">
           <Image
-            src={consultationPhoto.src}
-            alt={consultationPhoto.alt}
+            src="/brand/owners-family.webp"
+            alt="Josh and Shade standing outside in the sun with their young daughter held between them"
             fill
             sizes="(min-width: 1024px) 36rem, 100vw"
             className="object-cover"

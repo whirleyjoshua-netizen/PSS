@@ -51,22 +51,22 @@ export default function AboutPage() {
           </div>
 
           <div className="flex flex-col gap-6">
-            <div className="relative aspect-4/3 w-full overflow-hidden bg-sand">
+            <div className="relative aspect-4/5 w-full overflow-hidden bg-sand">
               <Image
-                src="/brand/family-pumpkin.webp"
-                alt="Shade and Josh sitting on the floor at home with their baby and their young daughter, a big pumpkin in front of them ready to carve"
+                src="/brand/josh-with-kids.webp"
+                alt="Josh sitting in an armchair with their baby son and young daughter on his lap, all three in black, the daughter smiling in green sneakers"
                 fill
                 sizes="(min-width: 1024px) 24rem, 100vw"
-                className="object-cover"
+                className="object-cover object-[center_35%]"
               />
             </div>
             <div className="relative aspect-4/5 w-full overflow-hidden bg-sand">
               <Image
-                src="/brand/owners-family.webp"
-                alt="Josh and Shade standing outside in the sun with their young daughter held between them"
+                src="/brand/shade-with-kids.webp"
+                alt="Shade smiling in an armchair with their baby son and young daughter on her lap, the daughter grinning with a hand to her cheek"
                 fill
                 sizes="(min-width: 1024px) 24rem, 100vw"
-                className="object-cover"
+                className="object-cover object-[center_35%]"
               />
             </div>
           </div>

@@ -22,6 +22,9 @@ Decisions made with the owner:
 - Primary booking button: **"Invite Us Over"**, always paired with a plain line saying it is a
   free in-home consultation. The header keeps "Free Consultation".
 - The children appear **only on the About page**, never on the homepage.
+  **Changed by the owner 2026-10-01:** the homepage family section shows Josh, Shade and their
+  daughter (`owners-family.webp`); the About page shows Josh with both children and Shade with both
+  children. The children are still never named.
 - Homepage family photo: the consultation shot the owners are taking (Shade with a homeowner,
   samples, a window in view). Until it exists, an install photo stands in; swapping it later is a
   one-line content change.

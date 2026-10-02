@@ -65,11 +65,15 @@ describe("Home", () => {
     expect(screen.getByRole("link", { name: /meet the family/i })).toHaveAttribute("href", "/about");
   });
 
-  it("never shows the children on the homepage", () => {
-    const { container } = render(<Home />);
-    for (const img of container.querySelectorAll("img")) {
-      expect(decodeURIComponent(img.getAttribute("src") ?? "")).not.toMatch(/owners-family|family-pumpkin/);
-    }
+  // Owner 2026-10-01 changed the family-brand rule: the homepage family section
+  // shows the three of them. The children are still never named.
+  it("shows the owners' family photo beside 'inviting in family'", () => {
+    render(<Home />);
+    const heading = screen.getByRole("heading", { level: 2, name: /when you invite us in, you[’']re inviting in family/i });
+    const section = heading.closest("section")!;
+    const img = section.querySelector("img")!;
+    expect(decodeURIComponent(img.getAttribute("src") ?? "")).toContain("/brand/owners-family.webp");
+    expect(img.getAttribute("alt")).toMatch(/Josh and Shade/);
   });
 
   it("closes with Invite us over and the coffee line", () => {
