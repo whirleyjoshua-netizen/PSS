@@ -181,6 +181,53 @@
 
 ---
 
+### Task 2B: Face ID sign-in (passkeys)
+
+**Spec:** §2b. **Files:** Modify `db/migrations/034_sign_in_code.sql` (append the two tables), `tests/db/migration-034.test.ts`, `lib/admin/admin-access.ts` (`removeAdmin` deletes passkeys), `tests/admin/admin-access.test.ts`, `app/admin/sign-in/SignInForm.tsx`, `app/admin/page.tsx` (the turn-on card), `app/admin/settings/page.tsx`. Create `lib/admin/passkeys.ts` (server: options, verify, store), `app/admin/passkey-actions.ts` (server actions), `app/admin/PasskeySignIn.tsx`, `app/admin/TurnOnFaceId.tsx`, `app/admin/settings/FaceIdSection.tsx`, tests for each. Add dependencies `@simplewebauthn/server@^14` and `@simplewebauthn/browser@^14` (`npm install`, commit package.json + lock).
+
+- [ ] **Step 1: Read the library first.** Read `node_modules/@simplewebauthn/server/` and `.../browser/` type definitions (`*.d.ts`) and README for v14 — function names, option shapes, and return types (e.g. `generateRegistrationOptions`, `verifyRegistrationResponse`, `generateAuthenticationOptions`, `verifyAuthenticationResponse`, `startRegistration`, `startAuthentication`, `browserSupportsWebAuthn`). Do not rely on memory of older versions; record the exact signatures used in the report.
+- [ ] **Step 2: Migration (test first).** Append to 034 (re-runnable):
+  ```sql
+  create table if not exists admin_passkeys (
+    id            text primary key,
+    email         text not null,
+    public_key    bytea not null,
+    counter       bigint not null default 0,
+    transports    text[] not null default '{}',
+    label         text not null,
+    created_at    timestamptz not null default now(),
+    last_used_at  timestamptz,
+    constraint admin_passkeys_email_normalized check (email = lower(btrim(email)))
+  );
+  create index if not exists admin_passkeys_email_idx on admin_passkeys (email);
+
+  create table if not exists admin_webauthn_challenges (
+    id          text primary key,
+    challenge   text not null,
+    purpose     text not null,
+    email       text,
+    expires_at  timestamptz not null,
+    constraint admin_webauthn_challenges_purpose_check check (purpose in ('register', 'sign-in'))
+  );
+  ```
+  Extend `tests/db/migration-034.test.ts` for both tables and constraints.
+- [ ] **Step 3: Store + ceremonies in `lib/admin/passkeys.ts` (`server-only`), mocked-db unit tests first.** Exports:
+  - `rpId()` = `new URL(adminOrigin()).hostname`; `expectedOrigin()` = `adminOrigin()`; RP name `"PSS Ops"`.
+  - `startRegistration(email)` → options JSON; stores a `register` challenge row (5 min) for that email and returns `{ options, challengeId }`. `excludeCredentials` = that email's existing passkeys. Authenticator selection: `residentKey: "required"`, `userVerification: "required"`, `authenticatorAttachment: "platform"`. User id derived stably from the email (e.g. sha256 bytes) and user name = email, display name = `displayName(email)` from `lib/admin/task-rules.ts`.
+  - `finishRegistration(email, challengeId, response, label)` → `boolean`: consumes the challenge in one statement (`delete … where id = ? and purpose = 'register' and email = ? and expires_at > now() returning challenge`), verifies, inserts the credential.
+  - `startSignIn()` → `{ options, challengeId }` with empty allow list, `userVerification: "required"`; stores a `sign-in` challenge.
+  - `finishSignIn(challengeId, response)` → `string | null` (email): consumes the challenge, loads the credential by id, verifies against stored public key + counter, then in one statement updates counter + `last_used_at`; returns the email only if `isAllowed(email)`.
+  - `listPasskeys(email)`, `removePasskey(email, id)` (scoped to the email).
+  - `deviceLabel(userAgent)`: "iPhone", "iPad", "Mac", "Android phone", "Windows PC", else "This device".
+  - Delete expired challenges opportunistically in `startRegistration`/`startSignIn`.
+- [ ] **Step 4: Actions (`app/admin/passkey-actions.ts`).** `beginFaceIdSetup()` (requireAdmin; sets httpOnly cookie `pss_webauthn` = challengeId, 5 min, sameSite lax, secure in production; returns options), `completeFaceIdSetup(response)` (requireAdmin; reads + clears cookie; label from `headers()` user agent; returns `{ ok } | { error }`), `beginFaceIdSignIn()` (no auth), `completeFaceIdSignIn(response)` (no auth; on success `createSession` then `redirect("/admin")`; on failure `{ error: "Face ID sign-in didn't work. Try again, or use the email code." }`), `removeFaceIdDevice(id)` (requireAdmin; scoped to own email). Unit tests with mocks: requireAdmin before input on the admin ones, cookie handling, exact error text.
+- [ ] **Step 5: UI.** `PasskeySignIn` (client): renders only if `browserSupportsWebAuthn()`; a solid full-width button "Sign in with Face ID" → begin → `startAuthentication({ optionsJSON })` → complete; shows the error as `role="alert"`; user cancel shows nothing alarming (treat `NotAllowedError` as a quiet reset). `SignInForm` renders `PasskeySignIn` above the email form with a divider "or use your email". `TurnOnFaceId` (client) on the Jobs board top: shown only if WebAuthn is supported and `localStorage.pss_passkey` is not set (wrap storage access in try/catch); button "Turn on Face ID for this phone" → setup; on success set the marker and show "Face ID is on for this phone"; a "Not now" link hides it for this session. `FaceIdSection` in Settings: list (label · added date · last used) with Remove buttons, plus a `TurnOnFaceId`-style button. Component tests with the browser library mocked.
+- [ ] **Step 6: `removeAdmin`** gains `passkeys as (delete from admin_passkeys where email in (select email from removed))` in its single statement; extend its test.
+- [ ] **Step 7:** Tests (`tests/admin tests/db`), tsc, eslint, `npx next build`. Test power: drop `userVerification: "required"` from sign-in options and a test fails; drop the `isAllowed` check in `finishSignIn` and a test fails; restore.
+- [ ] **Step 8:** Commit: `feat: Face ID sign-in for PSS Ops (passkeys), with the email code as backup`.
+
+---
+
 ### Task 3: The installable shell
 
 **Files:**
@@ -341,6 +388,7 @@ The controller supplies a branch already migrated through 034.
   7. A raw update setting `code_attempts = 6` throws `admin_login_tokens_code_attempts_check`.
   8. Session sliding via `touchSession(hash)` from `lib/admin/session.ts`: a session expiring in 2 days comes back with its email and its `expires_at` now about 30 days out; a session already 30 days out is unchanged (compare `expires_at::text` before and after); an expired session returns null.
   9. Re-run `034_sign_in_code.sql`'s statements and confirm they succeed.
+  10. Passkey store SQL (no real authenticator needed): insert an `admin_passkeys` row and challenge rows directly; challenge consumption deletes exactly once (second consume returns nothing), expired challenge is not consumed, `register` challenge cannot be consumed as `sign-in`; `removeAdmin` for an added admin deletes their passkeys; `removePasskey` cannot delete another email's passkey.
 
   Cleanup removes tokens and sessions for the script's own address.
 - [ ] **Step 2:** Run it twice.
@@ -368,6 +416,7 @@ The controller supplies a branch already migrated through 034.
     - request `/ops.webmanifest` and assert `name`, `start_url`, `display`;
     - load `/admin/sign-in` and assert `link[rel="manifest"]` has href `/ops.webmanifest` and `meta[name="apple-mobile-web-app-title"]` has content `PSS Ops`;
     - load `/` and assert there is no `link[rel="manifest"]`.
+  - **"Face ID sign-in with a virtual authenticator"** (desktop Chromium project, if feasible): WebAuthn needs a domain RP ID, so run this test against `http://localhost:<port>` (not 127.0.0.1) with `ADMIN_BASE_URL` matching, using CDP `WebAuthn.enable` + `WebAuthn.addVirtualAuthenticator` (`protocol: "ctap2", transport: "internal", hasResidentKey: true, hasUserVerification: true, isUserVerified: true`). Sign in by code, turn on Face ID, sign out, then "Sign in with Face ID" lands on Jobs. If the config makes a localhost run impractical, say so and rely on Task 5's SQL proof plus unit tests — do not fake it.
   - **"refresh keeps the menu closed":** signed in, click "Refresh", and assert the Menu's links are not visible.
 - [ ] **Step 2:** Run it in the FOREGROUND on the phone project with the controller's branch. If port 3100 is busy, use `E2E_PORT=3110`. Reconcile the totals.
 - [ ] **Step 3:** Falsify one assertion, confirm where it fails, then restore it.

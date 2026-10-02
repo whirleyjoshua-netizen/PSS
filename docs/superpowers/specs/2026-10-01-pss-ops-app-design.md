@@ -39,6 +39,35 @@ store. Push notifications are a later project; email already notifies the team.
   rate limit (5 emails per address per hour) stays, so at most 25 guesses per hour per address.
 - Verification is one SQL statement (pick latest, then use-or-count).
 
+## 2b. Face ID sign-in (passkeys) — the fast way back in
+
+The owner's requirement: when a client calls and the app happens to be signed out, getting back
+in must take seconds, not an email. Decision: passkeys (Face ID), with the email code as backup.
+
+- **Turning it on:** signed in on a phone, the Jobs board shows a card "Turn on Face ID for this
+  phone" (only when this browser supports passkeys and the person has none registered from it —
+  tracked with a `pss_passkey` marker in localStorage after success). Tapping it registers a passkey
+  (WebAuthn, platform authenticator, user verification required, discoverable credential). Settings
+  has a "Face ID sign-in" section listing the person's registered devices (label from the user agent,
+  e.g. "iPhone", plus date added and last used) with Remove, and a "Turn on Face ID for this device"
+  button.
+- **Signing in:** the sign-in page leads with **Sign in with Face ID** (shown when the browser
+  supports passkeys). One tap → the iPhone's passkey sheet → Face ID → session created → Jobs board.
+  No email needed (discoverable credentials, empty allow list). The email form sits below it.
+- **Server:** `@simplewebauthn/server` v14 / `@simplewebauthn/browser` v14. RP ID = hostname of
+  `adminOrigin()`; expected origin = `adminOrigin()`; RP name "PSS Ops". Challenges are stored in
+  `admin_webauthn_challenges` (random id in a 5-minute httpOnly cookie, row expires in 5 minutes,
+  deleted when used). Registration requires a signed-in admin and binds to their email. Sign-in
+  looks up the credential, verifies the signature and counter, re-checks `isAllowed(email)`, updates
+  counter and `last_used_at`, then `createSession(email)`. Any failure shows: "Face ID sign-in didn't
+  work. Try again, or use the email code."
+- **Storage (migration 034, same file as the code columns):** `admin_passkeys` (credential id text pk,
+  email, public key bytea, counter bigint, transports text[], label, created_at, last_used_at) and
+  `admin_webauthn_challenges` (id text pk, challenge text, purpose 'register'|'sign-in', email null
+  for sign-in, expires_at).
+- **Removal:** `removeAdmin` also deletes that person's passkeys in its single statement. A person can
+  remove their own devices in Settings.
+
 ## 3. Staying signed in
 
 - A session now lasts **30 days since last use**: each request that finds a valid session with
@@ -61,7 +90,7 @@ store. Push notifications are a later project; email already notifies the team.
 
 ## 5. Out of scope
 
-Push notifications, offline data, an App Store build, Android specifics.
+Push notifications, offline data, an App Store build, Android specifics, passkeys for the client portal.
 
 ## 6. Testing
 
