@@ -62,3 +62,6 @@ Images/
 # Git worktrees and subagent workflow scratch space
 .claude/worktrees/
 .superpowers/
+
+# /ads-daily run logs (local only; a push to main deploys production)
+.ads-log/

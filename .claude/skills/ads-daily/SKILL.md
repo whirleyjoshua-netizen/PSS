@@ -1,0 +1,140 @@
+---
+name: ads-daily
+description: >-
+  Morning Google Ads review for Premier Shade Solutions. Use when the owner
+  types /ads-daily or asks for the daily ads check. Reads the Search campaign
+  in the owner's logged-in Chrome, applies fixed bid / pause / keyword /
+  negative-keyword rules against a $75 target cost per lead, proposes a
+  numbered list, applies only what the owner approves, verifies the changes
+  stuck, and writes a local log to .ads-log/.
+---
+
+# /ads-daily: morning Google Ads review
+
+Spec: `docs/superpowers/specs/2026-10-02-ads-daily-design.md`. If this file and the spec disagree, stop and tell the owner.
+
+## Fixed facts
+
+- Account 683-934-1456. Campaign "Search - Window Treatments LV", ID 24293240304. Launched Sep 28, 2026. Budget $25/day. Bidding: Maximize clicks with a max CPC cap.
+- Target cost per lead (CPL): **$75**. A "lead" is a "Consultation request" conversion attributed to the keyword in Ads.
+- Max CPC hard ceiling: **$12**.
+- Account time zone: Pacific.
+- 725-400-5254 is the owner's old personal number. Never attach it to anything.
+
+## Never, in any run
+
+- Change budget, bidding strategy, locations or ad schedule unless the owner approved that exact numbered item in this run.
+- Create or remove campaigns or ad groups.
+- Accept terms, enter passwords or payment details, or make payments.
+- Apply anything before the owner replies to the proposal.
+- Make up a number. If a figure couldn't be read on screen, say so and skip the rules that need it.
+- Keep retrying. If a page won't load or a click fails 2–3 times, stop and tell the owner what's missing.
+
+## Step 0: Browser and log
+
+1. Load the claude-in-chrome tools in one ToolSearch call: tabs_context_mcp, tabs_create_mcp, tabs_close_mcp, navigate, computer, find, read_page, get_page_text.
+2. If several browsers are connected, ask the owner which one. Use "Browser 1" (macOS) unless told otherwise.
+3. Open a new tab. Never reuse an old tab ID.
+4. Read the last 7 files in `.ads-log/` (main checkout: `~/pss/.ads-log/`). Note any bid changes in the last 24 hours and items the owner rejected.
+
+Ads pages reload once after navigating. Wait about 10 seconds and take a screenshot before reading. Every Ads URL takes `?ocid=8525738539`. The date picker sits at the top right. Its menu has Today, Yesterday, Last 7 days, Last 14 days, Last 30 days and Custom.
+
+## Step 1: Health check
+
+On https://ads.google.com/aw/campaigns?ocid=8525738539, with the date set to Yesterday:
+
+- Impressions, clicks and cost vs the $25 budget.
+- Campaign status, plus any red or orange banners (billing, policy, terms).
+- Ads list (https://ads.google.com/aw/ads?campaignId=24293240304&ocid=8525738539): every ad Eligible? Note any disapproved or limited ads.
+
+**If yesterday had 0 impressions, stop here and diagnose:**
+- Change history (https://ads.google.com/aw/changehistory?ocid=8525738539): did anything change?
+- Billing (https://ads.google.com/aw/billing/summary?ocid=8525738539): balance, payment problems.
+- Ad preview and diagnosis (Tools → Troubleshooting): search "plantation shutters" with location **"Las Vegas, Nevada" (city)**. "Las Vegas Valley" isn't a targeted location and always shows "no keywords matched".
+
+Report the findings to the owner before going on.
+
+## Step 2: Pull numbers
+
+- **Keywords** (https://ads.google.com/aw/keywords?campaignId=24293240304&ocid=8525738539), for Yesterday, Last 7 days and Custom from Sep 28, 2026 to today: per keyword Cost, Clicks, Impr., CTR, Conversions, Cost / conv., Search lost top IS (rank). If a column is missing, add it through Columns → Modify columns → Competitive metrics. Adding a column only changes the view; no approval needed.
+- **Campaign**, Last 7 days: Search impr. share and Search lost IS (rank).
+- **Search terms** (Insights and reports → Search terms), Last 7 days: each term, its clicks and its cost.
+- **Conversion upload** (Tools → Data manager → File upload, or an HTTPS connection): latest run time, status, rows imported, rows with errors.
+- **Prerequisites still open?** (a) Does each conversion action have its own upload, or does one connection map everything to "Consultation request"? (b) Is the HTTPS feed connected?
+
+## Step 3: Apply the rules
+
+| # | Condition | Proposal |
+|---|---|---|
+| R1 | Keyword has ≥ 1 lead at ≤ $75 CPL, and its Search lost top IS (rank) ≥ 20% | Raise its max CPC 15%, never above $12. Skip if its bid already changed in the last 24 hours (see the log) |
+| R2 | Keyword spent ≥ $150 since launch with 0 leads | Pause it |
+| R3 | Keyword has ≥ 2 leads and CPL > $112 | Lower its max CPC 15% |
+| R4 | Keyword spent < $150 with 0 leads | Leave it. Flag only if CTR < 2% with ≥ 100 impressions |
+| R5 | Search term (last 7 days) is DIY, another retailer or brand, a job search, outside the service area, or a product PSS doesn't sell | Negative keyword. Up to 20 per day |
+| R6 | Search term got a click, shows buying intent ("near me", "install", "installation", "cost", "price", "quote", or a service-area city name), and isn't already a keyword | New phrase-match keyword in the matching ad group. At most 5 new keywords in any rolling 7 days (count them in the log) |
+| R7 | Campaign spent < $20/day for 3 days in a row, and campaign Search lost IS (rank) > 30% | Raise the campaign max CPC cap 15%, never above $12 |
+| R8 | Campaign spent its full budget for 3 days in a row, and campaign CPL ≤ $75 | Raise the budget $5/day |
+
+Ad groups: Shutters, Solar Shades, Motorized, Blinds, Shades, Window Treatments, Outdoor (Outdoor has no ad, so don't add keywords there).
+
+Service-area cities: Las Vegas, Henderson, Summerlin, North Las Vegas.
+
+### Negative keyword guardrails
+
+- Never block a product the site sells: blinds, shades, shutters, motorized, solar, outdoor and patio shades, rolling shutters.
+- "porch" and "outdoor" are never negatives (the site has an /outdoor category).
+- Check every new negative against every active keyword. Drop any that would block one.
+- Skip terms already on the campaign's negative list.
+
+## Step 4: Propose
+
+Send one message:
+
+1. A health line: serving or not, yesterday's spend vs $25, any banners.
+2. Yesterday / 7-day / since-launch totals: cost, clicks, leads, CPL.
+3. A numbered list, one action per item, each with its numbers. For example:
+   `1. R1 — raise "plantation shutters" cap $9.00 → $10.35 (1 lead at $31, losing 42% of top spots to bid)`
+   Group all negatives into one item, listed in full.
+4. Prerequisites still open, if any.
+5. "Reply 'all', a list like '1–4, 6', or 'skip 3'."
+
+If no rule fires, say so plainly and propose nothing.
+
+## Step 5: Apply the approved items only
+
+- Keyword bids, pauses and new keywords: Keywords page, or the matching ad group.
+- Negatives: Audiences, keywords and content → Search keywords → Negative search keywords → add at **campaign** level.
+- Every save may trigger "Confirm it's you". If it appears, ask the owner to complete it. Until they do, saves fail silently.
+- Write the log file (Step 7 format) before applying the first item, and update its Decision column after each item. If the session ends partway, the log still shows what was applied.
+
+## Step 6: Verify
+
+Open a fresh tab, reload each affected page, and confirm every applied change is actually stored: new bid amounts, Paused status, keywords present, negatives listed. Report anything that didn't stick, and don't count it as applied.
+
+## Step 7: Log
+
+Write `.ads-log/YYYY-MM-DD.md` (today's Pacific date) in the main checkout (`~/pss/.ads-log/`):
+
+```markdown
+# Ads daily — YYYY-MM-DD
+
+## Health
+<serving? spend vs budget, banners>
+
+## Numbers
+| Range | Cost | Clicks | Leads | CPL |
+|---|---|---|---|---|
+| Yesterday | | | | |
+| Last 7 days | | | | |
+| Since launch | | | | |
+
+## Proposals
+| # | Rule | Action | Decision | Verified |
+|---|---|---|---|---|
+
+## New keywords added (rolling 7-day count: N/5)
+
+## Prerequisites open
+```
+
+Close the tabs you opened. End with a two-line summary to the owner: what changed, and what to watch tomorrow.
