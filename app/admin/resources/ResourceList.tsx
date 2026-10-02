@@ -3,7 +3,7 @@
 import { useId, useState, useTransition } from "react";
 import { displayName } from "@/lib/admin/task-rules";
 import { formatWhen } from "@/lib/admin/time";
-import { CATEGORY_MAX, formatBytes, groupResources, NAME_MAX, type Resource } from "@/lib/admin/resource-rules";
+import { CATEGORY_MAX, formatBytes, groupResources, matchCategory, NAME_MAX, type Resource } from "@/lib/admin/resource-rules";
 import { deleteResourceAction, recategorizeResourceAction, renameResourceAction, type ResourceResult } from "./actions";
 
 const BUTTON = "min-h-11 px-3 text-sm underline underline-offset-4";
@@ -19,7 +19,12 @@ function Row({ file, categories }: { file: Resource; categories: string[] }) {
   const [pending, start] = useTransition();
   const run = (action: () => Promise<ResourceResult>) =>
     start(async () => {
-      const result = await action();
+      let result: ResourceResult;
+      try {
+        result = await action();
+      } catch {
+        result = { error: "That didn't save. Try again." };
+      }
       if ("error" in result) setError(result.error);
       else { setError(null); setMode("view"); }
     });
@@ -31,31 +36,32 @@ function Row({ file, categories }: { file: Resource; categories: string[] }) {
         <a href={`/admin/resources/${file.id}`} target="_blank" rel="noreferrer" className="font-semibold underline underline-offset-4 break-all">{file.name}</a>
         <span className="text-sm text-ink-soft">{formatBytes(file.sizeBytes)} · {displayName(file.uploadedBy)} · {formatWhen(file.createdAt)}</span>
       </div>
+      {/* Keyed by mode, so each mounts fresh: React would otherwise reuse the view's buttons and skip autoFocus. */}
       {mode === "view" ? (
-        <div className="flex flex-wrap gap-1">
+        <div key="view" className="flex flex-wrap gap-1">
           <button type="button" className={BUTTON} aria-label={`Rename ${file.name}`} onClick={() => open("rename", file.name)}>Rename</button>
           <button type="button" className={BUTTON} aria-label={`Move ${file.name}`} onClick={() => open("move", file.category)}>Move</button>
           <button type="button" className={BUTTON} aria-label={`Delete ${file.name}`} onClick={() => open("delete")}>Delete</button>
         </div>
       ) : mode === "delete" ? (
-        <div className="flex flex-wrap items-center gap-2 text-sm">
+        <div key="delete" className="flex flex-wrap items-center gap-2 text-sm">
           <span>{`Delete ${file.name}? This can't be undone.`}</span>
-          <button type="button" disabled={pending} className={`${BUTTON} text-red-700`} onClick={() => run(() => deleteResourceAction(file.id))}>Yes, delete</button>
-          <button type="button" className={BUTTON} onClick={() => setMode("view")}>No</button>
+          <button type="button" autoFocus disabled={pending} className={`${BUTTON} text-red-700`} onClick={() => run(() => deleteResourceAction(file.id))}>Yes, delete</button>
+          <button type="button" disabled={pending} className={BUTTON} onClick={() => setMode("view")}>No</button>
         </div>
       ) : (
-        <form className="flex flex-wrap items-end gap-2" onSubmit={(e) => {
+        <form key={mode} className="flex flex-wrap items-end gap-2" onSubmit={(e) => {
           e.preventDefault();
-          run(() => (mode === "rename" ? renameResourceAction(file.id, value) : recategorizeResourceAction(file.id, value)));
+          run(() => (mode === "rename" ? renameResourceAction(file.id, value) : recategorizeResourceAction(file.id, matchCategory(value, categories) ?? value)));
         }}>
           <label className="flex flex-col gap-1 text-sm">
             {mode === "rename" ? "New name" : "Category"}
-            <input value={value} onChange={(e) => setValue(e.target.value)} className={INPUT}
+            <input autoFocus value={value} onChange={(e) => setValue(e.target.value)} className={INPUT}
               maxLength={mode === "rename" ? NAME_MAX : CATEGORY_MAX} list={mode === "move" ? listId : undefined} />
           </label>
           {mode === "move" ? <datalist id={listId}>{categories.map((c) => <option key={c} value={c} />)}</datalist> : null}
           <button type="submit" disabled={pending} className="min-h-11 bg-charcoal px-4 text-sm text-ivory disabled:opacity-40">Save</button>
-          <button type="button" className={BUTTON} onClick={() => setMode("view")}>Cancel</button>
+          <button type="button" disabled={pending} className={BUTTON} onClick={() => setMode("view")}>Cancel</button>
         </form>
       )}
       {error ? <p role="alert" className="text-sm text-red-700">{error}</p> : null}

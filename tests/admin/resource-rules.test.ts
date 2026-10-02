@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  CATEGORY_MAX, NAME_MAX, RESOURCE_MAX_BYTES, cleanCategory, cleanName, formatBytes, groupResources, opensInline,
-  resourceIdFromPathname, resourcePathname, type Resource,
+  CATEGORY_MAX, NAME_MAX, RESOURCE_MAX_BYTES, cleanCategory, cleanName, formatBytes, groupResources, matchCategory, opensInline,
+  resourceIdFromPathname, resourcePathname, uploadName, type Resource,
 } from "@/lib/admin/resource-rules";
 
 const ID = "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c";
@@ -36,6 +36,35 @@ describe("names and categories", () => {
     expect(cleanCategory("  Price   sheets ")).toBe("Price sheets");
     expect(cleanCategory("")).toBeNull();
     expect(cleanCategory("x".repeat(CATEGORY_MAX + 1))).toBeNull();
+  });
+});
+
+describe("uploadName", () => {
+  it("keeps a file's own name, trimmed", () => {
+    expect(uploadName("  Spec book.pdf ")).toBe("Spec book.pdf");
+  });
+
+  it("shortens a name over 200 characters, keeping its extension, instead of refusing the upload", () => {
+    const name = uploadName(`${"x".repeat(250)}.pdf`);
+    expect(name).toHaveLength(NAME_MAX);
+    expect(name.endsWith("….pdf")).toBe(true);
+    expect(uploadName("y".repeat(300))).toHaveLength(NAME_MAX);
+  });
+
+  it("names a nameless file", () => {
+    expect(uploadName("   ")).toBe("Untitled file");
+  });
+});
+
+describe("matchCategory", () => {
+  it("reuses an existing category's spelling when only the case or spacing differs", () => {
+    expect(matchCategory(" licenses ", ["Licenses", "Spec books"])).toBe("Licenses");
+    expect(matchCategory("spec  BOOKS", ["Licenses", "Spec books"])).toBe("Spec books");
+  });
+
+  it("cleans a new one, and refuses an empty one", () => {
+    expect(matchCategory("  Tax   forms", ["Licenses"])).toBe("Tax forms");
+    expect(matchCategory(" ", ["Licenses"])).toBeNull();
   });
 });
 

@@ -29,7 +29,14 @@ describe("GET /admin/resources/[id]", () => {
     expect(response.headers.get("Content-Disposition")).toMatch(/^inline; filename="W-9.pdf"/);
     expect(response.headers.get("Cache-Control")).toBe("private, no-store");
     expect(response.headers.get("X-Content-Type-Options")).toBe("nosniff");
+    expect(response.headers.get("Content-Length")).toBe("4");
     expect(new Uint8Array(await response.arrayBuffer())).toEqual(new Uint8Array([37, 80, 68, 70]));
+  });
+
+  it("answers 502 when storage can't be read", async () => {
+    blob.get.mockRejectedValue(new Error("BlobServiceNotAvailable"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    expect((await get()).status).toBe(502);
   });
 
   it.each(["text/html", "image/svg+xml", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"])("downloads %s instead of opening it", async (type) => {

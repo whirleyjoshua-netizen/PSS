@@ -26,9 +26,11 @@ describe("POST /admin/resources/upload", () => {
     const options = handleUpload.mock.calls[0][0] as Options;
     expect(options.body).toEqual(body);
     expect(options.onUploadCompleted).toBeUndefined();
-    expect(await options.onBeforeGenerateToken(`resources/${ID}/a.pdf`, null, true)).toEqual({
-      maximumSizeInBytes: 200 * 1024 * 1024, addRandomSuffix: false, allowOverwrite: false,
-    });
+    const before = Date.now();
+    const { validUntil, ...rest } = await options.onBeforeGenerateToken(`resources/${ID}/a.pdf`, null, true);
+    expect(rest).toEqual({ maximumSizeInBytes: 200 * 1024 * 1024, addRandomSuffix: false, allowOverwrite: false });
+    // Six hours: a 200 MB upload on a slow connection still finishes inside the token.
+    expect(validUntil as number).toBeGreaterThanOrEqual(before + 6 * 3600_000);
   });
 
   it("refuses any other path", async () => {
@@ -42,6 +44,12 @@ describe("POST /admin/resources/upload", () => {
   it("is for signed-in owners only: nothing is issued otherwise", async () => {
     requireAdmin.mockRejectedValue(new Error("NEXT_REDIRECT"));
     await expect(post()).rejects.toThrow("NEXT_REDIRECT");
+    expect(handleUpload).not.toHaveBeenCalled();
+  });
+
+  it("answers 400 to a body that isn't JSON", async () => {
+    const response = await POST(new Request("http://x/admin/resources/upload", { method: "POST", body: "not json" }));
+    expect(response.status).toBe(400);
     expect(handleUpload).not.toHaveBeenCalled();
   });
 

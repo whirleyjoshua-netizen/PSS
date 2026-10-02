@@ -4,7 +4,7 @@ const requireAdmin = vi.fn();
 vi.mock("@/lib/admin/session", () => ({ requireAdmin }));
 const blob = { head: vi.fn(), del: vi.fn() };
 vi.mock("@vercel/blob", () => blob);
-const store = { createResource: vi.fn(), renameResource: vi.fn(), recategorizeResource: vi.fn(), deleteResource: vi.fn() };
+const store = { createResource: vi.fn(), getResource: vi.fn(), renameResource: vi.fn(), recategorizeResource: vi.fn(), deleteResource: vi.fn() };
 vi.mock("@/lib/admin/resources", () => store);
 const revalidatePath = vi.fn();
 vi.mock("next/cache", () => ({ revalidatePath }));
@@ -21,6 +21,7 @@ beforeEach(() => {
   blob.head.mockResolvedValue({ size: 52341, contentType: "application/pdf", pathname: PATH });
   blob.del.mockResolvedValue(undefined);
   store.createResource.mockResolvedValue(saved);
+  store.getResource.mockResolvedValue(null);
   store.renameResource.mockResolvedValue(true);
   store.recategorizeResource.mockResolvedValue(true);
   store.deleteResource.mockResolvedValue(PATH);
@@ -42,17 +43,40 @@ describe("saveResourceAction", () => {
     expect(blob.del).not.toHaveBeenCalled();
   });
 
-  it("refuses an empty category or name and removes the upload", async () => {
+  it("refuses an empty category and removes the upload", async () => {
     expect(await actions.saveResourceAction({ pathname: PATH, name: "W-9.pdf", category: "  " })).toEqual({ error: "Pick or type a category (up to 60 characters)." });
-    expect(await actions.saveResourceAction({ pathname: PATH, name: " ", category: "Licenses" })).toEqual({ error: "Give the file a name (up to 200 characters)." });
-    expect(blob.del).toHaveBeenCalledTimes(2);
+    expect(blob.del).toHaveBeenCalledWith(PATH);
     expect(store.createResource).not.toHaveBeenCalled();
   });
 
-  it("says so when the upload never arrived", async () => {
+  it("shortens a long name rather than losing the upload", async () => {
+    expect(await actions.saveResourceAction({ pathname: PATH, name: `${"x".repeat(250)}.pdf`, category: "Licenses" })).toEqual({ ok: true });
+    expect(store.createResource.mock.calls[0][0].name).toHaveLength(200);
+    expect(blob.del).not.toHaveBeenCalled();
+  });
+
+  it("never touches the file of an upload that is already saved, whatever else it is sent", async () => {
+    store.getResource.mockResolvedValue({ ...saved, pathname: PATH });
+    for (const input of [{ name: "W-9.pdf", category: "Licenses" }, { name: "", category: "" }]) {
+      expect(await actions.saveResourceAction({ pathname: PATH, ...input })).toEqual({ ok: true });
+    }
+    expect(blob.del).not.toHaveBeenCalled();
+    expect(blob.head).not.toHaveBeenCalled();
+    expect(store.createResource).not.toHaveBeenCalled();
+  });
+
+  it("refuses and removes an empty file", async () => {
+    blob.head.mockResolvedValue({ size: 0, contentType: "application/pdf", pathname: PATH });
+    expect(await actions.saveResourceAction({ pathname: PATH, name: "W-9.pdf", category: "Licenses" })).toEqual({ error: "That file is empty." });
+    expect(blob.del).toHaveBeenCalledWith(PATH);
+    expect(store.createResource).not.toHaveBeenCalled();
+  });
+
+  it("says so when the upload never arrived, and clears any part of it", async () => {
     blob.head.mockRejectedValue(new Error("BlobNotFoundError"));
     expect(await actions.saveResourceAction({ pathname: PATH, name: "W-9.pdf", category: "Licenses" })).toEqual({ error: "The upload didn't finish. Try again." });
     expect(store.createResource).not.toHaveBeenCalled();
+    expect(blob.del).toHaveBeenCalledWith(PATH);
   });
 
   it("removes and refuses a file over 200 MB", async () => {
@@ -73,10 +97,19 @@ describe("saveResourceAction", () => {
     expect(blob.del).not.toHaveBeenCalled();
   });
 
-  it("removes the upload when the row can't be written, and rethrows", async () => {
+  it("removes the upload when the row can't be written, and says so", async () => {
     store.createResource.mockRejectedValue(new Error("db down"));
-    await expect(actions.saveResourceAction({ pathname: PATH, name: "W-9.pdf", category: "Licenses" })).rejects.toThrow("db down");
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(await actions.saveResourceAction({ pathname: PATH, name: "W-9.pdf", category: "Licenses" })).toEqual({ error: "The file couldn't be saved. Try again." });
     expect(blob.del).toHaveBeenCalledWith(PATH);
+  });
+
+  it("keeps the file when the write failed only in reply: the row is there", async () => {
+    store.createResource.mockRejectedValue(new Error("fetch failed"));
+    store.getResource.mockResolvedValueOnce(null).mockResolvedValueOnce({ ...saved, pathname: PATH });
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(await actions.saveResourceAction({ pathname: PATH, name: "W-9.pdf", category: "Licenses" })).toEqual({ ok: true });
+    expect(blob.del).not.toHaveBeenCalled();
   });
 
   it("is for signed-in owners only", async () => {
@@ -107,6 +140,7 @@ describe("rename, move and delete", () => {
   it("deletes the row, then the stored file", async () => {
     expect(await actions.deleteResourceAction(ID)).toEqual({ ok: true });
     expect(blob.del).toHaveBeenCalledWith(PATH);
+    expect(store.deleteResource.mock.invocationCallOrder[0]).toBeLessThan(blob.del.mock.invocationCallOrder[0]);
     expect(revalidatePath).toHaveBeenCalledWith("/admin/resources");
   });
 

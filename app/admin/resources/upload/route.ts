@@ -10,13 +10,19 @@ import { RESOURCE_MAX_BYTES, resourceIdFromPathname } from "@/lib/admin/resource
  */
 export async function POST(request: Request) {
   await requireAdmin();
-  const body = (await request.json()) as HandleUploadBody;
+  let body: HandleUploadBody;
+  try {
+    body = (await request.json()) as HandleUploadBody;
+  } catch {
+    return Response.json({ error: "That upload request can't be read." }, { status: 400 });
+  }
   try {
     const result = await handleUpload({
       body, request,
       onBeforeGenerateToken: async (pathname) => {
         if (!resourceIdFromPathname(pathname)) throw new Error("That upload path is not allowed.");
-        return { maximumSizeInBytes: RESOURCE_MAX_BYTES, addRandomSuffix: false, allowOverwrite: false };
+        // Six hours, not the default one: a 200 MB file on a slow connection must finish inside the token.
+        return { maximumSizeInBytes: RESOURCE_MAX_BYTES, addRandomSuffix: false, allowOverwrite: false, validUntil: Date.now() + 6 * 3600_000 };
       },
     });
     return Response.json(result);

@@ -77,12 +77,22 @@ describe("ResourceList", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("That file was deleted.");
   });
 
+  it("shows a rename that throws on the row, not as a crash", async () => {
+    actions.renameResourceAction.mockRejectedValue(new Error("db down"));
+    render(<ResourceList resources={[LIST[0]]} categories={[]} />);
+    fireEvent.click(screen.getByRole("button", { name: "Rename W-9.pdf" }));
+    expect(screen.getByRole("textbox", { name: "New name" })).toHaveFocus();
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("That didn't save. Try again.");
+  });
+
   it("deletes only after a second, inline confirmation", async () => {
     render(<ResourceList resources={[LIST[0]]} categories={[]} />);
     fireEvent.click(screen.getByRole("button", { name: "Delete W-9.pdf" }));
     expect(actions.deleteResourceAction).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "No" }));
     fireEvent.click(screen.getByRole("button", { name: "Delete W-9.pdf" }));
+    expect(screen.getByRole("button", { name: "Yes, delete" })).toHaveFocus();
     fireEvent.click(screen.getByRole("button", { name: "Yes, delete" }));
     await waitFor(() => expect(actions.deleteResourceAction).toHaveBeenCalledWith("a"));
   });
@@ -113,6 +123,36 @@ describe("ResourceUploader", () => {
     await act(async () => pick([big]));
     expect(upload).not.toHaveBeenCalled();
     expect(screen.getByText("Files must be 200 MB or smaller.")).toBeInTheDocument();
+  });
+
+  it("refuses an empty file without uploading it", async () => {
+    render(<ResourceUploader categories={[]} />);
+    await act(async () => pick([new File([], "empty.pdf")]));
+    expect(upload).not.toHaveBeenCalled();
+    expect(screen.getByText("That file is empty.")).toBeInTheDocument();
+  });
+
+  it("a save that throws shows on its own file, and the others still finish and refresh", async () => {
+    actions.saveResourceAction.mockRejectedValueOnce(new Error("server down")).mockResolvedValueOnce({ ok: true });
+    render(<ResourceUploader categories={[]} />);
+    await act(async () => pick([new File(["x"], "a.pdf"), new File(["y"], "b.pdf")]));
+    expect(await screen.findByText("The file couldn't be saved. Try again.")).toBeInTheDocument();
+    expect(await screen.findByText("Saved")).toBeInTheDocument();
+    expect(refresh).toHaveBeenCalled();
+  });
+
+  it("files under an existing category's spelling", async () => {
+    render(<ResourceUploader categories={["Licenses"]} />);
+    fireEvent.change(screen.getByRole("combobox", { name: "Category" }), { target: { value: "licenses " } });
+    await act(async () => pick([new File(["x"], "a.pdf")]));
+    await waitFor(() => expect(actions.saveResourceAction).toHaveBeenCalledWith(expect.objectContaining({ category: "Licenses" })));
+  });
+
+  it("announces each file's progress and result", async () => {
+    render(<ResourceUploader categories={[]} />);
+    await act(async () => pick([new File(["x"], "a.pdf")]));
+    expect(await screen.findByText("Saved")).toBeInTheDocument();
+    expect(screen.getByText("Saved").closest("[aria-live]")).toHaveAttribute("aria-live", "polite");
   });
 
   it("shows each file's own failure", async () => {

@@ -33,6 +33,25 @@ export function cleanName(raw: string): string | null {
   return name.length >= 1 && name.length <= NAME_MAX ? name : null;
 }
 
+/**
+ * An uploaded file's name as it is stored: never refused, since the upload is already made and the
+ * owner couldn't fix it. Over NAME_MAX it is shortened with "…", keeping a short extension.
+ */
+export function uploadName(raw: string): string {
+  const name = raw.trim();
+  if (!name) return "Untitled file";
+  if (name.length <= NAME_MAX) return name;
+  const ext = /\.[A-Za-z0-9]{1,10}$/.exec(name)?.[0] ?? "";
+  return `${name.slice(0, NAME_MAX - 1 - ext.length)}…${ext}`;
+}
+
+/** A typed category, cleaned, spelled as an existing one when it differs only in case, so "licenses" files under "Licenses". */
+export function matchCategory(raw: string, existing: string[]): string | null {
+  const category = cleanCategory(raw);
+  if (!category) return null;
+  return existing.find((c) => c.toLowerCase() === category.toLowerCase()) ?? category;
+}
+
 export function cleanCategory(raw: string): string | null {
   const category = raw.trim().replace(/\s+/g, " ");
   return category.length >= 1 && category.length <= CATEGORY_MAX ? category : null;

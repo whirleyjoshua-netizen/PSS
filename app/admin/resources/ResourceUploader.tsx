@@ -3,13 +3,15 @@
 import { useId, useState } from "react";
 import { useRouter } from "next/navigation";
 import { upload } from "@vercel/blob/client";
-import { CATEGORY_MAX, cleanCategory, RESOURCE_MAX_BYTES, resourcePathname } from "@/lib/admin/resource-rules";
+import { CATEGORY_MAX, matchCategory, RESOURCE_MAX_BYTES, resourcePathname } from "@/lib/admin/resource-rules";
 import { saveResourceAction } from "./actions";
 
 type Item = { key: string; name: string; percent: number; status: "uploading" | "saved" | "failed"; message?: string };
 
 const TOO_BIG = "Files must be 200 MB or smaller.";
 const FAILED = "Upload failed. Check your connection and try again.";
+const EMPTY = "That file is empty.";
+const NOT_SAVED = "The file couldn't be saved. Try again.";
 const NO_CATEGORY = `Pick or type a category (up to ${CATEGORY_MAX} characters).`;
 
 /**
@@ -26,8 +28,8 @@ export function ResourceUploader({ categories }: { categories: string[] }) {
 
   async function send(file: File, chosen: string) {
     const key = crypto.randomUUID();
-    if (file.size > RESOURCE_MAX_BYTES) {
-      setItems((all) => [...all, { key, name: file.name, percent: 0, status: "failed", message: TOO_BIG }]);
+    if (file.size < 1 || file.size > RESOURCE_MAX_BYTES) {
+      setItems((all) => [...all, { key, name: file.name, percent: 0, status: "failed", message: file.size < 1 ? EMPTY : TOO_BIG }]);
       return;
     }
     setItems((all) => [...all, { key, name: file.name, percent: 0, status: "uploading" }]);
@@ -41,15 +43,20 @@ export function ResourceUploader({ categories }: { categories: string[] }) {
       update(key, { status: "failed", message: FAILED });
       return;
     }
-    const result = await saveResourceAction({ pathname, name: file.name, category: chosen });
-    update(key, "error" in result ? { status: "failed", message: result.error } : { status: "saved", percent: 100 });
+    try {
+      const result = await saveResourceAction({ pathname, name: file.name, category: chosen });
+      update(key, "error" in result ? { status: "failed", message: result.error } : { status: "saved", percent: 100 });
+    } catch {
+      update(key, { status: "failed", message: NOT_SAVED });
+    }
   }
 
   async function pick(files: File[]) {
-    const chosen = cleanCategory(category);
+    const chosen = matchCategory(category, categories);
     if (!chosen) return setError(NO_CATEGORY);
     setError(null);
-    await Promise.all(files.map((file) => send(file, chosen)));
+    // Each file settles on its own: one failure never stops the others or the refresh.
+    await Promise.allSettled(files.map((file) => send(file, chosen)));
     router.refresh();
   }
 
@@ -62,7 +69,7 @@ export function ResourceUploader({ categories }: { categories: string[] }) {
             className="min-h-11 border border-rule bg-white px-3" />
           <datalist id={listId}>{categories.map((c) => <option key={c} value={c} />)}</datalist>
         </label>
-        <label className="inline-flex min-h-11 cursor-pointer items-center border border-charcoal px-4 text-sm">
+        <label className="inline-flex min-h-11 cursor-pointer items-center border border-charcoal px-4 text-sm focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-champagne-ink">
           Choose files
           <input type="file" multiple className="sr-only" aria-label="Choose files"
             onChange={(event) => {
@@ -74,6 +81,7 @@ export function ResourceUploader({ categories }: { categories: string[] }) {
       </div>
       <p className="text-sm text-ink-soft">Any file, up to 200 MB each. PDFs and photos open in the browser; other files download.</p>
       {error ? <p role="alert" className="text-sm text-red-700">{error}</p> : null}
+      <div aria-live="polite">
       {items.length > 0 ? (
         <ul className="flex flex-col gap-2 text-sm">
           {items.map((item) => (
@@ -89,6 +97,7 @@ export function ResourceUploader({ categories }: { categories: string[] }) {
           ))}
         </ul>
       ) : null}
+      </div>
     </div>
   );
 }
