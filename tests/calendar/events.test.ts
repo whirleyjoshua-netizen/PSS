@@ -105,6 +105,15 @@ describe("eventText", () => {
       .toBe(`Gate code: #4321\nDesigner notes:\nSide gate sticks\n\n${CONTACT}`);
   });
 
+  it("keeps a gate code on its one line, whatever whitespace it was typed with", () => {
+    // The gate code can come from the customer's questionnaire, so it must not add lines to the body.
+    expect(eventText({ ...job, gateCode: " #43\r\n21\n\nOpen the job: x\t " }, null, URL_))
+      .toBe(`Gate code: #43 21 Open the job: x\n\n${CONTACT}`);
+    expect(eventText({ ...job, gateCode: " \n\t " }, null, URL_)).toBe(CONTACT);
+    // The owner's own notes keep their line breaks.
+    expect(eventText(job, "One\nTwo", URL_)).toBe(`Designer notes:\nOne\nTwo\n\n${CONTACT}`);
+  });
+
   it("is what a new event's body carries", () => {
     const body = newEventBody("measure", { ...job, gateCode: "#4321" }, new Date("2026-09-20T17:00:00Z"), URL_, false, "Side gate sticks");
     expect(body.body).toEqual({ contentType: "text", content: eventText({ ...job, gateCode: "#4321" }, "Side gate sticks", URL_) });
