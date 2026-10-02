@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { getAdmin } from "@/lib/admin/session";
 import { AdminNav } from "./AdminNav";
+import { RegisterOpsWorker } from "./RegisterOpsWorker";
 
 export const metadata: Metadata = {
   title: "PSS Jobs",
@@ -24,12 +25,18 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const admin = await getAdmin();
 
   if (!admin) {
-    return <main className="admin-theme flex-1 px-4 pt-[max(1.5rem,env(safe-area-inset-top))] pb-6 sm:px-6">{children}</main>;
+    return (
+      <main className="admin-theme flex-1 px-4 pt-[max(1.5rem,env(safe-area-inset-top))] pb-6 sm:px-6">
+        <RegisterOpsWorker />
+        {children}
+      </main>
+    );
   }
 
   return (
     <div className="admin-theme flex min-h-screen flex-1 flex-col md:flex-row">
       <AdminNav email={admin.email} />
+      <RegisterOpsWorker />
       <main className="min-w-0 flex-1 px-4 pt-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:px-8">{children}</main>
     </div>
   );

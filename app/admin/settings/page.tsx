@@ -4,6 +4,7 @@ import { getSyncState } from "@/lib/calendar/store";
 import { formatWhen } from "@/lib/admin/time";
 import { listTeam } from "@/lib/admin/team";
 import { TeamSection } from "./TeamSection";
+import { InstallSection } from "./InstallSection";
 import { getRouteSettings } from "@/lib/routes/settings";
 import { RoutesSection } from "./RoutesSection";
 import { routePlanningConfigured } from "@/lib/routes/optimize";
@@ -60,6 +61,7 @@ export default async function SettingsPage() {
   return (
     <div className="flex max-w-xl flex-col gap-4">
       <h1 className="text-2xl font-semibold">Settings</h1>
+      <InstallSection />
       <TeamSection team={team} />
       <AdminAccessSection owners={parseAllowlist(process.env.ADMIN_EMAILS)} added={addedAdmins} me={admin.email} />
       <FaceIdSection devices={faceIdDevices} />
