@@ -88,3 +88,20 @@ test("a call never moves a job backwards", async ({ page }) => {
   const events = await sql()`select kind, from_status, to_status, body from job_events where lead_id = ${id} order by created_at`;
   expect(events.filter((e) => e.kind === "stage")).toHaveLength(0);
 });
+
+test("a talked call moves a new lead to Contacted", async ({ page }) => {
+  const id = await lead(`E2E Call Talked ${STAMP}`, "new");
+  await signIn(page);
+  await page.goto(`/admin/jobs/${id}/call`);
+  await page.getByRole("button", { name: "Talked, no visit yet" }).click();
+  await expect(page).toHaveURL(new RegExp(`/admin/jobs/${id}$`));
+  await expect(page.getByRole("list", { name: "Stage" }).locator('[aria-current="step"]')).toContainText("Contacted");
+  await expect(page.getByText("Call: talked, no visit yet")).toBeVisible();
+
+  const [row] = await sql()`select status from leads where id = ${id}`;
+  expect(row.status).toBe("contacted");
+  const events = await sql()`select kind, from_status, to_status, body from job_events where lead_id = ${id} order by created_at`;
+  expect(events.filter((e) => e.kind === "stage").map(({ from_status, to_status }) => ({ from_status, to_status }))).toEqual([
+    { from_status: "new", to_status: "contacted" },
+  ]);
+});

@@ -19,9 +19,9 @@ async function signIn(page: Page) {
   await expect(page.getByRole("heading", { name: "Jobs", exact: true })).toBeVisible();
 }
 
-async function lead(name: string): Promise<string> {
+async function lead(name: string, status = "new"): Promise<string> {
   const [row] = await sql()`insert into leads (name, phone, email, city, source, status)
-    values (${name}, '7025550190', 'e2e-stages@example.com', 'Henderson', 'phone', 'new') returning id`;
+    values (${name}, '7025550190', 'e2e-stages@example.com', 'Henderson', 'phone', ${status}) returning id`;
   return row.id as string;
 }
 
@@ -55,8 +55,29 @@ test("confirming a consultation books a new lead's appointment", async ({ page }
   expect(stages).toEqual([{ from_status: "new", to_status: "visit_booked" }]);
 });
 
-test("mark contacted logs how, shows last contacted, and keeps the stage", async ({ page }) => {
-  const id = await lead(`E2E Stages Contact ${STAMP}`);
+test("confirming a consultation books a contacted lead", async ({ page }) => {
+  const id = await lead(`E2E Stages Book Contacted ${STAMP}`, "contacted");
+  await signIn(page);
+  await page.goto(`/admin/jobs/${id}`);
+  const card = page.getByRole("region", { name: "Appointments" });
+  await card.getByRole("button", { name: "Schedule" }).click();
+  const modal = page.getByRole("dialog", { name: "Schedule" });
+  await modal.getByLabel("Date and time").fill("2026-10-15T10:00");
+  await modal.getByRole("radio", { name: "Consultation" }).check();
+  await modal.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(card.getByText("Pending confirmation")).toBeVisible();
+  await card.getByRole("button", { name: "Confirm schedule" }).click();
+  await expect(card.getByText("Confirmed", { exact: true })).toBeVisible();
+  await expect(page.getByRole("list", { name: "Stage" }).locator('[aria-current="step"]')).toContainText("Appointment booked");
+  const [row] = await sql()`select status from leads where id = ${id}`;
+  expect(row.status).toBe("visit_booked");
+  const stages = await sql()`select from_status, to_status from job_events where lead_id = ${id} and kind = 'stage'`;
+  expect(stages).toEqual([{ from_status: "contacted", to_status: "visit_booked" }]);
+});
+
+test("mark contacted logs how, shows last contacted, and moves a new lead to Contacted", async ({ page }) => {
+  const name = `E2E Stages Contact ${STAMP}`;
+  const id = await lead(name);
   await signIn(page);
   await page.goto(`/admin/jobs/${id}`);
   await page.getByLabel("More actions").click();
@@ -67,9 +88,19 @@ test("mark contacted logs how, shows last contacted, and keeps the stage", async
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.getByText(/^Last contacted /)).toBeVisible();
   await expect(page.getByText("Contacted · Called, Texted — left details on price")).toBeVisible();
-  await expect(page.getByRole("list", { name: "Stage" }).locator('[aria-current="step"]')).toContainText("New lead");
+  await expect(page.getByRole("list", { name: "Stage" }).locator('[aria-current="step"]')).toContainText("Contacted");
   const [event] = await sql()`select kind, body from job_events where lead_id = ${id} and kind = 'contact'`;
   expect(event).toEqual({ kind: "contact", body: "Contacted · Called, Texted — left details on price" });
+  const [row] = await sql()`select status from leads where id = ${id}`;
+  expect(row.status).toBe("contacted");
+  const stages = await sql()`select from_status, to_status from job_events where lead_id = ${id} and kind = 'stage'`;
+  expect(stages).toEqual([{ from_status: "new", to_status: "contacted" }]);
+
+  // On the board the card now sits in the Contacted column, and no longer in New lead.
+  await page.goto("/admin");
+  const board = page.getByRole("region", { name: "Board" });
+  await expect(board.getByRole("region", { name: /^Contacted ·/ }).getByRole("link", { name: new RegExp(name) })).toBeVisible();
+  await expect(board.getByRole("region", { name: /^New lead ·/ }).getByRole("link", { name: new RegExp(name) })).toHaveCount(0);
 });
 
 test("completing an installed job moves it from the board to the list", async ({ page }) => {
