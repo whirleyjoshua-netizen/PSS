@@ -9,7 +9,7 @@ Every morning, check whether the Search campaign spent its budget and whether it
 
 ## Fixed facts
 
-- Google Ads account 683-934-1456, campaign "Search - Window Treatments LV" (ID 24293240304), $25/day budget.
+- Google Ads account 683-934-1456, campaign "Search - Window Treatments LV" (ID 24293240304), $25/day budget as of 2026-10-02. Each run reads the live daily budget instead of assuming it.
 - Current bidding (2026-10-02): Maximize clicks with a $9 campaign-wide max CPC limit. Each run reads the live bidding strategy and bids instead of assuming them.
 - Target CPL: **$75** for one "Consultation request".
 - Max CPC hard ceiling: **$12**.
@@ -34,13 +34,14 @@ Nothing else is built: no API integration, no admin page, no scheduled job.
 
 1. **Read the log.** Open the last 7 days of `~/pss/.ads-log/` to see what changed recently, so the run doesn't raise the same bid twice in one day or re-propose rejected items without saying so.
 2. **Health check**, in the owner's logged-in Chrome (Browser 1, macOS):
-   - Yesterday's impressions, clicks and cost vs the $25 budget.
+   - Yesterday's impressions, clicks and cost vs the live daily budget (Budget column; $25/day as of 2026-10-02).
    - Campaign and ad statuses, disapprovals, and billing or policy banners.
    - If yesterday had 0 impressions, stop and diagnose before proposing anything else (Ad preview with location "Las Vegas, Nevada" city, change history, billing).
 3. **Pull numbers** for yesterday, the last 7 days and since launch (custom range Sep 28, 2026 through yesterday). Every range ends yesterday; today's partial day is never used.
    - Per keyword: cost, clicks, impressions, CTR, conversions, cost per conversion, and "Search lost top IS (rank)".
    - Campaign row: cost, clicks, conversions and cost per conversion for yesterday, the last 7 days and since launch. The proposal reports these figures as read, never sums of keyword rows.
    - Campaign: search impression share and "Search lost IS (rank)" for the last 7 days.
+   - The campaign's live daily budget (Budget column on the Campaigns page).
    - Campaign cost for each of the last 3 days: Campaigns page, date = last 7 days, Segment → Time → Day.
    - The current bidding strategy, and either the campaign max CPC limit (Maximize clicks) or each active keyword's max CPC (Manual CPC).
    - Search terms report for the last 7 days.
@@ -59,7 +60,7 @@ Date ranges: R1, R2 and R3 (leads, spend, CPL) and R4 (CTR, impressions) use sin
 
 CPL is undefined when conversions = 0. A "—" or $0 in Cost / conv. is never read as ≤ $75, and R1, R3 and R8 don't fire on an undefined CPL.
 
-If P0 and R7 are approved in the same run, P0 is applied first, and R7 is then applied in its after-P0 form: every active keyword's max CPC raised 15% from the P0 starting bid, never above $12.
+If P0 and R7 are approved in the same run, P0 is applied first, and R7 is then applied in its after-P0 form: every active keyword's max CPC raised 15% from the P0 starting bid, never above $12. When R7 is proposed in the same run as an outstanding P0, the R7 item shows both forms, e.g. "campaign limit $9.00 → $10.35, or every keyword $9.00 → $10.35 if P0 is approved".
 
 | # | Condition | Proposal |
 |---|---|---|
@@ -70,7 +71,7 @@ If P0 and R7 are approved in the same run, P0 is applied first, and R7 is then a
 | R5 | Search term (last 7 days) is DIY, another retailer or brand, a job search, outside the service area, or a product PSS doesn't sell | Propose as a negative keyword, up to 20 per day |
 | R6 | Search term got a click, shows buying intent ("near me", "install", "installation", "cost", "price", "quote", a service-area city name), and isn't already a keyword | Propose as a phrase-match keyword in the matching ad group. At most 5 new keywords per rolling 7 days |
 | R7 | Campaign spent < $20/day on each of the last 3 days, and campaign "Search lost IS (rank)" (last 7 days) > 30% | Before P0: propose raising the campaign max CPC limit 15%, never above $12. After P0, or when P0 is approved in the same run: propose raising max CPC 15% on every active keyword, never above $12 |
-| R8 | Campaign cost ≥ $25 (the full budget) on each of the last 3 days, and campaign CPL (last 7 days) ≤ $75 | Propose a budget increase of $5/day |
+| R8 | Campaign cost ≥ the live daily budget ($25 as of 2026-10-02) on each of the last 3 days, and campaign CPL (last 7 days) ≤ $75 | Propose a budget increase of $5/day |
 
 ### Negatives guardrails
 
