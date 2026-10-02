@@ -34,13 +34,31 @@ describe("calendar store", () => {
       ]);
     const job = await store.getCalendarJob(ID);
     expect(job?.appointments).toEqual([
-      { kind: "measure", startsAt: new Date("2026-09-20T17:00:00Z"), allDay: false },
-      { kind: "install", startsAt: new Date("2026-10-02T15:00:00Z"), allDay: true },
+      { kind: "measure", startsAt: new Date("2026-09-20T17:00:00Z"), allDay: false, designerNotes: null },
+      { kind: "install", startsAt: new Date("2026-10-02T15:00:00Z"), allDay: true, designerNotes: null },
     ]);
     const q = flat(sql.mock.calls[1]);
     expect(q).toContain("from appointments");
     expect(q).toContain("confirmed_at is not null");
     expect(sql.mock.calls[1]).toContain(ID);
+  });
+
+  it("reads the client's gate code and each confirmed appointment's designer notes for the event body", async () => {
+    sql
+      .mockResolvedValueOnce([{ id: ID, name: "Dana", phone: "7025550134", email: null, address: null, city: "Henderson",
+        treatments: [], gate_code: "#4321", status: "quoted", visit_at: null, install_on: null }])
+      .mockResolvedValueOnce([{ kind: "measure", starts_at: "2026-09-20T17:00:00Z", all_day: false, designer_notes: "Side gate sticks" }]);
+    const job = await store.getCalendarJob(ID);
+    expect(job?.gateCode).toBe("#4321");
+    expect(job?.appointments[0].designerNotes).toBe("Side gate sticks");
+    expect(text(sql.mock.calls[0])).toMatch(/treatments, gate_code, status/);
+    expect(text(sql.mock.calls[1])).toMatch(/select kind, starts_at, all_day, designer_notes from appointments/);
+  });
+
+  it("maps a missing gate code to null", async () => {
+    sql.mockResolvedValueOnce([{ id: ID, name: "Dana", phone: "7025550134", email: null, address: null, city: "Henderson",
+      treatments: [], status: "quoted", visit_at: null, install_on: null }]);
+    expect((await store.getCalendarJob(ID))?.gateCode).toBeNull();
   });
 
   it("maps a Date starts_at the driver may hand back instead of a string", async () => {

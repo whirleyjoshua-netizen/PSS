@@ -5,8 +5,8 @@ import { mirrorToJob } from "@/lib/admin/appointments";
 import type { Stage } from "@/lib/admin/stages";
 import type { EventJob, Kind } from "./events";
 
-/** A confirmed appointment, the only kind that reaches Outlook. */
-export type JobAppointment = { kind: Kind; startsAt: Date; allDay: boolean };
+/** A confirmed appointment, the only kind that reaches Outlook. Its notes go into its event's body. */
+export type JobAppointment = { kind: Kind; startsAt: Date; allDay: boolean; designerNotes: string | null };
 export type CalendarJob = EventJob & {
   status: Stage; visitAt: Date | null; installOn: string | null; appointments: JobAppointment[];
 };
@@ -22,18 +22,19 @@ const toLink = (row: Record<string, unknown>): Link => ({
 export async function getCalendarJob(leadId: string): Promise<CalendarJob | null> {
   if (!isUuid(leadId)) return null;
   const rows = await db()`
-    select id, name, phone, email, address, city, treatments, status, visit_at, install_on::text as install_on
+    select id, name, phone, email, address, city, treatments, gate_code, status, visit_at, install_on::text as install_on
     from leads where id = ${leadId}`;
   const row = rows[0];
   if (!row) return null;
   // Unconfirmed appointments are invisible to Outlook, so they are never read back here.
   const appointments = await db()`
-    select kind, starts_at, all_day from appointments
+    select kind, starts_at, all_day, designer_notes from appointments
     where lead_id = ${leadId} and confirmed_at is not null order by starts_at`;
   return {
     id: row.id as string, name: row.name as string, phone: row.phone as string,
     email: (row.email as string | null) ?? null, address: (row.address as string | null) ?? null,
     city: row.city as string, treatments: (row.treatments as string[]) ?? [],
+    gateCode: (row.gate_code as string | null) ?? null,
     status: row.status as Stage,
     visitAt: row.visit_at ? new Date(row.visit_at as string) : null,
     installOn: (row.install_on as string | null) ?? null,
@@ -41,6 +42,7 @@ export async function getCalendarJob(leadId: string): Promise<CalendarJob | null
       kind: a.kind as Kind,
       startsAt: new Date(a.starts_at as string | Date),
       allDay: a.all_day === true,
+      designerNotes: (a.designer_notes as string | null) ?? null,
     })),
   };
 }

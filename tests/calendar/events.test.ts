@@ -1,10 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { newEventBody, movedTimes, trackerValue, sameValue, eventSubject, type GraphEvent } from "@/lib/calendar/events";
+import {
+  newEventBody, movedTimes, trackerValue, sameValue, eventSubject, eventText, bodyHash, type GraphEvent,
+} from "@/lib/calendar/events";
 import { APPOINTMENT_KINDS } from "@/lib/admin/appointment-kinds";
 
 const job = {
   id: "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c", name: "Dana Reyes", phone: "7025550134",
-  email: "dana@example.com", address: "12 Elm St", city: "Henderson", treatments: ["Shades"],
+  email: "dana@example.com", address: "12 Elm St", city: "Henderson", treatments: ["Shades"], gateCode: null,
 };
 const URL_ = "https://example.com/admin?job=" + job.id;
 const PST = "Pacific Standard Time";
@@ -79,6 +81,49 @@ describe("newEventBody", () => {
   it("uses the city alone when there is no address", () => {
     const body = newEventBody("consultation", { ...job, address: null }, new Date("2026-09-20T17:00:00Z"), URL_, false);
     expect(body.location).toEqual({ displayName: "Henderson" });
+  });
+});
+
+describe("eventText", () => {
+  const CONTACT = `Phone: (702) 555-0134\nEmail: dana@example.com\nInterested in: Shades\n\nOpen the job: ${URL_}`;
+
+  it("is exactly today's contact lines and link when there is no gate code and no notes", () => {
+    expect(eventText(job, null, URL_)).toBe(CONTACT);
+  });
+
+  it("leads with the gate code, then a blank line", () => {
+    expect(eventText({ ...job, gateCode: "#4321" }, null, URL_)).toBe(`Gate code: #4321\n\n${CONTACT}`);
+  });
+
+  it("leads with the designer notes, kept line for line, when there is no gate code", () => {
+    expect(eventText(job, "Bring motorized samples\nDog in the yard", URL_))
+      .toBe(`Designer notes:\nBring motorized samples\nDog in the yard\n\n${CONTACT}`);
+  });
+
+  it("puts the gate code before the designer notes", () => {
+    expect(eventText({ ...job, gateCode: "#4321" }, "Side gate sticks", URL_))
+      .toBe(`Gate code: #4321\nDesigner notes:\nSide gate sticks\n\n${CONTACT}`);
+  });
+
+  it("is what a new event's body carries", () => {
+    const body = newEventBody("measure", { ...job, gateCode: "#4321" }, new Date("2026-09-20T17:00:00Z"), URL_, false, "Side gate sticks");
+    expect(body.body).toEqual({ contentType: "text", content: eventText({ ...job, gateCode: "#4321" }, "Side gate sticks", URL_) });
+    expect(newEventBody("measure", job, new Date("2026-09-20T17:00:00Z"), URL_, false).body.content).toBe(CONTACT);
+  });
+});
+
+describe("bodyHash", () => {
+  it("is a stable sha256 hex digest for equal text", () => {
+    expect(bodyHash(eventText(job, "a", URL_))).toBe(bodyHash(eventText(job, "a", URL_)));
+    expect(bodyHash("abc")).toBe("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+  });
+
+  it("changes with the gate code, the notes, or any character of the text", () => {
+    const base = bodyHash(eventText(job, "Side gate sticks", URL_));
+    expect(bodyHash(eventText({ ...job, gateCode: "#4321" }, "Side gate sticks", URL_))).not.toBe(base);
+    expect(bodyHash(eventText(job, "Side gate sticks!", URL_))).not.toBe(base);
+    expect(bodyHash(eventText(job, null, URL_))).not.toBe(base);
+    expect(bodyHash(eventText(job, "Side gate sticks", URL_) + " ")).not.toBe(base);
   });
 });
 

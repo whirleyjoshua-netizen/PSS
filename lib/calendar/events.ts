@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { fromLocalInput, toLocalInput } from "@/lib/admin/time";
 import { kindLabel, type AppointmentKind } from "@/lib/admin/appointment-kinds";
 
@@ -17,6 +18,8 @@ export type GraphEvent = {
 export type EventJob = {
   id: string; name: string; phone: string; email: string | null;
   address: string | null; city: string; treatments: string[];
+  /** The client's gate code. Owner-only, but allowed on the support@ calendar: its events have no attendees. */
+  gateCode: string | null;
 };
 
 const ZONE = "Pacific Standard Time"; // Windows zone name Graph uses for Las Vegas, DST included
@@ -55,19 +58,39 @@ export type EventBody = {
 export const eventSubject = (kind: Kind, job: { name: string }): string => `${kindLabel(kind)} · ${job.name}`;
 
 /**
- * The Graph body for a new appointment's event. `allDay` decides the shape — a whole day, or one
- * hour from `value` — so any kind can be booked either way; the kind only names it.
+ * The plain-text body of an appointment's event: the gate code and the designer notes first, when
+ * there are any, then the contact lines and the link back to the job. The reconcile hashes exactly
+ * this text to decide whether Outlook needs the body again, so the create and every later update
+ * must both take it from here.
  */
-export function newEventBody(
-  kind: Kind, job: EventJob, value: Date | string, jobUrl: string, allDay: boolean,
-): EventBody {
-  const lines = [
+export function eventText(job: EventJob, designerNotes: string | null, jobUrl: string): string {
+  const head = [
+    job.gateCode ? `Gate code: ${job.gateCode}` : null,
+    designerNotes ? `Designer notes:\n${designerNotes}` : null,
+  ].filter((line) => line !== null);
+  const contact = [
     `Phone: ${formatPhone(job.phone)}`,
     job.email ? `Email: ${job.email}` : null,
     job.treatments.length ? `Interested in: ${job.treatments.join(", ")}` : null,
     "",
     `Open the job: ${jobUrl}`,
   ].filter((line) => line !== null);
+  return [...(head.length ? [...head, ""] : []), ...contact].join("\n");
+}
+
+/**
+ * sha256 of the exact text body sent to Outlook. Graph may hand an event's body back as HTML, so the
+ * reconcile compares this stored hash, never the body Outlook returns.
+ */
+export const bodyHash = (text: string): string => createHash("sha256").update(text, "utf8").digest("hex");
+
+/**
+ * The Graph body for a new appointment's event. `allDay` decides the shape — a whole day, or one
+ * hour from `value` — so any kind can be booked either way; the kind only names it.
+ */
+export function newEventBody(
+  kind: Kind, job: EventJob, value: Date | string, jobUrl: string, allDay: boolean, designerNotes: string | null = null,
+): EventBody {
   const timing = allDay
     ? { isAllDay: true, start: midnight(value as string), end: midnight(nextDay(value as string)) }
     : { isAllDay: false, start: local(value as Date), end: local(new Date((value as Date).getTime() + HOUR)) };
@@ -75,7 +98,7 @@ export function newEventBody(
     subject: eventSubject(kind, job),
     ...timing,
     location: { displayName: job.address ? `${job.address}, ${job.city}` : job.city },
-    body: { contentType: "text", content: lines.join("\n") },
+    body: { contentType: "text", content: eventText(job, designerNotes, jobUrl) },
   };
 }
 
