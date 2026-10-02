@@ -199,7 +199,9 @@ describe("changing jobs", () => {
     const statement = text(sql.mock.calls[0]).replace(/\s+/g, " ");
     expect(statement).toContain("'contact'");
     expect(statement).toContain("update leads set status = 'contacted'");
+    expect(statement).toContain("stage_changed_at = now()");
     expect(statement).toContain("where id = ? and status = 'new'");
+    expect(statement).toContain("exists (select 1 from logged)");
     expect(statement).toContain("'stage', 'new', 'contacted'");
   });
 

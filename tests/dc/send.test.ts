@@ -202,6 +202,7 @@ describe("sendQuote", () => {
       "(id in (select contract_file_id from superseded) or id in (select quote_file_id from superseded))",
       "update job_files set shared_at = now()", "quote_cents = ?",
       "when status in ('new','contacted','visit_booked','approved') then 'quoted'", "'Quote sent'", "'quote'",
+      "stage_changed_at = case when status in ('new','contacted','visit_booked','approved') then now() else stage_changed_at end",
     ]) expect(s).toContain(part);
     expect(quoteEmail.sendQuoteEmail).toHaveBeenCalledWith(job, "Quote PSS-1042 v1.pdf");
     expect(pdf.renderContractPdf).not.toHaveBeenCalled();

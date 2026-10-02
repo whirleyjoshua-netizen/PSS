@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { ALL_STAGES } from "@/lib/admin/stages";
 
 const flat = (file: string) => readFileSync(`db/migrations/${file}`, "utf8")
@@ -20,7 +20,9 @@ describe("migration 033", () => {
     expect(ALL_STAGES.slice(0, 3)).toEqual(["new", "contacted", "visit_booked"]);
     for (const file of STATUS_FILES) expect(flat(file), file).toContain(`status in (${list(ALL_STAGES)})`);
   });
-  it("no migration resets Contacted jobs any more (migrate.mjs re-runs every file)", () => {
-    for (const file of STATUS_FILES) expect(flat(file), file).not.toMatch(/update leads set status = 'new' where status = 'contacted'/);
+  it("no migration rewrites any job's stage (migrate.mjs re-runs every file, so it would undo live moves)", () => {
+    const files = readdirSync("db/migrations").filter((file) => file.endsWith(".sql"));
+    expect(files).toEqual(expect.arrayContaining(STATUS_FILES));
+    for (const file of files) expect(flat(file), file).not.toMatch(/update\s+leads\s+set\s+status\b/i);
   });
 });

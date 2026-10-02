@@ -12,7 +12,7 @@ const flat = (file: string) => readFileSync(`db/migrations/${file}`, "utf8")
   .split("\n").filter((line) => !line.trim().startsWith("--")).join("\n").replace(/\s+/g, " ");
 
 const KINDS = ["stage", "note", "edit", "email", "reward", "measure", "file", "contact", "message", "service", "signature", "quote", "document", "payment"];
-const STATUS_FILES = ["002_job_tracker.sql", "011_stages_contact_log.sql", "012_completed_stage.sql", "030_deposit_flow.sql"];
+const STATUS_FILES = ["002_job_tracker.sql", "011_stages_contact_log.sql", "012_completed_stage.sql", "030_deposit_flow.sql", "033_contacted_stage.sql"];
 const KIND_FILES = ["003_measure_and_files.sql", "004_referrals_reviews.sql", "011_stages_contact_log.sql", "019_service_requests.sql",
   "021_contract_signing.sql", "024_dc_quote_import.sql", "026_documents.sql", "030_deposit_flow.sql"];
 const VERSION_STATUSES = "status in ('draft','offered','sent','signed','superseded','cancelled')";
@@ -28,7 +28,7 @@ describe("migration 030", () => {
     }
   });
 
-  it("allows every stage the app has, in the app's order, in all four files that define the check", () => {
+  it("allows every stage the app has, in the app's order, in all five files that define the check", () => {
     expect(ALL_STAGES).toEqual(["new", "contacted", "visit_booked", "quoted", "approved", "signed", "sold", "measure", "ordered", "installed", "completed", "lost"]);
     for (const file of STATUS_FILES) expect(flat(file), file).toContain(`status in (${list(ALL_STAGES)})`);
   });
