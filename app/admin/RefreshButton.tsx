@@ -11,12 +11,7 @@ export function RefreshButton() {
       type="button"
       aria-label="Refresh"
       disabled={pending}
-      onClick={(event) => {
-        // Inside the Menu's <summary>: refreshing must not open or close the menu.
-        event.preventDefault();
-        event.stopPropagation();
-        start(() => router.refresh());
-      }}
+      onClick={() => start(() => router.refresh())}
       className="min-h-11 px-3 text-sm text-sidebar-muted"
     >
       {pending ? "Refreshing…" : "Refresh"}

@@ -1,8 +1,9 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const pathname = vi.fn(() => "/admin");
-vi.mock("next/navigation", () => ({ usePathname: () => pathname(), useRouter: () => ({ refresh: vi.fn() }) }));
+const refresh = vi.fn();
+vi.mock("next/navigation", () => ({ usePathname: () => pathname(), useRouter: () => ({ refresh }) }));
 vi.mock("@/app/admin/actions", () => ({ signOut: vi.fn(async () => {}) }));
 
 const { AdminNav, initialsFor } = await import("@/app/admin/AdminNav");
@@ -88,23 +89,59 @@ describe("AdminNav", () => {
 });
 
 describe("sidebar focus ring", () => {
-  it("puts admin-sidebar on the desktop aside and the phone details, for the focus-ring override", () => {
+  it("puts admin-sidebar on the desktop aside and the phone header, for the focus-ring override", () => {
     pathname.mockReturnValue("/admin");
     const { container } = render(<AdminNav email="owner@example.com" />);
     expect(container.querySelector("aside")).toHaveClass("admin-sidebar");
-    expect(container.querySelector("details")).toHaveClass("admin-sidebar");
+    expect(container.querySelector("header")).toHaveClass("admin-sidebar");
+    expect(container.querySelector("header details")).not.toBeNull();
   });
 });
 
 describe("phone header", () => {
-  it("clears the notch and offers Refresh beside Menu, since the home-screen app has no pull-to-refresh", () => {
+  it("stays on screen under the status bar, padded clear of the notch in either orientation", () => {
     pathname.mockReturnValue("/admin");
     const { container } = render(<AdminNav email="owner@example.com" />);
-    const details = container.querySelector("details")!;
-    expect(details).toHaveClass("pt-[env(safe-area-inset-top)]");
-    const summary = within(details.querySelector("summary")!);
-    expect(summary.getByRole("button", { name: "Refresh" })).toBeInTheDocument();
-    expect(summary.getByText("Menu")).toBeInTheDocument();
+    const header = container.querySelector("header")!;
+    for (const name of [
+      "sticky",
+      "top-0",
+      "bg-sidebar",
+      "md:hidden",
+      "pt-[env(safe-area-inset-top)]",
+      "pl-[max(1rem,env(safe-area-inset-left))]",
+      "pr-[max(1rem,env(safe-area-inset-right))]",
+    ]) expect(header, name).toHaveClass(name);
+  });
+
+  it("offers Refresh beside the Menu, outside its summary, since the home-screen app has no pull-to-refresh", () => {
+    pathname.mockReturnValue("/admin");
+    const { container } = render(<AdminNav email="owner@example.com" />);
+    const header = container.querySelector("header")!;
+    const summary = header.querySelector("summary")!;
+    expect(within(summary).getByText("Menu")).toBeInTheDocument();
+    expect(within(summary).queryByRole("button", { name: "Refresh" })).toBeNull();
+    const button = within(header).getByRole("button", { name: "Refresh" });
+    expect(header.querySelector("details")!.contains(button)).toBe(false);
+  });
+
+  it("refreshes without opening or closing the menu", () => {
+    pathname.mockReturnValue("/admin");
+    refresh.mockClear();
+    const { container } = render(<AdminNav email="owner@example.com" />);
+    const header = container.querySelector("header")!;
+    const details = header.querySelector("details")!;
+    const toggles = vi.fn();
+    details.addEventListener("toggle", toggles);
+
+    fireEvent.click(within(header).getByRole("button", { name: "Refresh" }));
+    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(details.open).toBe(false);
+
+    details.open = true;
+    fireEvent.click(within(header).getByRole("button", { name: "Refresh" }));
+    expect(refresh).toHaveBeenCalledTimes(2);
+    expect(details.open).toBe(true);
   });
 });
 

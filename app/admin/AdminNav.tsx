@@ -98,21 +98,25 @@ export function AdminNav({ email }: { email: string }) {
         <Account email={email} />
       </aside>
 
-      <details className="admin-sidebar bg-sidebar pt-[env(safe-area-inset-top)] text-sidebar-ink md:hidden">
-        <summary className="flex min-h-14 cursor-pointer items-center justify-between px-4">
-          <Logo tone="dark" className="text-[0.95rem]" />
-          <span className="flex items-center gap-1">
-            <RefreshButton />
+      {/* Sticky, and dark up into the status bar, so scrolled content never shows beneath it. */}
+      <header className="admin-sidebar sticky top-0 z-30 flex items-start bg-sidebar pt-[env(safe-area-inset-top)] pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] text-sidebar-ink md:hidden">
+        <details className="min-w-0 flex-1">
+          <summary className="flex min-h-14 cursor-pointer items-center justify-between">
+            <Logo tone="dark" className="text-[0.95rem]" />
             <span className="text-sm text-sidebar-muted">Menu</span>
-          </span>
-        </summary>
-        <div className="flex flex-col gap-4 px-2 pb-4">
-          <nav aria-label="Admin">
-            <NavLinks pathname={pathname} />
-          </nav>
-          <Account email={email} />
-        </div>
-      </details>
+          </summary>
+          <div className="flex flex-col gap-4 pb-4">
+            <nav aria-label="Admin">
+              <NavLinks pathname={pathname} />
+            </nav>
+            <Account email={email} />
+          </div>
+        </details>
+        {/* Beside the Menu, not in its summary, so a tap here never opens or closes it. */}
+        <span className="flex min-h-14 items-center">
+          <RefreshButton />
+        </span>
+      </header>
     </>
   );
 }

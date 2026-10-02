@@ -29,7 +29,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   if (!admin) {
     return (
-      <main className="admin-theme flex-1 px-4 pt-[max(1.5rem,env(safe-area-inset-top))] pb-6 sm:px-6">
+      <main className="admin-theme flex-1 pt-[max(1.5rem,env(safe-area-inset-top))] pr-[max(1rem,env(safe-area-inset-right))] pb-6 pl-[max(1rem,env(safe-area-inset-left))] sm:pr-[max(1.5rem,env(safe-area-inset-right))] sm:pl-[max(1.5rem,env(safe-area-inset-left))]">
         <RegisterOpsWorker />
         {children}
       </main>
@@ -40,7 +40,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     <div className="admin-theme flex min-h-screen flex-1 flex-col md:flex-row">
       <AdminNav email={admin.email} />
       <RegisterOpsWorker />
-      <main className="min-w-0 flex-1 px-4 pt-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:px-8">{children}</main>
+      <main className="min-w-0 flex-1 pt-6 pr-[max(1rem,env(safe-area-inset-right))] pb-[max(1.5rem,env(safe-area-inset-bottom))] pl-[max(1rem,env(safe-area-inset-left))] sm:pr-[max(2rem,env(safe-area-inset-right))] sm:pl-[max(2rem,env(safe-area-inset-left))]">
+        {children}
+      </main>
     </div>
   );
 }
