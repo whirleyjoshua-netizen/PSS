@@ -6,33 +6,30 @@ import { cityForZip } from "./zip-city";
 const id = z.union([z.string(), z.number()]);
 
 /**
- * Google Ads lead form webhook body. Unknown fields are allowed (passthrough),
- * so a new field from Google never turns a lead away.
+ * Google Ads lead form webhook body. Unknown fields are allowed (loose object),
+ * so a new field from Google never turns a lead away, and every optional field
+ * accepts null, so a null from Google never rejects a real lead either.
  */
-export const googleLeadPayloadSchema = z
-  .object({
-    lead_id: z.string().trim().min(1),
-    user_column_data: z
-      .array(
-        z
-          .object({
-            column_id: z.string().optional(),
-            column_name: z.string().optional(),
-            string_value: z.string().optional(),
-          })
-          .passthrough(),
-      )
-      .optional(),
-    api_version: z.string().optional(),
-    form_id: id.optional(),
-    campaign_id: id.optional(),
-    adgroup_id: id.optional(),
-    creative_id: id.optional(),
-    gcl_id: z.string().optional(),
-    google_key: z.string().optional(),
-    is_test: z.boolean().optional(),
-  })
-  .passthrough();
+export const googleLeadPayloadSchema = z.looseObject({
+  lead_id: z.string().trim().min(1),
+  user_column_data: z
+    .array(
+      z.looseObject({
+        column_id: z.string().nullish(),
+        column_name: z.string().nullish(),
+        string_value: z.string().nullish(),
+      }),
+    )
+    .nullish(),
+  api_version: z.string().nullish(),
+  form_id: id.nullish(),
+  campaign_id: id.nullish(),
+  adgroup_id: id.nullish(),
+  creative_id: id.nullish(),
+  gcl_id: z.string().nullish(),
+  google_key: z.string().nullish(),
+  is_test: z.boolean().nullish(),
+});
 
 export type GoogleLeadPayload = z.infer<typeof googleLeadPayloadSchema>;
 
@@ -63,7 +60,8 @@ export function parseGoogleLead(
 
   const columns = new Map<string, string>();
   for (const c of p.user_column_data ?? []) {
-    const key = (c.column_id ?? c.column_name ?? "").trim().toUpperCase();
+    // column_name is a label such as "Full Name"; normalise it to the FULL_NAME form.
+    const key = (c.column_id || c.column_name || "").trim().toUpperCase().replace(/\s+/g, "_");
     const value = (c.string_value ?? "").trim();
     if (key && value && !columns.has(key)) columns.set(key, value);
   }
@@ -100,7 +98,7 @@ export function parseGoogleLead(
       gclid: p.gcl_id?.trim() || null,
       notes: [header, ...extra].join("\n"),
       isTest: p.is_test === true,
-      key: p.google_key,
+      key: p.google_key ?? undefined,
     },
   };
 }

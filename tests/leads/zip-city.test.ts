@@ -28,6 +28,11 @@ describe("cityForZip", () => {
     expect(cityForZip("89052-1234")).toBe("Henderson");
   });
 
+  it("rejects a sixth digit after the first five", () => {
+    expect(cityForZip("891234")).toBeNull();
+    expect(cityForZip("890521")).toBeNull();
+  });
+
   it("trims surrounding whitespace", () => {
     expect(cityForZip("  89134 ")).toBe("Summerlin");
   });

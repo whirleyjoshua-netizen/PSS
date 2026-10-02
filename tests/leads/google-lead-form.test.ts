@@ -126,4 +126,57 @@ describe("parseGoogleLead", () => {
     const { lead_id: _l, ...rest } = base;
     expect(parseGoogleLead(rest).ok).toBe(false);
   });
+
+  it("accepts nulls from Google in optional fields", () => {
+    const lead = parse({
+      ...base,
+      gcl_id: null,
+      api_version: null,
+      google_key: null,
+      is_test: null,
+      form_id: null,
+      campaign_id: null,
+      adgroup_id: null,
+      creative_id: null,
+      user_column_data: [
+        { column_id: "FULL_NAME", column_name: null, string_value: "Dana Reyes" },
+        { column_id: "EMAIL", column_name: null, string_value: null },
+        { column_id: null, column_name: "Phone Number", string_value: "7025550123" },
+      ],
+    });
+    expect(lead.name).toBe("Dana Reyes");
+    expect(lead.phone).toBe("7025550123");
+    expect(lead.email).toBeNull();
+    expect(lead.gclid).toBeNull();
+    expect(lead.key).toBeUndefined();
+    expect(lead.isTest).toBe(false);
+    expect(lead.notes.split("\n")[0]).toBe("Google lead form (form ?, campaign ?)");
+  });
+
+  it("accepts a null user_column_data", () => {
+    expect(parse({ ...base, user_column_data: null }).name).toBe("Google lead");
+  });
+
+  it('matches a column_name label such as "Full Name" to FULL_NAME', () => {
+    const lead = parse({
+      ...base,
+      user_column_data: [
+        { column_name: "Full Name", string_value: "Pat Lee" },
+        { column_id: "", column_name: "postal code", string_value: "89134" },
+      ],
+    });
+    expect(lead.name).toBe("Pat Lee");
+    expect(lead.city).toBe("Summerlin");
+  });
+
+  it("accepts string ids and puts them in the notes", () => {
+    const lead = parse({ ...base, form_id: "40000000001", campaign_id: "23000000002", adgroup_id: "1", creative_id: "2" });
+    expect(lead.notes).toBe("Google lead form (form 40000000001, campaign 23000000002)");
+  });
+
+  it("keeps an 11-digit phone that does not start with 1, and notes it", () => {
+    const lead = parse({ ...base, user_column_data: [col("FULL_NAME", "Dana"), col("PHONE_NUMBER", "27025550123")] });
+    expect(lead.phone).toBe("27025550123");
+    expect(lead.notes).toMatch(/10 digits/);
+  });
 });

@@ -10,7 +10,7 @@ const SUMMERLIN = new Set(["89134", "89135", "89138", "89144", "89145"]);
  * A ZIP+4 such as "89052-1234" is read by its first five digits.
  */
 export function cityForZip(zip: string | null | undefined): ServiceCity | null {
-  const match = /^(\d{5})/.exec((zip ?? "").trim());
+  const match = /^(\d{5})(?!\d)/.exec((zip ?? "").trim());
   if (!match) return null;
   const five = match[1];
   if (HENDERSON.has(five)) return "Henderson";
