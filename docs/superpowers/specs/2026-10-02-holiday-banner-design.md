@@ -53,3 +53,16 @@ The server also renders nothing when a build happens outside the window.
 - Browser check against `next start`: phone and desktop width, no shift on load, close survives reload.
 
 No migration. Deploy by push to main.
+
+## Revisions (owner, 2026-10-02)
+
+- Look: option B, classic Christmas red (`holiday-red`) with green and gold trim, a faint snowfall, and snowflakes
+  beside the message on wider screens. Tokens and contrast notes live in `app/globals.css`; the strip's focus ring
+  is `holiday-snow` (8.53:1) because champagne-ink is 1.49:1 on the red.
+- Phone message shortened to "Holiday-ready? Free consult →" so the band stays one line with the new button.
+- **Lead times ▾** sits left of the ×. Its panel lists blinds and shades 3–5 weeks, shutters 6–10 weeks (the
+  starter terms' §8 numbers, in `content/lead-times.ts`), each with "installed around" dates counted from today in
+  Las Vegas: the client orders at the consult. Dates are computed only when the panel opens, so prerendered HTML
+  never carries stale dates. Windows ending after Dec 24 say "may be after Christmas". Escape, an outside tap or
+  the button closes it; opening it sends GA4 `lead_times_open`.
+- The customer project page's production estimate is now built from the same numbers, replacing "4–6 weeks".
