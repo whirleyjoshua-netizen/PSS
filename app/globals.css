@@ -36,6 +36,13 @@
      - ink-soft on sand/40 over the admin ground: ~6.0:1
      - champagne-ink on the admin ground: ~5.3:1
      - champagne (the sidebar focus ring) on sidebar: computed 8.62:1 */
+  /* Seasonal strip only (components/layout/PromoBannerClient.tsx). Computed:
+     holiday-snow on holiday-red 8.53:1 (text and focus ring). champagne-ink is
+     only 1.49:1 on holiday-red, so the strip overrides the focus ring below. */
+  --color-holiday-red: #8E1B25;
+  --color-holiday-green: #1F4D2E;
+  --color-holiday-snow: #FFF8EE;
+
   --color-sidebar: #1E1E1E;
   --color-sidebar-ink: #F7F5F0;
   --color-sidebar-muted: #B3AAA0;
@@ -107,6 +114,11 @@ h1, h2, h3, h4 {
    into a layer, or relying on a Tailwind utility for it, would let the darker default win. */
 .admin-sidebar :focus-visible {
   outline-color: var(--color-champagne);
+}
+
+/* Same reason on the holiday strip: champagne-ink is 1.49:1 on holiday-red. */
+.holiday-strip :focus-visible {
+  outline-color: var(--color-holiday-snow);
 }
 
 /*
