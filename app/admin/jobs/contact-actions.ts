@@ -7,7 +7,7 @@ import { contactSchema } from "@/lib/admin/schema";
 import { requireAdmin } from "@/lib/admin/session";
 import type { FormState } from "./actions";
 
-// Calls requireAdmin() before reading its input. Never touches the stage or the call-back.
+// Calls requireAdmin() before reading its input. Moves a New lead to Contacted (addContact). Never touches the call-back.
 export async function logContactAction(jobId: string, _prev: FormState, formData: FormData): Promise<FormState> {
   const { email } = await requireAdmin();
   const methods = formData.getAll("methods").map(String);

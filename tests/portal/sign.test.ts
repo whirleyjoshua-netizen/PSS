@@ -154,9 +154,9 @@ describe("recordSignature", () => {
     expect(s).toContain("contract_file_id = (select file_id from signed)");
     expect(s).toContain("sold_cents = (select client_total_cents from version)");
     // Spec §3: Signed, not Sold — the sale is the paid deposit. Approved is a stage before Signed.
-    expect(s).toContain("status = case when status in ('new','visit_booked','quoted','approved') then 'signed' else status end");
+    expect(s).toContain("status = case when status in ('new','contacted','visit_booked','quoted','approved') then 'signed' else status end");
     expect(s).toContain("'stage', prev.status, 'signed', 'Signed contract version ' || version.version");
-    expect(s).toContain("where prev.status in ('new','visit_booked','quoted','approved')");
+    expect(s).toContain("where prev.status in ('new','contacted','visit_booked','quoted','approved')");
     expect(s).not.toContain("then 'sold'");
     // The stage event is attributed to the signer, bound once more before the timeline body.
     expect(query.mock.calls[0].slice(1).slice(-3)).toEqual([

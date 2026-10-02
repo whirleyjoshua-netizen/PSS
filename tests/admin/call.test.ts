@@ -10,11 +10,13 @@ describe("call outcomes", () => {
 });
 
 describe("callStageMove", () => {
-  it("books a visit only from new", () => {
-    expect(callStageMove("booked")).toEqual({ to: "visit_booked", from: ["new"] });
+  it("books a visit only from new or contacted", () => {
+    expect(callStageMove("booked")).toEqual({ to: "visit_booked", from: ["new", "contacted"] });
   });
-  it("never moves on talked or no answer", () => {
-    expect(callStageMove("talked")).toBeNull();
+  it("moves a new lead to contacted on a talked call", () => {
+    expect(callStageMove("talked")).toEqual({ to: "contacted", from: ["new"] });
+  });
+  it("never moves on no answer", () => {
     expect(callStageMove("no_answer")).toBeNull();
   });
 });

@@ -201,7 +201,7 @@ describe("sendQuote", () => {
       "returning contract_file_id, quote_file_id",
       "(id in (select contract_file_id from superseded) or id in (select quote_file_id from superseded))",
       "update job_files set shared_at = now()", "quote_cents = ?",
-      "when status in ('new','visit_booked','approved') then 'quoted'", "'Quote sent'", "'quote'",
+      "when status in ('new','contacted','visit_booked','approved') then 'quoted'", "'Quote sent'", "'quote'",
     ]) expect(s).toContain(part);
     expect(quoteEmail.sendQuoteEmail).toHaveBeenCalledWith(job, "Quote PSS-1042 v1.pdf");
     expect(pdf.renderContractPdf).not.toHaveBeenCalled();
@@ -262,7 +262,7 @@ describe("sendQuote", () => {
     expect(unshared).toContain("not exists (select 1 from contract_signatures s where s.file_id = job_files.id or s.signed_file_id = job_files.id)");
     const stageAt = s.indexOf("stage_logged as (");
     const stage = s.slice(stageAt, s.indexOf("logged as (", stageAt + "stage_logged as (".length));
-    expect(stage).toContain("where prev.status in ('new','visit_booked','approved')");
+    expect(stage).toContain("where prev.status in ('new','contacted','visit_booked','approved')");
   });
 
   it("removes the generated quote when the statement matched nothing (a race)", async () => {

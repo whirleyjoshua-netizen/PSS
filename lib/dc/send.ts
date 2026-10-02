@@ -224,8 +224,8 @@ export async function sendQuote(input: { jobId: string; versionId: string; finge
       ),
       moved as (
         update leads set quote_cents = ${priced.clientTotalCents},
-          status = case when status in ('new','visit_booked','approved') then 'quoted' else status end,
-          stage_changed_at = case when status in ('new','visit_booked','approved') then now() else stage_changed_at end,
+          status = case when status in ('new','contacted','visit_booked','approved') then 'quoted' else status end,
+          stage_changed_at = case when status in ('new','contacted','visit_booked','approved') then now() else stage_changed_at end,
           updated_at = now()
         where id = ${job.id} and exists (select 1 from offered)
         returning id
@@ -233,7 +233,7 @@ export async function sendQuote(input: { jobId: string; versionId: string; finge
       stage_logged as (
         insert into job_events (lead_id, actor, kind, from_status, to_status, body)
         select ${job.id}, ${input.actor}, 'stage', prev.status, 'quoted', 'Quote sent' from prev, moved
-        where prev.status in ('new','visit_booked','approved')
+        where prev.status in ('new','contacted','visit_booked','approved')
       ),
       logged as (
         insert into job_events (lead_id, actor, kind, body)

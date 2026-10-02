@@ -8,7 +8,7 @@ import type { FormState } from "../actions";
 
 const CHIP = "flex min-h-11 items-center gap-2 border border-rule px-3 text-sm";
 
-/** "Mark contacted": how the owners reached the client, logged on the job. Never moves the stage. */
+/** "Mark contacted": how the owners reached the client, logged on the job. Moves a New lead to Contacted. */
 export function ContactLog({ jobId }: { jobId: string }) {
   const [open, setOpen] = useState(false);
   const [saves, setSaves] = useState(0);

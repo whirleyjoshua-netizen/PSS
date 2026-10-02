@@ -177,6 +177,12 @@ describe("confirmSchedule", () => {
     expect(jobs.setStage).toHaveBeenCalledWith(JOB, "visit_booked", "owner@example.com");
   });
 
+  it("moves a contacted job to visit_booked when the consultation is confirmed", async () => {
+    jobs.getJob.mockResolvedValue(job({ status: "contacted" }));
+    await actions.confirmSchedule(APPT, JOB);
+    expect(jobs.setStage).toHaveBeenCalledWith(JOB, "visit_booked", "owner@example.com");
+  });
+
   it("leaves a job that has moved on where it is", async () => {
     jobs.getJob.mockResolvedValue(job({ status: "quoted" }));
     await actions.confirmSchedule(APPT, JOB);

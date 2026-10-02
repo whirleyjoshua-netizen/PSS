@@ -289,12 +289,28 @@ export async function addNote(id: string, body: string, actor: string): Promise<
   return rows.length > 0;
 }
 
+/**
+ * Logs how the owners reached the client and, for a New lead, moves it to Contacted, in one
+ * statement. The move is guarded by status = 'new' in the UPDATE itself, so it never moves a
+ * job backwards and two saves at once log one stage event. The unreferenced stage_logged CTE
+ * still runs: Postgres executes every data-modifying CTE.
+ */
 export async function addContact(id: string, body: string, actor: string): Promise<boolean> {
   if (!isUuid(id)) return false;
   const rows = await db()`
-    insert into job_events (lead_id, actor, kind, body)
-    select id, ${actor}, 'contact', ${body} from leads where id = ${id}
-    returning id`;
+    with logged as (
+      insert into job_events (lead_id, actor, kind, body)
+      select id, ${actor}, 'contact', ${body} from leads where id = ${id}
+      returning lead_id
+    ), moved as (
+      update leads set status = 'contacted', stage_changed_at = now(), updated_at = now()
+      where id = ${id} and status = 'new' and exists (select 1 from logged)
+      returning id
+    ), stage_logged as (
+      insert into job_events (lead_id, actor, kind, from_status, to_status)
+      select moved.id, ${actor}, 'stage', 'new', 'contacted' from moved
+    )
+    select lead_id from logged`;
   return rows.length > 0;
 }
 

@@ -42,7 +42,7 @@ describe("stageDates", () => {
   it("ignores rows with no status and statuses that are not stages", async () => {
     sql.mockResolvedValue([
       { to_status: null, created_at: "2026-09-10T18:00:00Z" },
-      { to_status: "contacted", created_at: "2026-09-11T18:00:00Z" },
+      { to_status: "visited", created_at: "2026-09-11T18:00:00Z" },
     ]);
 
     expect(await stageDates(JOB)).toEqual({});

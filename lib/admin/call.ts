@@ -20,9 +20,10 @@ export type CallInput = {
   followUpNote: string | null;
 };
 
-/** Where a call's outcome may move the job, and only from which stages. Only a booked visit moves it. */
-export function callStageMove(outcome: CallOutcome): { to: "visit_booked"; from: Stage[] } | null {
-  if (outcome === "booked") return { to: "visit_booked", from: ["new"] };
+/** Where a call's outcome may move the job, and only from which stages. Never backwards. */
+export function callStageMove(outcome: CallOutcome): { to: "visit_booked" | "contacted"; from: Stage[] } | null {
+  if (outcome === "booked") return { to: "visit_booked", from: ["new", "contacted"] };
+  if (outcome === "talked") return { to: "contacted", from: ["new"] };
   return null;
 }
 
