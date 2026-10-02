@@ -32,8 +32,16 @@ describe("lead times", () => {
 
 describe("todayInLasVegas", () => {
   it("is still yesterday in Las Vegas late in the evening, when UTC has rolled over", () => {
-    // 10pm PDT on Oct 2 is 5am UTC on Oct 3.
-    expect(formatShortDate(todayInLasVegas(new Date("2026-10-03T05:00:00Z")))).toBe("Oct 2");
+    // Run as a visitor's machine set to UTC would, so the test cannot pass on this Mac's own Las Vegas clock.
+    const tz = process.env.TZ;
+    process.env.TZ = "UTC";
+    try {
+      // 10pm PDT on Oct 2 is 5am UTC on Oct 3.
+      expect(formatShortDate(todayInLasVegas(new Date("2026-10-03T05:00:00Z")))).toBe("Oct 2");
+    } finally {
+      if (tz === undefined) delete process.env.TZ;
+      else process.env.TZ = tz;
+    }
   });
 });
 

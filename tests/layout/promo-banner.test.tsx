@@ -129,6 +129,7 @@ describe("the lead-times dropdown", () => {
 
   it("closes on Escape and hands focus back to the button", async () => {
     const { user, button } = await open();
+    screen.getByRole("link", { name: /book your free consult/i }).focus();
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("table")).toBeNull();
     expect(button).toHaveFocus();
