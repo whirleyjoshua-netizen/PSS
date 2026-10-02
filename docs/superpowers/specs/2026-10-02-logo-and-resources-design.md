@@ -11,9 +11,11 @@ Two independent parts, shipped separately: Part A (logo) first, no migration; Pa
 ### A1. One geometry, one master
 
 - `lib/brand/logo-geometry.ts`: the mark's panels (x, top, bottom, tones), `PANEL_WIDTH`, `SHEAR`, `RIM`, the rim colours, and the wordmark's letter-spacing ratios — moved verbatim out of `components/brand/Logo.tsx`, which imports them. The website renders exactly as before.
-- `lib/pdf/fonts/Jost-Light.ttf`, `Jost-Regular.ttf` (OFL, with the licence beside them): the website's display face, committed so the master never depends on Google at build time.
+- `lib/pdf/fonts/Jost.ttf` (the variable font) and its OFL licence, `Jost-OFL.txt`: the website's display face, committed so the master never depends on Google. The builder takes its 300 and 400 instances and draws every letter as an outline, so no font travels in any PDF.
 - `scripts/build-logo-master.ts` draws, with pdf-lib + fontkit, from the geometry:
-  - `public/brand/logo-master.pdf`: page 1 the light-tone **lockup** (mark + PREMIER + rule · SHADE SOLUTIONS · rule), page 2 the **mark** alone. Each page's MediaBox is the artwork's tight bounds, so the page's width/height *is* the logo's aspect ratio.
+  - `public/brand/logo-master.pdf`: page 1 the light-tone **lockup**, page 2 the **mark** alone (76 × 106). Each page's width/height *is* the logo's aspect ratio.
+  - Page 1 is the website's lockup box. The wordmark column is as wide as its widest row, SHADE SOLUTIONS, so its trailing rule has no width, as on the live site.
+  - The same bytes go to `lib/brand/logo-master.ts` as base64, which is what the PDFs embed: functions don't read loose files at runtime (precedent `lib/pdf/fonts/great-vibes.ts`).
   - Text is drawn letter by letter (pdf-lib has no letter-spacing) with the website's spacing ratios.
   - It is run once by hand and its output committed. It is not part of the build.
 
@@ -23,8 +25,8 @@ Two independent parts, shipped separately: Part A (logo) first, no migration; Pa
 
 - `embedLogo(doc)` embeds both master pages once per document (`doc.embedPdf`; vector, not rasterised).
 - `drawLogo(page, logo, { x, top, width })` draws at `width`, with height = `width × master height / master width`. It takes **no height**, so nothing can stretch it.
-- `drawLetterhead(page, logo, fonts)`: page 1's top-left is the lockup at 170 pt wide; under it, in 8.5 pt, `business.legalName` and then `phone · email`. It returns the y where the content starts. The date stays top-right, aligned with the logo's top.
-- `markLaterPages(doc, logo, skip)` puts the mark, 22 pt tall, at the top-right of every page after the first, inside the top margin (above y = 792 − 54, so no content is covered). Pages in `skip` are left untouched.
+- `drawLetterhead(page, logo, fonts)`: page 1's top-left is the lockup at 170 pt wide; under it, in 8.5 pt, `business.legalName` and then `phone · email`. It returns the y where the content starts. The date stays on the title line, where it was.
+- `markPages(doc, logo, { fromPage, skip })` puts the mark, 22 pt tall, at the top-right of every page from `fromPage` on, inside the top margin. Its bottom is at y = 756, clear of a first line's capitals (about 748) and of an initials box at the top of a page (752). Pages in `skip` are left untouched.
 
 ### A3. Where
 
@@ -37,7 +39,7 @@ Two independent parts, shipped separately: Part A (logo) first, no migration; Pa
 
 - The quote and the contract keep drawing page 1 through the one `drawPricedPages`, so they still match line for line. The existing test that compares their positions keeps proving it.
 - Sign marks (initials, signature) are computed as pages are drawn, so they follow the moved content. Stored, signed PDFs are files and do not change.
-- `portal/stamp.ts` stamps at stored marks and is untouched.
+- `portal/stamp.ts` stamps at stored marks and is untouched. The signing-certificate page it appends carries no mark: it is the signing record, not our paperwork.
 
 ### A4. Guards (tests)
 

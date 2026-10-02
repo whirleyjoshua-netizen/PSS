@@ -84,7 +84,8 @@ describe("markPages", () => {
       expect(d.height).toBeCloseTo(MARK_HEIGHT, 9);
       expect(d.x + d.width).toBeCloseTo(LETTER[0] - MARGIN, 9);
       // Above the cap height of a first line set at the margin, and on the page.
-      expect(d.y).toBeGreaterThanOrEqual(LETTER[1] - MARGIN + 14);
+      // 4pt clear of an initials box under a heading at the top of a page, which reaches LETTER[1] - MARGIN + 14.
+      expect(d.y).toBeGreaterThanOrEqual(LETTER[1] - MARGIN + 18);
       expect(d.y + d.height).toBeLessThanOrEqual(LETTER[1] - 10);
     }
   });

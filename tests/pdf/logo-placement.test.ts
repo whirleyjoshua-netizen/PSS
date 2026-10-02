@@ -49,6 +49,12 @@ describe("the logo on every generated PDF", () => {
     expect(Math.max(...s.baselines)).toBeLessThanOrEqual(LETTER[1] - MARGIN);
   });
 
+  it("quote preview: the same logo placement, the PREVIEW line too", async () => {
+    const s = spy();
+    const pages = await pagesOf(await buildQuotePdf(input, { preview: true }));
+    expect(s.art).toEqual(expected(pages));
+  });
+
   it("contract with typed terms: letterhead, then the mark on the priced, terms and signature pages", async () => {
     const s = spy();
     const pages = await pagesOf((await renderContractPdf(input, { text: TERMS })).bytes);

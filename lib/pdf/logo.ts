@@ -65,6 +65,7 @@ export function markPages(doc: PDFDocument, logo: EmbeddedLogo, options: { fromP
   const width = (MARK_HEIGHT * logo.mark.width) / logo.mark.height;
   for (const page of doc.getPages().slice(options.fromPage)) {
     if (options.skip?.has(page)) continue;
-    drawLogo(page, logo.mark, { x: LETTER[0] - MARGIN - width, top: LETTER[1] - 18, width });
+    // Bottom at 756: clear of a first heading's capitals (~748) and of an initials box at the top of a page (reaches 752).
+    drawLogo(page, logo.mark, { x: LETTER[0] - MARGIN - width, top: LETTER[1] - 14, width });
   }
 }
