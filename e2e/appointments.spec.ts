@@ -207,3 +207,44 @@ test("cancelling asks first, then takes the appointment off the schedule", async
   await page.goto(`/admin/schedule?week=${day}`);
   await expect(page.getByRole("link", { name: new RegExp(name) })).toHaveCount(0);
 });
+
+test("designer notes and the gate code are booked in the dialog, and Edit notes never un-confirms", async ({ page }) => {
+  const name = `E2E Appt Notes ${STAMP}`;
+  const day = lasVegasDay(7);
+  const gate = `#E2E-${STAMP}`;
+  const id = await lead(name);
+  await signIn(page);
+  await page.goto(`/admin/jobs/${id}`);
+
+  // The gate code sits at the top of the booking dialog and the notes below the time fields.
+  await card(page).getByRole("button", { name: "Schedule" }).click();
+  const modal = scheduleModal(page);
+  await modal.getByLabel("Gate code").fill(gate);
+  await modal.getByLabel("Date and time").fill(`${day}T10:00`);
+  await modal.getByRole("radio", { name: "Measure" }).check();
+  await modal.getByLabel("Designer notes").fill("Side gate sticks\nBring motorized samples");
+  await modal.getByRole("button", { name: "Save", exact: true }).click();
+
+  // The row shows the notes. Scoped to the notes paragraph: the row's dialogs hold the same text in their textareas.
+  const notes = card(page).locator("li p.whitespace-pre-wrap");
+  await expect(notes).toContainText("Side gate sticks");
+  await card(page).getByRole("button", { name: "Confirm schedule" }).click();
+  await expect(card(page).getByText("Confirmed", { exact: true })).toBeVisible();
+
+  // Edit notes changes the notes only: the appointment stays confirmed.
+  await card(page).getByRole("button", { name: "Edit notes" }).click();
+  const notesModal = page.getByRole("dialog", { name: "Edit notes" });
+  await expect(notesModal.getByLabel("Gate code")).toHaveValue(gate);
+  await notesModal.getByLabel("Designer notes").fill("Measure the patio door too");
+  await notesModal.getByRole("button", { name: "Save notes" }).click();
+  await expect(notes).toContainText("Measure the patio door too");
+  await expect(card(page).getByText("Confirmed", { exact: true })).toBeVisible();
+
+  const [row] = await sql()`select a.designer_notes, a.confirmed_at is not null as confirmed, l.gate_code
+    from appointments a join leads l on l.id = a.lead_id where a.lead_id = ${id}`;
+  expect(row).toMatchObject({ designer_notes: "Measure the patio door too", confirmed: true, gate_code: gate });
+
+  // The gate code is owner-only: it never reaches the activity log.
+  const events = await sql()`select coalesce(body, '') as body from job_events where lead_id = ${id}`;
+  expect(events.map((event) => event.body as string).join("\n")).not.toContain(gate);
+});
