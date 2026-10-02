@@ -3,6 +3,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const getAdmin = vi.fn();
 vi.mock("@/lib/admin/session", () => ({ getAdmin }));
+// A stand-in that shows where the layout puts the worker registration.
+vi.mock("@/app/admin/RegisterOpsWorker", () => ({ RegisterOpsWorker: () => <span data-testid="register-ops-worker" /> }));
 vi.mock("@/app/admin/AdminNav", () => ({ AdminNav: ({ email }: { email: string }) => <nav aria-label="Admin">{email}</nav> }));
 
 const { default: AdminLayout } = await import("@/app/admin/layout");
@@ -31,5 +33,15 @@ describe("admin layout", () => {
     expect(main).toHaveTextContent("page body");
     for (const name of [...SIDES, "pt-[max(1.5rem,env(safe-area-inset-top))]"]) expect(main, name).toHaveClass(name);
     expect(screen.queryByRole("navigation", { name: "Admin" })).toBeNull();
+  });
+
+  it("registers the offline service worker whether signed in or not", async () => {
+    // Signed out matters most: the installed app opens on sign-in when the session has ended.
+    for (const admin of [{ email: "owner@example.com" }, null]) {
+      getAdmin.mockResolvedValue(admin);
+      const { unmount } = await renderLayout();
+      expect(screen.getAllByTestId("register-ops-worker"), JSON.stringify(admin)).toHaveLength(1);
+      unmount();
+    }
   });
 });

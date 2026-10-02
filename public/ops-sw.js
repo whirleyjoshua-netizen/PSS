@@ -17,5 +17,6 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   const request = event.request;
   if (request.mode !== "navigate" || !new URL(request.url).pathname.startsWith("/admin")) return;
-  event.respondWith(fetch(request).catch(() => caches.match(OFFLINE)));
+  // If the offline page was evicted, answer with a network error: respondWith must never get undefined.
+  event.respondWith(fetch(request).catch(() => caches.match(OFFLINE).then((r) => r || Response.error())));
 });
