@@ -85,6 +85,14 @@ function Choice({ label, checked, locked, busy, resets, onChange }: {
   );
 }
 
+/**
+ * An amount built into the line prices. Whole cents per shade can leave a few cents of it off (never more);
+ * then both figures show, so the owner sees what is charged against what was chosen.
+ */
+function inLines(folded: number, whole: number): string {
+  return folded === whole ? `${formatCents(folded)} in line prices` : `${formatCents(folded)} of ${formatCents(whole)} in line prices`;
+}
+
 function Total({ label, value, children, muted }: { label: string; value: string; children?: ReactNode; muted?: boolean }) {
   return (
     <div className={`flex flex-wrap items-center justify-between gap-x-4 gap-y-1 py-1 ${muted ? "text-sm text-ink-soft" : ""}`}>
@@ -251,7 +259,7 @@ export function QuoteReview({ jobId, review, now }: { jobId: string; review: Rev
             Only a version sent before that prints it as its own line. */}
         <Total label="HD handling fee" muted={priced.handlingChargedCents === 0}
           value={priced.handlingChargedCents > 0 ? formatCents(priced.handlingChargedCents)
-            : priced.waiveHandling ? "Waived" : priced.handlingFoldedCents > 0 ? `${formatCents(priced.handlingFoldedCents)} in line prices` : "None"}>
+            : priced.waiveHandling ? "Waived" : priced.handlingFoldedCents > 0 ? inLines(priced.handlingFoldedCents, version.handlingFeeCents) : "None"}>
           <Choice label="Waive" checked={priced.waiveHandling} locked={locked} busy={choosing} resets={refusals} onChange={(checked) => choose({ waiveHandling: checked })} />
         </Total>
         {priced.oversizedCents > 0 ? <Total label="Oversized" value={formatCents(priced.oversizedCents)} /> : null}
@@ -259,7 +267,7 @@ export function QuoteReview({ jobId, review, now }: { jobId: string; review: Rev
             Only a version sent before that prints it as its own line. */}
         <Total label="Installation" muted={priced.installLineCents === 0}
           value={priced.installLineCents > 0 ? formatCents(priced.installLineCents)
-            : priced.installFoldedCents > 0 ? `${formatCents(priced.installFoldedCents)} in line prices` : "None"}>
+            : priced.installFoldedCents > 0 ? inLines(priced.installFoldedCents, priced.installCents) : "None"}>
           {installNote ? <span className="text-xs text-ink-soft">{installNote}</span> : (
             <a className={TEXT_LINK} href={`/admin/jobs/${jobId}?tab=install`}>No installation price saved yet</a>
           )}

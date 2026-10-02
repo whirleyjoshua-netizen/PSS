@@ -40,6 +40,14 @@ describe("priceVersion", () => {
     expect(p.lines.map((l) => l.sellUnitCents)).toEqual([39300, 33740]);
     expect(p).toMatchObject({ installCents: 0, installFoldedCents: 0, installLineCents: 0, clientTotalCents: 106780 });
   });
+  it("when installation can't split to the cent, the margin and folded amount are what is charged, not the price chosen", () => {
+    // $500 over two qty-3 lines: 8333 a shade, 49,998 built in, 2 cents left off.
+    const lines = [{ ...base.lines[1], position: 1, qty: 3 }, { ...base.lines[1], position: 2, qty: 3 }];
+    const p = priceVersion({ ...base, waiveHandling: true, lines, install: { ...base.install!, totalCents: 50000 } });
+    expect(p).toMatchObject({ installCents: 50000, installFoldedCents: 49998, installLineCents: 0 });
+    expect(p.clientTotalCents).toBe(6 * 33740 + 49998);
+    expect(p.marginCents).toBe(6 * 33740 - base.dealerTotalCents);
+  });
   it("a free line gets no installation", () => {
     const free = { position: 9, qty: 1, collection: "Duette", msrpUnitCents: 0, costExtendedCents: 0, pctOverride: null };
     const p = priceVersion({ ...base, waiveHandling: true, lines: [{ ...base.lines[1], qty: 3 }, free] });

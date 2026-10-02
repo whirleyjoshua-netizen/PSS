@@ -100,8 +100,8 @@ describe("QuoteReview figures", () => {
 
   it("says the handling fee is in the line prices, outside the sum, when it was built in", () => {
     const r = review();
-    render(<QuoteReview jobId={J} review={{ ...r, priced: { ...r.priced, handlingChargedCents: 0, handlingFoldedCents: 2507 } }} />);
-    expect(total("HD handling fee")).toHaveTextContent("$25.07 in line prices");
+    render(<QuoteReview jobId={J} review={{ ...r, version: version({ handlingFeeCents: 2507 }), priced: { ...r.priced, handlingChargedCents: 0, handlingFoldedCents: 2507 } }} />);
+    expect(total("HD handling fee")).toHaveTextContent(/^\$25\.07 in line prices$/);
     expect(screen.getByText("HD handling fee").parentElement).toHaveClass("text-ink-soft");
     expect(screen.getByRole("checkbox", { name: "Waive" })).not.toBeChecked();
   });
@@ -112,6 +112,18 @@ describe("QuoteReview figures", () => {
     expect(total("Installation")).toHaveTextContent("$450.13 in line prices");
     expect(screen.getByText("Installation", { selector: "dt" }).parentElement).toHaveClass("text-ink-soft");
     expect(screen.getByRole("checkbox", { name: "No installation on this job" })).toBeInTheDocument();
+  });
+
+  it("says how much of the install price is in the lines when it couldn't all split to the cent", () => {
+    const r = review();
+    render(<QuoteReview jobId={J} review={{ ...r, priced: { ...r.priced, installCents: 50000, installFoldedCents: 49998, installLineCents: 0 } }} />);
+    expect(total("Installation")).toHaveTextContent("$499.98 of $500 in line prices");
+  });
+
+  it("says how much of the handling fee is in the lines when it couldn't all split to the cent", () => {
+    const r = review();
+    render(<QuoteReview jobId={J} review={{ ...r, version: version({ handlingFeeCents: 2508 }), priced: { ...r.priced, handlingChargedCents: 0, handlingFoldedCents: 2507 } }} />);
+    expect(total("HD handling fee")).toHaveTextContent("$25.07 of $25.08 in line prices");
   });
 
   it("says None for installation when there is none", () => {

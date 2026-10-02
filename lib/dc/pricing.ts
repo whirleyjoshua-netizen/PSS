@@ -38,21 +38,21 @@ export function ruleFor(rules: Record<string, number>, collection: string): numb
  * nothing. With a qty-1 priced line the whole amount goes in; with none, under the smallest qty in cents
  * may be left off. Never more than the amount. Answers the extra cents per unit for each line, in order.
  */
-export function foldFee(lines: { qty: number; extendedCents: number }[], feeCents: number, split: "price" | "shade" = "price"): number[] {
+export function foldFee(lines: { qty: number; extendedCents: number }[], amountCents: number, split: "price" | "shade" = "price"): number[] {
   const extra = lines.map(() => 0);
-  if (feeCents <= 0) return extra;
+  if (amountCents <= 0) return extra;
   const all = lines.map((_, i) => i);
   // Only priced lines carry it: a free accessory stays free. If every line is free, they share it.
   const paid = all.filter((i) => lines[i].extendedCents > 0);
   const takers = paid.length > 0 ? paid : all.filter((i) => lines[i].extendedCents === 0);
   if (split === "shade") {
     const shades = takers.reduce((sum, i) => sum + lines[i].qty, 0);
-    for (const i of takers) extra[i] = shades > 0 ? Math.floor(feeCents / shades) : 0;
+    for (const i of takers) extra[i] = shades > 0 ? Math.floor(amountCents / shades) : 0;
   } else {
     const total = paid.reduce((sum, i) => sum + lines[i].extendedCents, 0);
-    for (const i of paid) extra[i] = Math.floor(Math.floor((feeCents * lines[i].extendedCents) / total) / lines[i].qty);
+    for (const i of paid) extra[i] = Math.floor(Math.floor((amountCents * lines[i].extendedCents) / total) / lines[i].qty);
   }
-  let left = feeCents - extra.reduce((sum, e, i) => sum + e * lines[i].qty, 0);
+  let left = amountCents - extra.reduce((sum, e, i) => sum + e * lines[i].qty, 0);
   for (const i of [...takers].sort((a, b) => lines[a].qty - lines[b].qty || a - b)) {
     const add = Math.floor(left / lines[i].qty);
     extra[i] += add;

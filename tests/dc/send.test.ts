@@ -149,6 +149,14 @@ describe("loadReview", () => {
       expect(priced.marginCents).toBe(frozenTotal - 25000 - version.dealerTotalCents);
     });
 
+    it("a version whose installation folded a few cents short keeps the margin on what was charged", async () => {
+      store.listVersions.mockResolvedValue([{ ...offered, handlingFoldedCents: 0, installFoldedCents: 24998, installCents: 25000,
+        clientTotalCents: frozenTotal - 2 }]);
+      const { priced } = (await loadReview(JOB))!;
+      expect(priced).toMatchObject({ installCents: 25000, installFoldedCents: 24998, installLineCents: 0 });
+      expect(priced.marginCents).toBe(frozenTotal - 2 - 24998 - version.dealerTotalCents);
+    });
+
     it("a version sent with both built in prints neither line, and its margin leaves installation out", async () => {
       const foldedUnit = 39300 + (version.handlingFeeCents + 25000) / line.qty;
       store.listVersions.mockResolvedValue([{ ...offered, handlingFoldedCents: version.handlingFeeCents, installFoldedCents: 25000,

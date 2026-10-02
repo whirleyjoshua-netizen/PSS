@@ -5,7 +5,7 @@ import { test, expect, type APIRequestContext, type Browser, type BrowserContext
 import { neon } from "@neondatabase/serverless";
 import { del } from "@vercel/blob";
 import { formatCents } from "../lib/admin/money";
-import { sellUnitCents } from "../lib/dc/money";
+import { priceVersion, type PricedVersion } from "../lib/dc/pricing";
 import { parseDealerCopy } from "../lib/dc/parse";
 import type { DcQuote } from "../lib/dc/types";
 import { formatProjectNo } from "../lib/portal/project-no";
@@ -187,6 +187,12 @@ let savedTerms: { terms_file_pathname: string | null; terms_updated_by: string |
 let savedTermsTemplates: string[] = [];
 let expectedProducts: number;
 let expectedTotal: number;
+/** The review as priceVersion computes it (pinned by tests/dc/pricing.test.ts), with the fee and with it waived. */
+let expected: PricedVersion;
+let waived: PricedVersion;
+/** The review screen's wording for an amount built into the line prices. */
+const inLines = (folded: number, whole: number) =>
+  folded === whole ? `${formatCents(folded)} in line prices` : `${formatCents(folded)} of ${formatCents(whole)} in line prices`;
 
 /** The local Stripe (e2e/fixtures/stripe-stub.ts) the app server talks to through STRIPE_API_URL. */
 let stub: Awaited<ReturnType<typeof startStripeStub>>;
@@ -223,13 +229,21 @@ test.beforeAll(async () => {
   expect(quote.lines).toHaveLength(4);
   versionId = await seedImport(job.id, html, quote);
 
-  // The expected money, derived from the fixture's own cents with the app's rounding rule.
-  expectedProducts = quote.lines.reduce((sum, l) => {
-    const pct = MARKUPS[l.collection];
-    if (pct === undefined) throw new Error(`No test markup for ${l.collection}`);
-    return sum + sellUnitCents(l.msrpUnitCents, pct) * l.qty;
-  }, 0);
-  expectedTotal = expectedProducts + quote.handlingFeeCents + quote.oversizedFeeCents + INSTALL_CENTS;
+  // The expected money: the fixture's own cents through the app's pricing (handling fee and installation
+  // built into the line prices, since 2026-10-02).
+  for (const l of quote.lines) if (MARKUPS[l.collection] === undefined) throw new Error(`No test markup for ${l.collection}`);
+  const priceWith = (waiveHandling: boolean) => priceVersion({
+    lines: quote.lines.map((l) => ({ position: l.position, qty: l.qty, collection: l.collection, msrpUnitCents: l.msrpUnitCents, costExtendedCents: l.costExtendedCents, pctOverride: null })),
+    rules: MARKUPS, handlingFeeCents: quote.handlingFeeCents, oversizedFeeCents: quote.oversizedFeeCents, dealerTotalCents: quote.dealerTotalCents,
+    waiveHandling, install: { id: "e2e", kind: "final", totalCents: INSTALL_CENTS, createdAt: new Date() }, noInstall: false,
+  });
+  expected = priceWith(false);
+  waived = priceWith(true);
+  expectedProducts = expected.productsCents!;
+  expectedTotal = expected.clientTotalCents!;
+  // Everything the client pays is in the lines (plus any oversize charge).
+  expect(expectedTotal).toBe(expectedProducts + quote.oversizedFeeCents);
+  expect(expected.installFoldedCents).toBeGreaterThan(0);
   // The fee under test must be real, or "waive lowers the total by the fee" proves nothing.
   expect(quote.handlingFeeCents).toBeGreaterThan(0);
 });
@@ -319,13 +333,13 @@ test("markups set in Settings and a final install price give the total computed 
   const review = await quoteTab(page, job.id);
   const rows = review.locator("tbody tr");
   for (const [i, line] of quote.lines.entries()) {
-    const extended = sellUnitCents(line.msrpUnitCents, MARKUPS[line.collection]) * line.qty;
+    const extended = expected.lines[i].sellExtendedCents!;
     await expect(rows.nth(i).getByLabel(`Line ${line.position} % of MSRP`)).toHaveValue(String(MARKUPS[line.collection]));
     await expect(rows.nth(i)).toContainText(formatCents(extended));
   }
   await expect(figure(review, "Products")).toHaveText(formatCents(expectedProducts));
-  await expect(figure(review, "HD handling fee")).toHaveText(formatCents(quote.handlingFeeCents));
-  await expect(figure(review, "Installation")).toHaveText(formatCents(INSTALL_CENTS));
+  await expect(figure(review, "HD handling fee")).toHaveText(inLines(expected.handlingFoldedCents, quote.handlingFeeCents));
+  await expect(figure(review, "Installation")).toHaveText(inLines(expected.installFoldedCents, INSTALL_CENTS));
   await expect(figure(review, "Client total")).toHaveText(formatCents(expectedTotal));
   await expect(review.getByText(/^Final install price, /)).toBeVisible();
 
@@ -342,8 +356,10 @@ test("waiving the handling fee lowers the total by exactly the fixture's fee", a
   await expect(figure(review, "Client total")).toHaveText(formatCents(expectedTotal));
 
   await review.getByRole("checkbox", { name: "Waive", exact: true }).check();
-  await expect(figure(review, "HD handling fee")).toHaveText(formatCents(0));
-  await expect(figure(review, "Client total")).toHaveText(formatCents(expectedTotal - quote.handlingFeeCents));
+  await expect(figure(review, "HD handling fee")).toHaveText("Waived");
+  await expect(figure(review, "Client total")).toHaveText(formatCents(waived.clientTotalCents!));
+  // Waiving takes out exactly the part of the fee that was in the lines.
+  expect(expectedTotal - waived.clientTotalCents!).toBe(expected.handlingFoldedCents);
 
   // Stored, not just drawn: a reload shows the same.
   await expect.poll(async () => {
@@ -352,7 +368,7 @@ test("waiving the handling fee lowers the total by exactly the fixture's fee", a
   }).toBe(true);
   const reloaded = await quoteTab(page, job.id);
   await expect(reloaded.getByRole("checkbox", { name: "Waive", exact: true })).toBeChecked();
-  await expect(figure(reloaded, "Client total")).toHaveText(formatCents(expectedTotal - quote.handlingFeeCents));
+  await expect(figure(reloaded, "Client total")).toHaveText(formatCents(waived.clientTotalCents!));
 });
 
 /**
@@ -547,7 +563,7 @@ test.describe("quote, approve, sign, deposit, measure — and the release gate",
     }
   });
 
-  const waivedTotal = () => expectedTotal - quote.handlingFeeCents;
+  const waivedTotal = () => waived.clientTotalCents!;
   const deposit = () => Math.round(waivedTotal() / 2);
   const quoteName = () => `Quote ${formatProjectNo(job.projectNo)} v1.pdf`;
   const contractName = () => `Contract ${formatProjectNo(job.projectNo)} v1.pdf`;
@@ -576,7 +592,7 @@ test.describe("quote, approve, sign, deposit, measure — and the release gate",
 
     const [version] = await sql()`select status, client_total_cents, products_cents, install_cents, quote_file_id, contract_file_id,
         offered_by, (offered_at is not null) as offered, approved_at from dc_quote_versions where id = ${versionId}`;
-    expect(version).toEqual({ status: "offered", client_total_cents: waivedTotal(), products_cents: expectedProducts,
+    expect(version).toEqual({ status: "offered", client_total_cents: waivedTotal(), products_cents: waived.productsCents,
       install_cents: INSTALL_CENTS, quote_file_id: expect.any(String), contract_file_id: null, offered_by: OWNER, offered: true, approved_at: null });
     quoteFileId = version.quote_file_id as string;
     const [row] = await sql()`select status, quote_cents, sold_cents, deposit_cents from leads where id = ${job.id}`;
@@ -588,6 +604,9 @@ test.describe("quote, approve, sign, deposit, measure — and the release gate",
     const printed = pdfText(await fetchBytes(page, `/admin/files/${quoteFileId}`));
     expect(printed).toContain(`Quote ${formatProjectNo(job.projectNo)} · Version 1`);
     expect(printed).toContain(formatCents(waivedTotal()));
+    // Installation and the handling fee are inside the line prices: neither prints as its own line.
+    expect(printed).not.toContain("Installation");
+    expect(printed).not.toContain("Hunter Douglas handling");
     expect(printed).not.toContain("Terms and Conditions");
     expect(printed).not.toContain("Client signature");
     await page.reload();
@@ -608,7 +627,7 @@ test.describe("quote, approve, sign, deposit, measure — and the release gate",
 
     const [version] = await sql()`select status, client_total_cents, products_cents, install_cents, quote_file_id, contract_file_id,
         offered_by, approved_by, sent_by, (approved_at is not null) as approved from dc_quote_versions where id = ${versionId}`;
-    expect(version).toEqual({ status: "sent", client_total_cents: waivedTotal(), products_cents: expectedProducts, install_cents: INSTALL_CENTS,
+    expect(version).toEqual({ status: "sent", client_total_cents: waivedTotal(), products_cents: waived.productsCents, install_cents: INSTALL_CENTS,
       quote_file_id: quoteFileId, contract_file_id: expect.any(String), offered_by: OWNER, approved_by: CUSTOMER,
       sent_by: "Sent on approval", approved: true });
     const [row] = await sql()`select status, quote_cents, sold_cents from leads where id = ${job.id}`;
