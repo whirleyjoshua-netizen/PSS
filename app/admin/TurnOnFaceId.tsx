@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
+import { unstable_rethrow } from "next/navigation";
 import { browserSupportsWebAuthn, platformAuthenticatorIsAvailable, startRegistration } from "@simplewebauthn/browser";
 import { Button } from "@/components/ui/Button";
 import { beginFaceIdSetup, completeFaceIdSetup } from "./passkey-actions";
+import { usePrefetchedOptions } from "./usePrefetchedOptions";
 
 /** Set on this browser once it has a passkey, so the board stops offering it. */
 const MARKER = "pss_passkey";
@@ -45,6 +47,8 @@ export function TurnOnFaceId({ place }: { place: "board" | "settings" }) {
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const noun = place === "board" ? "phone" : "device";
+  // Fetched only while the button is offered, so a hidden card never creates a challenge.
+  const prefetched = usePrefetchedOptions(beginFaceIdSetup, view === "offer");
 
   useEffect(() => {
     if (!browserSupportsWebAuthn()) return;
@@ -64,23 +68,36 @@ export function TurnOnFaceId({ place }: { place: "board" | "settings" }) {
   if (view === "hidden") return null;
 
   const turnOn = () => {
+    const optionsJSON = prefetched.take();
+    if (!optionsJSON) return;
+    // Called inside the tap, before any await: iPhone Safari shows the passkey sheet only then.
+    const answer = startRegistration({ optionsJSON });
     setError(null);
     startTransition(async () => {
       let response;
       try {
-        response = await startRegistration({ optionsJSON: await beginFaceIdSetup() });
+        response = await answer;
       } catch (failure) {
         if (alreadyOn(failure)) {
           write(local, MARKER);
           setView("on");
-        } else if (!cancelled(failure)) {
-          setError(FAILED);
+          return;
         }
+        if (!cancelled(failure)) setError(FAILED);
+        prefetched.refresh();
         return;
       }
-      const result = await completeFaceIdSetup(response);
+      let result;
+      try {
+        result = await completeFaceIdSetup(response);
+      } catch (failure) {
+        // A lapsed session redirects to sign-in. The router handles that.
+        unstable_rethrow(failure);
+        result = { error: FAILED };
+      }
       if ("error" in result) {
         setError(result.error);
+        prefetched.refresh();
         return;
       }
       write(local, MARKER);
@@ -93,15 +110,16 @@ export function TurnOnFaceId({ place }: { place: "board" | "settings" }) {
     setView("hidden");
   };
 
+  const shown = error ?? (prefetched.failed ? FAILED : null);
   const body =
     view === "on" ? (
       <p role="status" className="text-sm text-charcoal">Face ID is on for this {noun}</p>
     ) : (
       <>
-        <Button type="button" variant="solid" onClick={turnOn} disabled={pending}>
+        <Button type="button" variant="solid" onClick={turnOn} disabled={pending || !prefetched.ready}>
           {pending ? "Turning on…" : `Turn on Face ID for this ${noun}`}
         </Button>
-        {error ? <p role="alert" className="text-sm text-charcoal">{error}</p> : null}
+        {shown ? <p role="alert" className="text-sm text-charcoal">{shown}</p> : null}
         {place === "board" ? (
           <button
             type="button"

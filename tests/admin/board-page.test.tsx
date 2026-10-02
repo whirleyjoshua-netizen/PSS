@@ -39,7 +39,10 @@ vi.mock("@simplewebauthn/browser", () => ({
   platformAuthenticatorIsAvailable: async () => true,
   startRegistration: vi.fn(),
 }));
-vi.mock("@/app/admin/passkey-actions", () => ({ beginFaceIdSetup: vi.fn(), completeFaceIdSetup: vi.fn() }));
+vi.mock("@/app/admin/passkey-actions", () => ({
+  beginFaceIdSetup: vi.fn(async () => ({ challenge: "abc" })),
+  completeFaceIdSetup: vi.fn(),
+}));
 
 const { default: BoardPage } = await import("@/app/admin/page");
 const open = async (params: { list?: string; job?: string; q?: string }) =>

@@ -1,12 +1,14 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 
 const removeFaceIdDevice = vi.fn();
 vi.mock("@/app/admin/passkey-actions", () => ({
   removeFaceIdDevice,
-  beginFaceIdSetup: vi.fn(),
+  beginFaceIdSetup: vi.fn(async () => ({ challenge: "abc" })),
   completeFaceIdSetup: vi.fn(),
 }));
+// The real unstable_rethrow, not the shared setup's router-only stub.
+vi.mock("next/navigation", async (importOriginal) => ({ ...(await importOriginal<object>()) }));
 vi.mock("@simplewebauthn/browser", () => ({
   browserSupportsWebAuthn: () => true,
   platformAuthenticatorIsAvailable: async () => true,
@@ -33,6 +35,8 @@ describe("FaceIdSection", () => {
     expect(items[1]).toHaveTextContent("never used");
     expect(within(items[0]).getByRole("button", { name: "Remove iPhone added Thu, Oct 1, 2026" })).toHaveAttribute("type", "submit");
     expect(await screen.findByRole("button", { name: "Turn on Face ID for this device" })).toBeInTheDocument();
+    // Its options are fetched before the tap, so the button comes on by itself.
+    await waitFor(() => expect(screen.getByRole("button", { name: "Turn on Face ID for this device" })).toBeEnabled());
   });
 
   it("says when no device is set up", () => {
