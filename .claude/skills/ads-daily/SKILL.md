@@ -27,7 +27,7 @@ Spec: `docs/superpowers/specs/2026-10-02-ads-daily-design.md`. If this file and 
 
 Maximize clicks allows only one campaign-wide max CPC limit, so R1 and R3 can't target a keyword. The owner decided to move to Manual CPC.
 
-- **P0 — switch bidding from Maximize clicks to Manual CPC, every active keyword's max CPC set to $9.00 (the current cap).** Propose it as the first item on every run until it has been approved, applied and verified (check the live bidding strategy and the log). It needs the owner's approval like any other item.
+- **P0 — switch bidding from Maximize clicks to Manual CPC, every active keyword's max CPC set to $9.00 (the current cap).** Propose it as the first item on every run until it has been approved, applied and verified (check the live bidding strategy and the log). It needs the owner's approval like any other item. The starting bid is the live campaign max CPC limit read in Step 2 ($9.00 as of 2026-10-02). If the live limit differs from $9.00, say so in the P0 item and use the live figure.
 - While bidding is still Maximize clicks: list R1 and R3 as "not applicable until P0" and don't fire them. R7 applies to the campaign max CPC limit.
 - After P0: R1 and R3 change that keyword's max CPC. R7 raises max CPC 15% on every active keyword, never above $12.
 
@@ -70,7 +70,8 @@ Report the findings to the owner before going on.
 Every range ends yesterday. Never use today's partial day. "Since launch" means Custom, Sep 28, 2026 through yesterday.
 
 - **Keywords** (https://ads.google.com/aw/keywords?campaignId=24293240304&ocid=8525738539), for Yesterday, Last 7 days and Custom from Sep 28, 2026 through yesterday: per keyword Cost, Clicks, Impr., CTR, Conversions, Cost / conv., Search lost top IS (rank). If a column is missing, add it through Columns → Modify columns → Competitive metrics. Adding a column only changes the view; no approval needed.
-- **Campaign**, Last 7 days: Search impr. share, Search lost IS (rank), Conversions and Cost / conv. (R8's campaign CPL).
+- **Campaign row** (Campaigns page), for Yesterday, Last 7 days and since launch (each ending yesterday): Cost, Clicks, Conversions, Cost / conv. Step 4 reports these as read; never sum keyword rows. The Last 7 days Cost / conv. is R8's campaign CPL.
+- **Campaign**, Last 7 days: Search impr. share and Search lost IS (rank).
 - **Campaign cost per day**: Campaigns page, date = Last 7 days, Segment → Time → Day. Read the cost for each of the last 3 days (R7, R8).
 - **Bidding**: the campaign's current bidding strategy (campaign Settings → Bidding). Under Maximize clicks, read the campaign max CPC limit. Under Manual CPC, read each active keyword's Max. CPC on the Keywords page.
 - **Search terms** (Insights and reports → Search terms), Last 7 days: each term, its clicks and its cost.
@@ -81,6 +82,8 @@ Every range ends yesterday. Never use today's partial day. "Since launch" means 
 
 Ranges: R1, R2, R3 (leads, spend, CPL) and R4 (CTR, impressions) use since launch, Sep 28, 2026 through yesterday. R5 and R6 use the last 7 days. Yesterday and 7-day numbers are for context only.
 
+**Zero conversions:** when Conversions = 0, CPL is undefined. A "—" or $0 in Cost / conv. is never ≤ $75. R1, R3 and R8 don't fire on an undefined CPL.
+
 | # | Condition | Proposal |
 |---|---|---|
 | R1 | Keyword has ≥ 1 lead at ≤ $75 CPL, and its Search lost top IS (rank) ≥ 20% | Raise its max CPC 15%, never above $12. Skip if its bid already changed in the last 24 hours (see the log). Not applicable until P0 |
@@ -89,8 +92,8 @@ Ranges: R1, R2, R3 (leads, spend, CPL) and R4 (CTR, impressions) use since launc
 | R4 | Keyword spent < $150 with 0 leads | Leave it. Flag only if CTR < 2% with ≥ 100 impressions |
 | R5 | Search term (last 7 days) is DIY, another retailer or brand, a job search, outside the service area, or a product PSS doesn't sell | Negative keyword. Up to 20 per day |
 | R6 | Search term got a click, shows buying intent ("near me", "install", "installation", "cost", "price", "quote", or a service-area city name), and isn't already a keyword | New phrase-match keyword in the matching ad group. At most 5 new keywords in any rolling 7 days (count them in the log) |
-| R7 | Campaign spent < $20/day on each of the last 3 days, and campaign Search lost IS (rank) (last 7 days) > 30% | Before P0: raise the campaign max CPC limit 15%, never above $12. After P0: raise max CPC 15% on every active keyword, never above $12 |
-| R8 | Campaign spent its full budget on each of the last 3 days, and campaign CPL (last 7 days) ≤ $75 | Raise the budget $5/day |
+| R7 | Campaign spent < $20/day on each of the last 3 days, and campaign Search lost IS (rank) (last 7 days) > 30% | Before P0: raise the campaign max CPC limit 15%, never above $12. After P0, or when P0 is approved in the same run: raise max CPC 15% on every active keyword, never above $12 |
+| R8 | Campaign cost ≥ $25 (the full budget) on each of the last 3 days, and campaign CPL (last 7 days) ≤ $75 | Raise the budget $5/day |
 
 **Prerequisites open?** If either prerequisite from Step 2 is still open, still run R1, R2 and R3, but mark every R1, R2 and R3 item "UNRELIABLE — prerequisites open (lead counts in Ads may be missing or wrong)".
 
@@ -110,10 +113,12 @@ Service-area cities: Las Vegas, Henderson, Summerlin, North Las Vegas.
 Send one message:
 
 1. A health line: serving or not, yesterday's spend vs $25, any banners.
-2. Yesterday / 7-day / since-launch totals: cost, clicks, leads, CPL.
+2. Yesterday / 7-day / since-launch campaign figures from Step 2's campaign row: cost, clicks, leads (Conversions), CPL (Cost / conv., or "undefined" when Conversions = 0).
 3. A numbered list, one action per item, each with its numbers. While bidding is still Maximize clicks, item 1 is P0. For example:
    `1. P0 — switch bidding from Maximize clicks to Manual CPC, every active keyword's max CPC set to $9.00 (the current cap)`
-   `2. R1 — raise "plantation shutters" max CPC $9.00 → $10.35 (1 lead at $31 since launch, losing 42% of top spots to bid) — UNRELIABLE — prerequisites open (lead counts in Ads may be missing or wrong)`
+   `2. R2 — pause "custom blinds" ($162 since launch, 0 leads) — UNRELIABLE — prerequisites open (lead counts in Ads may be missing or wrong)`
+   Example R1 line from a later run, after P0 has been applied and both prerequisites are done (never shown while P0 is outstanding):
+   `1. R1 — raise "plantation shutters" max CPC $9.00 → $10.35 (1 lead at $31 since launch, losing 42% of top spots to bid)`
    Mark every R1, R2 and R3 item UNRELIABLE as above while a prerequisite is open. Before P0, say "R1, R3: not applicable until P0" instead of listing them. Group all negatives into one item, listed in full.
 4. Prerequisites still open, if any.
 5. "Reply 'all', a list like '1–4, 6', or 'skip 3'."
@@ -122,7 +127,8 @@ If no rule fires, say so plainly and propose nothing.
 
 ## Step 5: Apply the approved items only
 
-- P0: campaign Settings → Bidding → change to Manual CPC, then set every active keyword's Max. CPC to $9.00 on the Keywords page.
+- P0: campaign Settings → Bidding → change to Manual CPC, then set every active keyword's Max. CPC to the starting bid (the live campaign limit from Step 2, $9.00 as of 2026-10-02) on the Keywords page.
+- If P0 and R7 are both approved, apply P0 first, then R7 in its after-P0 form: every active keyword's Max. CPC = starting bid + 15%, never above $12.
 - Keyword bids, pauses and new keywords: Keywords page, or the matching ad group.
 - Negatives: Audiences, keywords and content → Search keywords → Negative search keywords → add at **campaign** level.
 - Every save may trigger "Confirm it's you". If it appears, ask the owner to complete it. Until they do, saves fail silently.
