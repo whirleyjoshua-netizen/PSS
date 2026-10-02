@@ -188,6 +188,24 @@ export const gallery: GalleryItem[] = [
     treatment: "blinds",
     caption: "Faux wood blinds with cloth tapes in a tall front window, under drapery panels.",
   },
+  {
+    src: "/gallery/roman-shades-woven-dining-room.webp",
+    alt: "Three grey woven roman shades raised partway on a row of dining room windows, with a table and chairs below and a green lawn outside.",
+    treatment: "shades",
+    caption: "Woven roman shades across a row of dining room windows, raised to the same line.",
+  },
+  {
+    src: "/gallery/solar-shades-nursery.webp",
+    alt: "Light grey solar roller shades in white cassettes on tall corner windows of a nursery, lowered partway over a sunlit street, beside a rocking chair.",
+    treatment: "shades",
+    caption: "Solar shades on the tall corner windows of a nursery, cutting the afternoon glare.",
+  },
+  {
+    src: "/gallery/woven-wood-shades-hall-window.webp",
+    alt: "A natural woven wood shade lowered over a tall window at the end of a hallway, daylight glowing through the grass weave.",
+    treatment: "shades",
+    caption: "A woven wood shade on a tall hallway window, the light filtering through the weave.",
+  },
 ];
 
 /**

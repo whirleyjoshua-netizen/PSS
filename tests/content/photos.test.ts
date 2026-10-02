@@ -15,7 +15,8 @@ const PRODUCT_PHOTOS: Record<string, string> = {
   "roller-shades": "/gallery/roller-shades-dining-room.webp",
   "solar-shades": "/gallery/solar-shades-balcony-view.webp",
   "cellular-shades": "/gallery/cellular-shades-great-room.webp",
-  "roman-shades": "/gallery/roman-shades-primary-bath.webp",
+  "roman-shades": "/gallery/roman-shades-woven-dining-room.webp",
+  "woven-wood-shades": "/gallery/woven-wood-shades-hall-window.webp",
   "transitional-shades": "/gallery/transitional-shades-slider-wall.webp",
   "plantation-shutters": "/gallery/plantation-shutters-dining-room.webp",
   // Owner 2026-10-01: the shutter types look alike, so their photos are shared.

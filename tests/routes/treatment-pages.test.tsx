@@ -29,7 +29,7 @@ describe("category page redesign", () => {
     const roller = screen.getByRole("link", { name: /Roller Shades/ });
     expect(roller).toHaveAttribute("href", "/shades/roller-shades");
     expect(roller.querySelector("img")).not.toBeNull();
-    expect(screen.getByRole("link", { name: /Woven Wood Shades/ }).querySelector("img")).toBeNull();
+    expect(screen.getByRole("link", { name: /Woven Wood Shades/ }).querySelector("img")).not.toBeNull();
 
     expect(screen.getByText(/In our clients/)).toBeInTheDocument();
     expect(screen.getAllByText(new RegExp(FEATURED_REVIEW!.quote.slice(0, 30)))).toHaveLength(1);
@@ -104,11 +104,11 @@ describe("product page redesign", () => {
     expect(new Set(all).size).toBe(all.length);
   });
 
-  it("Woven Wood Shades (no photo yet): consultation photo in the hero and the fabric panel in the story", async () => {
-    const { container } = await renderProduct("shades", "woven-wood-shades");
+  it("Solar Screens (no photo yet): consultation photo in the hero and the fabric panel in the story", async () => {
+    const { container } = await renderProduct("outdoor", "solar-screens");
     expect(srcs(container.querySelector("section#book")!)[0]).toContain(consultationPhoto.src);
-    const story = screen.getByRole("heading", { level: 2, name: "Why Woven Wood Shades" }).closest("section")!;
+    const story = screen.getByRole("heading", { level: 2, name: "Why Solar Screens" }).closest("section")!;
     expect(story.querySelector("img")).toBeNull();
-    expect(within(story).getByText(product("woven-wood-shades").bestFor)).toBeInTheDocument();
+    expect(within(story).getByText(product("solar-screens").bestFor)).toBeInTheDocument();
   });
 });

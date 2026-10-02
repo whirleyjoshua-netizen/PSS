@@ -368,8 +368,8 @@ export const products: Product[] = [
       alt: "Two white solar screen shades lowered over balcony doors in a high-rise, with the city still visible through the weave.",
     },
     storyPhoto: {
-      src: "/gallery/solar-shades-long-window.webp",
-      alt: "A wide white solar screen shade lowered in a long window, with the shadows of bare trees showing softly through the fabric.",
+      src: "/gallery/solar-shades-nursery.webp",
+      alt: "Light grey solar roller shades in white cassettes on tall corner windows of a nursery, lowered partway over a sunlit street, beside a rocking chair.",
     },
     seo: {
       title: "Solar Shades in Las Vegas, NV | Premier Shade Solutions",
@@ -428,6 +428,10 @@ export const products: Product[] = [
     ],
     bestFor: "Formal living and dining rooms, primary bedrooms, and design-forward spaces.",
     image: {
+      src: "/gallery/roman-shades-woven-dining-room.webp",
+      alt: "Three grey woven roman shades raised partway on a row of dining room windows, with a table and chairs below and a green lawn outside.",
+    },
+    storyPhoto: {
       src: "/gallery/roman-shades-primary-bath.webp",
       alt: "White hobbled roman shades in soft folds on two corner windows above a freestanding tub in a primary bathroom.",
     },
@@ -455,6 +459,10 @@ export const products: Product[] = [
       "Coordinating edge banding and valances",
     ],
     bestFor: "Living rooms, sunrooms, and organic-modern or desert-contemporary interiors.",
+    image: {
+      src: "/gallery/woven-wood-shades-hall-window.webp",
+      alt: "A natural woven wood shade lowered over a tall window at the end of a hallway, daylight glowing through the grass weave.",
+    },
     seo: {
       title: "Woven Wood Shades in Las Vegas, NV | Premier Shade",
       description:
