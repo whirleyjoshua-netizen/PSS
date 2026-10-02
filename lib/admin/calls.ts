@@ -7,12 +7,14 @@ import { isUuid } from "./jobs";
  * Saves a call in one statement: what was learned, the forward-only stage move
  * (with its usual 'stage' event) and a 'note' event with the call summary.
  * Every SET expression reads the row as it was, so the stage check and the
- * stage_changed_at update agree. The 'stage' event is logged only when the
- * UPDATE actually landed this call's intended move (updated.status = $8),
- * not merely when the row's status differs from its pre-statement snapshot
- * (prev.status) — under READ COMMITTED another request may have already
- * moved the row between the snapshot and this UPDATE, which would otherwise
- * log a spurious stage event for a move this call didn't make.
+ * stage_changed_at update agree. The 'stage' event is logged only when THIS
+ * statement's CASE made the move: the row ends at the intended stage
+ * (updated.status = $8) AND its stage_changed_at equals now(). now() is fixed
+ * for the transaction, so it matches only when this UPDATE's own CASE set it.
+ * Under READ COMMITTED another request may move the row after the prev
+ * snapshot; the UPDATE then re-reads the row, its CASE leaves status and
+ * stage_changed_at alone (the old, earlier timestamp), and no spurious
+ * 'stage' event is logged for a move this call didn't make.
  * It also sets the next follow-up, or clears it (a booked call and a call with no call-back time clear it).
  *
  * A booked call with a visit date books that visit in the same statement, as a CONFIRMED consultation:
@@ -37,7 +39,7 @@ export async function logCall(jobId: string, input: CallInput, actor: string): P
          follow_up_at = $12::timestamptz, follow_up_note = $13,
          updated_at = now()
        where id = $1
-       returning id, status
+       returning id, status, stage_changed_at
      ),
      booked as (
        insert into appointments (lead_id, kind, starts_at, all_day, confirmed_at, confirmed_by)
@@ -51,7 +53,7 @@ export async function logCall(jobId: string, input: CallInput, actor: string): P
      moved as (
        insert into job_events (lead_id, actor, kind, from_status, to_status)
        select updated.id, $10, 'stage', prev.status, updated.status from prev, updated
-       where updated.status = $8::text and prev.status <> $8::text
+       where updated.status = $8::text and prev.status <> $8::text and updated.stage_changed_at = now()
      )
      insert into job_events (lead_id, actor, kind, body)
      select id, $10, 'note', $11 from updated

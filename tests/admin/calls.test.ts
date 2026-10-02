@@ -31,6 +31,10 @@ describe("logCall", () => {
     );
     expect(text).toContain("status = any($9::text[])");
     expect(text).toContain("where updated.status = $8::text and prev.status <> $8::text");
+    // The 'stage' event is logged only when THIS statement's CASE made the move: now() is fixed per
+    // transaction, so a move another request already made carries an older stage_changed_at.
+    expect(text).toMatch(/returning id, status, stage_changed_at\b/);
+    expect(text).toContain("and updated.stage_changed_at = now()");
     expect(text).toContain("'note'");
     expect(text).toContain("follow_up_at = $12::timestamptz");
     expect(text).toContain("follow_up_note = $13");
