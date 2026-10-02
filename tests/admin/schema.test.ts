@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { appointmentSchema, detailsSchema, newJobSchema, handJobSchema, noteSchema, lostSchema, routeSettingsSchema, teamMemberSchema, installRateSchema, installSettingsSchema, installLinesSchema, installKindSchema, installExtrasSchema, HAND_SOURCES, JOB_SOURCES } from "@/lib/admin/schema";
+import { appointmentNotesSchema, appointmentSchema, designerNotesField, detailsSchema, newJobSchema, handJobSchema, noteSchema, lostSchema, routeSettingsSchema, teamMemberSchema, installRateSchema, installSettingsSchema, installLinesSchema, installKindSchema, installExtrasSchema, HAND_SOURCES, JOB_SOURCES } from "@/lib/admin/schema";
 import { APPOINTMENT_KINDS } from "@/lib/admin/appointment-kinds";
 import { TEAM_ROLES } from "@/lib/admin/team-roles";
 
@@ -242,6 +242,31 @@ describe("appointmentSchema timing", () => {
 
   it("rejects lengths outside quarter hours between 0.25 and 12", () => {
     expect(appointmentSchema.safeParse({ ...base, windowStart: "", windowEnd: "", hours: "13" }).success).toBe(false);
+  });
+});
+
+describe("designer notes and gate code", () => {
+  const base = { kind: "measure", startsAt: "2026-09-24T09:00", allDay: false, windowStart: "", windowEnd: "", hours: "" };
+
+  it("carries trimmed notes and the gate code through a booking", () => {
+    expect(appointmentSchema.parse({ ...base, designerNotes: "  Side gate sticks \r\nDog in the yard ", gateCode: " #4321 " }))
+      .toMatchObject({ designerNotes: "Side gate sticks \nDog in the yard", gateCode: "#4321" });
+  });
+
+  it("reads blank notes and a blank gate code as null", () => {
+    expect(appointmentSchema.parse({ ...base, designerNotes: "  ", gateCode: "" })).toMatchObject({ designerNotes: null, gateCode: null });
+    expect(appointmentSchema.parse(base)).toMatchObject({ designerNotes: null, gateCode: null });
+  });
+
+  it("caps notes at 2000 characters and the gate code at 40", () => {
+    expect(designerNotesField.safeParse("x".repeat(2000)).success).toBe(true);
+    expect(designerNotesField.safeParse("x".repeat(2001)).error!.issues[0].message).toBe("Keep the designer notes under 2,000 characters");
+    expect(appointmentSchema.safeParse({ ...base, gateCode: "x".repeat(41) }).error!.issues[0].message).toBe("Keep the gate code under 40 characters");
+  });
+
+  it("parses an Edit notes form", () => {
+    expect(appointmentNotesSchema.parse({ designerNotes: "Bring samples", gateCode: "" })).toEqual({ designerNotes: "Bring samples", gateCode: null });
+    expect(appointmentNotesSchema.safeParse({ designerNotes: "x".repeat(2001), gateCode: "" }).success).toBe(false);
   });
 });
 

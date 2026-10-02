@@ -8,6 +8,8 @@ const redirect = vi.fn((to: string) => { throw new Error(`NEXT_REDIRECT ${to}`);
 vi.mock("next/navigation", () => ({ redirect }));
 const geocodeLead = vi.fn();
 vi.mock("@/lib/routes/geocode", () => ({ geocodeLead }));
+const syncJobCalendar = vi.fn();
+vi.mock("@/lib/calendar/sync", () => ({ syncJobCalendar }));
 vi.mock("next/server", () => ({ after: (cb: () => unknown) => { (cb() as Promise<unknown> | undefined)?.catch?.(() => {}); } }));
 const { submitQuestionnaire } = await import("@/app/(site)/thank-you/actions");
 
@@ -18,7 +20,23 @@ beforeEach(() => {
   cookieGet.mockReset().mockImplementation((name: string) => (name === "pss_q" ? { value: "the-key" } : undefined));
   saveQuestionnaire.mockReset().mockResolvedValue("lead-1");
   geocodeLead.mockReset().mockResolvedValue(undefined);
+  syncJobCalendar.mockReset().mockResolvedValue(undefined);
   redirect.mockClear();
+});
+
+describe("submitQuestionnaire calendar sync", () => {
+  it("syncs the saved lead's calendar, so a new gate code reaches its Outlook events", async () => {
+    await expect(submitQuestionnaire({}, form([["gateCode", "#4321"]]))).rejects.toThrow("NEXT_REDIRECT /thank-you/all-set");
+    expect(syncJobCalendar).toHaveBeenCalledWith("lead-1");
+  });
+  it("does not sync when the save found no lead, or nothing was saved", async () => {
+    saveQuestionnaire.mockResolvedValue(null);
+    await submitQuestionnaire({}, form([["gateCode", "#4321"]]));
+    expect(syncJobCalendar).not.toHaveBeenCalled();
+    saveQuestionnaire.mockResolvedValue("lead-1");
+    await expect(submitQuestionnaire({}, form([]))).rejects.toThrow("NEXT_REDIRECT");
+    expect(syncJobCalendar).not.toHaveBeenCalled();
+  });
 });
 
 describe("submitQuestionnaire geocoding", () => {

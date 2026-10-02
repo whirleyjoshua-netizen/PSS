@@ -66,6 +66,14 @@ const optionalClock = z.preprocess(blank, clockField.optional());
 const optionalHours = z.preprocess(blank, hoursField.optional());
 
 /**
+ * One appointment's designer notes: optional, trimmed, at most 2000 characters (the database check in
+ * migration 035), with a browser's \r\n line breaks stored as \n. Blank is null.
+ */
+export const designerNotesField = z
+  .preprocess(blank, z.string().trim().max(2000, "Keep the designer notes under 2,000 characters").optional())
+  .transform((value) => (value === undefined ? null : value.replace(/\r\n?/g, "\n")));
+
+/**
  * One booking from the Schedule button. The saved appointment is always pending: nothing here
  * confirms it, so neither Outlook nor the customer hears about it until the owner confirms.
  * A blank window is "Any time"; a blank length leaves the kind's default to apply.
@@ -79,6 +87,9 @@ export const appointmentSchema = z
     windowStart: optionalClock,
     windowEnd: optionalClock,
     hours: optionalHours,
+    designerNotes: designerNotesField,
+    // The client's gate code, shown and editable in the dialog. The action uses it only when the form sent the field.
+    gateCode: gateCodeField,
   })
   .refine((v) => Boolean(v.windowStart) === Boolean(v.windowEnd), {
     message: "Pick both ends of the arrival window, or Any time", path: ["windowEnd"],
@@ -94,7 +105,12 @@ export const appointmentSchema = z
     windowStart: value.windowStart ?? null,
     windowEnd: value.windowEnd ?? null,
     durationMinutes: value.hours ?? null,
+    designerNotes: value.designerNotes,
+    gateCode: value.gateCode,
   }));
+
+/** "Edit notes" on an appointment: its designer notes and the client's gate code, nothing about its time. */
+export const appointmentNotesSchema = z.object({ designerNotes: designerNotesField, gateCode: gateCodeField });
 
 export const noteSchema = z.object({ body: z.string().trim().min(1, "Write a note first").max(2000) });
 export const lostSchema = z.object({ reason: z.string().trim().min(1, "Say why it was lost").max(200) });

@@ -243,18 +243,19 @@ export async function setStage(
 
 /**
  * Saves the details form and logs it, in one statement. saved false means the job is gone.
- * addressChanged compares against the row as it was before this update, so only a real edit re-geocodes.
+ * addressChanged and gateCodeChanged compare against the row as it was before this update, so only a
+ * real edit re-geocodes, and only a real gate-code edit re-syncs the Outlook events that show it.
  *
  * No appointment date passes through here: visit_at and install_on are mirrors of the confirmed
  * appointments (see mirrorToJob), and a New job now moves to Appointment booked only when its
- * consultation is confirmed. This save therefore never touches Outlook.
+ * consultation is confirmed. Only the gate code saved here reaches Outlook (see saveDetails).
  */
 export async function updateDetails(
   id: string, input: DetailsInput, actor: string,
-): Promise<{ saved: boolean; addressChanged: boolean }> {
-  if (!isUuid(id)) return { saved: false, addressChanged: false };
+): Promise<{ saved: boolean; addressChanged: boolean; gateCodeChanged: boolean }> {
+  if (!isUuid(id)) return { saved: false, addressChanged: false, gateCodeChanged: false };
   const rows = await db()`
-    with prev as (select address, city from leads where id = ${id}),
+    with prev as (select address, city, gate_code from leads where id = ${id}),
     changed as (
       update leads set
         address = ${input.address}, city = ${input.city},
@@ -275,9 +276,14 @@ export async function updateDetails(
       returning id
     )
     select changed.id,
-           (prev.address is distinct from ${input.address}::text or prev.city is distinct from ${input.city}::text) as address_changed
+           (prev.address is distinct from ${input.address}::text or prev.city is distinct from ${input.city}::text) as address_changed,
+           (prev.gate_code is distinct from ${input.gateCode}::text) as gate_code_changed
       from changed, prev`;
-  return { saved: rows.length > 0, addressChanged: rows[0]?.address_changed === true };
+  return {
+    saved: rows.length > 0,
+    addressChanged: rows[0]?.address_changed === true,
+    gateCodeChanged: rows[0]?.gate_code_changed === true,
+  };
 }
 
 export async function addNote(id: string, body: string, actor: string): Promise<boolean> {

@@ -42,7 +42,7 @@ beforeEach(() => {
   Object.values(jobs).forEach((fn) => fn.mockReset());
   requireAdmin.mockReset().mockResolvedValue({ email: "owner@example.com" });
   jobs.setStage.mockResolvedValue(true);
-  jobs.updateDetails.mockResolvedValue({ saved: true, addressChanged: false });
+  jobs.updateDetails.mockResolvedValue({ saved: true, addressChanged: false, gateCodeChanged: false });
   geocodeLead.mockReset().mockResolvedValue(undefined);
   jobs.addNote.mockResolvedValue(true);
   [...Object.values(referrals), sendReviewRequest, ...Object.values(reviewsDb)].forEach((fn) => fn.mockReset());
@@ -111,7 +111,7 @@ describe("with a session", () => {
   });
 
   it("saves an edited address and geocodes the job only when the address changed", async () => {
-    jobs.updateDetails.mockResolvedValue({ saved: true, addressChanged: true });
+    jobs.updateDetails.mockResolvedValue({ saved: true, addressChanged: true, gateCodeChanged: false });
     geocodeLead.mockRejectedValue(new Error("google down"));
     const state = await actions.saveDetails(ID, {}, form({ address: "12 Sample St", city: "North Las Vegas" }));
     expect(state).toEqual({ ok: true });
@@ -271,7 +271,7 @@ describe("assignJobAction", () => {
 });
 
 describe("Outlook calendar sync", () => {
-  it("never touches the calendar from Job details, which no longer holds a date", async () => {
+  it("leaves the calendar alone when the gate code did not change (Job details holds no date)", async () => {
     await actions.saveDetails(ID, {}, form({ city: "Henderson", orderedOn: "2026-10-02" }));
     expect(jobs.updateDetails).toHaveBeenCalledWith(
       ID, expect.objectContaining({ orderedOn: "2026-10-02" }), "owner@example.com",
@@ -279,8 +279,20 @@ describe("Outlook calendar sync", () => {
     expect(syncJobCalendar).not.toHaveBeenCalled();
   });
 
+  it("syncs the calendar, pushing no date, when the gate code changed", async () => {
+    jobs.updateDetails.mockResolvedValue({ saved: true, addressChanged: false, gateCodeChanged: true });
+    await actions.saveDetails(ID, {}, form({ city: "Henderson", gateCode: "#4321" }));
+    expect(syncJobCalendar).toHaveBeenCalledWith(ID);
+  });
+
+  it("does not sync when the gate code did not change", async () => {
+    jobs.updateDetails.mockResolvedValue({ saved: true, addressChanged: false, gateCodeChanged: false });
+    await actions.saveDetails(ID, {}, form({ city: "Henderson", gateCode: "#4321" }));
+    expect(syncJobCalendar).not.toHaveBeenCalled();
+  });
+
   it("reports a job that no longer exists", async () => {
-    jobs.updateDetails.mockResolvedValue({ saved: false, addressChanged: false });
+    jobs.updateDetails.mockResolvedValue({ saved: false, addressChanged: false, gateCodeChanged: false });
     expect(await actions.saveDetails(ID, {}, form({ city: "Henderson" }))).toEqual({ error: "That job no longer exists." });
   });
 

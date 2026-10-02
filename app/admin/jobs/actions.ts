@@ -79,11 +79,13 @@ export async function saveDetails(id: string, _prev: FormState, formData: FormDa
     gateCode: formData.get("gateCode") ?? "",
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message, values };
-  // No date is edited here any more, so this save never touches Outlook.
-  const { saved, addressChanged } = await updateDetails(id, parsed.data, email);
+  const { saved, addressChanged, gateCodeChanged } = await updateDetails(id, parsed.data, email);
   if (!saved) return MISSING;
   // Coordinates for the route planner, only when the address really changed. Never blocks the save.
   if (addressChanged) after(() => geocodeLead(id));
+  // No date is edited here. Only the gate code reaches Outlook (it is on every confirmed appointment's
+  // event), so only a changed gate code syncs, and the sync pushes no date.
+  if (gateCodeChanged) after(() => syncJobCalendar(id));
   refresh(id);
   return { ok: true };
 }

@@ -164,7 +164,7 @@ describe("changing jobs", () => {
 
   it("setStage, updateDetails and addNote return false for a non-uuid id without querying", async () => {
     expect(await jobs.setStage("../etc", "sold", "owner@example.com")).toBe(false);
-    expect(await jobs.updateDetails("../etc", { address: null, city: "Henderson", brands: [], orderedOn: null, budgetTier: null, windowCountExact: null, treatmentTypes: [], motorized: false, gateCode: null }, "owner@example.com")).toEqual({ saved: false, addressChanged: false });
+    expect(await jobs.updateDetails("../etc", { address: null, city: "Henderson", brands: [], orderedOn: null, budgetTier: null, windowCountExact: null, treatmentTypes: [], motorized: false, gateCode: null }, "owner@example.com")).toEqual({ saved: false, addressChanged: false, gateCodeChanged: false });
     expect(await jobs.addNote("../etc", "hi", "owner@example.com")).toBe(false);
     expect(sql).not.toHaveBeenCalled();
   });
@@ -230,7 +230,7 @@ describe("changing jobs", () => {
       { address: null, city: "Henderson", brands: ["Alta Window Fashions"], orderedOn: "2027-01-10", budgetTier: null, windowCountExact: null, treatmentTypes: [], motorized: false, gateCode: null },
       "owner@example.com",
     );
-    expect(result).toEqual({ saved: true, addressChanged: false });
+    expect(result).toEqual({ saved: true, addressChanged: false, gateCodeChanged: false });
     expect(sql).toHaveBeenCalledOnce();
     expect(sql.mock.calls[0]).toEqual(expect.arrayContaining([["Alta Window Fashions"], "2027-01-10"]));
     // Money is priced on the Install tab now: saving details never overwrites the stored amounts.
@@ -258,7 +258,7 @@ describe("changing jobs", () => {
       { address: null, city: "Henderson", brands: [], orderedOn: null, budgetTier: null, windowCountExact: null, treatmentTypes: [], motorized: false, gateCode: null },
       "owner@example.com",
     );
-    expect(result).toEqual({ saved: false, addressChanged: false });
+    expect(result).toEqual({ saved: false, addressChanged: false, gateCodeChanged: false });
   });
 
   it("updateDetails saves the address and city, and reports whether they changed from before the update", async () => {
@@ -267,21 +267,37 @@ describe("changing jobs", () => {
       address: "12 Sample St", city: "Henderson", brands: [], orderedOn: null,
       budgetTier: null, windowCountExact: null, treatmentTypes: [], motorized: false, gateCode: null,
     };
-    expect(await jobs.updateDetails(ID, input, "owner@example.com")).toEqual({ saved: true, addressChanged: true });
+    expect(await jobs.updateDetails(ID, input, "owner@example.com")).toEqual({ saved: true, addressChanged: true, gateCodeChanged: false });
     const statement = text(sql.mock.calls[0]).replace(/\s+/g, " ");
     expect(statement).toContain("address = ?, city = ?");
     // A moved job loses its old coordinates in the same update, so the planner never routes to the old address.
     for (const column of ["lat", "lng", "geocode_status", "geocoded_at"]) {
       expect(statement).toContain(`${column} = case when address is distinct from ?::text or city is distinct from ?::text then null else ${column} end`);
     }
-    expect(statement).toContain("with prev as (select address, city from leads where id = ?), changed as ( update leads set");
+    expect(statement).toContain("with prev as (select address, city, gate_code from leads where id = ?), changed as ( update leads set");
     expect(statement).toContain("(prev.address is distinct from ?::text or prev.city is distinct from ?::text) as address_changed");
     expect(statement).toContain("from changed, prev");
     expect(sql.mock.calls[0]).toEqual(expect.arrayContaining(["12 Sample St", "Henderson"]));
     sql.mockResolvedValue([{ id: ID, address_changed: false }]);
-    expect(await jobs.updateDetails(ID, input, "owner@example.com")).toEqual({ saved: true, addressChanged: false });
+    expect(await jobs.updateDetails(ID, input, "owner@example.com")).toEqual({ saved: true, addressChanged: false, gateCodeChanged: false });
     sql.mockResolvedValue([]);
-    expect(await jobs.updateDetails(ID, input, "owner@example.com")).toEqual({ saved: false, addressChanged: false });
+    expect(await jobs.updateDetails(ID, input, "owner@example.com")).toEqual({ saved: false, addressChanged: false, gateCodeChanged: false });
+  });
+
+  it("updateDetails reports whether the gate code changed from before the update", async () => {
+    const input = {
+      address: null, city: "Henderson", brands: [], orderedOn: null,
+      budgetTier: null, windowCountExact: null, treatmentTypes: [], motorized: false, gateCode: "#4321",
+    };
+    sql.mockResolvedValue([{ id: ID, address_changed: false, gate_code_changed: true }]);
+    expect(await jobs.updateDetails(ID, input, "owner@example.com")).toEqual({ saved: true, addressChanged: false, gateCodeChanged: true });
+    const statement = text(sql.mock.calls[0]).replace(/\s+/g, " ");
+    expect(statement).toContain("(prev.gate_code is distinct from ?::text) as gate_code_changed");
+    // The gate code is owner-only: it is saved, but the log line never carries it.
+    expect(sql.mock.calls[0]).toContain("#4321");
+    expect(statement).toContain("'Updated job details'");
+    sql.mockResolvedValue([{ id: ID, address_changed: false, gate_code_changed: false }]);
+    expect((await jobs.updateDetails(ID, input, "owner@example.com")).gateCodeChanged).toBe(false);
   });
 
   it("createJob schedules a geocode of the new job, so every caller gets coordinates", async () => {

@@ -3,6 +3,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { after } from "next/server";
+import { syncJobCalendar } from "@/lib/calendar/sync";
 import { saveQuestionnaire } from "@/lib/leads/questionnaire";
 import { geocodeLead } from "@/lib/routes/geocode";
 import { QUESTIONNAIRE_COOKIE } from "@/lib/leads/questionnaire-cookie";
@@ -50,5 +51,8 @@ export async function submitQuestionnaire(_prev: QuestionnaireState, formData: F
   // A new address gets coordinates for the route planner. Never blocks the redirect.
   const leadId = savedId;
   if (leadId && parsed.data.address) after(() => geocodeLead(leadId));
+  // The gate code is on every confirmed appointment's Outlook event; the sync rewrites only a body whose
+  // text changed and pushes no date. It never throws and does nothing until Outlook is connected.
+  if (leadId) after(() => syncJobCalendar(leadId));
   redirect("/thank-you/all-set");
 }
