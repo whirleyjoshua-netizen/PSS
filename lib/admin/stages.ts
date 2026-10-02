@@ -2,11 +2,12 @@ import type { IconName } from "@/components/admin/icons";
 
 /**
  * The one definition of the job stages. The database enforces the same list with the
- * leads_status_check constraint, defined identically in 002, 011, 012 and 030: migrate.mjs
- * re-applies every file, so all four carry the full list. Keep them in step.
+ * leads_status_check constraint, defined identically in 002, 011, 012, 030 and 033: migrate.mjs
+ * re-applies every file, so all five carry the full list. Keep them in step.
  */
 export const STAGES = [
   { value: "new", label: "New lead" },
+  { value: "contacted", label: "Contacted" },
   { value: "visit_booked", label: "Appointment booked" },
   { value: "quoted", label: "Quoted" },
   { value: "approved", label: "Approved" },
@@ -25,8 +26,8 @@ export const ALL_STAGES: readonly Stage[] = [...STAGES.map((s) => s.value), "los
 export const isStage = (value: unknown): value is Stage =>
   typeof value === "string" && (ALL_STAGES as readonly string[]).includes(value);
 
-/** Stages retired from the tracker that old activity entries still mention. */
-const RETIRED_LABELS: Record<string, string> = { contacted: "Contacted" };
+/** Stages retired from the tracker that old activity entries still mention. No stage is currently retired. */
+const RETIRED_LABELS: Record<string, string> = {};
 
 export const stageLabel = (stage: string): string =>
   stage === "lost" ? "Lost" : STAGES.find((s) => s.value === stage)?.label ?? RETIRED_LABELS[stage] ?? stage;
@@ -57,14 +58,14 @@ export const BOOKED_OR_LATER: readonly Stage[] = STAGES.slice(stageIndex("visit_
 /** Reaching any of these counts as a sale. Signed is not: the sale is the paid deposit (spec §4). */
 export const SOLD_OR_LATER: readonly Stage[] = STAGES.slice(stageIndex("sold")).map((s) => s.value);
 
-export const WORKING_STAGES = ["new", "visit_booked", "quoted", "approved", "signed", "sold", "measure", "ordered", "installed", "completed"] as const;
+export const WORKING_STAGES = ["new", "contacted", "visit_booked", "quoted", "approved", "signed", "sold", "measure", "ordered", "installed", "completed"] as const;
 export type WorkingStage = (typeof WORKING_STAGES)[number];
 
 export const parseWorkingStage = (value: string | null | undefined): WorkingStage | null =>
   (WORKING_STAGES as readonly string[]).includes(value ?? "") ? (value as WorkingStage) : null;
 
 /** The Kanban's columns: current work only. Completed and Lost live in the job list. */
-export const BOARD_STAGES = ["new", "visit_booked", "quoted", "approved", "signed", "sold", "measure", "ordered", "installed"] as const;
+export const BOARD_STAGES = ["new", "contacted", "visit_booked", "quoted", "approved", "signed", "sold", "measure", "ordered", "installed"] as const;
 export type BoardStage = (typeof BOARD_STAGES)[number];
 
 /** The one definition of "the install has happened", for reviews, referrals and hand-entered jobs. */
@@ -77,6 +78,7 @@ export const isInstalled = (status: string): boolean => (INSTALLED_STATUSES as r
  */
 export const STAGE_STYLE: Record<Stage, { icon: IconName; edge: string; tint: string; left: string }> = {
   new: { icon: "lead", edge: "border-t-stage-new", tint: "text-stage-new", left: "border-l-stage-new" },
+  contacted: { icon: "phone", edge: "border-t-stage-contacted", tint: "text-stage-contacted", left: "border-l-stage-contacted" },
   visit_booked: { icon: "calendar", edge: "border-t-stage-visit", tint: "text-stage-visit", left: "border-l-stage-visit" },
   quoted: { icon: "document", edge: "border-t-stage-quoted", tint: "text-stage-quoted", left: "border-l-stage-quoted" },
   approved: { icon: "check", edge: "border-t-stage-approved", tint: "text-stage-approved", left: "border-l-stage-approved" },

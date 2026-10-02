@@ -5,7 +5,7 @@ const statements = (file: string) => readFileSync(`db/migrations/${file}`, "utf8
   .split("\n").filter((line) => !line.trim().startsWith("--")).join("\n")
   .split(";").map((s) => s.trim()).filter(Boolean);
 
-const STATUSES = "status in ('new','visit_booked','quoted','approved','signed','sold','measure','ordered','installed','completed','lost')";
+const STATUSES = "status in ('new','contacted','visit_booked','quoted','approved','signed','sold','measure','ordered','installed','completed','lost')";
 const statusList = (file: string) =>
   statements(file).find((s) => s.includes("leads_status_check check"))?.replace(/\s+/g, " ");
 

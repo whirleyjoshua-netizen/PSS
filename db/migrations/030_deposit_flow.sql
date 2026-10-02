@@ -2,11 +2,11 @@
 -- Idempotent: scripts/migrate.mjs re-applies every file on every run.
 -- Whole-line comments only, and no semicolons in comments.
 
--- Stages. 002, 011, 012 and this file all define leads_status_check, so all four list the CURRENT FULL set.
+-- Stages. 002, 011, 012, this file and 033 all define leads_status_check, so all five list the CURRENT FULL set.
 alter table leads drop constraint if exists leads_status_check;
 
 alter table leads add constraint leads_status_check check (
-  status in ('new','visit_booked','quoted','approved','signed','sold','measure','ordered','installed','completed','lost')
+  status in ('new','contacted','visit_booked','quoted','approved','signed','sold','measure','ordered','installed','completed','lost')
 );
 
 -- Every migration that defines job_events_kind_check lists the CURRENT FULL set of kinds.

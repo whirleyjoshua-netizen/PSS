@@ -18,7 +18,7 @@ describe("board", () => {
   it("groups jobs into the given stages, in order, even when empty", () => {
     const groups = groupByStage([job({ status: "sold" }), job({ status: "completed" })], BOARD_STAGES);
     expect(groups.map((g) => g.label)).toEqual([
-      "New lead", "Appointment booked", "Quoted", "Approved", "Signed", "Sold", "Official measure", "Ordered", "Installed",
+      "New lead", "Contacted", "Appointment booked", "Quoted", "Approved", "Signed", "Sold", "Official measure", "Ordered", "Installed",
     ]);
     expect(groups.find((g) => g.stage === "sold")!.jobs).toHaveLength(1);
   });

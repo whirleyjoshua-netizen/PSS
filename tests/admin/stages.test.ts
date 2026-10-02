@@ -4,7 +4,7 @@ import { STAGES, ALL_STAGES, isStage, stageLabel, nextStage, WORKING_STAGES, STA
 describe("stages", () => {
   it("runs from new lead to completed, in order", () => {
     expect(STAGES.map((s) => s.value)).toEqual([
-      "new", "visit_booked", "quoted", "approved", "signed", "sold", "measure", "ordered", "installed", "completed",
+      "new", "contacted", "visit_booked", "quoted", "approved", "signed", "sold", "measure", "ordered", "installed", "completed",
     ]);
   });
 
@@ -14,7 +14,8 @@ describe("stages", () => {
   });
 
   it("advances one stage at a time and stops at completed", () => {
-    expect(nextStage("new")).toBe("visit_booked");
+    expect(nextStage("new")).toBe("contacted");
+    expect(nextStage("contacted")).toBe("visit_booked");
     expect(nextStage("quoted")).toBe("approved");
     expect(nextStage("signed")).toBe("sold");
     expect(nextStage("sold")).toBe("measure");
@@ -41,9 +42,22 @@ describe("stages", () => {
     expect(isStage(undefined)).toBe(false);
   });
 
-  it("still names the retired Contacted stage for old activity", () => {
+  it("has Contacted as a stage again, between New lead and Appointment booked", () => {
     expect(stageLabel("contacted")).toBe("Contacted");
-    expect(isStage("contacted")).toBe(false);
+    expect(isStage("contacted")).toBe(true);
+    expect(WORKING_STAGES.indexOf("contacted")).toBe(WORKING_STAGES.indexOf("new") + 1);
+    expect(BOARD_STAGES.indexOf("contacted")).toBe(BOARD_STAGES.indexOf("new") + 1);
+    expect(BOOKED_OR_LATER).not.toContain("contacted");
+  });
+
+  it("styles Contacted with its own token and the phone icon", () => {
+    expect(STAGE_STYLE.contacted).toEqual({
+      icon: "phone", edge: "border-t-stage-contacted", tint: "text-stage-contacted", left: "border-l-stage-contacted",
+    });
+  });
+
+  it("still labels an unknown value as itself", () => {
+    expect(stageLabel("nope")).toBe("nope");
   });
 });
 
@@ -73,7 +87,7 @@ describe("working stages and styles", () => {
 
 describe("board and installed stages", () => {
   it("puts only current work on the board", () => {
-    expect([...BOARD_STAGES]).toEqual(["new", "visit_booked", "quoted", "approved", "signed", "sold", "measure", "ordered", "installed"]);
+    expect([...BOARD_STAGES]).toEqual(["new", "contacted", "visit_booked", "quoted", "approved", "signed", "sold", "measure", "ordered", "installed"]);
   });
 
   it("counts installed and completed as installed", () => {
@@ -94,7 +108,7 @@ describe("board and installed stages", () => {
 describe("job list filter", () => {
   it("offers all jobs, every stage in order, then lost", () => {
     expect(LIST_FILTERS.map((f) => f.label)).toEqual([
-      "All jobs", "New lead", "Appointment booked", "Quoted", "Approved", "Signed", "Sold", "Official measure", "Ordered", "Installed", "Completed", "Lost",
+      "All jobs", "New lead", "Contacted", "Appointment booked", "Quoted", "Approved", "Signed", "Sold", "Official measure", "Ordered", "Installed", "Completed", "Lost",
     ]);
     expect(LIST_FILTERS[0].value).toBe("");
   });

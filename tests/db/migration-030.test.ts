@@ -29,7 +29,7 @@ describe("migration 030", () => {
   });
 
   it("allows every stage the app has, in the app's order, in all four files that define the check", () => {
-    expect(ALL_STAGES).toEqual(["new", "visit_booked", "quoted", "approved", "signed", "sold", "measure", "ordered", "installed", "completed", "lost"]);
+    expect(ALL_STAGES).toEqual(["new", "contacted", "visit_booked", "quoted", "approved", "signed", "sold", "measure", "ordered", "installed", "completed", "lost"]);
     for (const file of STATUS_FILES) expect(flat(file), file).toContain(`status in (${list(ALL_STAGES)})`);
   });
 

@@ -4,6 +4,7 @@ import { STAGES, STAGE_STYLE, type Stage, type WorkingStage } from "@/lib/admin/
 /** Fill for done and current steps. Complete literals so Tailwind generates them. */
 const FILL: Record<WorkingStage, string> = {
   new: "bg-stage-new",
+  contacted: "bg-stage-contacted",
   visit_booked: "bg-stage-visit",
   quoted: "bg-stage-quoted",
   approved: "bg-stage-approved",

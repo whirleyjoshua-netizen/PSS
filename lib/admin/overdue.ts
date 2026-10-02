@@ -5,6 +5,7 @@ import { lasVegasDate } from "./time";
 /** Days a job may sit in a stage before the board flags it. Stages absent here never go overdue. */
 export const OVERDUE_DAYS: Partial<Record<Stage, number>> = {
   new: 1,
+  contacted: 3,
   quoted: 7,
   approved: 2,
   signed: 2,
@@ -16,13 +17,17 @@ export const OVERDUE_DAYS: Partial<Record<Stage, number>> = {
 export const daysInStage = (stageChangedAt: Date, now: Date): number =>
   Math.max(0, Math.floor((now.getTime() - stageChangedAt.getTime()) / 86_400_000));
 
-/** A booked visit is judged by its date, a new lead by whether anyone has reached out since it came in. */
-export function isOverdue(job: Pick<Job, "status" | "stageChangedAt" | "visitAt" | "lastContactAt">, now: Date): boolean {
+/** A booked visit is judged by its date, a new lead by whether anyone has reached out, a contacted one by its call-back. */
+export function isOverdue(
+  job: Pick<Job, "status" | "stageChangedAt" | "visitAt" | "lastContactAt" | "followUpAt">, now: Date,
+): boolean {
   if (job.status === "visit_booked") {
     return job.visitAt !== null && lasVegasDate(now) > lasVegasDate(job.visitAt);
   }
   const limit = OVERDUE_DAYS[job.status];
   if (limit === undefined || daysInStage(job.stageChangedAt, now) <= limit) return false;
   if (job.status === "new" && job.lastContactAt && job.lastContactAt >= job.stageChangedAt) return false;
+  // A call-back set for later is the plan for this client: the call-back reminder covers it.
+  if (job.status === "contacted" && job.followUpAt && job.followUpAt.getTime() > now.getTime()) return false;
   return true;
 }

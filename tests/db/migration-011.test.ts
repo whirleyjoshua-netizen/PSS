@@ -12,17 +12,14 @@ const kindList = (file: string) =>
 describe("migration 011", () => {
   const all = statements("011_stages_contact_log.sql");
 
-  it("moves any Contacted job back to New before narrowing the stage check", () => {
-    const move = all.findIndex((s) => /update leads set status = 'new' where status = 'contacted'/.test(s));
-    const check = all.findIndex((s) => s.includes("add constraint leads_status_check"));
-    expect(move).toBeGreaterThanOrEqual(0);
-    expect(check).toBeGreaterThan(move);
-    expect(all[check]).toContain("status in ('new','visit_booked','quoted','approved','signed','sold','measure','ordered','installed','completed','lost')");
-    expect(all[check]).not.toContain("contacted");
+  it("changes no rows (migrate.mjs re-runs it), and its stage check lists the full set including Contacted", () => {
+    expect(all.some((s) => /^update leads/.test(s))).toBe(false);
+    const check = all.find((s) => s.includes("add constraint leads_status_check"));
+    expect(check?.replace(/\s+/g, " ")).toContain("status in ('new','contacted','visit_booked','quoted','approved','signed','sold','measure','ordered','installed','completed','lost')");
   });
 
   it("is re-runnable", () => {
-    for (const s of all) expect(s).toMatch(/^(update leads set|alter table (leads|job_events) (drop constraint if exists|add constraint))/);
+    for (const s of all) expect(s).toMatch(/^(alter table (leads|job_events) (drop constraint if exists|add constraint))/);
   });
 
   it("lists the full current kind set, identically in 003, 004 and 011", () => {

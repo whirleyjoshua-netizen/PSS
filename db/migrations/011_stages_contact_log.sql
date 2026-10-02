@@ -1,13 +1,11 @@
--- Stages without Contacted, and the contact log's event kind.
--- Every statement is safe to re-run. Any Contacted job returns to New and keeps its day count.
+-- The stage check, and the contact log's event kind.
+-- Every statement is safe to re-run. It once returned Contacted jobs to New. That reset was removed when Contacted came back (2026-10-01), because migrate.mjs re-runs every file.
 -- The job_events kind list must stay identical to the ones in 003_measure_and_files.sql and 004_referrals_reviews.sql.
-
-update leads set status = 'new' where status = 'contacted';
 
 alter table leads drop constraint if exists leads_status_check;
 
 alter table leads add constraint leads_status_check check (
-  status in ('new','visit_booked','quoted','approved','signed','sold','measure','ordered','installed','completed','lost')
+  status in ('new','contacted','visit_booked','quoted','approved','signed','sold','measure','ordered','installed','completed','lost')
 );
 
 -- Every migration that defines job_events_kind_check lists the CURRENT FULL set of kinds
