@@ -39,12 +39,12 @@ describe("category page redesign", () => {
     expect(new Set(all).size).toBe(all.length);
   });
 
-  it("Motorization: its own photo in the hero, fabric panel in the story, no Explore grid", async () => {
+  it("Motorization: its own photos in the hero and the story, no Explore grid", async () => {
     const { container } = await renderCategory("motorization");
     expect(srcs(container.querySelector("section#book")!)[0]).toContain("/gallery/cellular-shades-great-room-motorized.webp");
     expect(screen.queryByRole("heading", { level: 2, name: /Explore/ })).toBeNull();
     const story = screen.getByRole("heading", { level: 2, name: category("motorization").story.heading }).closest("section")!;
-    expect(story.querySelector("img")).toBeNull();
+    expect(srcs(story)).toEqual([expect.stringContaining("/gallery/cellular-shades-nook-motorized.webp")]);
   });
 
   it("Blinds: both product cards show their own photo, none repeated from above", async () => {

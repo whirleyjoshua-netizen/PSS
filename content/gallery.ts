@@ -171,6 +171,12 @@ export const gallery: GalleryItem[] = [
     caption: "Motorized cellular shades across a two-story wall of windows, lowered together to the same line.",
   },
   {
+    src: "/gallery/cellular-shades-nook-motorized.webp",
+    alt: "Motorized white cellular shades lowered on the windows of a bay breakfast nook, around a round glass table with patterned upholstered chairs.",
+    treatment: "motorization",
+    caption: "Motorized cellular shades on every window of a bay breakfast nook, lowered together.",
+  },
+  {
     src: "/gallery/vertical-blinds-patio-door-valance.webp",
     alt: "White vertical blinds drawn across a sliding patio door beneath a grey floral swag valance, with a sunroom visible through the glass.",
     treatment: "blinds",
