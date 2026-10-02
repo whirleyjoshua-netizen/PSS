@@ -19,7 +19,7 @@ export function CustomerCard({ job, referrer }: { job: Job; referrer: Job | null
         <p className="font-display text-lg">{job.name}</p>
         <a href={`tel:+1${job.phone}`} className="underline-offset-4 hover:underline">{formatPhone(job.phone)}</a>
         {job.email ? <a href={`mailto:${job.email}`} className="break-all underline-offset-4 hover:underline">{job.email}</a> : null}
-        {place ? <a href={mapsHref(job.address, job.city)} className="text-ink-soft underline-offset-4 hover:underline">{place}</a> : null}
+        {place ? <a href={mapsHref(job.address, job.city)} target="_blank" rel="noopener noreferrer" className="text-ink-soft underline-offset-4 hover:underline">{place}</a> : null}
       </div>
       <dl className={`${DL} border-t border-rule pt-4`}>
         <dt className="text-ink-soft">Heard about us</dt><dd>{job.heardVia ?? "—"}</dd>
