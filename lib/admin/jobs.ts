@@ -244,7 +244,7 @@ export async function setStage(
 /**
  * Saves the details form and logs it, in one statement. saved false means the job is gone.
  * addressChanged compares against the row as it was before this update, so only a real edit
- * re-geocodes. The gate code is not edited here (owner 2026-10-01): the scheduler and Edit notes own it.
+ * re-geocodes. The gate code is not edited here (owner 2026-10-01): the scheduler, Edit notes and the call form own it.
  *
  * No appointment date passes through here: visit_at and install_on are mirrors of the confirmed
  * appointments (see mirrorToJob), and a New job now moves to Appointment booked only when its

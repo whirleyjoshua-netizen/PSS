@@ -82,7 +82,7 @@ export async function saveDetails(id: string, _prev: FormState, formData: FormDa
   if (!saved) return MISSING;
   // Coordinates for the route planner, only when the address really changed. Never blocks the save.
   if (addressChanged) after(() => geocodeLead(id));
-  // This save never touches Outlook: it holds no date, and the gate code is edited in the scheduler.
+  // This save never touches Outlook: it holds no date, and the gate code is edited in the scheduler, Edit notes and the call form.
   refresh(id);
   return { ok: true };
 }

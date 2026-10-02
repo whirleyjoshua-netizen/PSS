@@ -64,8 +64,8 @@ export const eventSubject = (kind: Kind, job: { name: string }): string => `${ki
  * must both take it from here.
  */
 export function eventText(job: EventJob, designerNotes: string | null, jobUrl: string): string {
-  // The gate code may come from the customer's questionnaire: one line, so it cannot add lines to the
-  // body. The notes are the owner's own text and keep their line breaks.
+  // Older gate codes came from the customer's questionnaire: keep it to one line, so it cannot add lines
+  // to the body. The notes are the owner's own text and keep their line breaks.
   const gateCode = (job.gateCode ?? "").replace(/\s+/g, " ").trim();
   const head = [
     gateCode ? `Gate code: ${gateCode}` : null,

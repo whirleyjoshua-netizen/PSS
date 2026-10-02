@@ -30,7 +30,7 @@ describe("questionnaireSchema", () => {
     expect(questionnaireSchema.safeParse({ ...empty, treatmentTypes: ["curtains"] }).error!.issues[0].message).toBe("Pick from the listed treatments");
     expect(questionnaireSchema.safeParse({ ...empty, finish: "premium" }).error!.issues[0].message).toBe("Pick a finish");
   });
-  it("limits the gate code to 40 characters and the address to 200", () => {
+  it("drops a gate code and limits the address to 200", () => {
     // Owner 2026-10-01: the questionnaire no longer takes a gate code; one sent anyway is dropped.
     expect(questionnaireSchema.parse({ ...empty, gateCode: "#4321" })).not.toHaveProperty("gateCode");
     expect(questionnaireSchema.safeParse({ ...empty, address: "x".repeat(201) }).success).toBe(false);
