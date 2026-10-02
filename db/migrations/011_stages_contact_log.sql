@@ -1,6 +1,7 @@
 -- The stage check, and the contact log's event kind.
 -- Every statement is safe to re-run. It once returned Contacted jobs to New. That reset was removed when Contacted came back (2026-10-01), because migrate.mjs re-runs every file.
 -- The job_events kind list must stay identical to the ones in 003_measure_and_files.sql and 004_referrals_reviews.sql.
+-- Whole-line comments only, and no semicolons in comments.
 
 alter table leads drop constraint if exists leads_status_check;
 

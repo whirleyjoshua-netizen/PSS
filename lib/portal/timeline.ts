@@ -20,8 +20,8 @@ export async function stageDates(jobId: string): Promise<Partial<Record<Stage, D
   const dates: Partial<Record<Stage, Date>> = {};
   for (const row of rows) {
     const status = row.to_status;
-    // Oldest first, so the first row for a status is the one that counts. Retired
-    // statuses that old entries still mention are skipped.
+    // Oldest first, so the first row for a status is the one that counts. Values that
+    // are not current stages are skipped.
     if (isStage(status) && !dates[status]) dates[status] = new Date(row.created_at as string | Date);
   }
   return dates;
