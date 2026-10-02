@@ -14,7 +14,7 @@ vi.mock("next/server", () => ({
 }));
 const runScheduledWork = () => Promise.all(afterCallbacks.splice(0).map((cb) => cb()));
 
-const { requestSignIn, consumeSignIn } = await import("@/lib/admin/login");
+const { requestSignIn, consumeSignIn, consumeSignInCode, newSignInCode, codeHash } = await import("@/lib/admin/login");
 const { hashToken } = await import("@/lib/admin/tokens");
 
 const text = (call: unknown[]) => (call[0] as TemplateStringsArray).join("?");
@@ -128,6 +128,92 @@ describe("requestSignIn", () => {
     expect(consoleError).toHaveBeenCalled();
 
     consoleError.mockRestore();
+  });
+});
+
+describe("sign-in codes", () => {
+  it("are always six digits, leading zeros allowed", () => {
+    for (let i = 0; i < 200; i++) expect(newSignInCode()).toMatch(/^\d{6}$/);
+  });
+
+  it("are hashed together with the address they were sent to", () => {
+    expect(codeHash("owner@example.com", "012345")).toBe(hashToken("owner@example.com:012345"));
+    expect(codeHash("owner@example.com", "012345")).not.toBe(codeHash("other@example.com", "012345"));
+  });
+
+  it("go out in the same email as the link, in the subject, and only the hash is stored", async () => {
+    sql.mockImplementation(async (strings: TemplateStringsArray) =>
+      strings.join("?").includes("count(*)") ? [{ count: 0 }] : [],
+    );
+    await requestSignIn(" Owner@Example.com ");
+    await runScheduledWork();
+
+    const message = send.mock.calls[0][0];
+    expect(message.subject).toMatch(/^Your PSS sign-in code: \d{6}$/);
+    const code = message.subject.match(/(\d{6})$/)[1];
+    expect(message.text).toContain(`Your sign-in code is ${code}`);
+    expect(message.text).toMatch(/https:\/\/pss\.test\/admin\/auth\?token=[A-Za-z0-9_-]{43}/);
+
+    const insert = sql.mock.calls.find((call) => text(call).includes("insert into admin_login_tokens"))!;
+    expect(text(insert)).toContain("code_hash");
+    expect(insert).toContain(codeHash("owner@example.com", code));
+    expect(insert).not.toContain(code);
+  });
+});
+
+describe("consumeSignInCode", () => {
+  it("picks the newest usable sign-in and uses it or counts a wrong try, in one statement", async () => {
+    sql.mockResolvedValue([]);
+    await consumeSignInCode(" Owner@Example.com ", "012345");
+
+    const calls = sql.mock.calls.filter((call) => text(call).includes("admin_login_tokens"));
+    expect(calls).toHaveLength(1);
+    const query = text(calls[0]).replace(/\s+/g, " ");
+    for (const part of [
+      "order by created_at desc limit 1",
+      "code_attempts < ?::int",
+      "used_at is null",
+      "expires_at > now()",
+      "code_hash is not null",
+      "code_attempts = code_attempts + 1",
+      "set used_at = now()",
+    ]) expect(query, part).toContain(part);
+    expect(calls[0]).toContain("owner@example.com");
+    expect(calls[0]).toContain(5);
+    expect(calls[0]).toContain(codeHash("owner@example.com", "012345"));
+  });
+
+  it("strips spaces from the code before checking it", async () => {
+    sql.mockResolvedValue([]);
+    await consumeSignInCode("owner@example.com", " 012 345 ");
+    expect(sql.mock.calls[0]).toContain(codeHash("owner@example.com", "012345"));
+  });
+
+  it("returns the email when the code matched and the address still has access", async () => {
+    sql.mockImplementation(async (strings: TemplateStringsArray) =>
+      strings.join("?").includes("admin_login_tokens") ? [{ email: "owner@example.com" }] : [],
+    );
+    expect(await consumeSignInCode("owner@example.com", "012345")).toBe("owner@example.com");
+  });
+
+  it("returns null when no sign-in was used", async () => {
+    sql.mockResolvedValue([]);
+    expect(await consumeSignInCode("owner@example.com", "012345")).toBeNull();
+  });
+
+  it("returns null when the address has since lost access", async () => {
+    sql.mockImplementation(async (strings: TemplateStringsArray) =>
+      strings.join("?").includes("from admin_access") ? [] : [{ email: "former@example.com" }],
+    );
+    expect(await consumeSignInCode("former@example.com", "012345")).toBeNull();
+  });
+
+  it("refuses anything but six digits, or a blank email, without querying", async () => {
+    for (const code of ["", "12345", "1234567", "12a456", "abcdef"]) {
+      expect(await consumeSignInCode("owner@example.com", code), code).toBeNull();
+    }
+    expect(await consumeSignInCode("  ", "012345")).toBeNull();
+    expect(sql).not.toHaveBeenCalled();
   });
 });
 

@@ -1,4 +1,5 @@
 import "server-only";
+import { randomInt } from "node:crypto";
 import { after } from "next/server";
 import { Resend } from "resend";
 import { business } from "@/content/business";
@@ -8,9 +9,16 @@ import { hashToken, newToken } from "./tokens";
 
 const LINK_MINUTES = 15;
 const LINKS_PER_HOUR = 5;
+const CODE_TRIES = 5;
+
+/** Six digits, leading zeros allowed. */
+export const newSignInCode = (): string => String(randomInt(0, 1_000_000)).padStart(6, "0");
+
+/** The code is only ever stored hashed, bound to its address. */
+export const codeHash = (email: string, code: string): string => hashToken(`${email}:${code}`);
 
 /**
- * Emails a one-time sign-in link to an allowlisted owner.
+ * Emails a one-time sign-in link, and a 6-digit code on the same row, to an allowlisted owner.
  *
  * Always returns immediately, having done nothing yet. All work — the
  * allowlist check, rate limiting, and the email itself — happens later in
@@ -33,9 +41,10 @@ export async function requestSignIn(rawEmail: string): Promise<void> {
       if (Number(count) >= LINKS_PER_HOUR) return;
 
       const token = newToken();
+      const code = newSignInCode();
       await sql`
-        insert into admin_login_tokens (token_hash, email, expires_at)
-        values (${hashToken(token)}, ${email}, now() + ${`${LINK_MINUTES} minutes`}::interval)`;
+        insert into admin_login_tokens (token_hash, email, expires_at, code_hash)
+        values (${hashToken(token)}, ${email}, now() + ${`${LINK_MINUTES} minutes`}::interval, ${codeHash(email, code)})`;
 
       // The origin comes from configuration, never from the request's Host header.
       // A blank ADMIN_BASE_URL falls back to the business domain, and any
@@ -53,14 +62,16 @@ export async function requestSignIn(rawEmail: string): Promise<void> {
       const { error } = await new Resend(apiKey).emails.send({
         from: `${business.name} <${from}>`,
         to: email,
-        subject: "Your PSS sign-in link",
+        subject: `Your PSS sign-in code: ${code}`,
         text: [
-          "Sign in to the PSS job tracker:",
+          `Your sign-in code is ${code}`,
+          "",
+          "Type it into PSS Ops, or open this link to sign in on this device:",
           "",
           link,
           "",
-          `This link works once and expires in ${LINK_MINUTES} minutes.`,
-          "If you did not ask for it, ignore this email.",
+          `The code and the link work once and expire in ${LINK_MINUTES} minutes.`,
+          "If you did not ask for this, ignore this email.",
         ].join("\n"),
       });
 
@@ -81,4 +92,34 @@ export async function consumeSignIn(token: string): Promise<string | null> {
     returning email`;
   const email = rows[0]?.email as string | undefined;
   return email && (await isAllowed(email)) ? email : null;
+}
+
+/**
+ * Signs in with the emailed code. One statement: picks the newest usable sign-in for the address,
+ * uses it if the code matches, otherwise counts a wrong try. After CODE_TRIES wrong tries that
+ * sign-in no longer accepts a code. `for update` serializes two guesses at the same row.
+ */
+export async function consumeSignInCode(rawEmail: string, rawCode: string): Promise<string | null> {
+  const email = rawEmail.trim().toLowerCase();
+  const code = rawCode.replace(/\s+/g, "");
+  if (!email || !/^\d{6}$/.test(code)) return null;
+  const hash = codeHash(email, code);
+  const rows = await db()`
+    with target as (
+      select token_hash from admin_login_tokens
+      where email = ${email} and used_at is null and expires_at > now()
+        and code_hash is not null and code_attempts < ${CODE_TRIES}::int
+      order by created_at desc limit 1
+      for update
+    ), used as (
+      update admin_login_tokens set used_at = now()
+      where token_hash = (select token_hash from target) and code_hash = ${hash}
+      returning email
+    ), missed as (
+      update admin_login_tokens set code_attempts = code_attempts + 1
+      where token_hash = (select token_hash from target) and code_hash <> ${hash}
+    )
+    select email from used`;
+  const found = rows[0]?.email as string | undefined;
+  return found && (await isAllowed(found)) ? found : null;
 }
