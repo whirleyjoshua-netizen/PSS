@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { formatProjectNo } from "@/lib/portal/project-no";
+import { formatOptionNo, formatProjectNo } from "@/lib/portal/project-no";
 
 describe("formatProjectNo", () => {
   it("formats a number as PSS-#### ", () => {
@@ -18,5 +18,23 @@ describe("formatProjectNo", () => {
   it("returns null for null or undefined", () => {
     expect(formatProjectNo(null)).toBeNull();
     expect(formatProjectNo(undefined)).toBeNull();
+  });
+});
+
+describe("formatOptionNo", () => {
+  it("is the job's own number for option A", () => {
+    expect(formatOptionNo(1042, "A")).toBe("PSS-1042");
+  });
+
+  it("adds the letter for options B to Z, padded like the project number", () => {
+    expect(formatOptionNo(1042, "B")).toBe("PSS-1042-B");
+    expect(formatOptionNo(7, "Z")).toBe("PSS-0007-Z");
+    expect(formatOptionNo(120456, "C")).toBe("PSS-120456-C");
+  });
+
+  it("is null without a project number, or for anything but one capital letter", () => {
+    expect(formatOptionNo(null, "B")).toBeNull();
+    expect(formatOptionNo(undefined, "A")).toBeNull();
+    for (const bad of ["b", "AA", "", "-", "1"]) expect(formatOptionNo(1042, bad)).toBeNull();
   });
 });

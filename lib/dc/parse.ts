@@ -9,7 +9,10 @@ type Ids = { quoteNo?: string; poReference?: string };
 const refuse = (outcome: ParseRefusal["outcome"], detail: string, ids: Ids = {}): ParseResult =>
   ({ ok: false, refusal: { outcome, detail, ...ids } });
 
-const PO = /^PSS-(\d{4,})$/;
+/** PSS-1042 is the job's own quote (option A). PSS-1042-B … PSS-1042-Z are its other options. A is never written. */
+const PO = /^PSS-(\d{4,})(?:-([B-Z]))?$/;
+/** DC's PO Reference field holds at most 20 characters. */
+const PO_MAX = 20;
 const ERROR = "*** Error:";
 
 /**
@@ -50,7 +53,7 @@ export function parseDealerCopy(html: string): ParseResult {
   const refusal = (outcome: ParseRefusal["outcome"], detail: string) => refuse(outcome, detail, ids);
   if (!quoteNo || !/^\d+$/.test(quoteNo) || poReference === null) return refusal("unreadable", "No quote number or PO line");
   if (!tds.some((td) => clean(td.text) === "DEALER COSTS")) return refusal("no-costs", `Quote ${quoteNo}`);
-  const po = PO.exec(poReference);
+  const po = poReference.length <= PO_MAX ? PO.exec(poReference) : null;
   if (!po) return refusal("no-po", `Quote ${quoteNo} has PO Reference "${poReference}"`);
 
   const rows = root.querySelectorAll("tr");
@@ -130,7 +133,7 @@ export function parseDealerCopy(html: string): ParseResult {
   return {
     ok: true,
     quote: {
-      quoteNo, poReference, projectNo: Number(po[1]), clientName: valueAfter("Client:") ?? "",
+      quoteNo, poReference, projectNo: Number(po[1]), option: po[2] ?? "A", clientName: valueAfter("Client:") ?? "",
       lines, subtotalCents, handlingFeeCents, oversizedFeeCents, dealerTotalCents,
     },
   };

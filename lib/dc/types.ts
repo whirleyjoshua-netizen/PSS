@@ -25,6 +25,8 @@ export type DcQuote = {
   poReference: string;
   /** The number inside "PSS-1042". */
   projectNo: number;
+  /** The quote option (quote options spec §2): "A" for PSS-1042, "B"–"Z" for PSS-1042-B … PSS-1042-Z. */
+  option: string;
   clientName: string;
   lines: DcLine[];
   subtotalCents: number;

@@ -149,3 +149,34 @@ describe("parseDealerCopy — refusals", () => {
     if (!result.ok) expect(result.refusal.quoteNo).toBeUndefined();
   });
 });
+
+describe("parseDealerCopy — PO Reference and quote options", () => {
+  const withPo = (po: string) => {
+    const html = ONE.replace("<td>PSS-1042</td>", `<td>${po}</td>`);
+    if (html === ONE && po !== "PSS-1042") throw new Error("fixture has no PSS-1042 cell");
+    return html;
+  };
+
+  it("PSS-1042 is option A of job 1042", () => {
+    const quote = ok(withPo("PSS-1042"));
+    expect(quote).toMatchObject({ projectNo: 1042, option: "A", poReference: "PSS-1042" });
+  });
+
+  it("PSS-1042-B is option B of job 1042", () => {
+    const quote = ok(withPo("PSS-1042-B"));
+    expect(quote).toMatchObject({ projectNo: 1042, option: "B", poReference: "PSS-1042-B" });
+  });
+
+  it.each(["PSS-1042-A", "PSS-1042-b", "PSS-1042-", "PSS-1042-BB", "PSS-1042 B"])("refuses %s as no-po: A is never written, letters are capitals", (po) => {
+    const result = parseDealerCopy(withPo(po));
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.refusal.outcome).toBe("no-po");
+  });
+
+  it("refuses a PO Reference over DC's 20-character limit", () => {
+    expect(ok(withPo("PSS-12345678901234-B")).option).toBe("B"); // 20 characters
+    const result = parseDealerCopy(withPo("PSS-123456789012345-B")); // 21 characters
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.refusal.outcome).toBe("no-po");
+  });
+});
