@@ -479,7 +479,7 @@ test("DC quote import: import, edit, send, sign and the Dealer Copy guard agains
 
     console.log("step 6b: approve, then the contract");
     const approved = await approveDcQuote(A.id, v2, ACTOR);
-    check(same(approved, { version: 2, moved: true }), "approveDcQuote answers version 2 and that it moved A", `got ${JSON.stringify(approved)}`);
+    check(same(approved, { version: 2, option: "A", moved: true }), "approveDcQuote answers version 2 of option A and that it moved A", `got ${JSON.stringify(approved)}`);
     check((await approveDcQuote(A.id, v2, ACTOR)) === null, "approving again answers null", "not null");
     const aApproved = await leadRow(A.id);
     check(aApproved.status === "approved", "A is approved", `row ${JSON.stringify(aApproved)}`);
