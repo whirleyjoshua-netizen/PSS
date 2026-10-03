@@ -11,7 +11,8 @@ const HOW_TO_SEND = "In Direct Connect: Reports → Dealer Copy → Email → ti
 /**
  * What to tell the owners about one Dealer Copy, or null when there is nothing to say.
  * `missingOption` is the option letter when the PO named a real job's option that was never added
- * (PSS-1042-B on job 1042 with no option B); null or absent for every other no-match.
+ * (PSS-1042-B on job 1042 with no option B); null or absent for every other no-match. Its email then
+ * carries that job's link, so `jobId` is the job lacking the option.
  */
 export function importEmail(input: { outcome: ImportOutcome; dcQuoteNo: string | null; projectNo: string | null; jobId: string | null; version?: number; detail: string | null; missingOption?: string | null }): { subject: string; text: string } | null {
   const quote = input.dcQuoteNo ? `DC quote ${input.dcQuoteNo}` : "A Direct Connect Dealer Copy";
@@ -28,10 +29,10 @@ export function importEmail(input: { outcome: ImportOutcome; dcQuoteNo: string |
       if (option) {
         // The owner forgot Add another quote (quote options spec §4). The PO stays as printed:
         // changing it to the job's own number would import option B's prices as a new version of option A.
-        return { subject, text: lines(
+        return { subject: `${quote} for ${input.detail}: option ${option} not added yet`, text: lines(
           `${quote} names ${input.detail}, but that job has no quote option ${option} yet.`, "",
           `Keep ${input.detail} in PO Reference. Add option ${option} with Add another quote on the job's Quote tab, then send the Dealer Copy again.`,
-          HOW_TO_SEND) };
+          HOW_TO_SEND, link) };
       }
       const why = input.outcome === "no-po"
         ? `${quote} has no valid PSS number in PO Reference (${input.detail ?? "blank"}).`

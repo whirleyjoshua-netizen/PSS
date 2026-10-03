@@ -170,14 +170,15 @@ describe("importDealerCopy", () => {
       expect(files.createFile).not.toHaveBeenCalled();
       expect(store.importVersion).not.toHaveBeenCalled();
       expect(store.recordOutcome).toHaveBeenCalledWith(expect.objectContaining({ outcome: "no-match", leadId: null, detail: "PSS-1042-B" }));
-      expect(notify.importEmail).toHaveBeenCalledWith(expect.objectContaining({ outcome: "no-match", detail: "PSS-1042-B", missingOption: "B" }));
+      // The email links to the job that lacks the option; the result and the stored outcome still name no job.
+      expect(notify.importEmail).toHaveBeenCalledWith(expect.objectContaining({ outcome: "no-match", detail: "PSS-1042-B", missingOption: "B", jobId: JOB_A.id }));
     });
 
     it("PSS-1042-B when no job 1042 exists is an ordinary no-match, not a missing option", async () => {
       store.findJobByProjectNo.mockResolvedValue(null);
       const result = await importDealerCopy({ ...input, html: B_COPY });
       expect(result).toMatchObject({ outcome: "no-match", leadId: null, detail: "PSS-1042-B" });
-      expect(notify.importEmail).toHaveBeenCalledWith(expect.objectContaining({ outcome: "no-match", detail: "PSS-1042-B", missingOption: null }));
+      expect(notify.importEmail).toHaveBeenCalledWith(expect.objectContaining({ outcome: "no-match", detail: "PSS-1042-B", missingOption: null, jobId: null }));
     });
 
     it("PSS-01042-B (another spelling of the job's number) is an ordinary no-match, not a missing option", async () => {
@@ -187,7 +188,7 @@ describe("importDealerCopy", () => {
       expect(html).not.toBe(ONE);
       const result = await importDealerCopy({ ...input, html });
       expect(result).toMatchObject({ outcome: "no-match", detail: "PSS-01042-B" });
-      expect(notify.importEmail).toHaveBeenCalledWith(expect.objectContaining({ outcome: "no-match", missingOption: null }));
+      expect(notify.importEmail).toHaveBeenCalledWith(expect.objectContaining({ outcome: "no-match", missingOption: null, jobId: null }));
     });
 
     it("an option A copy is compared with option A's newest version and emailed under the job's own number", async () => {

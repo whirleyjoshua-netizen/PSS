@@ -42,10 +42,11 @@ export function quoteSha256(q: DcQuote): string {
 
 /**
  * `optionNo` is the printed number of the option the copy was imported onto (PSS-1042 or PSS-1042-B), null when none.
- * `missingOption` is the option letter when the PO named a real job's option that was never added, else null.
+ * `missingOption` names the option letter and the job (`jobId`) when the PO named a real job's option that was
+ * never added, else null. That job is only linked in the email: the result and the stored outcome name no job.
  */
-async function tell(result: Result, dcQuoteNo: string | null, optionNo: string | null, missingOption: string | null = null) {
-  const email = importEmail({ ...result, dcQuoteNo, projectNo: optionNo, jobId: result.leadId, missingOption });
+async function tell(result: Result, dcQuoteNo: string | null, optionNo: string | null, missingOption: { letter: string; jobId: string } | null = null) {
+  const email = importEmail({ ...result, dcQuoteNo, projectNo: optionNo, jobId: missingOption?.jobId ?? result.leadId, missingOption: missingOption?.letter ?? null });
   if (email) await notifyOwners(email).catch((error) => console.error("DC import email failed", error));
 }
 
@@ -73,7 +74,7 @@ export async function importDealerCopy(input: { internetMessageId: string; recei
     const result: Result = { outcome: "no-match", leadId: null, detail: quote.poReference };
     await recordOutcome({ ...base, outcome: "no-match", leadId: null, dcQuoteNo: quote.quoteNo, detail: quote.poReference });
     // The job exists under exactly this number but the option was never added: say so, not "no job".
-    await tell(result, quote.quoteNo, null, named ? quote.option : null);
+    await tell(result, quote.quoteNo, null, named ? { letter: quote.option, jobId: named.id } : null);
     return result;
   }
 

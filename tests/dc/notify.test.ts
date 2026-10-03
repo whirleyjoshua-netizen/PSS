@@ -49,6 +49,12 @@ describe("importEmail", () => {
     // Following the ordinary fix would import option B's prices as a new version of option A.
     expect(email?.text).not.toContain("put the job's number");
   });
+  it("a no-match for a missing option says so in the subject and links to the job", () => {
+    const email = importEmail({ outcome: "no-match", dcQuoteNo: "22250749", projectNo: null, jobId: "j1", detail: "PSS-1042-B", missingOption: "B" });
+    expect(email?.subject).toBe("DC quote 22250749 for PSS-1042-B: option B not added yet");
+    expect(email?.text).toContain("Open the job: https://admin.example.com/admin/jobs/j1?tab=quote");
+    expect(email?.subject).not.toContain("could not be matched");
+  });
   it("a no-match for an option number whose job does not exist uses the ordinary wording", () => {
     const email = importEmail({ outcome: "no-match", dcQuoteNo: "22250749", projectNo: null, jobId: null, detail: "PSS-1042-B", missingOption: null });
     expect(email?.text).toContain("DC quote 22250749 names PSS-1042-B but no job has that number.");
