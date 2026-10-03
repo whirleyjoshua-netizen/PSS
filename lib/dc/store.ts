@@ -7,6 +7,8 @@ import type { DcLine, DcQuote, ImportOutcome } from "./types";
 export type StoredLine = DcLine & { pctOverride: number | null; markupPct: number | null; sellUnitCents: number | null; markupOverridden: boolean };
 export type StoredVersion = {
   id: string; leadId: string; version: number; dcQuoteNo: string; poReference: string;
+  /** The quote option (quote options spec §2): "A" is the job's own number, "B"–"Z" its other options (migration 040). */
+  option: string;
   /** DC's "Client:" name as printed, "" when blank. Shown so a quote on the wrong household stands out. */
   clientName: string;
   sourceFileId: string; sourceSha256: string; status: "draft" | "offered" | "sent" | "signed" | "superseded" | "cancelled";
@@ -45,15 +47,79 @@ export async function findJobByProjectNo(projectNo: number): Promise<{ id: strin
   return rows[0] ? { id: rows[0].id as string, name: rows[0].name as string, projectNo: Number(rows[0].project_no) } : null;
 }
 
-export async function latestSha(leadId: string): Promise<string | null> {
-  const rows = await db()`select source_sha256 from dc_quote_versions where lead_id = ${leadId} order by version desc limit 1`;
-  return (rows[0]?.source_sha256 as string | undefined) ?? null;
+/**
+ * The fingerprint of this option's newest version, or null when the option has none — or when that version is
+ * superseded or cancelled (quote options spec §4): re-sending an unchanged Dealer Copy for a closed option brings
+ * it back as a new draft, which is how the owner switches the client to it.
+ */
+export async function latestSha(leadId: string, option: string): Promise<string | null> {
+  const rows = await db()`
+    select source_sha256, status from dc_quote_versions where lead_id = ${leadId} and option = ${option} order by version desc limit 1`;
+  const row = rows[0];
+  if (!row || row.status === "superseded" || row.status === "cancelled") return null;
+  return row.source_sha256 as string;
+}
+
+/** Option A always exists. B–Z exist once Add another quote stored them (the release gate, quote options spec §4). */
+export async function quoteOptionExists(leadId: string, option: string): Promise<boolean> {
+  if (option === "A") return true;
+  if (!isUuid(leadId) || !/^[B-Z]$/.test(option)) return false;
+  const rows = await db()`select 1 from quote_options where lead_id = ${leadId} and letter = ${option}`;
+  return rows.length > 0;
+}
+
+/** The job's options, A first: A always, then every stored letter in order. */
+export async function listQuoteOptions(leadId: string): Promise<string[]> {
+  if (!isUuid(leadId)) return ["A"];
+  const rows = await db()`select letter from quote_options where lead_id = ${leadId} order by letter`;
+  return ["A", ...rows.map((r) => r.letter as string)];
+}
+
+export const OPTION_SIGNED = "This job has a signed quote. Make changes as a new version of the signed option.";
+
+/**
+ * Quote options spec §3, Add another quote. ONE statement inserts the next free letter (B when none) and logs a
+ * 'quote' event naming its number, only while the job is not Lost, has no signed version, has a PSS number and is
+ * short of Z. The refusal's reason is read in the same statement. A second click racing the first meets the
+ * primary key, inserts nothing and is told to reload.
+ */
+export async function addQuoteOption(leadId: string, actor: string): Promise<{ letter: string } | { error: string }> {
+  const NO_JOB = { error: "This job no longer exists." };
+  if (!isUuid(leadId)) return NO_JOB;
+  const [row] = await db()`
+    with job as (
+      select id, status, project_no,
+        exists (select 1 from dc_quote_versions v where v.lead_id = leads.id and v.status = 'signed') as signed
+      from leads where id = ${leadId}
+    ),
+    slot as (
+      select coalesce(max(ascii(letter)), ascii('A')) + 1 as code from quote_options where lead_id = ${leadId}
+    ),
+    added as (
+      insert into quote_options (lead_id, letter, created_by)
+      select job.id, chr(slot.code), ${actor} from job, slot
+      where job.status <> 'lost' and not job.signed and job.project_no is not null and slot.code <= ascii('Z')
+      on conflict (lead_id, letter) do nothing
+      returning lead_id, letter
+    ),
+    logged as (
+      insert into job_events (lead_id, actor, kind, body)
+      select added.lead_id, ${actor}, 'quote', 'Added quote option PSS-' || lpad(job.project_no::text, greatest(4, length(job.project_no::text)), '0') || '-' || added.letter from added, job
+    )
+    select (select letter from added) as letter, job.status, job.signed, job.project_no, slot.code from job, slot`;
+  if (!row) return NO_JOB;
+  if (row.letter) return { letter: row.letter as string };
+  if (row.status === "lost") return { error: "This job is marked Lost." };
+  if (row.signed === true) return { error: OPTION_SIGNED };
+  if (row.project_no === null) return { error: "This job has no PSS number yet." };
+  if (Number(row.code) > 90) return { error: "This job already has options A to Z." };
+  return { error: "Another quote option was just added. Reload and try again." };
 }
 
 /**
- * One statement: the message record, the version (numbered max+1 for the job), every line and
- * the timeline event. If the message was already recorded, `on conflict do nothing` returns no
- * row from `msg`, so nothing else is written and this answers null.
+ * One statement: the message record, the version (numbered max+1 within its option), every line and the timeline event.
+ * If the message was already recorded, `on conflict do nothing` returns no row from `msg`, so nothing else is written
+ * and this answers null.
  */
 export async function importVersion(input: { messageId: string; receivedAt: Date; leadId: string; quote: DcQuote; sourceFileId: string; sha256: string; actor: string }): Promise<{ versionId: string; version: number } | null> {
   const q = input.quote;
@@ -63,6 +129,8 @@ export async function importVersion(input: { messageId: string; receivedAt: Date
     msrp_unit_cents: l.msrpUnitCents, cost_factor: l.costFactor, cost_unit_cents: l.costUnitCents,
     cost_extended_cents: l.costExtendedCents, options: l.options,
   })));
+  // Option A keeps the wording it always had. Another option names its number, which the release gate made the PO.
+  const arrived = q.option === "A" ? `Direct Connect quote ${q.quoteNo} arrived as version ` : `Direct Connect quote ${q.quoteNo} arrived as ${q.poReference} version `;
   const rows = await db()`
     with msg as (
       insert into ingested_messages (message_id, received_at, outcome, lead_id, dc_quote_no)
@@ -71,10 +139,10 @@ export async function importVersion(input: { messageId: string; receivedAt: Date
       returning message_id
     ),
     version as (
-      insert into dc_quote_versions (id, lead_id, version, dc_quote_no, po_reference, client_name, source_file_id, source_sha256,
+      insert into dc_quote_versions (id, lead_id, option, version, dc_quote_no, po_reference, client_name, source_file_id, source_sha256,
         message_id, status, dealer_subtotal_cents, handling_fee_cents, oversized_fee_cents, dealer_total_cents)
-      select ${randomUUID()}, ${input.leadId},
-        coalesce((select max(version) from dc_quote_versions where lead_id = ${input.leadId}), 0) + 1,
+      select ${randomUUID()}, ${input.leadId}, ${q.option},
+        coalesce((select max(version) from dc_quote_versions where lead_id = ${input.leadId} and option = ${q.option}), 0) + 1,
         ${q.quoteNo}, ${q.poReference}, ${q.clientName}, ${input.sourceFileId}, ${input.sha256}, msg.message_id, 'draft',
         ${q.subtotalCents}, ${q.handlingFeeCents}, ${q.oversizedFeeCents}, ${q.dealerTotalCents}
       from msg
@@ -91,7 +159,7 @@ export async function importVersion(input: { messageId: string; receivedAt: Date
     ),
     logged as (
       insert into job_events (lead_id, actor, kind, body)
-      select lead_id, ${input.actor}, 'quote', ${`Direct Connect quote ${q.quoteNo} arrived as version `} || version from version
+      select lead_id, ${input.actor}, 'quote', ${arrived} || version from version
     )
     select id, version from version`;
   return rows[0] ? { versionId: rows[0].id as string, version: Number(rows[0].version) } : null;
@@ -121,6 +189,7 @@ export async function listVersions(leadId: string): Promise<StoredVersion[]> {
   const lines = await db()`select * from dc_quote_lines where version_id = any(${ids}) order by position`;
   return versions.map((v) => ({
     id: v.id as string, leadId: v.lead_id as string, version: Number(v.version), dcQuoteNo: v.dc_quote_no as string,
+    option: (v.option as string | null) ?? "A",
     poReference: v.po_reference as string, clientName: (v.client_name as string | null) ?? "", sourceFileId: v.source_file_id as string, sourceSha256: v.source_sha256 as string,
     status: v.status as StoredVersion["status"], subtotalCents: Number(v.dealer_subtotal_cents),
     handlingFeeCents: Number(v.handling_fee_cents), oversizedFeeCents: Number(v.oversized_fee_cents),

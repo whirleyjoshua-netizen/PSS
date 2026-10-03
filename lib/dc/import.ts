@@ -71,7 +71,7 @@ export async function importDealerCopy(input: { internetMessageId: string; recei
   }
 
   const sha256 = quoteSha256(quote);
-  if ((await latestSha(job.id)) === sha256) {
+  if ((await latestSha(job.id, quote.option)) === sha256) {
     await recordOutcome({ ...base, outcome: "unchanged", leadId: job.id, dcQuoteNo: quote.quoteNo, detail: null });
     return { outcome: "unchanged", leadId: job.id, detail: null };
   }

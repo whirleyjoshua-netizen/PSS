@@ -39,7 +39,7 @@ const LINES: StoredLine[] = [
 ];
 
 const version = (over: Partial<StoredVersion> = {}): StoredVersion => ({
-  id: V, leadId: J, version: 2, dcQuoteNo: "12345678", poReference: "PSS-1042", clientName: "Jane Client", sourceFileId: "file-1", sourceSha256: "x",
+  id: V, leadId: J, version: 2, option: "A", dcQuoteNo: "12345678", poReference: "PSS-1042", clientName: "Jane Client", sourceFileId: "file-1", sourceSha256: "x",
   status: "draft", subtotalCents: 0, handlingFeeCents: 2500, oversizedFeeCents: 0, dealerTotalCents: 121277,
   waiveHandling: false, noInstall: false, installQuoteId: null, installCents: null, productsCents: null, clientTotalCents: null,
   contractFileId: null, sentAt: null, signedAt: null, createdAt: new Date("2026-09-20T18:00:00Z"),
