@@ -230,6 +230,9 @@ export async function approveQuoteAction(jobId: string, versionId?: string): Pro
   return result;
 }
 
+/** Postgres SQLSTATE for a statement aborted to break a deadlock. */
+const DEADLOCK_DETECTED = "40P01";
+
 /** Spec §2: the DC path. The approval is saved first; the contract follows, and its failure never undoes it. */
 async function approveOfferedQuote(job: Job, offered: OfferedVersion, email: string): Promise<ApproveResult> {
   if (offered.approvedAt) return "approved";
@@ -237,7 +240,15 @@ async function approveOfferedQuote(job: Job, offered: OfferedVersion, email: str
   const quote = documents.find((file) => file.id === offered.quoteFileId);
   if (!quote) return "no-quote";
 
-  const approved = await approveDcQuote(job.id, offered.id, email);
+  let approved: Awaited<ReturnType<typeof approveDcQuote>>;
+  try {
+    approved = await approveDcQuote(job.id, offered.id, email);
+  } catch (error) {
+    // Two tabs approving two options at once lock the version rows in opposite order, and Postgres
+    // aborts one statement. The other committed (and sends its contract): settle it like a lost race.
+    if ((error as { code?: string } | null)?.code !== DEADLOCK_DETECTED) throw error;
+    approved = null;
+  }
   if (!approved) {
     // A racing second tap approved first (its request sends the contract), or the job was lost or
     // the quote unshared in between. Only the first is an approval that happened.

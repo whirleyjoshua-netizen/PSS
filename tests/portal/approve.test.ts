@@ -446,6 +446,44 @@ describe("a Direct Connect quote (spec §2)", () => {
       expect(notifyOwnersOfApproval).not.toHaveBeenCalled();
     });
 
+    /** Two tabs approving A and B at once lock version rows in opposite order; Postgres aborts one (40P01). */
+    const deadlock = () => Object.assign(new Error("deadlock detected"), { code: "40P01" });
+
+    it("answers approved, sending nothing, when its statement lost a deadlock but this option was approved", async () => {
+      dcApprove.approveDcQuote.mockRejectedValue(deadlock());
+      dcApprove.offeredVersions
+        .mockResolvedValueOnce([offered, optionB])
+        .mockResolvedValueOnce([offered, { ...optionB, approvedAt: new Date() }]);
+      await expect(approveQuoteAction(MINE, VB)).resolves.toBe("approved");
+      expect(dcSend.sendContract).not.toHaveBeenCalled();
+      expect(notifyOwnersOfApproval).not.toHaveBeenCalled();
+    });
+
+    it("answers wrong-status when its statement lost a deadlock to the other option's approval", async () => {
+      dcApprove.approveDcQuote.mockRejectedValue(deadlock());
+      dcApprove.offeredVersions
+        .mockResolvedValueOnce([offered, optionB])
+        .mockResolvedValueOnce([{ ...offered, approvedAt: new Date() }]);
+      await expect(approveQuoteAction(MINE, VB)).resolves.toBe("wrong-status");
+      expect(dcSend.sendContract).not.toHaveBeenCalled();
+      expect(notifyOwnersOfApproval).not.toHaveBeenCalled();
+    });
+
+    it("still throws any error that is not a deadlock", async () => {
+      dcApprove.approveDcQuote.mockRejectedValue(Object.assign(new Error("connection reset"), { code: "08006" }));
+      await expect(approveQuoteAction(MINE, VB)).rejects.toThrow("connection reset");
+      expect(dcSend.sendContract).not.toHaveBeenCalled();
+    });
+
+    it("on a lost race re-checks the option it tapped, not the first one listed", async () => {
+      dcApprove.approveDcQuote.mockResolvedValue(null);
+      dcApprove.offeredVersions
+        .mockResolvedValueOnce([offered, optionB])
+        .mockResolvedValueOnce([offered, { ...optionB, approvedAt: new Date() }]);
+      await expect(approveQuoteAction(MINE, VB)).resolves.toBe("approved");
+      expect(dcSend.sendContract).not.toHaveBeenCalled();
+    });
+
     it("the form carries the version id through", async () => {
       const data = new FormData();
       data.set("jobId", MINE);
