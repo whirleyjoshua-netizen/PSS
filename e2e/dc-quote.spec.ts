@@ -8,7 +8,7 @@ import { formatCents } from "../lib/admin/money";
 import { priceVersion, type PricedVersion } from "../lib/dc/pricing";
 import { parseDealerCopy } from "../lib/dc/parse";
 import type { DcQuote } from "../lib/dc/types";
-import { formatProjectNo } from "../lib/portal/project-no";
+import { formatOptionNo, formatProjectNo } from "../lib/portal/project-no";
 import { business } from "../content/business";
 import { pdfText } from "./fixtures/pdf-text";
 import { pdfPages } from "./fixtures/pdf-pages";
@@ -114,13 +114,13 @@ async function seedSigned(name: string, email: string, totalCents: number): Prom
 /**
  * What importDealerCopy would store, without its blob write: the Dealer Copy's job_files row
  * (a pathname this test never reads), then importVersion's own statement — the message record,
- * version 1 as a draft, its lines and the timeline event.
+ * the version (numbered within its quote option) as a draft, its lines and the timeline event.
  */
-async function seedImport(jobId: string, html: string, quote: DcQuote): Promise<string> {
+async function seedImport(jobId: string, html: string, quote: DcQuote, messageId = MESSAGE_ID): Promise<string> {
   const [file] = await sql()`insert into job_files
     (lead_id, uploaded_by, kind, name, content_type, size_bytes, blob_pathname, doc_type)
     values (${jobId}, 'Direct Connect', 'document', ${`DEALER COPY ${quote.quoteNo}.html`}, 'text/html',
-            ${Buffer.byteLength(html)}, ${`e2e/${jobId}/dealer-copy-${STAMP}.html`}, 'dealer_copy')
+            ${Buffer.byteLength(html)}, ${`e2e/${jobId}/dealer-copy-${messageId}.html`}, 'dealer_copy')
     returning id`;
   const lines = JSON.stringify(quote.lines.map((l) => ({
     position: l.position, qty: l.qty, room: l.room, description: l.description, collection: l.collection,
@@ -129,18 +129,19 @@ async function seedImport(jobId: string, html: string, quote: DcQuote): Promise<
     cost_extended_cents: l.costExtendedCents, options: l.options,
   })));
   const sha256 = createHash("sha256").update(html).digest("hex");
+  const arrived = quote.option === "A" ? `Direct Connect quote ${quote.quoteNo} arrived as version ` : `Direct Connect quote ${quote.quoteNo} arrived as ${quote.poReference} version `;
   const rows = await sql()`
     with msg as (
       insert into ingested_messages (message_id, received_at, outcome, lead_id, dc_quote_no)
-      values (${MESSAGE_ID}, now(), 'imported', ${jobId}, ${quote.quoteNo})
+      values (${messageId}, now(), 'imported', ${jobId}, ${quote.quoteNo})
       on conflict (message_id) do nothing
       returning message_id
     ),
     version as (
-      insert into dc_quote_versions (id, lead_id, version, dc_quote_no, po_reference, source_file_id, source_sha256,
+      insert into dc_quote_versions (id, lead_id, option, version, dc_quote_no, po_reference, source_file_id, source_sha256,
         message_id, status, dealer_subtotal_cents, handling_fee_cents, oversized_fee_cents, dealer_total_cents)
-      select ${randomUUID()}, ${jobId},
-        coalesce((select max(version) from dc_quote_versions where lead_id = ${jobId}), 0) + 1,
+      select ${randomUUID()}, ${jobId}, ${quote.option},
+        coalesce((select max(version) from dc_quote_versions where lead_id = ${jobId} and option = ${quote.option}), 0) + 1,
         ${quote.quoteNo}, ${quote.poReference}, ${file.id}, ${sha256}, msg.message_id, 'draft',
         ${quote.subtotalCents}, ${quote.handlingFeeCents}, ${quote.oversizedFeeCents}, ${quote.dealerTotalCents}
       from msg
@@ -157,7 +158,7 @@ async function seedImport(jobId: string, html: string, quote: DcQuote): Promise<
     ),
     logged as (
       insert into job_events (lead_id, actor, kind, body)
-      select lead_id, 'Direct Connect', 'quote', ${`Direct Connect quote ${quote.quoteNo} arrived as version `} || version from version
+      select lead_id, 'Direct Connect', 'quote', ${arrived} || version from version
     )
     select id from version`;
   return rows[0].id as string;
@@ -749,5 +750,125 @@ test.describe("quote, approve, sign, deposit, measure — and the release gate",
     expect(row).toEqual({ status: "quoted", quote_cents: null, sold_cents: null });
     expect(await sql()`select id from dc_quote_versions where lead_id = ${bystander.id}`).toHaveLength(0);
     expect(await sql()`select id from contract_signatures where lead_id = ${bystander.id}`).toHaveLength(0);
+  });
+});
+
+test.describe("two quote options: the client sees both, approves B, A closes and B's contract arrives", () => {
+  // Send stores PDFs in Blob, like the describe above. The file runs serially, so the markups set in Settings and
+  // the terms template saved above are still in place when this runs.
+  test.beforeAll(() => {
+    if (!process.env.E2E_BLOB_READ_WRITE_TOKEN) {
+      throw new Error("E2E_BLOB_READ_WRITE_TOKEN is not set. The two-option journey sends real PDFs and must run.");
+    }
+  });
+
+  const OPTIONS_CUSTOMER = `e2e-dc-options-${STAMP}@example.com`;
+  let optionsJob: { id: string; projectNo: number };
+  const optionNo = (letter: string) => formatOptionNo(optionsJob.projectNo, letter)!;
+  let totalA = 0;
+  let totalB = 0;
+
+  test("the owner adds option B, both options import, and both are sent at once", async ({ page }) => {
+    optionsJob = await lead(`${NAME} Options`, OPTIONS_CUSTOMER, "visit_booked");
+    await sql()`insert into install_quotes (lead_id, kind, minimum_cents, subtotal_cents, total_cents, created_by)
+      values (${optionsJob.id}, 'final', 0, ${INSTALL_CENTS}, ${INSTALL_CENTS}, ${OWNER})`;
+    const htmlFor = (letter: string) => readFileSync(FIXTURE, "utf8").replace("PSS-1042", optionNo(letter));
+    const parsedA = parseDealerCopy(htmlFor("A"));
+    if (!parsedA.ok) throw new Error(`The fixture did not parse: ${parsedA.refusal.detail}`);
+    await seedImport(optionsJob.id, htmlFor("A"), parsedA.quote, `${MESSAGE_ID}-option-a`);
+
+    await signInOwner(page);
+    await page.goto(`/admin/jobs/${optionsJob.id}?tab=quote`);
+    await expect(page.getByRole("region", { name: /^DC quote / })).toBeVisible();
+    // One option: no option headings, exactly as before.
+    await expect(page.getByRole("region", { name: /^Option / })).toHaveCount(0);
+    await page.getByRole("button", { name: "Add another quote" }).click();
+    const cardB = page.getByRole("region", { name: `Option B · ${optionNo("B")}` });
+    await expect(cardB).toBeVisible();
+    await expect(cardB).toContainText(`No Direct Connect quote yet. Put ${optionNo("B")} in PO Reference`);
+    expect(await sql()`select letter, created_by from quote_options where lead_id = ${optionsJob.id}`).toEqual([{ letter: "B", created_by: OWNER }]);
+    expect(await sql()`select kind, body from job_events where lead_id = ${optionsJob.id} and body like 'Added quote option%'`)
+      .toEqual([{ kind: "quote", body: `Added quote option ${optionNo("B")}` }]);
+
+    // B's Dealer Copy as the import stores it once option B exists, with its first line priced up so the totals differ.
+    const parsedB = parseDealerCopy(htmlFor("B"));
+    if (!parsedB.ok) throw new Error(`The B copy did not parse: ${parsedB.refusal.detail}`);
+    expect(parsedB.quote.option).toBe("B");
+    const versionB = await seedImport(optionsJob.id, htmlFor("B"), parsedB.quote, `${MESSAGE_ID}-option-b`);
+    await sql()`update dc_quote_lines set pct_override = 80 where version_id = ${versionB} and position = 1`;
+    const price = (override: number | null) => priceVersion({
+      lines: parsedA.quote.lines.map((l) => ({ position: l.position, qty: l.qty, collection: l.collection, msrpUnitCents: l.msrpUnitCents,
+        costExtendedCents: l.costExtendedCents, pctOverride: l.position === 1 ? override : null })),
+      rules: MARKUPS, handlingFeeCents: parsedA.quote.handlingFeeCents, oversizedFeeCents: parsedA.quote.oversizedFeeCents,
+      dealerTotalCents: parsedA.quote.dealerTotalCents, waiveHandling: false,
+      install: { id: "e2e", kind: "final", totalCents: INSTALL_CENTS, createdAt: new Date() }, noInstall: false,
+    });
+    totalA = price(null).clientTotalCents!;
+    totalB = price(80).clientTotalCents!;
+    expect(totalB).not.toBe(totalA);
+
+    await page.reload();
+    const cardA = page.getByRole("region", { name: `Option A · ${optionNo("A")}` });
+    for (const [card, total] of [[cardA, totalA], [cardB, totalB]] as const) {
+      await expect(figure(card, "Client total")).toHaveText(formatCents(total));
+      await card.getByRole("button", { name: "Send quote" }).click();
+      await expect(card.getByRole("status")).toHaveText("Quote sent, but the email to the client failed — send them their project page link yourself.");
+    }
+
+    const versions = await sql()`select option, status, client_total_cents, quote_file_id from dc_quote_versions where lead_id = ${optionsJob.id} order by option`;
+    expect(versions).toEqual([
+      { option: "A", status: "offered", client_total_cents: totalA, quote_file_id: expect.any(String) },
+      { option: "B", status: "offered", client_total_cents: totalB, quote_file_id: expect.any(String) },
+    ]);
+    const quotes = await sql()`select name, (shared_at is not null) as shared from job_files where lead_id = ${optionsJob.id} and doc_type = 'quote'`;
+    expect(quotes.map((f) => `${f.name}:${f.shared}`).sort()).toEqual([`Quote ${optionNo("A")} v1.pdf:true`, `Quote ${optionNo("B")} v1.pdf:true`].sort());
+    expect(await sql()`select status, quote_cents from leads where id = ${optionsJob.id}`).toEqual([{ status: "quoted", quote_cents: totalB }]);
+    expect(pdfText(await fetchBytes(page, `/admin/files/${versions[1].quote_file_id}`))).toContain(`Quote ${optionNo("B")} · Version 1`);
+  });
+
+  test("the client sees both options with their own PDFs, approves B, A is gone and B's contract arrives", async ({ browser }) => {
+    const [a, b] = await sql()`select id, quote_file_id from dc_quote_versions where lead_id = ${optionsJob.id} order by option`;
+    const customer = await customerPage(browser, OPTIONS_CUSTOMER);
+    const banner = customer.getByRole("region", { name: "Where your project stands" });
+    await expect(banner.getByText("Approve this quote", { exact: true })).toHaveCount(0);
+    await expect(banner.getByRole("link", { name: "Review your options" })).toHaveAttribute("href", "#quote-options");
+
+    const options = customer.getByRole("region", { name: "Your quote options" });
+    const optionA = options.getByRole("listitem", { name: "Option A" });
+    const optionB = options.getByRole("listitem", { name: "Option B" });
+    await expect(optionA).toContainText(formatCents(totalA));
+    await expect(optionB).toContainText(formatCents(totalB));
+    await expect(optionA.getByRole("link", { name: `Quote ${optionNo("A")} v1.pdf` })).toHaveAttribute("href", `/project/files/${a.quote_file_id}`);
+    await expect(optionB.getByRole("link", { name: `Quote ${optionNo("B")} v1.pdf` })).toHaveAttribute("href", `/project/files/${b.quote_file_id}`);
+    // Each option's PDF downloads on its own.
+    for (const fileId of [a.quote_file_id, b.quote_file_id]) {
+      const bytes = await fetchBytes(customer, `/project/files/${fileId}`);
+      expect(bytes.subarray(0, 5).toString()).toBe("%PDF-");
+    }
+
+    await optionB.getByText("Approve Option B", { exact: true }).click();
+    await optionB.getByRole("button", { name: "Yes, approve Option B" }).click();
+    await expect(customer).toHaveURL(new RegExp(`/project/${optionsJob.id}\\?approved=1$`));
+    await expect(customer.getByRole("status")).toContainText("Thank you — we have your approval");
+    await expect(customer.getByRole("region", { name: "Your quote options" })).toHaveCount(0);
+    await expect(customer.getByRole("heading", { name: "Documents to sign" })).toBeVisible();
+    await expect(customer.locator("details", { hasText: `Contract ${optionNo("B")} v1.pdf` })).toHaveCount(1);
+    await expect(customer.locator("main")).not.toContainText(`Quote ${optionNo("A")} v1.pdf`);
+    expect(await download(customer, `/project/files/${a.quote_file_id}`)).toEqual({ status: 404, html: false });
+
+    const after = await sql()`select option, status, (approved_at is not null) as approved, contract_file_id from dc_quote_versions
+      where lead_id = ${optionsJob.id} order by option`;
+    expect(after).toEqual([
+      { option: "A", status: "superseded", approved: false, contract_file_id: null },
+      { option: "B", status: "sent", approved: true, contract_file_id: expect.any(String) },
+    ]);
+    expect(await sql()`select status, quote_cents from leads where id = ${optionsJob.id}`).toEqual([{ status: "approved", quote_cents: totalB }]);
+    const stages = await sql()`select to_status, body from job_events where lead_id = ${optionsJob.id} and kind = 'stage' order by created_at`;
+    expect(stages.at(-1)).toEqual({ to_status: "approved", body: `Approved ${optionNo("B")} version 1` });
+    expect(await sql()`select name, (shared_at is not null) as shared from job_files where id = ${after[1].contract_file_id}`)
+      .toEqual([{ name: `Contract ${optionNo("B")} v1.pdf`, shared: true }]);
+    const printed = pdfText(await fetchBytes(customer, `/project/files/${after[1].contract_file_id}`));
+    expect(printed).toContain(`Contract ${optionNo("B")} · Version 1`);
+    expect(printed).toContain(formatCents(totalB));
   });
 });
