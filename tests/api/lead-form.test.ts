@@ -248,10 +248,10 @@ describe("a resend of a lead already stored", () => {
 });
 
 describe("never lose a lead", () => {
-  it("insert fails but the email goes out → 200, no geocode", async () => {
+  it("insert fails → the owner is still emailed, but 500 so Google retries (owner decision)", async () => {
     insertGoogleLead.mockRejectedValue(new Error("Neon down"));
     const response = await call(body());
-    expect(response.status).toBe(200);
+    expect(response.status).toBe(500);
     expect(sendLeadNotification).toHaveBeenCalledOnce();
     expect(geocodeLead).not.toHaveBeenCalled();
   });

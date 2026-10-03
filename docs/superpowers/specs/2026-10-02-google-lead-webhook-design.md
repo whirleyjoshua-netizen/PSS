@@ -29,8 +29,8 @@ The Search campaign now has a Google lead form asset ("Free In-Home Consultation
    - notes: "Google lead form (form <form_id>, campaign <campaign_id>)" plus any notes above.
    - assigned_to: the Settings default, as for website leads.
 6. One insert statement with `on conflict (google_lead_id) where google_lead_id is not null do nothing returning id` (the `where` must repeat the partial unique index predicate, or Postgres cannot infer the index). No row returned → it is a resend: respond 200, send no email.
-7. New lead → send the same owner notification email as website leads, and geocode it after the response (as the consultation route does). No customer confirmation email (there may be no email address, and the Google form shows its own thank-you).
-8. Never-lose rule, same as the consultation route: if the insert fails but the email goes out, respond 200; if both fail, respond 500 so Google retries.
+7. New lead → send the same owner notification email as website leads. No geocoding: the address is only a ZIP. No customer confirmation email (there may be no email address, and the Google form shows its own thank-you).
+8. Never-lose rule (owner decision 2026-10-02): insert fails → still email the owner, respond 500 so Google retries; stored → 200 even if the email fails. The unique google_lead_id stops a duplicate row on the retry; a second email is accepted.
 
 **ZIP → city** (`lib/leads/zip-city.ts`), the service area's ZIPs:
 - Henderson: 89002, 89011, 89012, 89014, 89015, 89044, 89052, 89074
@@ -56,6 +56,6 @@ The conversions themselves are set up in Google Ads by the owner (no code): impo
 2. In the lead form: Export leads → Other data integration options → Webhook: URL `https://premiershadesolutions.com/api/ads/lead-form`, the key. Click "Send test data" (expects success, stores nothing).
 
 ## Testing
-- Unit (vitest): ZIP lookup; payload parsing (full name, first+last, missing fields, phone normalising); the route (no env → 404, wrong key → 403, bad body → 400, test → 200 with no insert, new → insert + email, resend → no email, insert fails + email ok → 200, both fail → 500); the feed skipping the Consultation row for `google_form`.
+- Unit (vitest): ZIP lookup; payload parsing (full name, first+last, missing fields, phone normalising); the route (no env → 404, wrong key → 403, bad body → 400, test → 200 with no insert, new → insert + email, resend → no email, insert fails + email ok → 500 with the email sent, both fail → 500, stored + email fails → 200); the feed skipping the Consultation row for `google_form`.
 - Real SQL: migration 039 and the insert statement run on a Neon test branch, twice (idempotent), including the conflict path.
 - Each new test is checked to fail when the thing it guards is removed.

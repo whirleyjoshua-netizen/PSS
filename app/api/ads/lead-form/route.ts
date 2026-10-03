@@ -11,8 +11,9 @@ import { sendLeadNotification } from "@/lib/leads/email";
  * answers 404, as if the route did not exist. Google sends the key in the body
  * as google_key; a wrong or missing one is 403. Nothing here logs the key.
  *
- * Never lose a lead, as app/api/consultation/route.ts: a failed insert whose
- * email got out is still 200. Only when both fail is it 500, so Google retries.
+ * Never lose a lead (owner decision): a failed insert still emails the owner,
+ * but answers 500 so Google retries; the unique google_lead_id stops a second
+ * row, and a second email is accepted. Stored is 200 even if the email fails.
  * A resend of a lead already stored is 200 with no second email.
  * No customer confirmation: there may be no email address, and Google's form
  * shows its own thank-you. No geocoding: the lead's address is only a ZIP.
@@ -74,7 +75,6 @@ export async function POST(request: Request) {
     console.error("Google lead database write failed", error);
   }
 
-  let emailed = true;
   try {
     await sendLeadNotification(
       {
@@ -96,11 +96,11 @@ export async function POST(request: Request) {
       id,
     );
   } catch (error) {
-    emailed = false;
     console.error("Google lead notification email failed", error);
   }
 
-  if (storeFailed && !emailed) {
+  // Unstored: Google must retry, whether or not the email got out.
+  if (storeFailed) {
     return Response.json({ ok: false }, { status: 500 });
   }
   return Response.json({ ok: true });

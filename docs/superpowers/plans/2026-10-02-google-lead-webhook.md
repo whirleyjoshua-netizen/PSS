@@ -16,7 +16,7 @@
 - Stored source: `google_form`; heard_via "Google lead form"; utm_source `google`, utm_medium `cpc`; admin shows "Google lead form".
 - Migration number: **039**, file `db/migrations/039_google_lead_id.sql`, additive only.
 - One SQL statement per write (`insert … on conflict (google_lead_id) where google_lead_id is not null do nothing returning id`); never separate `db()` calls for one write.
-- Never lose a lead: insert fails + email sent → 200; both fail → 500.
+- Never lose a lead: insert fails → still email the owner, respond 500 so Google retries; stored → 200 even if the email fails.
 - No customer confirmation email for Google leads.
 - Ads tag id: `AW-18438614507`, public (tracked) pages only.
 - Never print secrets. Commits authored as whirleyjoshua@gmail.com (already configured). Never push; never run migrations against production.
