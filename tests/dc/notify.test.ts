@@ -40,10 +40,29 @@ describe("importEmail", () => {
     expect(importEmail({ outcome: "unchanged", dcQuoteNo: null, projectNo: null, jobId: null, detail: null })).toBeNull();
     expect(importEmail({ outcome: "failed", dcQuoteNo: null, projectNo: null, jobId: null, detail: null })).toBeNull();
   });
-  it("a no-match for an option number says to add the option first", () => {
-    const email = importEmail({ outcome: "no-match", dcQuoteNo: "22250749", projectNo: null, jobId: null, detail: "PSS-1042-B" });
-    expect(email?.text).toContain("DC quote 22250749 names PSS-1042-B, but that job has no quote option B yet. Add it with Add another quote on the job's Quote tab, then send the Dealer Copy again.");
+  it("a no-match for a missing option says to add the option first and keep the printed PO", () => {
+    const email = importEmail({ outcome: "no-match", dcQuoteNo: "22250749", projectNo: null, jobId: null, detail: "PSS-1042-B", missingOption: "B" });
+    expect(email?.text).toContain("DC quote 22250749 names PSS-1042-B, but that job has no quote option B yet.");
+    expect(email?.text).toContain("Keep PSS-1042-B in PO Reference. Add option B with Add another quote on the job's Quote tab, then send the Dealer Copy again.");
+    expect(email?.text).toContain("Reports → Dealer Copy → Email");
     expect(email?.text).not.toContain("no job has that number");
+    // Following the ordinary fix would import option B's prices as a new version of option A.
+    expect(email?.text).not.toContain("put the job's number");
+  });
+  it("a no-match for an option number whose job does not exist uses the ordinary wording", () => {
+    const email = importEmail({ outcome: "no-match", dcQuoteNo: "22250749", projectNo: null, jobId: null, detail: "PSS-1042-B", missingOption: null });
+    expect(email?.text).toContain("DC quote 22250749 names PSS-1042-B but no job has that number.");
+    expect(email?.text).toContain("put the job's number (e.g. PSS-1042) in PO Reference");
+    expect(email?.text).not.toContain("Add another quote");
+  });
+  it("the ordinary no-match email is unchanged", () => {
+    const email = importEmail({ outcome: "no-match", dcQuoteNo: "22250749", projectNo: null, jobId: null, detail: "PSS-9999" });
+    expect(email).toEqual({
+      subject: "DC quote 22250749 could not be matched to a job",
+      text: "DC quote 22250749 names PSS-9999 but no job has that number.\n\n"
+        + "Open the quote in Direct Connect, put the job's number (e.g. PSS-1042) in PO Reference, save, and send the Dealer Copy again.\n"
+        + "In Direct Connect: Reports → Dealer Copy → Email → tick Owner and Include dealer costs → Generate.",
+    });
   });
   it("an import of an option names the option's number", () => {
     const email = importEmail({ outcome: "imported", dcQuoteNo: "22250749", projectNo: "PSS-1042-B", jobId: "j1", version: 1, detail: null });

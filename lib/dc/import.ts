@@ -40,9 +40,12 @@ export function quoteSha256(q: DcQuote): string {
   return createHash("sha256").update(JSON.stringify(canonical)).digest("hex");
 }
 
-/** `optionNo` is the printed number of the option the copy was imported onto (PSS-1042 or PSS-1042-B), null when none. */
-async function tell(result: Result, dcQuoteNo: string | null, optionNo: string | null) {
-  const email = importEmail({ ...result, dcQuoteNo, projectNo: optionNo, jobId: result.leadId });
+/**
+ * `optionNo` is the printed number of the option the copy was imported onto (PSS-1042 or PSS-1042-B), null when none.
+ * `missingOption` is the option letter when the PO named a real job's option that was never added, else null.
+ */
+async function tell(result: Result, dcQuoteNo: string | null, optionNo: string | null, missingOption: string | null = null) {
+  const email = importEmail({ ...result, dcQuoteNo, projectNo: optionNo, jobId: result.leadId, missingOption });
   if (email) await notifyOwners(email).catch((error) => console.error("DC import email failed", error));
 }
 
@@ -64,12 +67,13 @@ export async function importDealerCopy(input: { internetMessageId: string; recei
   // "Exact" is the printed text: PSS-01042 names 1042 as a number but is not job 1042's number.
   // Options B–Z (quote options spec §4) must also have been added on the job: a typo never creates one.
   const found = await findJobByProjectNo(quote.projectNo);
-  const job = found && formatOptionNo(found.projectNo, quote.option) === quote.poReference
-    && (await quoteOptionExists(found.id, quote.option)) ? found : null;
+  const named = found && formatOptionNo(found.projectNo, quote.option) === quote.poReference ? found : null;
+  const job = named && (await quoteOptionExists(named.id, quote.option)) ? named : null;
   if (!job) {
     const result: Result = { outcome: "no-match", leadId: null, detail: quote.poReference };
     await recordOutcome({ ...base, outcome: "no-match", leadId: null, dcQuoteNo: quote.quoteNo, detail: quote.poReference });
-    await tell(result, quote.quoteNo, null);
+    // The job exists under exactly this number but the option was never added: say so, not "no job".
+    await tell(result, quote.quoteNo, null, named ? quote.option : null);
     return result;
   }
 
