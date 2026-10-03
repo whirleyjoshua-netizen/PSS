@@ -71,8 +71,7 @@ describe("approveDcQuote", () => {
   it("records the approved total as quote_cents and moves Quoted to Approved in the ONE update of the job", async () => {
     await approveDcQuote(JOB, V, "maria@example.com");
     const s = text(sql.mock.calls[0]);
-    expect(s).toContain("updated as ( update leads set quote_cents = (select client_total_cents from approved), status = case when status = 'quoted' then 'approved' else status end, stage_changed_at = case when status = 'quoted' then now() else stage_changed_at end, updated_at = now() where id = ? and exists (select 1 from approved) returning id )");
-    expect(s).toContain("moved as (select 1 from prev, updated where prev.status = 'quoted')");
+    expect(s).toContain("updated as ( update leads set quote_cents = (select client_total_cents from approved), status = case when status = 'quoted' then 'approved' else status end, stage_changed_at = case when status = 'quoted' then now() else stage_changed_at end, updated_at = now() where id = ? and exists (select 1 from approved) returning status )");
     expect(s.match(/update leads/g)).toHaveLength(1);
   });
 
@@ -82,6 +81,25 @@ describe("approveDcQuote", () => {
     const label = "case when approved.option = 'A' then 'Approved quote version ' || approved.version else 'Approved ' || approved.po_reference || ' version ' || approved.version end";
     expect(s).toContain(`select ?, ?, 'stage', prev.status, 'approved', ${label} from prev, moved, approved`);
     expect(s).toContain(`select ?, ?, 'quote', ${label} || ' from their project page' from approved where not exists (select 1 from moved)`);
+  });
+
+  it("says moved only when the ONE update itself left the job Approved, not from the snapshot alone", async () => {
+    await approveDcQuote(JOB, V, "maria@example.com");
+    const s = text(sql.mock.calls[0]);
+    // A concurrent move off Quoted makes the re-checked CASE keep the status; the snapshot (prev) would still say quoted.
+    expect(s).toContain("moved as (select 1 from prev, updated where prev.status = 'quoted' and updated.status = 'approved')");
+  });
+
+  it("answers moved: false for a change order on a job already past Quoted", async () => {
+    sql.mockResolvedValueOnce([{ version: 3, option: "A", moved: false }]);
+    expect(await approveDcQuote(JOB, V, "maria@example.com")).toEqual({ version: 3, option: "A", moved: false });
+  });
+
+  it("maps a version with no option to A, and keeps a named option", async () => {
+    sql.mockResolvedValueOnce([{ version: 1, option: null, moved: true }]);
+    expect(await approveDcQuote(JOB, V, "maria@example.com")).toEqual({ version: 1, option: "A", moved: true });
+    sql.mockResolvedValueOnce([{ version: 2, option: "B", moved: false }]);
+    expect(await approveDcQuote(JOB, V, "maria@example.com")).toEqual({ version: 2, option: "B", moved: false });
   });
 
   it("answers null for a second approval, which changes nothing", async () => {

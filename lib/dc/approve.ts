@@ -46,7 +46,10 @@ export async function offeredVersions(leadId: string): Promise<OfferedVersion[]>
  * quote_cents becomes the approved total. That leads update also moves Quoted to Approved with a 'stage' event, or
  * — for a change to a job already past Quoted — leaves the stage alone and logs a 'quote' event. One update of the
  * job, never two: two CTEs updating the same row in one statement would apply only one. `moved` says which, from
- * the same statement, so the owners' email never claims a move that did not happen.
+ * the same statement, so the owners' email never claims a move that did not happen: it needs both the snapshot
+ * (prev) at Quoted AND the update's own returned status at Approved, because if another transaction moves the job
+ * off Quoted mid-statement, Postgres re-checks the row and the CASE leaves the status alone while prev still says
+ * quoted.
  */
 export async function approveDcQuote(leadId: string, versionId: string, actor: string): Promise<{ version: number; option: string; moved: boolean } | null> {
   if (!isUuid(leadId) || !isUuid(versionId)) return null;
@@ -76,9 +79,9 @@ export async function approveDcQuote(leadId: string, versionId: string, actor: s
         stage_changed_at = case when status = 'quoted' then now() else stage_changed_at end,
         updated_at = now()
       where id = ${leadId} and exists (select 1 from approved)
-      returning id
+      returning status
     ),
-    moved as (select 1 from prev, updated where prev.status = 'quoted'),
+    moved as (select 1 from prev, updated where prev.status = 'quoted' and updated.status = 'approved'),
     stage_logged as (
       insert into job_events (lead_id, actor, kind, from_status, to_status, body)
       select ${leadId}, ${actor}, 'stage', prev.status, 'approved',
