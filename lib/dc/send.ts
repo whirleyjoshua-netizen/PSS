@@ -91,7 +91,7 @@ function carriesDraftLine(body: string): boolean {
 }
 
 /** The review plus the job and settings it was computed from, so Send quote and the contract use the very same reads. */
-async function review(jobId: string, which: Which): Promise<{ review: Review; job: Job; settings: DcSettings; termsTemplate: DocumentTemplate | null } | null> {
+async function review(jobId: string, which: Which): Promise<{ review: Review; job: Job; settings: DcSettings; termsTemplate: DocumentTemplate | null; signedBlocker: string | null } | null> {
   const [job, all, rules, installs, settings, termsTemplate] = await Promise.all([
     getJob(jobId), listVersions(jobId), listMarkupRules(), listInstallQuotes(jobId), getDcSettings(), liveTemplateOfKind("terms"),
   ]);
@@ -121,14 +121,15 @@ async function review(jobId: string, which: Which): Promise<{ review: Review; jo
     jobStatus: job.status, customerEmail: job.email,
   });
   const signed = all.find((v) => v.status === "signed" && v.option !== option);
-  if (signed) blockers.push(signedElsewhere(signed.option));
+  const signedBlocker = signed ? signedElsewhere(signed.option) : null;
+  if (signedBlocker) blockers.push(signedBlocker);
   // Shown before Send quote; Send quote and the contract fill and check again with their own `now`.
   if (termsTemplate) {
     const filled = fillTerms(termsTemplate, job, new Date());
     if ("error" in filled) blockers.push(filled.error);
     if (carriesDraftLine(termsTemplate.body)) blockers.push(DRAFT_TERMS);
   }
-  return { review: { version, priced, blockers, fingerprint: pricingFingerprint(priced), install, rules, olderVersions }, job, settings, termsTemplate };
+  return { review: { version, priced, blockers, fingerprint: pricingFingerprint(priced), install, rules, olderVersions }, job, settings, termsTemplate, signedBlocker };
 }
 
 /** The latest version of one option of a job's DC quote (A unless named), priced exactly as Send quote would price it. */
@@ -311,19 +312,21 @@ export async function sendQuote(input: { jobId: string; versionId: string; finge
  * Spec §2, the contract for an approved quote: called on the client's approval, or by the owner's Send
  * contract when that failed. Builds from the price Send quote froze (no fingerprint: nothing can have
  * moved), with 029's sign marks stored in createFile's statement, then in ONE statement moves the
- * version offered → sent (approved, still the newest of its option, job not Lost and with an email), shares the
+ * version offered → sent (approved, still the newest of its option, no other option signed, job not Lost and with an email), shares the
  * contract and logs it. A second call matches nothing, removes its file and says so.
  */
 export async function sendContract(input: { jobId: string; versionId: string; actor: string }): Promise<{ ok: true; emailed: boolean } | { error: string }> {
   const loaded = await review(input.jobId, { versionId: input.versionId });
   if (!loaded) return { error: "This job has no Direct Connect quote." };
-  const { review: current, job, settings, termsTemplate } = loaded;
+  const { review: current, job, settings, termsTemplate, signedBlocker } = loaded;
   const { version, priced } = current;
   if (version.id !== input.versionId) return { error: NEWER };
   if (version.status !== "offered") return { error: "This quote's contract has already been sent, or the quote was never sent." };
   if (!version.approvedAt) return { error: "The client has not approved this quote yet." };
   if (job.status === "lost") return { error: "This job is marked Lost." };
   if (!job.email?.trim()) return { error: "Add the client's email address to the job first." };
+  // Quote options spec §5: once another option is signed, this one never gets a contract.
+  if (signedBlocker) return { error: signedBlocker };
 
   const now = new Date();
   const terms = await resolveTerms(termsTemplate, settings, job, now);
@@ -345,6 +348,8 @@ export async function sendContract(input: { jobId: string; versionId: string; ac
         update dc_quote_versions set status = 'sent', contract_file_id = ${file.id}, sent_at = now(), sent_by = ${input.actor}
         where id = ${version.id} and lead_id = ${job.id} and status = 'offered' and approved_at is not null
           and version = (select max(version) from dc_quote_versions where lead_id = ${job.id} and option = ${version.option})
+          -- Quote options spec §5: never while another option is signed (a signature landing after the review).
+          and not exists (select 1 from dc_quote_versions s where s.lead_id = ${job.id} and s.status = 'signed' and s.option <> ${version.option})
           and exists (select 1 from leads where id = ${job.id} and status <> 'lost' and nullif(trim(email), '') is not null)
         returning id
       ),

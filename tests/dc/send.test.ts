@@ -614,4 +614,41 @@ describe("quote options (spec §5)", () => {
     expect(text(call)).toContain("and version = (select max(version) from dc_quote_versions where lead_id = ? and option = ?)");
     expect(after(call, "and option = ")).toEqual(["B"]);
   });
+
+  describe("the contract while another option is signed", () => {
+    const approvedB: StoredVersion = { ...offered, id: VB, option: "B", poReference: "PSS-1042-B" };
+    const signedA: StoredVersion = { ...offered, status: "signed", signedAt: new Date("2026-09-30T17:00:00Z") };
+    beforeEach(() => jobs.getJob.mockResolvedValue({ ...job, status: "approved" }));
+
+    it("refuses B's contract once A is signed, building, writing and emailing nothing", async () => {
+      store.listVersions.mockResolvedValue([approvedB, signedA]);
+      expect(await sendContract({ jobId: JOB, versionId: VB, actor: "Sent on approval" }))
+        .toEqual({ error: "Option A is signed. Make changes as a new version of Option A." });
+      expect(pdf.renderContractPdf).not.toHaveBeenCalled();
+      expect(createFile).not.toHaveBeenCalled();
+      expect(sql).not.toHaveBeenCalled();
+      expect(email.sendContractEmail).not.toHaveBeenCalled();
+    });
+
+    it("re-checks in the statement that no other option is signed, and a refusal there removes the contract", async () => {
+      store.listVersions.mockResolvedValue([version, approvedB]);
+      expect(await sendContract({ jobId: JOB, versionId: VB, actor: "Sent on approval" })).toEqual({ ok: true, emailed: true });
+      const call = sql.mock.calls[0];
+      const s = text(call);
+      const frozenCte = s.slice(s.indexOf("frozen as ("), s.indexOf("shared as ("));
+      expect(frozenCte).toContain("and not exists (select 1 from dc_quote_versions s where s.lead_id = ? and s.status = 'signed' and s.option <> ?)");
+      expect(after(call, "s.option <> ")).toEqual(["B"]);
+      // A signature on A landing after the review: the statement matches nothing.
+      sql.mockResolvedValue([]);
+      expect(await sendContract({ jobId: JOB, versionId: VB, actor: "Sent on approval" }))
+        .toEqual({ error: "This quote changed while you were sending. Reload and try again." });
+      expect(deleteFile).toHaveBeenCalledWith(FILE, "Sent on approval");
+    });
+
+    it("a signed earlier version of the SAME option is a change order: its contract is sent", async () => {
+      store.listVersions.mockResolvedValue([{ ...offered, version: 2 }, { ...offered, id: V0, status: "signed" }]);
+      expect(await sendContract({ jobId: JOB, versionId: V1, actor: "Sent on approval" })).toEqual({ ok: true, emailed: true });
+      expect(createFile).toHaveBeenCalledTimes(1);
+    });
+  });
 });
