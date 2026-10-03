@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/admin/session";
 import { pollMailbox } from "@/lib/dc/import";
 import { sendContract, sendQuote } from "@/lib/dc/send";
-import { setLineOverride, setVersionChoices } from "@/lib/dc/store";
+import { addQuoteOption, setLineOverride, setVersionChoices } from "@/lib/dc/store";
 
 const PCT = /^\d{1,4}(\.\d{1,2})?$/;
 const LOCKED = "This version can no longer be changed.";
@@ -86,4 +86,13 @@ export async function checkNowAction(jobId: string): Promise<{ message: string }
     failed > 0 ? `${failed} Dealer ${failed === 1 ? "Copy" : "Copies"} could not be imported. Try again shortly.` : null,
   ].filter((p): p is string => p !== null);
   return { message: parts.length > 0 ? parts.join(" ") : "Checked. Nothing new to import (the owners were emailed about anything that needs fixing)." };
+}
+
+/** Add another quote (quote options spec §3): the next letter, B when none. The store refuses a Lost or signed job and past Z. */
+export async function addQuoteOptionAction(jobId: string): Promise<{ error?: string; letter?: string }> {
+  const admin = await requireAdmin();
+  const result = await addQuoteOption(jobId, admin.email);
+  if ("error" in result) return { error: result.error };
+  refresh(jobId);
+  return { letter: result.letter };
 }

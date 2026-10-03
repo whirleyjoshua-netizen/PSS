@@ -106,7 +106,7 @@ function Total({ label, value, children, muted }: { label: string; value: string
 }
 
 /**
- * The owner's review of the latest DC quote version. Every figure charged to the client is read
+ * The owner's review of the latest version of one quote option. Every figure charged to the client is read
  * from `review.priced`, the object whose fingerprint Send compares, so the screen can't show a
  * number Send wouldn't charge. Nothing is fetched here: the server passes the whole review.
  */
@@ -118,6 +118,9 @@ export function QuoteReview({ jobId, review, now }: { jobId: string; review: Rev
   const [sending, startSend] = useTransition();
   const [choosing, startChoice] = useTransition();
   const [refusals, setRefusals] = useState(0);
+  // Ids unique per version: the Quote tab renders one review per quote option on the same page.
+  const ids = { heading: `dc-quote-heading-${version.id}`, changes: `dc-changes-${version.id}`, blockers: `dc-blockers-${version.id}` };
+  const previewHref = `/admin/jobs/${jobId}/quote-preview${version.option === "A" ? "" : `?option=${version.option}`}`;
 
   const pricedFor = (position: number) => priced.lines.find((l) => l.position === position)!;
   const previous = olderVersions[0];
@@ -158,9 +161,9 @@ export function QuoteReview({ jobId, review, now }: { jobId: string; review: Rev
       : null;
 
   return (
-    <section aria-labelledby="dc-quote-heading" className="flex flex-col gap-5">
+    <section aria-labelledby={ids.heading} className="flex flex-col gap-5">
       <header className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-        <h2 id="dc-quote-heading" className="text-lg font-semibold">
+        <h2 id={ids.heading} className="text-lg font-semibold">
           DC quote {version.dcQuoteNo} · version {version.version}{olderVersions.length > 0 ? ` of ${olderVersions.length + 1}` : ""}
         </h2>
         {/* The name DC printed, so a quote filed on the wrong household is visible before it is priced. */}
@@ -196,8 +199,8 @@ export function QuoteReview({ jobId, review, now }: { jobId: string; review: Rev
       {previous ? (
         changes.length > 0 ? (
           <div className="flex flex-col gap-1 text-sm">
-            <p id="dc-changes">Changes from version {previous.version}:</p>
-            <ul aria-labelledby="dc-changes" className="list-disc pl-5">
+            <p id={ids.changes}>Changes from version {previous.version}:</p>
+            <ul aria-labelledby={ids.changes} className="list-disc pl-5">
               {changes.map((c) => <li key={`${c.kind}-${c.position}`}>{changeText(c)}</li>)}
             </ul>
           </div>
@@ -289,8 +292,8 @@ export function QuoteReview({ jobId, review, now }: { jobId: string; review: Rev
         ) : null}
         {blockers.length > 0 ? (
           <div className="flex flex-col gap-1 text-sm">
-            <p id="dc-blockers" className={HEADING}>Before you can send</p>
-            <ul aria-labelledby="dc-blockers" className="list-disc pl-5">
+            <p id={ids.blockers} className={HEADING}>Before you can send</p>
+            <ul aria-labelledby={ids.blockers} className="list-disc pl-5">
               {blockers.map((b) => <li key={b}>{b}</li>)}
             </ul>
           </div>
@@ -302,7 +305,7 @@ export function QuoteReview({ jobId, review, now }: { jobId: string; review: Rev
           </button>
           {/* What Send quote would print, marked PREVIEW; nothing is saved or sent. It needs a complete price. */}
           {!locked ? (priced.blockers.length === 0 ? (
-            <a href={`/admin/jobs/${jobId}/quote-preview`} target="_blank" rel="noreferrer"
+            <a href={previewHref} target="_blank" rel="noreferrer"
               className="inline-flex min-h-11 items-center justify-center border border-charcoal px-5 text-sm">
               Preview quote
             </a>

@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { DC_NEW_QUOTE_URL, dcQuoteUrl } from "@/lib/dc/links";
-import { checkNowAction } from "./quote-actions";
+import { addQuoteOptionAction, checkNowAction } from "./quote-actions";
 import { ACTION_LINK, TEXT_LINK } from "./ui";
 
 /** Opens Direct Connect in a new tab. Before any quote exists, it copies the PSS number for the PO Reference field. */
@@ -44,6 +44,21 @@ export function CheckNowButton({ jobId }: { jobId: string }) {
         {pending ? "Checking…" : "Check for new quotes"}
       </button>
       {message ? <p role="status" className="text-sm text-ink-soft">{message}</p> : null}
+    </div>
+  );
+}
+
+/** Add another quote (quote options spec §3). On success the page refreshes and the new option's card appears. */
+export function AddQuoteOptionButton({ jobId }: { jobId: string }) {
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+  return (
+    <div className="flex flex-col gap-1">
+      <button type="button" className={`${ACTION_LINK} self-start`} disabled={pending}
+        onClick={() => startTransition(async () => setError((await addQuoteOptionAction(jobId)).error ?? null))}>
+        {pending ? "Adding…" : "Add another quote"}
+      </button>
+      {error ? <p role="alert" className="text-sm text-red-700">{error}</p> : null}
     </div>
   );
 }

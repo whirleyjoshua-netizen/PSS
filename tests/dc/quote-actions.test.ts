@@ -16,7 +16,11 @@ const setVersionChoices = vi.fn(async (..._args: unknown[]) => {
   order.push("store");
   return true;
 });
-vi.mock("@/lib/dc/store", () => ({ setLineOverride, setVersionChoices }));
+const addQuoteOption = vi.fn(async (..._args: unknown[]): Promise<{ letter: string } | { error: string }> => {
+  order.push("store");
+  return { letter: "B" };
+});
+vi.mock("@/lib/dc/store", () => ({ setLineOverride, setVersionChoices, addQuoteOption }));
 const sendQuote = vi.fn(async (..._args: unknown[]): Promise<{ ok: true; emailed: boolean } | { error: string }> => {
   order.push("send");
   return { ok: true, emailed: true };
@@ -32,7 +36,7 @@ const pollMailbox = vi.fn(async (): Promise<{ seen: number; results: { messageId
 });
 vi.mock("@/lib/dc/import", () => ({ pollMailbox }));
 
-const { setLinePctAction, setChoicesAction, sendQuoteAction, sendContractAction, checkNowAction } = await import("@/app/admin/jobs/[id]/quote-actions");
+const { setLinePctAction, setChoicesAction, sendQuoteAction, sendContractAction, checkNowAction, addQuoteOptionAction } = await import("@/app/admin/jobs/[id]/quote-actions");
 
 const J = "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c";
 const V = "7a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
@@ -187,5 +191,19 @@ describe("checkNowAction", () => {
   it("says when it checked mail but imported nothing", async () => {
     pollMailbox.mockResolvedValueOnce({ seen: 1, results: [{ messageId: "b", outcome: "no-match" }] });
     expect(await checkNowAction(J)).toEqual({ message: "Checked. Nothing new to import (the owners were emailed about anything that needs fixing)." });
+  });
+});
+
+describe("addQuoteOptionAction", () => {
+  it("checks the admin first, adds the option as that owner and refreshes the job", async () => {
+    expect(await addQuoteOptionAction(J)).toEqual({ letter: "B" });
+    expect(order).toEqual(["auth", "store"]);
+    expect(addQuoteOption).toHaveBeenCalledWith(J, "o@x.com");
+    expect(revalidatePath).toHaveBeenCalledWith(`/admin/jobs/${J}`);
+  });
+  it("returns the refusal verbatim and refreshes nothing", async () => {
+    addQuoteOption.mockResolvedValueOnce({ error: "This job is marked Lost." });
+    expect(await addQuoteOptionAction(J)).toEqual({ error: "This job is marked Lost." });
+    expect(revalidatePath).not.toHaveBeenCalled();
   });
 });

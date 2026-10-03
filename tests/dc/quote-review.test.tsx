@@ -9,15 +9,18 @@ const setChoicesAction = vi.fn();
 const sendQuoteAction = vi.fn();
 const sendContractAction = vi.fn();
 const checkNowAction = vi.fn();
-vi.mock("@/app/admin/jobs/[id]/quote-actions", () => ({ setLinePctAction, setChoicesAction, sendQuoteAction, sendContractAction, checkNowAction }));
+const addQuoteOptionAction = vi.fn();
+vi.mock("@/app/admin/jobs/[id]/quote-actions", () => ({ setLinePctAction, setChoicesAction, sendQuoteAction, sendContractAction, checkNowAction, addQuoteOptionAction }));
 const loadReview = vi.fn();
 vi.mock("@/lib/dc/send", () => ({ loadReview }));
 const depositState = vi.fn(async (_id: string) => null as unknown);
 vi.mock("@/lib/payments/deposits", () => ({ depositState }));
+const listQuoteOptions = vi.fn(async (_id: string) => ["A"]);
+vi.mock("@/lib/dc/store", () => ({ listQuoteOptions }));
 vi.mock("@/app/admin/jobs/[id]/deposit-actions", () => ({ recordDepositAction: vi.fn(), cancelDepositAction: vi.fn() }));
 
 const { QuoteReview } = await import("@/app/admin/jobs/[id]/QuoteReview");
-const { DcButtons, CheckNowButton } = await import("@/app/admin/jobs/[id]/DcButtons");
+const { AddQuoteOptionButton, DcButtons, CheckNowButton } = await import("@/app/admin/jobs/[id]/DcButtons");
 const { QuoteTab } = await import("@/app/admin/jobs/[id]/QuoteTab");
 
 const J = "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c";
@@ -73,6 +76,8 @@ beforeEach(() => {
   sendQuoteAction.mockResolvedValue({ ok: true, emailed: true });
   sendContractAction.mockResolvedValue({ ok: true, emailed: true });
   checkNowAction.mockResolvedValue({ message: "No new Dealer Copies." });
+  addQuoteOptionAction.mockResolvedValue({ letter: "B" });
+  listQuoteOptions.mockResolvedValue(["A"]);
 });
 
 describe("QuoteReview figures", () => {
@@ -468,7 +473,7 @@ describe("QuoteTab", () => {
   it("explains how to start when no quote has arrived", async () => {
     loadReview.mockResolvedValueOnce(null);
     render(await QuoteTab({ job }));
-    expect(loadReview).toHaveBeenCalledWith(J);
+    expect(loadReview).toHaveBeenCalledWith(J, "A");
     expect(screen.getByText("No Direct Connect quote yet. Put PSS-1042 in PO Reference and email the Dealer Copy with Owner and Include dealer costs ticked.")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Create quote in Direct Connect" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Check for new quotes" })).toBeInTheDocument();
@@ -509,5 +514,58 @@ describe("QuoteTab", () => {
     depositState.mockResolvedValueOnce({ ...base, jobStatus: "lost", versionStatus: "cancelled", refunded: { id: "d1", amountCents: 92417, refundedAt: new Date("2026-09-30T17:00:00Z") } });
     render(await QuoteTab({ job }));
     expect(screen.getByRole("region", { name: "Deposit" })).toHaveTextContent("Deposit $924.17 refunded");
+  });
+
+  it("shows one card per option, A first, each headed with its number, once the job has two", async () => {
+    listQuoteOptions.mockResolvedValueOnce(["A", "B"]);
+    loadReview.mockResolvedValueOnce(review()).mockResolvedValueOnce(null);
+    render(await QuoteTab({ job }));
+    expect(loadReview).toHaveBeenNthCalledWith(1, J, "A");
+    expect(loadReview).toHaveBeenNthCalledWith(2, J, "B");
+    const a = screen.getByRole("region", { name: "Option A · PSS-1042" });
+    const b = screen.getByRole("region", { name: "Option B · PSS-1042-B" });
+    expect(within(a).getByRole("button", { name: "Send quote" })).toBeInTheDocument();
+    expect(within(a).getByRole("link", { name: "Open quote 12345678 in Direct Connect" })).toBeInTheDocument();
+    expect(within(b).getByText("No Direct Connect quote yet. Put PSS-1042-B in PO Reference and email the Dealer Copy with Owner and Include dealer costs ticked.")).toBeInTheDocument();
+    expect(within(b).getByRole("link", { name: "Create quote in Direct Connect" })).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Check for new quotes" })).toHaveLength(1);
+    expect(screen.getAllByRole("button", { name: "Add another quote" })).toHaveLength(1);
+  });
+
+  it("heads nothing with an option while the job has one", async () => {
+    loadReview.mockResolvedValueOnce(review());
+    render(await QuoteTab({ job }));
+    expect(screen.queryByRole("region", { name: /^Option / })).toBeNull();
+    expect(screen.getByRole("button", { name: "Add another quote" })).toBeInTheDocument();
+  });
+});
+
+describe("AddQuoteOptionButton", () => {
+  it("adds an option, and shows a refusal", async () => {
+    addQuoteOptionAction.mockResolvedValueOnce({ error: "This job is marked Lost." });
+    render(<AddQuoteOptionButton jobId={J} />);
+    fireEvent.click(screen.getByRole("button", { name: "Add another quote" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("This job is marked Lost.");
+    expect(addQuoteOptionAction).toHaveBeenCalledWith(J);
+  });
+});
+
+describe("QuoteReview per option", () => {
+  it("previews option B's quote by its option, and option A's at the plain address", () => {
+    const { unmount } = render(<QuoteReview jobId={J} review={review({ version: version({ option: "B" }) })} />);
+    expect(screen.getByRole("link", { name: "Preview quote" })).toHaveAttribute("href", `/admin/jobs/${J}/quote-preview?option=B`);
+    unmount();
+    render(<QuoteReview jobId={J} review={review()} />);
+    expect(screen.getByRole("link", { name: "Preview quote" })).toHaveAttribute("href", `/admin/jobs/${J}/quote-preview`);
+  });
+
+  it("two reviews on one page keep their own headings and blocker lists", () => {
+    const blocked = { blockers: ["Add the client's email address to the job first."] };
+    render(<>
+      <QuoteReview jobId={J} review={review(blocked)} />
+      <QuoteReview jobId={J} review={review({ ...blocked, version: version({ id: "other-version", option: "B" }) })} />
+    </>);
+    expect(screen.getAllByRole("region", { name: /^DC quote 12345678/ })).toHaveLength(2);
+    expect(screen.getAllByRole("list", { name: "Before you can send" })).toHaveLength(2);
   });
 });

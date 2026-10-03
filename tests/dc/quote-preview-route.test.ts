@@ -7,7 +7,7 @@ vi.mock("@/lib/dc/send", () => ({ previewQuote }));
 const { GET } = await import("@/app/admin/jobs/[id]/quote-preview/route");
 
 const J = "11111111-1111-4111-8111-111111111111";
-const get = () => GET(new Request("http://x"), { params: Promise.resolve({ id: J }) });
+const get = (query = "") => GET(new Request(`http://x/admin/jobs/${J}/quote-preview${query}`), { params: Promise.resolve({ id: J }) });
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -18,7 +18,7 @@ beforeEach(() => {
 describe("GET quote preview", () => {
   it("opens the preview PDF in the browser, never cached", async () => {
     const response = await get();
-    expect(previewQuote).toHaveBeenCalledWith(J);
+    expect(previewQuote).toHaveBeenCalledWith(J, "A");
     expect(response.status).toBe(200);
     expect(response.headers.get("Content-Type")).toBe("application/pdf");
     expect(response.headers.get("Content-Disposition")).toMatch(/^inline; filename="Quote PSS-1042 v1 PREVIEW.pdf"/);
@@ -36,6 +36,19 @@ describe("GET quote preview", () => {
   it("is for signed-in owners only", async () => {
     requireAdmin.mockRejectedValue(new Error("NEXT_REDIRECT"));
     await expect(get()).rejects.toThrow("NEXT_REDIRECT");
+    expect(previewQuote).not.toHaveBeenCalled();
+  });
+
+  it("previews the option the link names", async () => {
+    await get("?option=B");
+    expect(previewQuote).toHaveBeenCalledWith(J, "B");
+  });
+
+  it("refuses an option that is not one capital letter, without building anything", async () => {
+    for (const query of ["?option=b", "?option=AA", "?option="]) {
+      const response = await get(query);
+      expect(response.status).toBe(404);
+    }
     expect(previewQuote).not.toHaveBeenCalled();
   });
 });
