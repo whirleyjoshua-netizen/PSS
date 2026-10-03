@@ -25,7 +25,7 @@ alter table dc_quote_versions add constraint dc_quote_versions_option_check chec
 );
 
 -- Versions are numbered within an option. 024 declared unique (lead_id, version) inline, so Postgres named it
--- dc_quote_versions_lead_id_version_key (its default name for an inline unique constraint).
+-- dc_quote_versions_lead_id_version_key (confirmed on the Neon test branch before this file was written).
 alter table dc_quote_versions drop constraint if exists dc_quote_versions_lead_id_version_key;
 alter table dc_quote_versions drop constraint if exists dc_quote_versions_lead_option_version_key;
 alter table dc_quote_versions add constraint dc_quote_versions_lead_option_version_key unique (lead_id, option, version);
