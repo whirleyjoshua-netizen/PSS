@@ -304,7 +304,7 @@ describe("sendQuote", () => {
     await send();
     const s = text(sql.mock.calls[0]);
     const superseded = s.slice(s.indexOf("superseded as ("), s.indexOf("unshared as ("));
-    expect(superseded).toContain("status in ('draft','offered','sent') and id <> ? and exists (select 1 from offered)");
+    expect(superseded).toContain("status in ('draft','offered','sent') and id <> ? and (option = ? or approved_at is not null) and exists (select 1 from offered)");
     const unsharedAt = s.indexOf("unshared as (");
     const unshared = s.slice(unsharedAt, s.indexOf("shared as (", unsharedAt + "unshared as (".length));
     expect(unshared).toContain("not exists (select 1 from contract_signatures s where s.file_id = job_files.id or s.signed_file_id = job_files.id)");
@@ -529,5 +529,89 @@ describe("previewQuote", () => {
   it("says so when the job has no quote", async () => {
     store.listVersions.mockResolvedValue([]);
     expect(await previewQuote(JOB)).toEqual({ error: "This job has no Direct Connect quote." });
+  });
+});
+
+/** The values bound right after each template part ending with `fragment`, in order. */
+const after = (call: unknown[], fragment: string) => {
+  const strings = call[0] as TemplateStringsArray;
+  return strings.map((part, i) => [part.replace(/\s+/g, " "), call[1 + i]] as const)
+    .filter(([part]) => part.endsWith(fragment)).map(([, value]) => value);
+};
+
+describe("quote options (spec §5)", () => {
+  const VB = "12121212-1212-4121-8121-121212121212";
+  const optionB: StoredVersion = { ...version, id: VB, option: "B", poReference: "PSS-1042-B" };
+
+  it("reviews each option on its own: its newest version and its own older versions", async () => {
+    const olderB = { ...optionB, id: V0, version: 0, status: "superseded" as const };
+    store.listVersions.mockResolvedValue([{ ...version, version: 3 }, optionB, olderB]);
+    const b = await loadReview(JOB, "B");
+    expect(b!.version.id).toBe(VB);
+    expect(b!.olderVersions.map((v) => v.id)).toEqual([V0]);
+    const a = await loadReview(JOB);
+    expect(a!.version.id).toBe(V1);
+    expect(a!.olderVersions).toEqual([]);
+    expect(await loadReview(JOB, "C")).toBeNull();
+  });
+
+  it("sends option B under its own number, newest within B, superseding B's others and any option the client approved", async () => {
+    store.listVersions.mockResolvedValue([version, optionB]);
+    const review = await loadReview(JOB, "B");
+    expect(await sendQuote({ jobId: JOB, versionId: VB, fingerprint: review!.fingerprint, actor: OWNER })).toEqual({ ok: true, emailed: true });
+    expect(createFile).toHaveBeenCalledWith(expect.objectContaining({ name: "Quote PSS-1042-B v1.pdf", docType: "quote" }));
+    expect(quotePdf.buildQuotePdf.mock.calls[0][0]).toMatchObject({ projectNo: "PSS-1042-B", version: 1 });
+    expect(quoteEmail.sendQuoteEmail).toHaveBeenCalledWith(job, "Quote PSS-1042-B v1.pdf");
+    const call = sql.mock.calls[0];
+    const s = text(call);
+    const offeredCte = s.slice(s.indexOf("offered as ("), s.indexOf("priced_lines as ("));
+    expect(offeredCte).toContain("and version = (select max(version) from dc_quote_versions where lead_id = ? and option = ?)");
+    expect(after(call, "and option = ")).toEqual(["B"]);
+    expect(after(call, "and (option = ")).toEqual(["B"]);
+    expect(call.slice(1)).toContain(`Sent Quote PSS-1042-B v1.pdf for ${formatCents(review!.priced.clientTotalCents)}`);
+  });
+
+  it("refuses while another option is signed: a blocker on the review, and nothing written", async () => {
+    const signedA: StoredVersion = { ...offered, status: "signed", signedAt: new Date("2026-09-30T17:00:00Z") };
+    store.listVersions.mockResolvedValue([optionB, signedA]);
+    const review = await loadReview(JOB, "B");
+    expect(review!.blockers).toContain("Option A is signed. Make changes as a new version of Option A.");
+    expect(await sendQuote({ jobId: JOB, versionId: VB, fingerprint: review!.fingerprint, actor: OWNER }))
+      .toEqual({ error: "Option A is signed. Make changes as a new version of Option A." });
+    expect(createFile).not.toHaveBeenCalled();
+    expect(sql).not.toHaveBeenCalled();
+  });
+
+  it("re-checks in the statement that no other option is signed (a signature landing after the review)", async () => {
+    store.listVersions.mockResolvedValue([version, optionB]);
+    await send();
+    const call = sql.mock.calls[0];
+    const s = text(call);
+    const offeredCte = s.slice(s.indexOf("offered as ("), s.indexOf("priced_lines as ("));
+    expect(offeredCte).toContain("and not exists (select 1 from dc_quote_versions s where s.lead_id = ? and s.status = 'signed' and s.option <> ?)");
+    expect(after(call, "s.option <> ")).toEqual(["A"]);
+  });
+
+  it("a signed earlier version of the SAME option is a change order, not a refusal", async () => {
+    store.listVersions.mockResolvedValue([{ ...version, version: 2 }, { ...offered, id: V0, status: "signed" }]);
+    expect((await loadReview(JOB))!.blockers).toEqual([]);
+  });
+
+  it("previews option B under its number", async () => {
+    store.listVersions.mockResolvedValue([version, optionB]);
+    expect(await previewQuote(JOB, "B")).toMatchObject({ name: "Quote PSS-1042-B v1 PREVIEW.pdf" });
+    expect(quotePdf.buildQuotePdf.mock.calls[0][0]).toMatchObject({ projectNo: "PSS-1042-B" });
+  });
+
+  it("sends option B's contract under its number, checking it is the newest within B", async () => {
+    const approvedB: StoredVersion = { ...offered, id: VB, option: "B", poReference: "PSS-1042-B" };
+    store.listVersions.mockResolvedValue([version, approvedB]);
+    jobs.getJob.mockResolvedValue({ ...job, status: "approved" });
+    expect(await sendContract({ jobId: JOB, versionId: VB, actor: "Sent on approval" })).toEqual({ ok: true, emailed: true });
+    expect(pdf.renderContractPdf.mock.calls[0][0]).toMatchObject({ projectNo: "PSS-1042-B", version: 1 });
+    expect(createFile).toHaveBeenCalledWith(expect.objectContaining({ name: "Contract PSS-1042-B v1.pdf", docType: "contract" }));
+    const call = sql.mock.calls[0];
+    expect(text(call)).toContain("and version = (select max(version) from dc_quote_versions where lead_id = ? and option = ?)");
+    expect(after(call, "and option = ")).toEqual(["B"]);
   });
 });

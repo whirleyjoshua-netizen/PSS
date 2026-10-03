@@ -5,7 +5,7 @@ import { createFile, deleteFile } from "@/lib/admin/files";
 import { getJob, type Job } from "@/lib/admin/jobs";
 import { listInstallQuotes } from "@/lib/admin/install-quotes";
 import { formatCents } from "@/lib/admin/money";
-import { formatProjectNo } from "@/lib/portal/project-no";
+import { formatOptionNo } from "@/lib/portal/project-no";
 import { fillFields, termsFieldValues } from "@/lib/docs/fill";
 import { remainingMarkers } from "@/lib/docs/parse";
 import { STARTER_TERMS } from "@/lib/docs/starter-terms";
@@ -26,6 +26,12 @@ const RACE = "This quote changed while you were sending. Reload and try again.";
 const NO_TERMS = "Add your contract terms on the Documents page first.";
 const DRAFT_TERMS = "Your contract terms still carry the DRAFT line. Remove it on the Documents page.";
 const TERMS_UNREADABLE = "Your contract terms file could not be read. Add your contract terms on the Documents page.";
+
+/** Quote options spec §5: once one option is signed, changes are new versions of that option, never a switch. */
+export const signedElsewhere = (option: string): string => `Option ${option} is signed. Make changes as a new version of Option ${option}.`;
+
+/** Which option to review: by letter (the Quote tab, Preview), or by a version id (Send quote, Send contract). */
+type Which = { option: string } | { versionId: string };
 
 /**
  * An offered (or later) version's price as Send quote froze it: the per-line % and sell stored then, and the
@@ -85,11 +91,15 @@ function carriesDraftLine(body: string): boolean {
 }
 
 /** The review plus the job and settings it was computed from, so Send quote and the contract use the very same reads. */
-async function review(jobId: string): Promise<{ review: Review; job: Job; settings: DcSettings; termsTemplate: DocumentTemplate | null } | null> {
-  const [job, versions, rules, installs, settings, termsTemplate] = await Promise.all([
+async function review(jobId: string, which: Which): Promise<{ review: Review; job: Job; settings: DcSettings; termsTemplate: DocumentTemplate | null } | null> {
+  const [job, all, rules, installs, settings, termsTemplate] = await Promise.all([
     getJob(jobId), listVersions(jobId), listMarkupRules(), listInstallQuotes(jobId), getDcSettings(), liveTemplateOfKind("terms"),
   ]);
-  if (!job || versions.length === 0) return null;
+  if (!job) return null;
+  // A version id this job never had falls to option A, whose newest version is not it, so the caller answers NEWER.
+  const option = "option" in which ? which.option : all.find((v) => v.id === which.versionId)?.option ?? "A";
+  const versions = all.filter((v) => v.option === option);
+  if (versions.length === 0) return null;
   const [version, ...olderVersions] = versions;
   const choices: InstallChoice[] = installs.map((q) => ({ id: q.id, kind: q.kind, totalCents: q.totalCents, createdAt: q.createdAt }));
   let install: InstallChoice | null;
@@ -110,6 +120,8 @@ async function review(jobId: string): Promise<{ review: Review; job: Job; settin
     hasTerms: termsTemplate !== null || settings.termsPathname !== null, isLatest: true, versionStatus: version.status,
     jobStatus: job.status, customerEmail: job.email,
   });
+  const signed = all.find((v) => v.status === "signed" && v.option !== option);
+  if (signed) blockers.push(signedElsewhere(signed.option));
   // Shown before Send quote; Send quote and the contract fill and check again with their own `now`.
   if (termsTemplate) {
     const filled = fillTerms(termsTemplate, job, new Date());
@@ -119,9 +131,9 @@ async function review(jobId: string): Promise<{ review: Review; job: Job; settin
   return { review: { version, priced, blockers, fingerprint: pricingFingerprint(priced), install, rules, olderVersions }, job, settings, termsTemplate };
 }
 
-/** The latest version of a job's DC quote, priced exactly as Send quote would price it. */
-export async function loadReview(jobId: string): Promise<Review | null> {
-  return (await review(jobId))?.review ?? null;
+/** The latest version of one option of a job's DC quote (A unless named), priced exactly as Send quote would price it. */
+export async function loadReview(jobId: string, option = "A"): Promise<Review | null> {
+  return (await review(jobId, { option }))?.review ?? null;
 }
 
 /**
@@ -161,16 +173,16 @@ function pricedInput(job: Job, version: StoredVersion, priced: PricedVersion, pr
  * saved, shared or emailed. Refused only while the price is incomplete; Send's other blockers (no email,
  * the terms) don't change what the quote prints.
  */
-export async function previewQuote(jobId: string): Promise<{ pdf: Uint8Array; name: string } | { error: string }> {
-  const loaded = await review(jobId);
+export async function previewQuote(jobId: string, option = "A"): Promise<{ pdf: Uint8Array; name: string } | { error: string }> {
+  const loaded = await review(jobId, { option });
   if (!loaded) return { error: "This job has no Direct Connect quote." };
   const { review: { version, priced }, job } = loaded;
   // Once sent, the real quote is in Files; a copy stamped "Not sent", dated today, would be false.
   if (version.status !== "draft") return { error: "This quote has been sent. Its PDF is in Files." };
   if (priced.blockers.length > 0) return { error: priced.blockers[0] };
-  const projectNo = formatProjectNo(job.projectNo) ?? "PSS";
-  const pdf = await buildQuotePdf(pricedInput(job, version, priced, projectNo, new Date()), { preview: true });
-  return { pdf, name: `Quote ${projectNo} v${version.version} PREVIEW.pdf` };
+  const optionNo = formatOptionNo(job.projectNo, version.option) ?? "PSS";
+  const pdf = await buildQuotePdf(pricedInput(job, version, priced, optionNo, new Date()), { preview: true });
+  return { pdf, name: `Quote ${optionNo} v${version.version} PREVIEW.pdf` };
 }
 
 /**
@@ -178,11 +190,14 @@ export async function previewQuote(jobId: string): Promise<{ pdf: Uint8Array; na
  * version, a changed fingerprint) and anything that would stop the contract later (the terms), builds the
  * quote PDF, then in ONE statement freezes the price (draft → offered), supersedes and unshares every other
  * unsigned version's quote and contract, shares the quote, records quote_cents, moves New / Appointment
- * booked / Approved to Quoted (an approval of a superseded price no longer stands), and logs it.
- * The client email goes last: a failed email leaves the quote sent and answers emailed false.
+ * booked / Approved to Quoted (an approval of a superseded price no longer stands), and logs it. Quote options
+ * spec §5: everything is scoped to the version's option. The supersede set also takes any other option's
+ * unsigned version the client approved (sending B after the client approved A is the switch), and the send is
+ * refused while another option is signed. The client email goes last: a failed email leaves the quote sent and
+ * answers emailed false.
  */
 export async function sendQuote(input: { jobId: string; versionId: string; fingerprint: string; actor: string }): Promise<{ ok: true; emailed: boolean } | { error: string }> {
-  const loaded = await review(input.jobId);
+  const loaded = await review(input.jobId, { versionId: input.versionId });
   if (!loaded) return { error: "This job has no Direct Connect quote." };
   const { review: current, job, settings, termsTemplate } = loaded;
   if (current.version.id !== input.versionId) return { error: NEWER };
@@ -194,9 +209,9 @@ export async function sendQuote(input: { jobId: string; versionId: string; finge
   const terms = await resolveTerms(termsTemplate, settings, job, now);
   if ("error" in terms) return terms;
 
-  const projectNo = formatProjectNo(job.projectNo) ?? "PSS";
-  const name = `Quote ${projectNo} v${version.version}.pdf`;
-  const pdf = await buildQuotePdf(pricedInput(job, version, priced, projectNo, now));
+  const optionNo = formatOptionNo(job.projectNo, version.option) ?? "PSS";
+  const name = `Quote ${optionNo} v${version.version}.pdf`;
+  const pdf = await buildQuotePdf(pricedInput(job, version, priced, optionNo, now));
   const file = await createFile({ leadId: job.id, kind: "document", name, contentType: "application/pdf",
     body: new Blob([new Uint8Array(pdf)], { type: "application/pdf" }), actor: input.actor, docType: "quote" });
   if (!file) return { error: "This job no longer exists." };
@@ -218,7 +233,9 @@ export async function sendQuote(input: { jobId: string; versionId: string; finge
           handling_folded_cents = ${priced.handlingFoldedCents}, install_folded_cents = ${priced.installFoldedCents},
           quote_file_id = ${file.id}, offered_at = now(), offered_by = ${input.actor}
         where id = ${version.id} and lead_id = ${job.id} and status = 'draft'
-          and version = (select max(version) from dc_quote_versions where lead_id = ${job.id})
+          and version = (select max(version) from dc_quote_versions where lead_id = ${job.id} and option = ${version.option})
+          -- Quote options spec §5: never while another option is signed.
+          and not exists (select 1 from dc_quote_versions s where s.lead_id = ${job.id} and s.status = 'signed' and s.option <> ${version.option})
           -- The inputs this price was computed from must be the ones still stored.
           and waive_handling = ${version.waiveHandling} and no_install = ${version.noInstall}
           and not exists (
@@ -238,7 +255,7 @@ export async function sendQuote(input: { jobId: string; versionId: string; finge
       ),
       superseded as (
         update dc_quote_versions set status = 'superseded'
-        where lead_id = ${job.id} and status in ('draft','offered','sent') and id <> ${version.id} and exists (select 1 from offered)
+        where lead_id = ${job.id} and status in ('draft','offered','sent') and id <> ${version.id} and (option = ${version.option} or approved_at is not null) and exists (select 1 from offered)
         returning contract_file_id, quote_file_id
       ),
       unshared as (
@@ -294,11 +311,11 @@ export async function sendQuote(input: { jobId: string; versionId: string; finge
  * Spec §2, the contract for an approved quote: called on the client's approval, or by the owner's Send
  * contract when that failed. Builds from the price Send quote froze (no fingerprint: nothing can have
  * moved), with 029's sign marks stored in createFile's statement, then in ONE statement moves the
- * version offered → sent (approved, still the newest, job not Lost and with an email), shares the
+ * version offered → sent (approved, still the newest of its option, job not Lost and with an email), shares the
  * contract and logs it. A second call matches nothing, removes its file and says so.
  */
 export async function sendContract(input: { jobId: string; versionId: string; actor: string }): Promise<{ ok: true; emailed: boolean } | { error: string }> {
-  const loaded = await review(input.jobId);
+  const loaded = await review(input.jobId, { versionId: input.versionId });
   if (!loaded) return { error: "This job has no Direct Connect quote." };
   const { review: current, job, settings, termsTemplate } = loaded;
   const { version, priced } = current;
@@ -312,9 +329,9 @@ export async function sendContract(input: { jobId: string; versionId: string; ac
   const terms = await resolveTerms(termsTemplate, settings, job, now);
   if ("error" in terms) return terms;
 
-  const projectNo = formatProjectNo(job.projectNo) ?? "PSS";
-  const name = `Contract ${projectNo} v${version.version}.pdf`;
-  const rendered = await renderContractPdf(pricedInput(job, version, priced, projectNo, now), terms);
+  const optionNo = formatOptionNo(job.projectNo, version.option) ?? "PSS";
+  const name = `Contract ${optionNo} v${version.version}.pdf`;
+  const rendered = await renderContractPdf(pricedInput(job, version, priced, optionNo, now), terms);
   // The marks go in with the file, in createFile's one statement (visible signatures spec §3).
   const file = await createFile({ leadId: job.id, kind: "document", name, contentType: "application/pdf",
     body: new Blob([new Uint8Array(rendered.bytes)], { type: "application/pdf" }), actor: input.actor, docType: "contract",
@@ -327,7 +344,7 @@ export async function sendContract(input: { jobId: string; versionId: string; ac
       with frozen as (
         update dc_quote_versions set status = 'sent', contract_file_id = ${file.id}, sent_at = now(), sent_by = ${input.actor}
         where id = ${version.id} and lead_id = ${job.id} and status = 'offered' and approved_at is not null
-          and version = (select max(version) from dc_quote_versions where lead_id = ${job.id})
+          and version = (select max(version) from dc_quote_versions where lead_id = ${job.id} and option = ${version.option})
           and exists (select 1 from leads where id = ${job.id} and status <> 'lost' and nullif(trim(email), '') is not null)
         returning id
       ),
