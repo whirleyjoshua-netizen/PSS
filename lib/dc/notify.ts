@@ -18,12 +18,17 @@ export function importEmail(input: { outcome: ImportOutcome; dcQuoteNo: string |
       return { subject: `${input.projectNo}: quote v${input.version} ready to review`,
         text: lines(`${quote} arrived for ${input.projectNo} as version ${input.version}.`, "", "Review the prices and send the contract from the job's Quote tab.", link) };
     case "no-po":
-    case "no-match":
+    case "no-match": {
+      // PSS-1042-B matched job 1042 but no option B: the owner forgot Add another quote (quote options spec §4).
+      const option = input.outcome === "no-match" && input.detail ? /^PSS-\d{4,}-([B-Z])$/.exec(input.detail)?.[1] ?? null : null;
+      const why = input.outcome === "no-po"
+        ? `${quote} has no valid PSS number in PO Reference (${input.detail ?? "blank"}).`
+        : option
+          ? `${quote} names ${input.detail}, but that job has no quote option ${option} yet. Add it with Add another quote on the job's Quote tab, then send the Dealer Copy again.`
+          : `${quote} names ${input.detail ?? "a PSS number"} but no job has that number.`;
       return { subject: `${quote} could not be matched to a job`,
-        text: lines(input.outcome === "no-po"
-          ? `${quote} has no valid PSS number in PO Reference (${input.detail ?? "blank"}).`
-          : `${quote} names ${input.detail ?? "a PSS number"} but no job has that number.`, "",
-          "Open the quote in Direct Connect, put the job's number (e.g. PSS-1042) in PO Reference, save, and send the Dealer Copy again.", HOW_TO_SEND) };
+        text: lines(why, "", "Open the quote in Direct Connect, put the job's number (e.g. PSS-1042) in PO Reference, save, and send the Dealer Copy again.", HOW_TO_SEND) };
+    }
     case "no-costs":
       return { subject: `${quote} arrived without dealer costs`, text: lines(`${quote} was sent without costs, so it can't be priced.`, "", `Send it again with Include dealer costs ticked. ${HOW_TO_SEND}`) };
     case "incomplete":

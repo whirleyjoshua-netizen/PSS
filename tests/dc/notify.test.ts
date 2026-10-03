@@ -40,6 +40,15 @@ describe("importEmail", () => {
     expect(importEmail({ outcome: "unchanged", dcQuoteNo: null, projectNo: null, jobId: null, detail: null })).toBeNull();
     expect(importEmail({ outcome: "failed", dcQuoteNo: null, projectNo: null, jobId: null, detail: null })).toBeNull();
   });
+  it("a no-match for an option number says to add the option first", () => {
+    const email = importEmail({ outcome: "no-match", dcQuoteNo: "22250749", projectNo: null, jobId: null, detail: "PSS-1042-B" });
+    expect(email?.text).toContain("DC quote 22250749 names PSS-1042-B, but that job has no quote option B yet. Add it with Add another quote on the job's Quote tab, then send the Dealer Copy again.");
+    expect(email?.text).not.toContain("no job has that number");
+  });
+  it("an import of an option names the option's number", () => {
+    const email = importEmail({ outcome: "imported", dcQuoteNo: "22250749", projectNo: "PSS-1042-B", jobId: "j1", version: 1, detail: null });
+    expect(email?.subject).toBe("PSS-1042-B: quote v1 ready to review");
+  });
 });
 
 describe("staleFailuresEmail", () => {

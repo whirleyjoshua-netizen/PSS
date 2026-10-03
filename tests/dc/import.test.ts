@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 
 const store = {
-  isProcessed: vi.fn(), recordOutcome: vi.fn(), findJobByProjectNo: vi.fn(), latestSha: vi.fn(),
+  isProcessed: vi.fn(), recordOutcome: vi.fn(), findJobByProjectNo: vi.fn(), latestSha: vi.fn(), quoteOptionExists: vi.fn(),
   importVersion: vi.fn(), getDcSettings: vi.fn(), setLastPolledAt: vi.fn(),
 };
 vi.mock("@/lib/dc/store", () => store);
@@ -27,6 +27,7 @@ beforeEach(() => {
   for (const f of [...Object.values(store), ...Object.values(files), ...Object.values(mailbox)]) f.mockReset();
   store.isProcessed.mockResolvedValue(false);
   store.latestSha.mockResolvedValue(null);
+  store.quoteOptionExists.mockResolvedValue(true);
   files.createFile.mockResolvedValue({ id: "f1" });
   store.importVersion.mockResolvedValue({ versionId: "v1", version: 1 });
 });
@@ -143,6 +144,40 @@ describe("importDealerCopy", () => {
     await importDealerCopy(input);
     expect(notify.importEmail).not.toHaveBeenCalled();
     expect(notify.notifyOwners).not.toHaveBeenCalled();
+  });
+
+  describe("quote options (spec §4)", () => {
+    const B_COPY = ONE.replace("<td>PSS-1042</td>", "<td>PSS-1042-B</td>");
+    // notify's mocks are not reset per test: clear the email mock so an earlier test's call cannot satisfy these.
+    beforeEach(() => notify.importEmail.mockClear());
+
+    it("imports PSS-1042-B onto job 1042's option B once the option was added, compared and named as B", async () => {
+      expect(B_COPY).not.toBe(ONE);
+      store.findJobByProjectNo.mockResolvedValue(JOB_A);
+      const result = await importDealerCopy({ ...input, html: B_COPY });
+      expect(result).toMatchObject({ outcome: "imported", leadId: JOB_A.id });
+      expect(store.quoteOptionExists).toHaveBeenCalledWith(JOB_A.id, "B");
+      expect(store.latestSha).toHaveBeenCalledWith(JOB_A.id, "B");
+      expect(store.importVersion).toHaveBeenCalledWith(expect.objectContaining({ quote: expect.objectContaining({ option: "B", poReference: "PSS-1042-B" }) }));
+      expect(notify.importEmail).toHaveBeenCalledWith(expect.objectContaining({ outcome: "imported", projectNo: "PSS-1042-B" }));
+    });
+
+    it("RELEASE GATE: PSS-1042-B on a job with no option B is no-match, and nothing is filed", async () => {
+      store.findJobByProjectNo.mockResolvedValue(JOB_A);
+      store.quoteOptionExists.mockResolvedValue(false);
+      const result = await importDealerCopy({ ...input, html: B_COPY });
+      expect(result).toMatchObject({ outcome: "no-match", leadId: null, detail: "PSS-1042-B" });
+      expect(files.createFile).not.toHaveBeenCalled();
+      expect(store.importVersion).not.toHaveBeenCalled();
+      expect(store.recordOutcome).toHaveBeenCalledWith(expect.objectContaining({ outcome: "no-match", leadId: null, detail: "PSS-1042-B" }));
+    });
+
+    it("an option A copy is compared with option A's newest version and emailed under the job's own number", async () => {
+      store.findJobByProjectNo.mockResolvedValue(JOB_A);
+      await importDealerCopy(input);
+      expect(store.latestSha).toHaveBeenCalledWith(JOB_A.id, "A");
+      expect(notify.importEmail).toHaveBeenCalledWith(expect.objectContaining({ outcome: "imported", projectNo: "PSS-1042" }));
+    });
   });
 });
 

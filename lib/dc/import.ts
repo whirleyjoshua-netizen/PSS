@@ -1,12 +1,12 @@
 import "server-only";
 import { createHash } from "node:crypto";
 import { createFile, deleteFile } from "@/lib/admin/files";
-import { formatProjectNo } from "@/lib/portal/project-no";
+import { formatOptionNo } from "@/lib/portal/project-no";
 import { DC_SUBJECT, IMPORT_ACTOR } from "./config";
 import { htmlAttachments, listCandidateMessages } from "./mailbox";
 import { importEmail, notifyOwners, staleFailuresEmail } from "./notify";
 import { parseDealerCopy } from "./parse";
-import { findJobByProjectNo, getDcSettings, importVersion, isProcessed, latestSha, recordOutcome, setLastPolledAt } from "./store";
+import { findJobByProjectNo, getDcSettings, importVersion, isProcessed, latestSha, quoteOptionExists, recordOutcome, setLastPolledAt } from "./store";
 import type { DcQuote, ImportOutcome } from "./types";
 
 type Result = { outcome: ImportOutcome; leadId: string | null; detail: string | null; version?: number };
@@ -40,8 +40,9 @@ export function quoteSha256(q: DcQuote): string {
   return createHash("sha256").update(JSON.stringify(canonical)).digest("hex");
 }
 
-async function tell(result: Result, dcQuoteNo: string | null, projectNo: number | null) {
-  const email = importEmail({ ...result, dcQuoteNo, projectNo: formatProjectNo(projectNo), jobId: result.leadId });
+/** `optionNo` is the printed number of the option the copy was imported onto (PSS-1042 or PSS-1042-B), null when none. */
+async function tell(result: Result, dcQuoteNo: string | null, optionNo: string | null) {
+  const email = importEmail({ ...result, dcQuoteNo, projectNo: optionNo, jobId: result.leadId });
   if (email) await notifyOwners(email).catch((error) => console.error("DC import email failed", error));
 }
 
@@ -61,8 +62,10 @@ export async function importDealerCopy(input: { internetMessageId: string; recei
   const quote = parsed.quote;
   // The release gate: the job is found by the exact PSS number in PO Reference, or not at all.
   // "Exact" is the printed text: PSS-01042 names 1042 as a number but is not job 1042's number.
+  // Options B–Z (quote options spec §4) must also have been added on the job: a typo never creates one.
   const found = await findJobByProjectNo(quote.projectNo);
-  const job = found && formatProjectNo(found.projectNo) === quote.poReference ? found : null;
+  const job = found && formatOptionNo(found.projectNo, quote.option) === quote.poReference
+    && (await quoteOptionExists(found.id, quote.option)) ? found : null;
   if (!job) {
     const result: Result = { outcome: "no-match", leadId: null, detail: quote.poReference };
     await recordOutcome({ ...base, outcome: "no-match", leadId: null, dcQuoteNo: quote.quoteNo, detail: quote.poReference });
@@ -96,7 +99,7 @@ export async function importDealerCopy(input: { internetMessageId: string; recei
     return { outcome: "unchanged", leadId: job.id, detail: "already processed" };
   }
   const result: Result = { outcome: "imported", leadId: job.id, detail: null, version: imported.version };
-  await tell(result, quote.quoteNo, job.projectNo);
+  await tell(result, quote.quoteNo, formatOptionNo(job.projectNo, quote.option));
   return result;
 }
 
