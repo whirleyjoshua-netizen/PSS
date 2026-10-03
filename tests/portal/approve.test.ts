@@ -438,8 +438,12 @@ describe("a Direct Connect quote (spec §2)", () => {
     });
 
     it("refuses to guess when two are offered and the form names none", async () => {
+      // Primed so the uploaded-quote path WOULD succeed: the refusal must come before it, not from it.
+      results = MOVED();
       await expect(approveQuoteAction(MINE)).resolves.toBe("wrong-status");
       expect(dcApprove.approveDcQuote).not.toHaveBeenCalled();
+      expect(query).not.toHaveBeenCalled();
+      expect(notifyOwnersOfApproval).not.toHaveBeenCalled();
     });
 
     it("the form carries the version id through", async () => {
