@@ -753,7 +753,7 @@ test.describe("quote, approve, sign, deposit, measure — and the release gate",
   });
 });
 
-test.describe("two quote options: the client sees both, approves B, A closes and B's contract arrives", () => {
+test.describe("two quote options: both seeded options are sent and offered together, the client approves B, A closes and B's contract arrives", () => {
   // Send stores PDFs in Blob, like the describe above. The file runs serially, so the markups set in Settings and
   // the terms template saved above are still in place when this runs.
   test.beforeAll(() => {
@@ -768,7 +768,7 @@ test.describe("two quote options: the client sees both, approves B, A closes and
   let totalA = 0;
   let totalB = 0;
 
-  test("the owner adds option B, both options import, and both are sent at once", async ({ page }) => {
+  test("the owner adds option B, both Dealer Copies are seeded, and each option is sent so both are offered together", async ({ page }) => {
     optionsJob = await lead(`${NAME} Options`, OPTIONS_CUSTOMER, "visit_booked");
     await sql()`insert into install_quotes (lead_id, kind, minimum_cents, subtotal_cents, total_cents, created_by)
       values (${optionsJob.id}, 'final', 0, ${INSTALL_CENTS}, ${INSTALL_CENTS}, ${OWNER})`;
@@ -840,10 +840,20 @@ test.describe("two quote options: the client sees both, approves B, A closes and
     await expect(optionB).toContainText(formatCents(totalB));
     await expect(optionA.getByRole("link", { name: `Quote ${optionNo("A")} v1.pdf` })).toHaveAttribute("href", `/project/files/${a.quote_file_id}`);
     await expect(optionB.getByRole("link", { name: `Quote ${optionNo("B")} v1.pdf` })).toHaveAttribute("href", `/project/files/${b.quote_file_id}`);
-    // Each option's PDF downloads on its own.
-    for (const fileId of [a.quote_file_id, b.quote_file_id]) {
+    // Each option's PDF downloads on its own and is that option's quote: its own header and its own total.
+    // "Quote PSS-n · Version 1" is not a substring of "Quote PSS-n-B · Version 1", so the headers can't be confused.
+    for (const [letter, fileId, total, otherLetter, otherTotal] of [
+      ["A", a.quote_file_id, totalA, "B", totalB],
+      ["B", b.quote_file_id, totalB, "A", totalA],
+    ] as const) {
       const bytes = await fetchBytes(customer, `/project/files/${fileId}`);
       expect(bytes.subarray(0, 5).toString()).toBe("%PDF-");
+      const printed = pdfText(bytes);
+      const joined = printed.join("\n");
+      expect(printed).toContain(`Quote ${optionNo(letter)} · Version 1`);
+      expect(printed).toContain(formatCents(total));
+      expect(joined).not.toContain(`Quote ${optionNo(otherLetter)} `);
+      expect(joined).not.toContain(formatCents(otherTotal));
     }
 
     await optionB.getByText("Approve Option B", { exact: true }).click();
@@ -865,6 +875,10 @@ test.describe("two quote options: the client sees both, approves B, A closes and
     expect(await sql()`select status, quote_cents from leads where id = ${optionsJob.id}`).toEqual([{ status: "approved", quote_cents: totalB }]);
     const stages = await sql()`select to_status, body from job_events where lead_id = ${optionsJob.id} and kind = 'stage' order by created_at`;
     expect(stages.at(-1)).toEqual({ to_status: "approved", body: `Approved ${optionNo("B")} version 1` });
+    // The quote-kind event is logged only when the approval does not move the stage (lib/dc/approve.ts: "where not
+    // exists (select 1 from moved)"). This approval moved Quoted -> Approved, so the stage event above is the record.
+    expect(await sql()`select body from job_events where lead_id = ${optionsJob.id} and kind = 'quote' and body like 'Approved %'`)
+      .toEqual([]);
     expect(await sql()`select name, (shared_at is not null) as shared from job_files where id = ${after[1].contract_file_id}`)
       .toEqual([{ name: `Contract ${optionNo("B")} v1.pdf`, shared: true }]);
     const printed = pdfText(await fetchBytes(customer, `/project/files/${after[1].contract_file_id}`));
