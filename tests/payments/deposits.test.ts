@@ -63,7 +63,7 @@ describe("depositState", () => {
     for (const part of [
       "bool_or(d.status = 'paid') as has_paid",
       "from deposits d where d.dc_quote_version_id = v.id",
-      "order by coalesce(h.has_paid, false) desc, v.version desc limit 1",
+      "order by coalesce(h.has_paid, false) desc, v.signed_at desc, v.version desc limit 1",
       "join chosen c on c.id = v.id",
     ]) expect(s).toContain(part);
     expect(s).not.toContain("select max(version)");
@@ -74,7 +74,7 @@ describe("depositState", () => {
     sql.mockResolvedValueOnce([versionRow({ version: 2, id: null, status: null, amount_cents: null })]);
     expect(await d.depositState(LEAD)).toMatchObject({ version: 2, paid: null, pending: null });
     const s = text(sql.mock.calls[0]);
-    expect(s).toContain("order by coalesce(h.has_paid, false) desc, v.version desc limit 1");
+    expect(s).toContain("order by coalesce(h.has_paid, false) desc, v.signed_at desc, v.version desc limit 1");
     expect(s).not.toContain("has_pending");
   });
   it("a newer signed version outranks an older version whose deposit was refunded", async () => {
@@ -83,8 +83,18 @@ describe("depositState", () => {
     sql.mockResolvedValueOnce([versionRow({ version: 3, id: null, status: null, amount_cents: null })]);
     expect(await d.depositState(LEAD)).toMatchObject({ version: 3, paid: null, pending: null, refunded: null });
     const s = text(sql.mock.calls[0]);
-    expect(s).toContain("coalesce(h.has_paid, false) desc, v.version desc limit 1");
+    expect(s).toContain("coalesce(h.has_paid, false) desc, v.signed_at desc, v.version desc limit 1");
     expect(s).not.toContain("has_refunded");
+  });
+  it("ranks by signing time before version number, since each quote option numbers its own versions from 1", async () => {
+    // Option A v2 signed, refunded and cancelled (job Lost), the job reopened and option B v1 signed: B v1 is
+    // the version asked for a deposit. Version numbers never compare across options; signed_at does, and within
+    // one option a later version is always signed later.
+    sql.mockResolvedValueOnce([versionRow({ version: 1, id: null, status: null, amount_cents: null })]);
+    expect(await d.depositState(LEAD)).toMatchObject({ version: 1, versionStatus: "signed", paid: null, refunded: null });
+    const s = text(sql.mock.calls[0]);
+    expect(s).toContain("order by coalesce(h.has_paid, false) desc, v.signed_at desc, v.version desc limit 1");
+    expect(s.indexOf("v.signed_at desc")).toBeLessThan(s.indexOf("v.version desc"));
   });
   it("still reports a refunded deposit on the chosen version", async () => {
     sql.mockResolvedValueOnce([versionRow({ version_status: "cancelled", status: "refunded", paid_at: "2026-09-28T18:00:00Z", refunded_at: "2026-09-29T09:00:00Z" })]);

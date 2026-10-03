@@ -32,6 +32,8 @@
  *      version reports its refund; no deposits → the newest signed version; no signed version → null;
  *      (f, P20) a newer signed version with no deposit beats an older one holding only a pending deposit, and
  *      expirePendingOnOtherVersions expires that older pending row (answering its session) and nothing else;
+ *      (g, quote options) option A v2 cancelled and refunded, then option B v1 signed: B v1, ranked by signed_at,
+ *      since version numbers are per option and never compare across options;
  *  15b. markStripeDepositPaid on an EXPIRED row whose own session completed (ruling P11b): paid, another pending
  *      row of the version expired in the same statement, stageBefore and otherSessionIds answered; a wrong
  *      session matches nothing; a job not in Signed keeps its stage and gets no stage event;
@@ -121,19 +123,20 @@ const newLead = async (suffix: string, status: string, soldCents: number | null)
 };
 
 /** A DC version as signing (or a later cancellation) leaves one: signed and cancelled versions carry signed_at. */
-const newVersion = async (leadId: string, version: number, status: string, totalCents: number | null): Promise<string> => {
+const newVersion = async (leadId: string, version: number, status: string, totalCents: number | null,
+  { option = "A", signedAt }: { option?: string; signedAt?: Date } = {}): Promise<string> => {
   const [file] = await sql`
     insert into job_files (lead_id, uploaded_by, kind, name, content_type, size_bytes, blob_pathname, doc_type)
     values (${leadId}, ${ACTOR}, 'document', ${`DEALER COPY verify ${version}.html`}, 'text/html', 1,
-            ${`verify/${leadId}/dealer-${version}-${STAMP}.html`}, 'dealer_copy')
+            ${`verify/${leadId}/dealer-${option}${version}-${STAMP}.html`}, 'dealer_copy')
     returning id`;
   const id = randomUUID();
   const signed = status === "signed" || status === "cancelled";
   await sql`
-    insert into dc_quote_versions (id, lead_id, version, dc_quote_no, po_reference, source_file_id, source_sha256, status,
+    insert into dc_quote_versions (id, lead_id, version, option, dc_quote_no, po_reference, source_file_id, source_sha256, status,
       dealer_subtotal_cents, handling_fee_cents, oversized_fee_cents, dealer_total_cents, client_total_cents, signed_at, cancelled_at)
-    values (${id}, ${leadId}, ${version}, ${`V${STAMP}`}, 'PSS-0000', ${file.id}, ${"0".repeat(64)}, ${status},
-            1, 0, 0, 1, ${totalCents}, ${signed ? new Date() : null}, ${status === "cancelled" ? new Date() : null})`;
+    values (${id}, ${leadId}, ${version}, ${option}, ${`V${STAMP}`}, ${option === "A" ? "PSS-0000" : `PSS-0000-${option}`}, ${file.id}, ${"0".repeat(64)}, ${status},
+            1, 0, 0, 1, ${totalCents}, ${signed ? signedAt ?? new Date() : null}, ${status === "cancelled" ? new Date() : null})`;
   return id;
 };
 
@@ -391,6 +394,18 @@ test("the deposit flow's SQL holds against a real database", async () => {
     check(pendingRf2 !== null && (await expirePendingOnOtherVersions(Rf, vRf2)).length === 0 &&
         (await depositRows(vRf2))[0]?.status === "pending",
       "(f) it never touches the chosen version's own pending row", JSON.stringify(await depositRows(vRf2)));
+    // (g, quote options) Version numbers are per option: option A v2 signed, refunded and cancelled (the job Lost),
+    // the job reopened and option B v1 signed. B v1 is the one asked for a deposit, though A's version number is higher.
+    const Rg = await newLead("Rg", "signed", 30000);
+    await newVersion(Rg, 1, "superseded", 8000);
+    const vRgA2 = await newVersion(Rg, 2, "cancelled", 10000, { signedAt: new Date(Date.now() - 2 * 86_400_000) });
+    await seedDeposit(Rg, vRgA2, 5000, "refunded");
+    await sql`insert into quote_options (lead_id, letter, created_by) values (${Rg}, 'B', ${ACTOR})`;
+    const vRgB1 = await newVersion(Rg, 1, "signed", 30000, { option: "B" });
+    const stateRg = await depositState(Rg);
+    check(stateRg !== null && stateRg.versionId === vRgB1 && stateRg.version === 1 && stateRg.versionStatus === "signed" &&
+        stateRg.amountCents === 15000 && stateRg.paid === null && stateRg.pending === null && stateRg.refunded === null,
+      "(g) option B v1 signed after option A v2 was cancelled and refunded is the version asked for a deposit", JSON.stringify(stateRg));
     // No signed version at all: null.
     check((await depositState(C)) === null, "a job with no signed version has no deposit state", JSON.stringify(await depositState(C)));
 

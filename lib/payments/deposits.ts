@@ -54,7 +54,9 @@ export const toDeposit = (row: Record<string, unknown>): Deposit => ({
  * The deposit picture for the portal and the Quote tab. Null until a DC contract is signed.
  * Anchored on the job's DEPOSIT, not blindly on the newest signed version (ruling P5, amended): a change
  * order signed after the deposit was paid must never hide that deposit. Among the signed or cancelled
- * versions, the one holding a paid deposit wins; else the newest by version. A pending deposit ranks
+ * versions, the one holding a paid deposit wins; else the latest signed (signed_at, then version). Version
+ * numbers are per quote option, so they never rank across options: option A v2 cancelled and refunded, then
+ * option B v1 signed, must pick B v1. Within one option a later version is always signed later. A pending deposit ranks
  * nothing (ruling P20): a change order signed after the client opened checkout on the old version is the
  * one to pay, and startDepositAction expires the old version's pending row. A refund never ranks a
  * version either: a job cancelled, refunded and re-signed is asked for a new deposit on the new version.
@@ -73,7 +75,7 @@ export async function depositState(leadId: string): Promise<DepositState | null>
       ) h on true
       where v.lead_id = ${leadId} and v.status in ('signed','cancelled')
         and v.client_total_cents is not null and v.signed_at is not null
-      order by coalesce(h.has_paid, false) desc, v.version desc
+      order by coalesce(h.has_paid, false) desc, v.signed_at desc, v.version desc
       limit 1
     )
     select v.id as version_id, v.version, v.status as version_status, v.client_total_cents, v.signed_at,
