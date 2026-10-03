@@ -47,13 +47,10 @@ describe("migration 030", () => {
     expect(add).toBeGreaterThan(drop);
   });
 
-  it("allows one offered version per job, checked when the statement commits", () => {
-    const drop = statements.indexOf("alter table dc_quote_versions drop constraint if exists dc_quote_versions_one_offered");
-    const add = statements.indexOf(
-      "alter table dc_quote_versions add constraint dc_quote_versions_one_offered exclude using btree (lead_id with =) where (status = 'offered') deferrable initially deferred",
-    );
-    expect(drop).toBeGreaterThanOrEqual(0);
-    expect(add).toBeGreaterThan(drop);
+  // Quote options (migration 040): the rule is per option and lives in 040. Re-adding the per-job rule here on
+  // every migrate run would fail as soon as one job has two options offered at once.
+  it("leaves the one-offered rule to 040", () => {
+    expect(statements.some((s) => s.includes("dc_quote_versions_one_offered"))).toBe(false);
   });
 
   it("adds the quote file and the offer, approval and cancellation stamps", () => {

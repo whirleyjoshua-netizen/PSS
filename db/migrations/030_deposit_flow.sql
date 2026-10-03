@@ -33,13 +33,11 @@ alter table dc_quote_versions add column if not exists approved_at timestamptz;
 alter table dc_quote_versions add column if not exists approved_by text;
 alter table dc_quote_versions add column if not exists cancelled_at timestamptz;
 
--- At most one offered version per job. An exclusion constraint deferred to commit rather than a unique
--- index, because Send quote supersedes the old offered version and offers the new one in ONE statement,
--- and a unique index would be checked row by row in whichever order Postgres runs the two updates.
-alter table dc_quote_versions drop constraint if exists dc_quote_versions_one_offered;
-
-alter table dc_quote_versions add constraint dc_quote_versions_one_offered
-  exclude using btree (lead_id with =) where (status = 'offered') deferrable initially deferred;
+-- At most one offered version: an exclusion constraint deferred to commit rather than a unique index, because
+-- Send quote supersedes the old offered version and offers the new one in ONE statement, and a unique index would
+-- be checked row by row in whichever order Postgres runs the two updates.
+-- The rule now lives in 040_quote_options.sql, per option. It was defined here per job until 2026-10-02, and
+-- re-adding the per-job rule on every migrate run would fail once a job has two options offered at once.
 
 -- One row per deposit attempt. method is stripe, check, cash or other. status is pending, paid, refunded or expired.
 -- recorded_by is the owner's email for a payment recorded by hand.
