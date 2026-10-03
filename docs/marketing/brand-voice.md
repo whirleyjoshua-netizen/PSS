@@ -49,6 +49,7 @@ Mostly Las Vegas valley homeowners aged 35–65 (Las Vegas, Henderson, Summerlin
 ## Things we can't say
 - "#1", "best in Las Vegas", "lowest price", or any claim we can't prove.
 - Anything about Lutron or Norman until those accounts are open.
+- Hunter Douglas: the owner confirmed (2026-10-03) PSS carries Hunter Douglas, so the brand name is OK in ad text. Watch for Google trademark limits.
 - Shade sails or commercial work (we don't do them).
 
 ## Sample lines in the voice (starter set; replace with approved ones)
