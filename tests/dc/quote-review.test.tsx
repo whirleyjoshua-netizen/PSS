@@ -559,17 +559,6 @@ describe("QuoteReview per option", () => {
     expect(screen.getByRole("link", { name: "Preview quote" })).toHaveAttribute("href", `/admin/jobs/${J}/quote-preview`);
   });
 
-  it("two reviews on one page keep their own headings and blocker lists", () => {
-    const blocked = { blockers: ["Add the client's email address to the job first."] };
-    render(<>
-      <QuoteReview jobId={J} review={review(blocked)} />
-      <QuoteReview jobId={J} review={review({ ...blocked, version: version({ id: "other-version", option: "B" }) })} />
-    </>);
-    expect(screen.getAllByRole("region", { name: /^DC quote 12345678/ })).toHaveLength(2);
-    expect(screen.getAllByRole("list", { name: "Before you can send" })).toHaveLength(2);
-  });
-
-  // The test above passes with shared ids too (both headings read alike). Here each heading differs, and no id repeats.
   it("names each review by its own heading and repeats no id on the page", () => {
     const blocked = { blockers: ["Add the client's email address to the job first."] };
     const { container } = render(<>
