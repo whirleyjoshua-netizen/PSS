@@ -6,7 +6,7 @@ import { listSharedDocuments, listSharedPhotos } from "@/lib/admin/files";
 import { isUuid } from "@/lib/admin/ids";
 import { isInstalled } from "@/lib/admin/stages";
 import { formatDateOnly, formatMonthDay, formatShortDate, formatTime, lasVegasDate } from "@/lib/admin/time";
-import { offeredVersion } from "@/lib/dc/approve";
+import { offeredVersions } from "@/lib/dc/approve";
 import { cancellationWindowLastDay } from "@/lib/docs/business-days";
 import { parseDocText } from "@/lib/docs/parse";
 import { liveTemplateOfKind } from "@/lib/docs/templates";
@@ -33,6 +33,7 @@ import { DepositCard, DepositNotice } from "./DepositCard";
 import { DetailsCard } from "./DetailsCard";
 import { FilesTabs } from "./FilesTabs";
 import { MessageForm } from "./MessageForm";
+import { QuoteOptions } from "./QuoteOptions";
 import { SignatureNotice, SignContract } from "./SignContract";
 import { StatusBanner, STEP_NEXT } from "./StatusBanner";
 import { StepTracker } from "./StepTracker";
@@ -42,7 +43,7 @@ const heading = "font-display text-xs uppercase tracking-[0.2em] text-champagne-
 
 /**
  * The customer's view of one job. It renders only from toProject(), the shared photos
- * and the shared documents, so nothing private can slip onto the page: no money, notes,
+ * and the shared documents, so nothing private can slip onto the page: no money but the client's own quote totals, no notes,
  * gate code or contact fields, and no job event body except the customer's own messages,
  * which are the words they themselves sent from this page.
  */
@@ -101,8 +102,8 @@ export async function ProjectView({
     acknowledgeableDocuments(job.id),
     // The deposit picture: the card below and the notice after the hop back from Stripe.
     depositState(job.id),
-    // Spec §2: the Direct Connect quote the owner sent, if any; the approve action re-derives it.
-    offeredVersion(job.id),
+    // Spec §2 and quote options §6: the Direct Connect quotes the owner sent, if any; the approve action re-derives them.
+    offeredVersions(job.id),
   ]);
   // Only the guides this stage shows are loaded; the acknowledgement is looked up only on the
   // hop back, and only believed when it is this job's.
@@ -121,13 +122,20 @@ export async function ProjectView({
   const place = [project.address, project.city].filter(Boolean).join(", ");
 
   const current = currentStep(project.steps);
-  // Spec §2: a Direct Connect quote the owner sent and the client has not approved yet — offered at any
-  // stage but Lost, so a change sent after the contract can be approved too (Review Focus 5).
-  const awaitingOffer = Boolean(offered && !offered.approvedAt && job.status !== "lost");
-  const offeredQuote = awaitingOffer ? documents.find((file) => file.id === offered?.quoteFileId) ?? null : null;
-  // T9: while a version is offered, the approve action takes the DC path and needs THAT version's own PDF
-  // shared. Unshared, there is nothing to review or approve: no fallback to another shared quote.
-  const quote = awaitingOffer ? offeredQuote : documents.find((file) => file.docType === "quote");
+  // Spec §2: Direct Connect quotes the owner sent and the client has not approved yet — offered at any stage but
+  // Lost, so a change sent after the contract can be approved too (Review Focus 5). One per option at most.
+  const awaiting = job.status === "lost" ? [] : offered.filter((version) => !version.approvedAt);
+  const awaitingOffer = awaiting.length > 0;
+  // T9: an offered version is approved on the DC path and needs ITS OWN PDF shared. One without is not offered here,
+  // and while any version awaits the client there is no fallback to another shared quote.
+  const offeredQuotes = awaiting.flatMap((version) => {
+    const file = documents.find((candidate) => candidate.id === version.quoteFileId);
+    return file ? [{ version, file }] : [];
+  });
+  const single = offeredQuotes.length === 1 ? offeredQuotes[0] : null;
+  // Quote options §6: two or more listed together, each with its own Approve. The banner then only links to them.
+  const choosing = offeredQuotes.length > 1;
+  const quote = awaitingOffer ? single?.file ?? null : documents.find((file) => file.docType === "quote");
   // Spec §3: a Signed job owes its deposit until one is paid. The action re-checks every part of this.
   const depositDue = job.status === "signed" && deposit?.versionStatus === "signed" && deposit.jobStatus === "signed" && !deposit.paid ? deposit : null;
   const installLabel = project.installOn
@@ -186,10 +194,18 @@ export async function ProjectView({
           told us, is the one thing spec §5 says must not happen. */}
       <StatusBanner
         step={current}
-        quoteHref={quote ? `/project/files/${quote.id}` : null}
-        approve={offeredQuote || (!awaitingOffer && quote && project.status === "quoted") ? <ApproveQuote jobId={job.id} /> : null}
+        quoteHref={choosing ? "#quote-options" : quote ? `/project/files/${quote.id}` : null}
+        quoteLabel={choosing ? "Review your options" : undefined}
+        approve={single
+          ? <ApproveQuote jobId={job.id} versionId={single.version.id} />
+          : !awaitingOffer && quote && project.status === "quoted" ? <ApproveQuote jobId={job.id} /> : null}
         acknowledge={job.status === "installed" ? <AcknowledgeInstall jobId={job.id} /> : null}
       />
+      {choosing ? (
+        <QuoteOptions jobId={job.id} options={offeredQuotes.map(({ version, file }) => ({
+          versionId: version.id, option: version.option, totalCents: version.clientTotalCents, file: { id: file.id, name: file.name },
+        }))} />
+      ) : null}
       {/* Sits under the banner it answers: the customer's eye is already there, and the approve
           control beside it is gone, which is the confirmation's own evidence. An approved job still
           reads Quote Ready: the contract, signing and deposit come next. */}
@@ -242,7 +258,7 @@ export async function ProjectView({
         <h2 id="next-heading" className={heading}>Next step</h2>
         {/* Ruling P18: only while the job is Quoted with something to approve (a shared uploaded quote or
             an offered DC version's PDF). An Approved job waits on the owners or its contract, not here. */}
-        {(job.status === "quoted" && quote) || depositDue ? (
+        {(job.status === "quoted" && (quote || choosing)) || depositDue ? (
           <p className="font-display text-xs uppercase tracking-[0.2em] text-charcoal">Action required</p>
         ) : null}
         <p>{STEP_NEXT[current.key]}</p>

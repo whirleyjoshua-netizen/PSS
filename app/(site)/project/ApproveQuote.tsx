@@ -9,12 +9,17 @@ import { approveQuoteFormAction } from "./actions";
  * what approving means is read before the button is reachable, and no stray tap can
  * accept a price. Both halves are plain HTML — the reveal is the browser's, the submit is a form
  * post — so the whole thing works with JavaScript off.
+ *
+ * `versionId` names the Direct Connect version the form approves (quote options spec §6). It is only a
+ * key into the job's own offered versions, which the action re-derives. `option` words the control for
+ * one of several options.
  */
-export function ApproveQuote({ jobId }: { jobId: string }) {
+export function ApproveQuote({ jobId, versionId, option }: { jobId: string; versionId?: string; option?: string }) {
+  const what = option ? `Option ${option}` : "this quote";
   return (
     <details className="w-full sm:w-auto">
       <summary className="inline-flex min-h-11 cursor-pointer items-center border border-charcoal px-5 py-3 font-display text-xs uppercase tracking-[0.2em] text-charcoal hover:bg-charcoal hover:text-ivory">
-        Approve this quote
+        Approve {what}
       </summary>
       <form
         action={approveQuoteFormAction}
@@ -22,14 +27,17 @@ export function ApproveQuote({ jobId }: { jobId: string }) {
       >
         {/* Carries the job with JavaScript off; the action still re-derives ownership itself. */}
         <input type="hidden" name="jobId" value={jobId} />
+        {versionId ? <input type="hidden" name="versionId" value={versionId} /> : null}
         <p className="text-sm text-ink-soft">
-          Approving accepts this quote. Your contract comes next, to read and sign.
+          {option
+            ? `Approving accepts Option ${option} and closes the other options. Your contract comes next, to read and sign.`
+            : "Approving accepts this quote. Your contract comes next, to read and sign."}
         </p>
         <button
           type="submit"
           className="min-h-11 bg-charcoal px-5 py-3 font-display text-xs uppercase tracking-[0.2em] text-ivory"
         >
-          Yes, approve this quote
+          Yes, approve {what}
         </button>
       </form>
     </details>

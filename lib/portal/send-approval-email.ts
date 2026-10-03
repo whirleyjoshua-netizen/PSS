@@ -49,6 +49,8 @@ export async function notifyOwnersOfApproval(
   quoteName: string,
   approvedBy: string,
   outcome: ApprovalOutcome = "paperwork",
+  /** The approved quote option's number (quote options spec §6), named where the project number would be. */
+  optionNo?: string | null,
 ): Promise<void> {
   const apiKey = process.env.RESEND_API_KEY;
   const to = ownerRecipients();
@@ -59,7 +61,7 @@ export async function notifyOwnersOfApproval(
   }
 
   const now = new Date();
-  const projectNo = formatProjectNo(job.projectNo);
+  const projectNo = optionNo ?? formatProjectNo(job.projectNo);
   const text = [
     `${job.name} approved their quote from their project page.`,
     "",

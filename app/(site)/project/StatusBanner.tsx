@@ -42,11 +42,14 @@ export const STEP_NEXT: Record<StepKey, string> = {
 export function StatusBanner({
   step,
   quoteHref,
+  quoteLabel = "Review quote",
   approve,
   acknowledge,
 }: {
   step: ProjectStep;
   quoteHref: string | null;
+  /** The quote link's words: "Review quote", or "Review your options" when several options are listed below. */
+  quoteLabel?: string;
   /** The approve control, or null when there is nothing to approve. */
   approve?: ReactNode;
   /** The acknowledgement controls, or null when there is nothing to acknowledge. */
@@ -66,7 +69,7 @@ export function StatusBanner({
                 href={quoteHref}
                 className="inline-flex min-h-11 items-center border border-charcoal px-5 py-3 font-display text-xs uppercase tracking-[0.2em] text-charcoal hover:bg-charcoal hover:text-ivory"
               >
-                Review quote
+                {quoteLabel}
               </a>
             ) : null}
             {approve}

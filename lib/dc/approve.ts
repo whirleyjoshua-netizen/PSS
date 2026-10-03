@@ -14,16 +14,6 @@ const toOffered = (row: Record<string, unknown>): OfferedVersion => ({
   clientTotalCents: row.client_total_cents === null || row.client_total_cents === undefined ? null : Number(row.client_total_cents),
 });
 
-/** The job's newest offered DC version, or null. Replaced by offeredVersions once its callers move (quote options Task 8). */
-export async function offeredVersion(leadId: string): Promise<OfferedVersion | null> {
-  if (!isUuid(leadId)) return null;
-  const rows = await db()`
-    select id, version, option, quote_file_id, approved_at, client_total_cents from dc_quote_versions
-    where lead_id = ${leadId} and status = 'offered'
-    order by version desc limit 1`;
-  return rows[0] ? toOffered(rows[0] as Record<string, unknown>) : null;
-}
-
 /**
  * Every offered DC version of the job, at most one per option (dc_quote_versions_one_offered, per option since
  * migration 040), ordered by option. Approved ones are included: the page shows only those still awaiting the

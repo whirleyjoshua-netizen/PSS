@@ -2,27 +2,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const sql = Object.assign(vi.fn(), { query: vi.fn() });
 vi.mock("@/lib/db", () => ({ db: () => sql }));
-const { approveDcQuote, offeredVersion, offeredVersions } = await import("@/lib/dc/approve");
+const { approveDcQuote, offeredVersions } = await import("@/lib/dc/approve");
 
 const text = (call: unknown[]) => (call[0] as TemplateStringsArray).join("?").replace(/\s+/g, " ");
 const JOB = "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c";
 const V = "7a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
 
 beforeEach(() => { sql.mockReset().mockResolvedValue([]); });
-
-describe("offeredVersion", () => {
-  it("reads the job's one offered version", async () => {
-    sql.mockResolvedValueOnce([{ id: V, version: 2, option: "A", quote_file_id: "f1", approved_at: "2026-09-29T17:00:00Z", client_total_cents: 184834 }]);
-    expect(await offeredVersion(JOB)).toEqual({ id: V, version: 2, option: "A", quoteFileId: "f1", approvedAt: new Date("2026-09-29T17:00:00Z"), clientTotalCents: 184834 });
-    expect(text(sql.mock.calls[0])).toContain("where lead_id = ? and status = 'offered'");
-  });
-  it("is null when none is offered, and never queries a malformed id", async () => {
-    expect(await offeredVersion(JOB)).toBeNull();
-    sql.mockClear();
-    expect(await offeredVersion("x")).toBeNull();
-    expect(sql).not.toHaveBeenCalled();
-  });
-});
 
 describe("offeredVersions", () => {
   it("reads every offered version of the job, one per option, A first", async () => {

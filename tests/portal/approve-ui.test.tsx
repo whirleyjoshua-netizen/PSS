@@ -47,6 +47,19 @@ describe("ApproveQuote", () => {
     expect(document.querySelector('input[name="jobId"]')).toHaveValue(JOB);
     expect(screen.getByRole("button")).toHaveAttribute("type", "submit");
   });
+
+  it("carries the version it approves, and words one of several options by its letter", () => {
+    render(<ApproveQuote jobId={JOB} versionId="7a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d" option="B" />);
+    expect(document.querySelector('input[name="versionId"]')).toHaveValue("7a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d");
+    expect(screen.getByText("Approve Option B")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Yes, approve Option B" })).toBeInTheDocument();
+    expect(screen.getByText("Approving accepts Option B and closes the other options. Your contract comes next, to read and sign.")).toBeInTheDocument();
+  });
+
+  it("carries no version field when it is given none (an uploaded quote)", () => {
+    render(<ApproveQuote jobId={JOB} />);
+    expect(document.querySelector('input[name="versionId"]')).toBeNull();
+  });
 });
 
 /**

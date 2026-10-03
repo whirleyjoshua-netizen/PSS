@@ -39,7 +39,7 @@ const redirect = vi.fn((path: string) => {
 vi.mock("next/navigation", () => ({ redirect }));
 
 const dcApprove = {
-  offeredVersion: vi.fn(async (_id: string) => null as unknown), approveDcQuote: vi.fn(), APPROVAL_ACTOR: "Sent on approval",
+  offeredVersions: vi.fn(async (_id: string) => [] as unknown[]), approveDcQuote: vi.fn(), APPROVAL_ACTOR: "Sent on approval",
 };
 vi.mock("@/lib/dc/approve", () => dcApprove);
 const dcSend = { sendContract: vi.fn() };
@@ -80,7 +80,7 @@ beforeEach(() => {
   requireCustomer.mockReset().mockResolvedValue({ email: EMAIL, jobs: [job] });
   revalidatePath.mockReset();
   redirect.mockClear();
-  dcApprove.offeredVersion.mockReset().mockResolvedValue(null);
+  dcApprove.offeredVersions.mockReset().mockResolvedValue([]);
   dcApprove.approveDcQuote.mockReset();
   dcSend.sendContract.mockReset();
 });
@@ -98,7 +98,7 @@ describe("ownership", () => {
     expect(listSharedDocuments).not.toHaveBeenCalled();
     expect(notifyOwnersOfApproval).not.toHaveBeenCalled();
     expect(calls).toEqual([]);
-    expect(dcApprove.offeredVersion).not.toHaveBeenCalled();
+    expect(dcApprove.offeredVersions).not.toHaveBeenCalled();
   });
 
   /**
@@ -316,12 +316,12 @@ describe("approveQuoteFormAction", () => {
 
 describe("a Direct Connect quote (spec §2)", () => {
   const V = "7a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
-  const offered = { id: V, version: 2, quoteFileId: "fq", approvedAt: null as Date | null };
+  const offered = { id: V, version: 2, option: "A", quoteFileId: "fq", approvedAt: null as Date | null, clientTotalCents: 450000 };
   const dcQuote = { id: "fq", name: "Quote PSS-1048 v2.pdf", docType: "quote" };
 
   beforeEach(() => {
-    dcApprove.offeredVersion.mockResolvedValue(offered);
-    dcApprove.approveDcQuote.mockResolvedValue({ version: 2, moved: true });
+    dcApprove.offeredVersions.mockResolvedValue([offered]);
+    dcApprove.approveDcQuote.mockResolvedValue({ version: 2, option: "A", moved: true });
     dcSend.sendContract.mockResolvedValue({ ok: true, emailed: true });
     SHARED = [dcQuote];
     vi.spyOn(console, "error").mockImplementation(() => {});
@@ -332,28 +332,28 @@ describe("a Direct Connect quote (spec §2)", () => {
     expect(dcApprove.approveDcQuote).toHaveBeenCalledWith(MINE, V, EMAIL);
     expect(dcSend.sendContract).toHaveBeenCalledWith({ jobId: MINE, versionId: V, actor: "Sent on approval" });
     expect(dcApprove.approveDcQuote.mock.invocationCallOrder[0]).toBeLessThan(dcSend.sendContract.mock.invocationCallOrder[0]);
-    expect(notifyOwnersOfApproval).toHaveBeenCalledWith(expect.objectContaining({ id: MINE }), "Quote PSS-1048 v2.pdf", EMAIL, "contract-sent");
+    expect(notifyOwnersOfApproval).toHaveBeenCalledWith(expect.objectContaining({ id: MINE }), "Quote PSS-1048 v2.pdf", EMAIL, "contract-sent", "PSS-1048");
     // approveDcQuote's own statement moved the job; setStage is not used on this path.
     expect(query).not.toHaveBeenCalled();
     expect(revalidatePath).toHaveBeenCalledWith(`/project/${MINE}`);
   });
 
   it("tells the owners a change order was approved, not that the job moved, when the stage stayed put", async () => {
-    dcApprove.approveDcQuote.mockResolvedValue({ version: 3, moved: false });
+    dcApprove.approveDcQuote.mockResolvedValue({ version: 3, option: "A", moved: false });
     await expect(approveQuoteAction(MINE)).resolves.toBe("approved");
-    expect(notifyOwnersOfApproval).toHaveBeenLastCalledWith(expect.objectContaining({ id: MINE }), "Quote PSS-1048 v2.pdf", EMAIL, "change-contract-sent");
+    expect(notifyOwnersOfApproval).toHaveBeenLastCalledWith(expect.objectContaining({ id: MINE }), "Quote PSS-1048 v2.pdf", EMAIL, "change-contract-sent", "PSS-1048");
     dcSend.sendContract.mockRejectedValueOnce(new Error("Blob put failed"));
     await expect(approveQuoteAction(MINE)).resolves.toBe("approved");
-    expect(notifyOwnersOfApproval).toHaveBeenLastCalledWith(expect.anything(), "Quote PSS-1048 v2.pdf", EMAIL, "change-contract-failed");
+    expect(notifyOwnersOfApproval).toHaveBeenLastCalledWith(expect.anything(), "Quote PSS-1048 v2.pdf", EMAIL, "change-contract-failed", "PSS-1048");
   });
 
   it("keeps the approval when the contract throws or is refused, and tells the owners it was not sent", async () => {
     dcSend.sendContract.mockRejectedValueOnce(new Error("Blob put failed"));
     await expect(approveQuoteAction(MINE)).resolves.toBe("approved");
-    expect(notifyOwnersOfApproval).toHaveBeenLastCalledWith(expect.anything(), "Quote PSS-1048 v2.pdf", EMAIL, "contract-failed");
+    expect(notifyOwnersOfApproval).toHaveBeenLastCalledWith(expect.anything(), "Quote PSS-1048 v2.pdf", EMAIL, "contract-failed", "PSS-1048");
     dcSend.sendContract.mockResolvedValueOnce({ error: "Your contract terms file could not be read. Add your contract terms on the Documents page." });
     await expect(approveQuoteAction(MINE)).resolves.toBe("approved");
-    expect(notifyOwnersOfApproval).toHaveBeenLastCalledWith(expect.anything(), "Quote PSS-1048 v2.pdf", EMAIL, "contract-failed");
+    expect(notifyOwnersOfApproval).toHaveBeenLastCalledWith(expect.anything(), "Quote PSS-1048 v2.pdf", EMAIL, "contract-failed", "PSS-1048");
   });
 
   // Task 8's review: the approval is saved before the contract step, so a PDF or Blob failure
@@ -364,7 +364,7 @@ describe("a Direct Connect quote (spec §2)", () => {
     await expect(approveQuoteAction(MINE)).resolves.toBe("approved");
     expect(dcApprove.approveDcQuote).toHaveBeenCalledTimes(1);
     expect(notifyOwnersOfApproval).toHaveBeenCalledTimes(1);
-    expect(notifyOwnersOfApproval).toHaveBeenCalledWith(expect.objectContaining({ id: MINE }), "Quote PSS-1048 v2.pdf", EMAIL, "contract-failed");
+    expect(notifyOwnersOfApproval).toHaveBeenCalledWith(expect.objectContaining({ id: MINE }), "Quote PSS-1048 v2.pdf", EMAIL, "contract-failed", "PSS-1048");
     expect(calls).toEqual(["email"]);
     // No statement of the action's own ran after the failure: nothing reverted the approval.
     expect(query).not.toHaveBeenCalled();
@@ -373,7 +373,7 @@ describe("a Direct Connect quote (spec §2)", () => {
   });
 
   it("is a no-op the second time: an approved quote sends and emails nothing again", async () => {
-    dcApprove.offeredVersion.mockResolvedValue({ ...offered, approvedAt: new Date() });
+    dcApprove.offeredVersions.mockResolvedValue([{ ...offered, approvedAt: new Date() }]);
     await expect(approveQuoteAction(MINE)).resolves.toBe("approved");
     expect(dcApprove.approveDcQuote).not.toHaveBeenCalled();
     expect(dcSend.sendContract).not.toHaveBeenCalled();
@@ -382,7 +382,7 @@ describe("a Direct Connect quote (spec §2)", () => {
 
   it("answers approved, sending nothing, when a racing tap approved first", async () => {
     dcApprove.approveDcQuote.mockResolvedValue(null);
-    dcApprove.offeredVersion.mockResolvedValueOnce(offered).mockResolvedValueOnce({ ...offered, approvedAt: new Date() });
+    dcApprove.offeredVersions.mockResolvedValueOnce([offered]).mockResolvedValueOnce([{ ...offered, approvedAt: new Date() }]);
     await expect(approveQuoteAction(MINE)).resolves.toBe("approved");
     expect(dcSend.sendContract).not.toHaveBeenCalled();
     expect(notifyOwnersOfApproval).not.toHaveBeenCalled();
@@ -403,6 +403,51 @@ describe("a Direct Connect quote (spec §2)", () => {
   it("refuses a Lost job before reading anything", async () => {
     requireCustomer.mockResolvedValue({ email: EMAIL, jobs: [{ ...job, status: "lost" }] });
     await expect(approveQuoteAction(MINE)).resolves.toBe("wrong-status");
-    expect(dcApprove.offeredVersion).not.toHaveBeenCalled();
+    expect(dcApprove.offeredVersions).not.toHaveBeenCalled();
+  });
+
+  it("refuses a posted version id when nothing is offered, never approving an uploaded quote instead", async () => {
+    dcApprove.offeredVersions.mockResolvedValue([]);
+    SHARED = [quoteDoc];
+    results = MOVED();
+    await expect(approveQuoteAction(MINE, V)).resolves.toBe("wrong-status");
+    expect(query).not.toHaveBeenCalled();
+  });
+
+  describe("with two options offered (quote options spec §6)", () => {
+    const VB = "8b2c3d4e-5f6a-4b7c-8d9e-0f1a2b3c4d5e";
+    const optionB = { id: VB, version: 1, option: "B", quoteFileId: "fqb", approvedAt: null as Date | null, clientTotalCents: 500000 };
+
+    beforeEach(() => {
+      dcApprove.offeredVersions.mockResolvedValue([offered, optionB]);
+      dcApprove.approveDcQuote.mockResolvedValue({ version: 1, option: "B", moved: true });
+      SHARED = [dcQuote, { id: "fqb", name: "Quote PSS-1048-B v1.pdf", docType: "quote" }];
+    });
+
+    it("approves the option the form names, from this job's own offered versions, and names it to the owners", async () => {
+      await expect(approveQuoteAction(MINE, VB)).resolves.toBe("approved");
+      expect(dcApprove.approveDcQuote).toHaveBeenCalledWith(MINE, VB, EMAIL);
+      expect(dcSend.sendContract).toHaveBeenCalledWith({ jobId: MINE, versionId: VB, actor: "Sent on approval" });
+      expect(notifyOwnersOfApproval).toHaveBeenCalledWith(expect.objectContaining({ id: MINE }), "Quote PSS-1048-B v1.pdf", EMAIL, "contract-sent", "PSS-1048-B");
+    });
+
+    it("refuses a version id that is not one of this job's offered versions, approving nothing", async () => {
+      await expect(approveQuoteAction(MINE, "0f0f0f0f-0f0f-4f0f-8f0f-0f0f0f0f0f0f")).resolves.toBe("wrong-status");
+      expect(dcApprove.approveDcQuote).not.toHaveBeenCalled();
+      expect(dcSend.sendContract).not.toHaveBeenCalled();
+    });
+
+    it("refuses to guess when two are offered and the form names none", async () => {
+      await expect(approveQuoteAction(MINE)).resolves.toBe("wrong-status");
+      expect(dcApprove.approveDcQuote).not.toHaveBeenCalled();
+    });
+
+    it("the form carries the version id through", async () => {
+      const data = new FormData();
+      data.set("jobId", MINE);
+      data.set("versionId", VB);
+      await expect(approveQuoteFormAction(data)).rejects.toThrow(`NEXT_REDIRECT /project/${MINE}?approved=1`);
+      expect(dcApprove.approveDcQuote).toHaveBeenCalledWith(MINE, VB, EMAIL);
+    });
   });
 });

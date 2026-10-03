@@ -45,8 +45,8 @@ const depositState = vi.fn(async (_id: string) => null as unknown);
 vi.mock("@/lib/payments/deposits", () => ({ depositState }));
 vi.mock("@/app/(site)/project/deposit-actions", () => ({ startDepositFormAction: vi.fn() }));
 // No offered Direct Connect quote unless a test says otherwise.
-const offeredVersion = vi.fn(async (_id: string) => null as unknown);
-vi.mock("@/lib/dc/approve", () => ({ offeredVersion }));
+const offeredVersions = vi.fn(async (_id: string) => [] as unknown[]);
+vi.mock("@/lib/dc/approve", () => ({ offeredVersions }));
 
 const { ProjectView } = await import("@/app/(site)/project/ProjectView");
 const { FilesTabs } = await import("@/app/(site)/project/FilesTabs");
@@ -81,7 +81,7 @@ beforeEach(() => {
   acknowledgementFor.mockReset().mockResolvedValue(null);
   liveTemplateOfKind.mockReset().mockResolvedValue(null);
   depositState.mockReset().mockResolvedValue(null);
-  offeredVersion.mockReset().mockResolvedValue(null);
+  offeredVersions.mockReset().mockResolvedValue([]);
 });
 
 describe("ProjectView header and tracker", () => {
@@ -249,7 +249,7 @@ describe("ProjectView approval", () => {
 
   it("offers approval of the offered DC quote, linking that quote, even on a job past Quoted", async () => {
     listSharedDocuments.mockResolvedValue([quoteDoc, dcQuote]);
-    offeredVersion.mockResolvedValue({ id: "v", version: 2, quoteFileId: "fq", approvedAt: null });
+    offeredVersions.mockResolvedValue([{ id: "v", version: 2, option: "A", quoteFileId: "fq", approvedAt: null, clientTotalCents: 450000 }]);
     render(await ProjectView({ job: { ...job, status: "sold" } }));
     const banner = screen.getByRole("region", { name: "Where your project stands" });
     expect(within(banner).getByText("Approve this quote")).toBeInTheDocument();
@@ -260,7 +260,7 @@ describe("ProjectView approval", () => {
   // own PDF is not shared. So the page must not fall back to another shared quote, nor offer Approve.
   it("offers no approval, and links no other quote, while the offered version's own PDF is not shared", async () => {
     listSharedDocuments.mockResolvedValue([quoteDoc]);
-    offeredVersion.mockResolvedValue({ id: "v", version: 2, quoteFileId: "fq", approvedAt: null });
+    offeredVersions.mockResolvedValue([{ id: "v", version: 2, option: "A", quoteFileId: "fq", approvedAt: null, clientTotalCents: 450000 }]);
     render(await ProjectView({ job: { ...job, status: "quoted" } }));
     const banner = screen.getByRole("region", { name: "Where your project stands" });
     expect(within(banner).queryByText("Approve this quote")).toBeNull();
@@ -285,9 +285,67 @@ describe("ProjectView approval", () => {
 
   it("offers nothing once the client approved it", async () => {
     listSharedDocuments.mockResolvedValue([dcQuote]);
-    offeredVersion.mockResolvedValue({ id: "v", version: 2, quoteFileId: "fq", approvedAt: new Date() });
+    offeredVersions.mockResolvedValue([{ id: "v", version: 2, option: "A", quoteFileId: "fq", approvedAt: new Date(), clientTotalCents: 450000 }]);
     render(await ProjectView({ job: { ...job, status: "approved" } }));
     expect(screen.queryByText("Approve this quote")).toBeNull();
+  });
+
+  describe("two or more options offered (quote options spec §6)", () => {
+    const quoteA = { id: "fa", name: "Quote PSS-1048 v1.pdf", docType: "quote" as const };
+    const quoteB = { id: "fb", name: "Quote PSS-1048-B v1.pdf", docType: "quote" as const };
+    const versions = [
+      { id: "va", version: 1, option: "A", quoteFileId: "fa", approvedAt: null, clientTotalCents: 450000 },
+      { id: "vb", version: 1, option: "B", quoteFileId: "fb", approvedAt: null, clientTotalCents: 512345 },
+    ];
+    beforeEach(() => {
+      listSharedDocuments.mockResolvedValue([quoteA, quoteB]);
+      offeredVersions.mockResolvedValue(versions);
+    });
+
+    it("lists each option with its total, its own PDF and its own Approve", async () => {
+      render(await ProjectView({ job: { ...job, status: "quoted" } }));
+      const options = screen.getByRole("region", { name: "Your quote options" });
+      const a = within(options).getByRole("listitem", { name: "Option A" });
+      const b = within(options).getByRole("listitem", { name: "Option B" });
+      expect(a).toHaveTextContent("$4,500");
+      expect(b).toHaveTextContent("$5,123.45");
+      expect(within(a).getByRole("link", { name: "Quote PSS-1048 v1.pdf" })).toHaveAttribute("href", "/project/files/fa");
+      expect(within(b).getByRole("link", { name: "Quote PSS-1048-B v1.pdf" })).toHaveAttribute("href", "/project/files/fb");
+      expect(within(b).getByText("Approve Option B")).toBeInTheDocument();
+      expect(b.querySelector('input[name="versionId"]')).toHaveValue("vb");
+      expect(a.querySelector('input[name="versionId"]')).toHaveValue("va");
+    });
+
+    it("keeps the banner's link to the options but drops its single Approve, and still asks for action", async () => {
+      render(await ProjectView({ job: { ...job, status: "quoted" } }));
+      const banner = screen.getByRole("region", { name: "Where your project stands" });
+      expect(within(banner).queryByText("Approve this quote")).toBeNull();
+      expect(within(banner).getByRole("link", { name: "Review your options" })).toHaveAttribute("href", "#quote-options");
+      expect(within(screen.getByRole("region", { name: "Next step" })).getByText("Action required")).toBeInTheDocument();
+    });
+
+    it("lists only options still awaiting the client whose own PDF is shared", async () => {
+      listSharedDocuments.mockResolvedValue([quoteA]);
+      render(await ProjectView({ job: { ...job, status: "quoted" } }));
+      expect(screen.queryByRole("region", { name: "Your quote options" })).toBeNull();
+      const banner = screen.getByRole("region", { name: "Where your project stands" });
+      expect(within(banner).getByRole("link", { name: "Review quote" })).toHaveAttribute("href", "/project/files/fa");
+      expect(within(banner).getByText("Approve this quote")).toBeInTheDocument();
+      expect(banner.querySelector('input[name="versionId"]')).toHaveValue("va");
+      // Controller ruling (Task 6 review): an option whose own PDF is not shared is never approvable here.
+      expect(screen.queryByText("Approve Option B")).toBeNull();
+      expect(document.querySelector('input[name="versionId"][value="vb"]')).toBeNull();
+    });
+
+    it("lists only options still awaiting the client: an approved one is not approvable again", async () => {
+      offeredVersions.mockResolvedValue([{ ...versions[0], approvedAt: new Date() }, versions[1]]);
+      render(await ProjectView({ job: { ...job, status: "quoted" } }));
+      expect(screen.queryByRole("region", { name: "Your quote options" })).toBeNull();
+      const banner = screen.getByRole("region", { name: "Where your project stands" });
+      expect(within(banner).getByRole("link", { name: "Review quote" })).toHaveAttribute("href", "/project/files/fb");
+      expect(banner.querySelector('input[name="versionId"]')).toHaveValue("vb");
+      expect(document.querySelector('input[name="versionId"][value="va"]')).toBeNull();
+    });
   });
 });
 

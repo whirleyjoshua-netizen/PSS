@@ -93,4 +93,11 @@ describe("notifyOwnersOfApproval", () => {
     expect(sent.text).not.toContain("moved to Approved");
     expect(sent.text).toContain(`https://admin.example.com/admin/jobs/${JOB.id}?tab=quote`);
   });
+
+  it("names the approved quote option's number where it would name the project", async () => {
+    await notifyOwnersOfApproval(JOB, "Quote PSS-1048-B v1.pdf", EMAIL, "contract-sent", "PSS-1048-B");
+    const sent = send.mock.calls[0][0] as { subject: string; text: string };
+    expect(sent.subject).toBe("Quote approved — contract sent — PSS-1048-B");
+    expect(sent.text).toContain("Project:     PSS-1048-B");
+  });
 });

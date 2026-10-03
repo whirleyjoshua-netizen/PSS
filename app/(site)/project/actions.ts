@@ -7,7 +7,7 @@ import { after } from "next/server";
 import { listSharedDocuments, readFile } from "@/lib/admin/files";
 import { isUuid, setStage, type Job } from "@/lib/admin/jobs";
 import { isInstalled } from "@/lib/admin/stages";
-import { APPROVAL_ACTOR, approveDcQuote, offeredVersion, type OfferedVersion } from "@/lib/dc/approve";
+import { APPROVAL_ACTOR, approveDcQuote, offeredVersions, type OfferedVersion } from "@/lib/dc/approve";
 import { sendContract } from "@/lib/dc/send";
 import { notifyOwnersOfDocumentAcknowledgement } from "@/lib/docs/emails";
 import { acknowledgeableDocuments, acknowledgementFor, recordAcknowledgement } from "@/lib/portal/acknowledge-document";
@@ -16,7 +16,7 @@ import { sendMessage, type MessageResult } from "@/lib/portal/messages";
 import { notifyOwnersOfAcknowledgement } from "@/lib/portal/send-acknowledgement-email";
 import { notifyOwnersOfApproval } from "@/lib/portal/send-approval-email";
 import { notifyOwnersOfMessage } from "@/lib/portal/send-message-email";
-import { formatProjectNo } from "@/lib/portal/project-no";
+import { formatOptionNo, formatProjectNo } from "@/lib/portal/project-no";
 import { hasInitialMarks } from "@/lib/pdf/sign-marks";
 import { parseAdoption, requireInitials, type AdoptionForm } from "@/lib/portal/adoption";
 import { notifyOwnersOfSignature, sendCustomerSignedCopy } from "@/lib/portal/send-signature-email";
@@ -186,18 +186,25 @@ export async function acknowledgeProblemAction(
  *    uploaded, shared quote moves the job Quoted → Approved and the owners send paperwork by hand.
  * 3. A shared quote. Approving something the customer cannot read is not consent: the DC path needs
  *    the offered version's own PDF shared, the uploaded path a shared Quote document.
+ * 4. Which option (quote options spec §6). The form's versionId is only a key into this job's own offered
+ *    versions: one matching none is refused, never read as approval of an uploaded quote. Without one, a job
+ *    offering exactly one version takes it.
  *
  * Approving twice is a no-op answering "approved". A contract that fails after the approval is saved
  * leaves the job Approved and tells the owners, who press Send contract on the Quote tab.
  */
-export async function approveQuoteAction(jobId: string): Promise<ApproveResult> {
+export async function approveQuoteAction(jobId: string, versionId?: string): Promise<ApproveResult> {
   const { email, jobs } = await requireCustomer();
   const job = jobs.find((candidate) => candidate.id === jobId);
   if (!job) return "not-found";
   if (job.status === "lost") return "wrong-status";
 
-  const offered = await offeredVersion(job.id);
-  if (offered) return approveOfferedQuote(job, offered, email);
+  const offered = await offeredVersions(job.id);
+  const target = versionId
+    ? offered.find((version) => version.id === versionId)
+    : offered.length === 1 ? offered[0] : undefined;
+  if (target) return approveOfferedQuote(job, target, email);
+  if (versionId || offered.length > 0) return "wrong-status";
 
   // An uploaded quote. A job already at the destination is an approval that already happened (spec
   // §4 of the portal work): same success, and nothing runs again.
@@ -234,7 +241,7 @@ async function approveOfferedQuote(job: Job, offered: OfferedVersion, email: str
   if (!approved) {
     // A racing second tap approved first (its request sends the contract), or the job was lost or
     // the quote unshared in between. Only the first is an approval that happened.
-    const again = await offeredVersion(job.id);
+    const again = (await offeredVersions(job.id)).find((version) => version.id === offered.id);
     return again?.approvedAt ? "approved" : "wrong-status";
   }
 
@@ -251,7 +258,7 @@ async function approveOfferedQuote(job: Job, offered: OfferedVersion, email: str
     const outcome = approved.moved
       ? (contractSent ? "contract-sent" : "contract-failed")
       : (contractSent ? "change-contract-sent" : "change-contract-failed");
-    void notifyOwnersOfApproval(job, quote.name, email, outcome).catch(console.error);
+    void notifyOwnersOfApproval(job, quote.name, email, outcome, formatOptionNo(job.projectNo, approved.option)).catch(console.error);
   });
   revalidatePath("/project");
   revalidatePath(`/project/${job.id}`);
@@ -259,7 +266,7 @@ async function approveOfferedQuote(job: Job, offered: OfferedVersion, email: str
 }
 
 /**
- * The form's wrapper. The post carries only the job id — every other fact is re-derived.
+ * The form's wrapper. The post carries the job id and, for a Direct Connect quote, the version id. Every other fact is re-derived.
  *
  * Approving is the most consequential thing a customer can do here, so it must not answer in
  * silence: a page that merely re-rendered would leave them unable to tell a recorded approval
@@ -272,7 +279,8 @@ async function approveOfferedQuote(job: Job, offered: OfferedVersion, email: str
  */
 export async function approveQuoteFormAction(formData: FormData): Promise<void> {
   const jobId = text(formData.get("jobId"));
-  const result = await approveQuoteAction(jobId);
+  const versionId = text(formData.get("versionId"));
+  const result = await approveQuoteAction(jobId, versionId || undefined);
   // Outside any try/catch: redirect() works by throwing.
   redirect(`/project/${encodeURIComponent(jobId)}?approved=${result === "approved" ? "1" : "no"}`);
 }
