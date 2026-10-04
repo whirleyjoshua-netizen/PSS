@@ -182,3 +182,50 @@ h1, h2, h3, h4 {
     mask-image: none;
   }
 }
+
+/*
+ * Repair guide diagrams (spec 2026-10-03-repair-guides-design). Each shape's
+ * SVG attributes are the end pose; these loops run from the start pose to it,
+ * so with reduced motion the instructive end pose is what stays on screen.
+ * Rotations animate an inner <g> relative to an outer <g transform>, so a CSS
+ * transform-origin never meets an SVG transform attribute on one element.
+ */
+.guide-fabric { transform-box: fill-box; transform-origin: top; }
+.guide-swing { transform-box: view-box; transform-origin: 62px 24px; }
+
+.guide-lower-fabric { animation: guide-lower-fabric 3.2s ease-in-out infinite; }
+.guide-lower-rail { animation: guide-lower-rail 3.2s ease-in-out infinite; }
+.guide-raise-fabric { animation: guide-raise-fabric 3.2s ease-in-out infinite; }
+.guide-raise-rail { animation: guide-raise-rail 3.2s ease-in-out infinite; }
+.guide-pull { animation: guide-pull 3.4s ease-in-out infinite; }
+.guide-tug { animation: guide-tug 2.6s ease-in-out infinite; }
+
+.guide-plug-out { animation: guide-plug-out 3s ease-in-out infinite; }
+.guide-cord-up { transform-box: fill-box; transform-origin: top; animation: guide-cord-up 3.2s ease-in-out infinite; }
+.guide-slat-out { animation: guide-slat-out 3.4s ease-in-out infinite; }
+.guide-slat-in { animation: guide-slat-in 3.4s ease-in-out infinite; }
+.guide-rethread { transform-box: fill-box; transform-origin: top; animation: guide-rethread 3.4s ease-in-out infinite; }
+.guide-knot { transform-box: fill-box; transform-origin: center; animation: guide-knot 3.4s ease-in-out infinite; }
+.guide-plug-in { animation: guide-plug-in 3.4s ease-in-out infinite; }
+
+@keyframes guide-lower-fabric { 0%, 10% { transform: scaleY(0.25); } 60%, 100% { transform: scaleY(1); } }
+@keyframes guide-lower-rail { 0%, 10% { transform: translateY(-112px); } 60%, 100% { transform: translateY(0); } }
+/* Raised end pose is 45 tall; 150 / 45 = 3.333 starts it fully lowered. */
+@keyframes guide-raise-fabric { 0%, 10% { transform: scaleY(3.333); } 60%, 100% { transform: scaleY(1); } }
+@keyframes guide-raise-rail { 0%, 10% { transform: translateY(105px); } 60%, 100% { transform: translateY(0); } }
+/* Relative to the outer rotate(-45): +45deg is hanging straight down. */
+@keyframes guide-pull { 0%, 12% { transform: rotate(45deg); } 50%, 85% { transform: rotate(0); } 100% { transform: rotate(45deg); } }
+@keyframes guide-tug {
+  0% { transform: rotate(0); } 7% { transform: rotate(-8deg); } 14% { transform: rotate(0); }
+  21% { transform: rotate(-8deg); } 28% { transform: rotate(0); } 35% { transform: rotate(-8deg); }
+  42%, 100% { transform: rotate(0); }
+}
+
+@keyframes guide-plug-out { 0%, 15% { transform: translateY(-14px); } 55%, 100% { transform: translateY(0); } }
+/* Cord end pose is 56 long (24→80); 144 / 56 = 2.571 starts it threaded to the rail. */
+@keyframes guide-cord-up { 0%, 10% { transform: scaleY(2.571); } 60%, 100% { transform: scaleY(1); } }
+@keyframes guide-slat-out { 0%, 8% { transform: translateX(0); opacity: 1; } 40%, 100% { transform: translateX(150px); opacity: 0; } }
+@keyframes guide-slat-in { 0%, 45% { transform: translateX(-150px); opacity: 0; } 80%, 100% { transform: translateX(0); opacity: 1; } }
+@keyframes guide-rethread { 0%, 5% { transform: scaleY(0.4); } 40%, 100% { transform: scaleY(1); } }
+@keyframes guide-knot { 0%, 40% { transform: scale(0); } 55%, 100% { transform: scale(1); } }
+@keyframes guide-plug-in { 0%, 55% { transform: translateY(14px); } 80%, 100% { transform: translateY(0); } }
