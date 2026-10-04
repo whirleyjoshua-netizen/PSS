@@ -36,7 +36,12 @@ describe("guide diagrams", () => {
     expect(svgOf("cellular-tug").querySelector("[data-part=pose]")!.getAttribute("transform")).toBe("rotate(-45 62 24)");
     expect([...svgOf("slat-plugs").querySelectorAll("[data-part=plug]")].map((p) => p.getAttribute("y"))).toEqual(["182", "182"]);
     expect([...svgOf("slat-cord-up").querySelectorAll("[data-part=cord]")].map((c) => c.getAttribute("y2"))).toEqual(["80", "80"]);
-    expect(svgOf("slat-swap").querySelector("[data-part=old-slat]")!.getAttribute("opacity")).toBe("0");
+    const oldSlat = svgOf("slat-swap").querySelector("[data-part=old-slat]")!;
+    expect(oldSlat.getAttribute("opacity")).toBe("0");
+    // The slat sliding out carries its crack, so it reads as the broken one.
+    expect(oldSlat.tagName).toBe("g");
+    expect(oldSlat.querySelector("rect")).not.toBeNull();
+    expect(oldSlat.querySelector("path")).not.toBeNull();
     expect([...svgOf("slat-reknot").querySelectorAll("[data-part=plug]")].map((p) => p.getAttribute("y"))).toEqual(["168", "168"]);
     expect([...svgOf("slat-reknot").querySelectorAll("[data-part=cord]")].map((c) => c.getAttribute("y2"))).toEqual(["168", "168"]);
     expect([...svgOf("slat-reknot").querySelectorAll("[data-part=knot]")].map((k) => [k.getAttribute("cx"), k.getAttribute("cy")])).toEqual([
