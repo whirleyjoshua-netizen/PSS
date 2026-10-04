@@ -63,12 +63,12 @@ describe("guide diagrams", () => {
     expect([left.getAttribute("x"), left.getAttribute("width")]).toEqual(["32", "64"]);
     const right = svg.querySelector("[data-part=slat-break]")!;
     expect([right.getAttribute("x"), right.getAttribute("y"), right.getAttribute("width")]).toEqual(["102", "86", "66"]);
-    expect(right.parentElement!.getAttribute("transform")).toBe("rotate(8 102 86)");
+    expect(right.parentElement!.getAttribute("transform")).toBe("rotate(6 102 86)");
   });
 
   it("swaps out a slat drawn broken the same way", () => {
     const oldSlat = svgOf("slat-swap").querySelector("[data-part=old-slat]")!;
-    expect(oldSlat.querySelector("[data-part=slat-break]")!.parentElement!.getAttribute("transform")).toBe("rotate(8 102 86)");
+    expect(oldSlat.querySelector("[data-part=slat-break]")!.parentElement!.getAttribute("transform")).toBe("rotate(6 102 86)");
     expect(oldSlat.hasAttribute("transform")).toBe(false);
   });
 

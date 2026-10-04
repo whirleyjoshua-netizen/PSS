@@ -18,7 +18,7 @@ function BrokenSlat() {
   return (
     <>
       <rect data-part="slat" x="32" y={BROKEN_Y} width="64" height="6" rx="1" className="fill-champagne" />
-      <g transform={`rotate(8 102 ${BROKEN_Y})`}>
+      <g transform={`rotate(6 102 ${BROKEN_Y})`}>
         <rect data-part="slat-break" x="102" y={BROKEN_Y} width="66" height="6" rx="1" className="fill-champagne" />
       </g>
       <Crack />
@@ -103,7 +103,7 @@ export const SlatReknot = () => (
         <circle key={x} data-part="knot" cx={x} cy="163" r="3" className="fill-champagne-ink guide-knot" />
       ))}
       <Plugs y={168} motionClass="guide-plug-in" />
-      <Label x={70} y={198}>knot, plug in</Label>
+      <Label x={70} y={197}>knot, plug in</Label>
     </Blind>
   </Frame>
 );
