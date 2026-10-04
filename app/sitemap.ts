@@ -11,6 +11,8 @@ import { guides } from "@/content/guides";
 export default function sitemap(): MetadataRoute.Sitemap {
   const url = (path: string) => `${business.domain}${path}`;
   const lastModified = new Date("2026-08-31");
+  // The index changes when a guide does, so it carries the newest guide's date.
+  const guidesModified = new Date(guides.map((guide) => guide.updated).sort().at(-1)!);
 
   return [
     { url: business.domain, priority: 1.0, changeFrequency: "monthly", lastModified },
@@ -36,7 +38,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
       lastModified,
     })),
 
-    { url: url("/guides"), priority: 0.6, changeFrequency: "monthly" as const, lastModified },
+    { url: url("/guides"), priority: 0.6, changeFrequency: "monthly" as const, lastModified: guidesModified },
 
     ...guides.map((guide) => ({
       url: url(`/guides/${guide.slug}`),

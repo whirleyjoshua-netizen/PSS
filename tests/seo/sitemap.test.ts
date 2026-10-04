@@ -16,7 +16,10 @@ describe("sitemap", () => {
   it("lists the guides index and every guide, dated by the guide", async () => {
     const { guides } = await import("@/content/guides");
     const entries = await sitemap();
-    expect(entries.some((e) => e.url === `${business.domain}/guides`)).toBe(true);
+    const index = entries.find((e) => e.url === `${business.domain}/guides`);
+    expect(index).toBeDefined();
+    const newest = guides.map((g) => g.updated).sort().at(-1)!;
+    expect(index!.lastModified).toEqual(new Date(newest));
     for (const guide of guides) {
       const entry = entries.find((e) => e.url === `${business.domain}/guides/${guide.slug}`);
       expect(entry, guide.slug).toBeDefined();
