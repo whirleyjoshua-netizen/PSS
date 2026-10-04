@@ -50,6 +50,42 @@ describe("guide diagrams", () => {
     ]);
   });
 
+  // A gap in the stack reads as a missing slat; every step of the slat guide shows a full blind.
+  it.each(["slat-plugs", "slat-cord-up", "slat-swap", "slat-reknot"] as const)("%s shows all 9 slats in its end pose", (id) => {
+    const visible = [...svgOf(id).querySelectorAll("[data-part=slat]")].filter((s) => !s.closest('[opacity="0"]'));
+    expect(visible.map((s) => Number(s.getAttribute("y"))).sort((a, b) => a - b)).toEqual([30, 44, 58, 72, 86, 100, 114, 128, 142]);
+  });
+
+  // The broken slat is two pieces with the right one hanging at the break, so it reads as cracked at phone size.
+  it.each(["slat-plugs", "slat-cord-up"] as const)("%s draws the broken slat as two pieces", (id) => {
+    const svg = svgOf(id);
+    const left = [...svg.querySelectorAll("[data-part=slat]")].find((s) => s.getAttribute("y") === "86")!;
+    expect([left.getAttribute("x"), left.getAttribute("width")]).toEqual(["32", "64"]);
+    const right = svg.querySelector("[data-part=slat-break]")!;
+    expect([right.getAttribute("x"), right.getAttribute("y"), right.getAttribute("width")]).toEqual(["102", "86", "66"]);
+    expect(right.parentElement!.getAttribute("transform")).toBe("rotate(8 102 86)");
+  });
+
+  it("swaps out a slat drawn broken the same way", () => {
+    const oldSlat = svgOf("slat-swap").querySelector("[data-part=old-slat]")!;
+    expect(oldSlat.querySelector("[data-part=slat-break]")!.parentElement!.getAttribute("transform")).toBe("rotate(8 102 86)");
+    expect(oldSlat.hasAttribute("transform")).toBe(false);
+  });
+
+  it("never puts a guide- animation class on an element with a transform attribute", () => {
+    for (const id of DIAGRAM_IDS) {
+      for (const el of svgOf(id).querySelectorAll("[transform]")) {
+        expect(el.getAttribute("class") ?? "", `${id} ${el.outerHTML.slice(0, 60)}`).not.toMatch(/(^|\s)guide-/);
+      }
+    }
+  });
+
+  // The plugs rise from 182 to 168 (bottom edge 187 at the start), so the label sits below that travel.
+  it("keeps the reknot label clear of the plugs' travel", () => {
+    const label = svgOf("slat-reknot").querySelector("text")!;
+    expect(Number(label.getAttribute("y")) - 9).toBeGreaterThan(187);
+  });
+
   it("gives every pleat pattern its own id, and each fabric points at an existing pattern", () => {
     const { container } = render(
       <>
