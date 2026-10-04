@@ -7,7 +7,7 @@ import type { LeadSource } from "@/lib/leads/schema";
  * without renaming. Booked and sold jobs reach Google Ads separately, through
  * the conversions file in Settings.
  */
-export const EVENTS = { lead: "generate_lead", phone: "phone_click", promo: "promo_click", leadTimes: "lead_times_open" } as const;
+export const EVENTS = { lead: "generate_lead", phone: "phone_click", promo: "promo_click", leadTimes: "lead_times_open", guideCta: "guide_cta_click" } as const;
 
 /** Where a tap on our number is a lead already counted or an existing customer, not a new lead. */
 const NOT_A_NEW_LEAD = ["/thank-you", "/project"];
@@ -28,6 +28,9 @@ export const trackPromoClick = (promo: string, page: string) => send(EVENTS.prom
 
 /** An open of the lead-times dropdown on the strip. */
 export const trackLeadTimesOpen = (promo: string, page: string) => send(EVENTS.leadTimes, { promo, page });
+
+/** A booking or call button on a repair guide, so we can see which guides bring consults. */
+export const trackGuideCta = (guide: string, kind: "book" | "call") => send(EVENTS.guideCta, { guide, kind });
 
 /** Counts a click that landed on, or inside, a tel: link. Anything else is ignored. */
 export function trackPhoneClick(event: Event, pathname: string): void {

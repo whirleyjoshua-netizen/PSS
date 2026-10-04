@@ -5,7 +5,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const sendGAEvent = vi.fn();
 vi.mock("@next/third-parties/google", () => ({ sendGAEvent: (...args: unknown[]) => sendGAEvent(...args) }));
 
-import { EVENTS, trackLead } from "@/lib/analytics/events";
+import { EVENTS, trackLead, trackGuideCta } from "@/lib/analytics/events";
 import { PhoneClickTracking } from "@/components/analytics/PhoneClickTracking";
 
 function tapOn(html: string, path: string) {
@@ -49,5 +49,19 @@ describe("PhoneClickTracking", () => {
     tapOn(`<a href="tel:+17028598294" data-tap>Call</a>`, "/thank-you/all-set");
     tapOn(`<a href="tel:+17028598294" data-tap>Call</a>`, "/project/abc");
     expect(sendGAEvent).not.toHaveBeenCalled();
+  });
+});
+
+describe("trackGuideCta", () => {
+  it("sends guide_cta_click with the guide and which button", () => {
+    trackGuideCta("replace-a-broken-blind-slat", "book");
+    expect(sendGAEvent).toHaveBeenCalledWith("event", "guide_cta_click", { guide: "replace-a-broken-blind-slat", kind: "book" });
+  });
+
+  it("never throws when analytics fails", () => {
+    sendGAEvent.mockImplementation(() => {
+      throw new Error("blocked");
+    });
+    expect(() => trackGuideCta("x", "call")).not.toThrow();
   });
 });
