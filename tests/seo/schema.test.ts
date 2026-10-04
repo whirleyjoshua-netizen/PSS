@@ -3,9 +3,11 @@ import {
   localBusinessSchema,
   productSchema,
   breadcrumbSchema,
+  articleSchema,
 } from "@/lib/seo/schema";
 import { products } from "@/content/products";
 import { business } from "@/content/business";
+import { guides } from "@/content/guides";
 
 describe("structured data", () => {
   it("describes the business with its service area", () => {
@@ -44,5 +46,19 @@ describe("structured data", () => {
     expect(schema.itemListElement[2].item).toBe(
       `${business.domain}/shades/solar-shades`,
     );
+  });
+});
+
+describe("articleSchema", () => {
+  it("describes a guide as an Article by the business, dated by the guide", () => {
+    const guide = guides[0];
+    const schema = articleSchema(guide);
+    expect(schema["@type"]).toBe("Article");
+    expect(schema.headline).toBe(guide.title);
+    expect(schema.url).toBe(`${business.domain}/guides/${guide.slug}`);
+    expect(schema.datePublished).toBe(guide.published);
+    expect(schema.dateModified).toBe(guide.updated);
+    expect(schema.author).toEqual({ "@type": "Organization", name: business.name, url: business.domain });
+    expect(JSON.stringify(schema)).not.toMatch(/HowTo|FAQPage/);
   });
 });

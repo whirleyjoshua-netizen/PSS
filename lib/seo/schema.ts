@@ -1,5 +1,6 @@
 import { business } from "@/content/business";
 import type { Product } from "@/content/products";
+import type { Guide } from "@/content/guides";
 
 const absolute = (path: string): string =>
   path.startsWith("http") ? path : `${business.domain}${path}`;
@@ -91,5 +92,26 @@ export function breadcrumbSchema(trail: { name: string; url: string }[]) {
         item: absolute(crumb.url),
       })),
     ],
+  };
+}
+
+/**
+ * A repair guide is an Article written by the business. No HowTo or FAQPage
+ * markup: Google stopped showing either for ordinary sites in 2023.
+ */
+export function articleSchema(guide: Guide) {
+  const url = absolute(`/guides/${guide.slug}`);
+  const organization = { "@type": "Organization", name: business.name, url: business.domain };
+  return {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    headline: guide.title,
+    description: guide.seo.description,
+    url,
+    mainEntityOfPage: url,
+    datePublished: guide.published,
+    dateModified: guide.updated,
+    author: organization,
+    publisher: organization,
   };
 }
