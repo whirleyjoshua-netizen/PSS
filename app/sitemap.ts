@@ -2,6 +2,7 @@ import type { MetadataRoute } from "next";
 import { business } from "@/content/business";
 import { categories, products } from "@/content/products";
 import { cities } from "@/content/cities";
+import { guides } from "@/content/guides";
 
 /**
  * Derived entirely from the content model, so a product added to
@@ -33,6 +34,15 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 0.8,
       changeFrequency: "monthly" as const,
       lastModified,
+    })),
+
+    { url: url("/guides"), priority: 0.6, changeFrequency: "monthly" as const, lastModified },
+
+    ...guides.map((guide) => ({
+      url: url(`/guides/${guide.slug}`),
+      priority: 0.6,
+      changeFrequency: "monthly" as const,
+      lastModified: new Date(guide.updated),
     })),
 
     { url: url("/contact"), priority: 0.9, changeFrequency: "yearly", lastModified },

@@ -12,9 +12,13 @@ import GalleryPage from "@/app/(site)/gallery/page";
 import ReviewsPage from "@/app/(site)/reviews/page";
 import { categories, products } from "@/content/products";
 import { cities } from "@/content/cities";
+import { guides } from "@/content/guides";
 
 /** Legal text. The owner decides whether these get a photo (spec §8). */
 const EXEMPT = ["/privacy", "/accessibility"];
+
+/** Guides are illustrated with SVG diagrams instead of photos (spec 2026-10-03 repair guides). */
+const ILLUSTRATED = ["/guides", ...guides.map((g) => `/guides/${g.slug}`)];
 
 const PAGES: [string, () => ReactElement | Promise<ReactElement>][] = [
   ["/", () => <Home />],
@@ -31,7 +35,7 @@ describe("every page has at least one photo", () => {
   it("checks every page in the sitemap, so a new page cannot slip through", () => {
     const inSitemap = sitemap()
       .map((entry) => new URL(entry.url).pathname)
-      .filter((path) => !EXEMPT.includes(path));
+      .filter((path) => !EXEMPT.includes(path) && !ILLUSTRATED.includes(path));
     expect([...inSitemap].sort()).toEqual(PAGES.map(([path]) => path).sort());
   });
 

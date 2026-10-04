@@ -36,6 +36,11 @@ export function Footer() {
                   </Link>
                 </li>
               ))}
+              <li>
+                <Link href="/guides" className="text-sand/80 transition-colors hover:text-ivory">
+                  Repair &amp; care guides
+                </Link>
+              </li>
             </ul>
           </nav>
 

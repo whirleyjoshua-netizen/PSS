@@ -8,8 +8,20 @@ describe("sitemap", () => {
 
     // 1 home + 5 hubs + 12 products + 4 cities
     // + gallery, reviews, about, contact, privacy, accessibility
-    expect(urls).toHaveLength(28);
-    expect(new Set(urls).size).toBe(28);
+    // + the guides index and 2 guides
+    expect(urls).toHaveLength(31);
+    expect(new Set(urls).size).toBe(31);
+  });
+
+  it("lists the guides index and every guide, dated by the guide", async () => {
+    const { guides } = await import("@/content/guides");
+    const entries = await sitemap();
+    expect(entries.some((e) => e.url === `${business.domain}/guides`)).toBe(true);
+    for (const guide of guides) {
+      const entry = entries.find((e) => e.url === `${business.domain}/guides/${guide.slug}`);
+      expect(entry, guide.slug).toBeDefined();
+      expect(entry!.lastModified).toEqual(new Date(guide.updated));
+    }
   });
 
   it("uses absolute URLs on the production domain", async () => {

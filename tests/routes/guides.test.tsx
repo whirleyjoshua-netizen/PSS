@@ -2,6 +2,8 @@ import { render, screen, within } from "@testing-library/react";
 import { describe, it, expect } from "vitest";
 import GuidePage, { generateMetadata, generateStaticParams } from "@/app/(site)/guides/[slug]/page";
 import { guides } from "@/content/guides";
+import GuidesIndexPage from "@/app/(site)/guides/page";
+import { Footer } from "@/components/layout/Footer";
 
 const renderGuide = async (slug: string) => render(await GuidePage({ params: Promise.resolve({ slug }) }));
 
@@ -50,5 +52,24 @@ describe("guide page", () => {
     expect(meta.title).toBe(guide.seo.title);
     expect(meta.description).toBe(guide.seo.description);
     expect(meta.alternates?.canonical).toBe(`/guides/${guide.slug}`);
+  });
+});
+
+describe("guides index", () => {
+  it("lists every guide under its category", () => {
+    const { container } = render(<GuidesIndexPage />);
+    expect(screen.getByRole("heading", { level: 1, name: "Repair & care guides" })).toBeInTheDocument();
+    for (const guide of guides) {
+      expect(container.querySelector(`a[href="/guides/${guide.slug}"]`)).not.toBeNull();
+    }
+    expect(screen.getByRole("heading", { level: 2, name: "Shades" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2, name: "Blinds" })).toBeInTheDocument();
+  });
+});
+
+describe("footer", () => {
+  it("links to the guides", () => {
+    render(<Footer />);
+    expect(screen.getByRole("link", { name: "Repair & care guides" })).toHaveAttribute("href", "/guides");
   });
 });
