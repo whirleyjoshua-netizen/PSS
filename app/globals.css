@@ -210,9 +210,14 @@ h1, h2, h3, h4 {
 
 @keyframes guide-lower-fabric { 0%, 10% { transform: scaleY(0.25); } 60%, 100% { transform: scaleY(1); } }
 @keyframes guide-lower-rail { 0%, 10% { transform: translateY(-112px); } 60%, 100% { transform: translateY(0); } }
-/* Raised end pose is 45 tall; 150 / 45 = 3.333 starts it fully lowered. */
-@keyframes guide-raise-fabric { 0%, 10% { transform: scaleY(3.333); } 60%, 100% { transform: scaleY(1); } }
-@keyframes guide-raise-rail { 0%, 10% { transform: translateY(105px); } 60%, 100% { transform: translateY(0); } }
+/*
+ * Raised end pose: the 150-tall fabric sits in an outer matrix(1 0 0 0.5 0 12),
+ * so it ends 24→99 (halfway) with its pleats stacked. scaleY(2) from its top
+ * makes it 300 locally = 150 on screen, fully lowered at normal pitch; the rail
+ * starts 75px lower (99 + 75 = 174) to match.
+ */
+@keyframes guide-raise-fabric { 0%, 10% { transform: scaleY(2); } 60%, 100% { transform: scaleY(1); } }
+@keyframes guide-raise-rail { 0%, 10% { transform: translateY(75px); } 60%, 100% { transform: translateY(0); } }
 /* Relative to the outer rotate(-45): +45deg is hanging straight down. */
 @keyframes guide-pull { 0%, 12% { transform: rotate(45deg); } 50%, 85% { transform: rotate(0); } 100% { transform: rotate(45deg); } }
 @keyframes guide-tug {

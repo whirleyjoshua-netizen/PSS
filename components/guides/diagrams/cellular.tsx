@@ -1,18 +1,27 @@
 import { Frame, Headrail, Label, PleatPattern, Wall, WindowPane, usePleatId } from "./parts";
 
-function FrontView({ label, fabricHeight, fabricClass, railClass }: {
+/**
+ * The fabric is always drawn full length (24→174). A raised pose wraps it in
+ * an outer <g transform> that squashes it, so its pleats stack, while the CSS
+ * animation on the inner rect starts it at full length.
+ */
+function FrontView({ label, pose, railY, fabricClass, railClass }: {
   label: string;
-  fabricHeight: number;
+  pose?: { part: string; transform: string };
+  railY: number;
   fabricClass: string;
   railClass: string;
 }) {
   const pleat = usePleatId();
+  const fabric = (
+    <rect data-part="fabric" x="30" y="24" width="140" height="150" fill={`url(#${pleat})`} className={`guide-fabric ${fabricClass}`} />
+  );
   return (
     <Frame label={label}>
       <PleatPattern id={pleat} />
       <WindowPane />
-      <rect data-part="fabric" x="30" y="24" width="140" height={fabricHeight} fill={`url(#${pleat})`} className={`guide-fabric ${fabricClass}`} />
-      <rect data-part="rail" x="28" y={24 + fabricHeight} width="144" height="8" rx="2" className={`fill-taupe ${railClass}`} />
+      {pose ? <g data-part={pose.part} transform={pose.transform}>{fabric}</g> : fabric}
+      <rect data-part="rail" x="28" y={railY} width="144" height="8" rx="2" className={`fill-taupe ${railClass}`} />
       <Headrail x={26} y={14} width={148} />
     </Frame>
   );
@@ -37,11 +46,18 @@ function SideView({ label, motionClass, children }: { label: string; motionClass
 }
 
 export const CellularLower = () => (
-  <FrontView label="Cellular shade lowered all the way to the window sill" fabricHeight={150} fabricClass="guide-lower-fabric" railClass="guide-lower-rail" />
+  <FrontView label="Cellular shade lowered all the way to the window sill" railY={174} fabricClass="guide-lower-fabric" railClass="guide-lower-rail" />
 );
 
 export const CellularRaise = () => (
-  <FrontView label="Cellular shade raised and holding near the top of the window" fabricHeight={45} fabricClass="guide-raise-fabric" railClass="guide-raise-rail" />
+  <FrontView
+    label="Cellular shade raised and holding halfway down the window"
+    // y' = 0.5y + 12: the fabric's top stays at 24 and its bottom (174) lands at 99, halfway.
+    pose={{ part: "raise-pose", transform: "matrix(1 0 0 0.5 0 12)" }}
+    railY={99}
+    fabricClass="guide-raise-fabric"
+    railClass="guide-raise-rail"
+  />
 );
 
 export const CellularPull45 = () => (

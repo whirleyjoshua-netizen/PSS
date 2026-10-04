@@ -13,7 +13,7 @@ export const DIAGRAMS: Record<DiagramId, { label: string; Component: () => React
   "cellular-lower": entry("Cellular shade lowered all the way to the window sill", CellularLower),
   "cellular-pull-45": entry("Side view: the bottom rail pulled out from the window at a 45 degree angle", CellularPull45),
   "cellular-tug": entry("Side view: three short tugs on the bottom rail, held at 45 degrees", CellularTug),
-  "cellular-raise": entry("Cellular shade raised and holding near the top of the window", CellularRaise),
+  "cellular-raise": entry("Cellular shade raised and holding halfway down the window", CellularRaise),
   "slat-plugs": entry("Plugs pried out of the underside of the bottom rail", SlatPlugs),
   "slat-cord-up": entry("Lift cords pulled up through the slats to just above the broken slat", SlatCordUp),
   "slat-swap": entry("The broken slat slides out of the ladder strings and a new slat slides in", SlatSwap),
