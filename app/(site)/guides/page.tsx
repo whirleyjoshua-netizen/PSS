@@ -3,7 +3,7 @@ import Link from "next/link";
 import { PageHero } from "@/components/product/ProductParts";
 import { Section } from "@/components/ui/Section";
 import { categories } from "@/content/products";
-import { guides } from "@/content/guides";
+import { guides, minutesLabel } from "@/content/guides";
 
 export const metadata: Metadata = {
   title: "Blind & Shade Repair Guides | Premier Shade Solutions",
@@ -35,7 +35,7 @@ export default function GuidesIndexPage() {
                     <Link href={`/guides/${guide.slug}`} className="flex h-full flex-col gap-2 border border-rule bg-white p-5 transition-colors hover:border-champagne">
                       <span className="font-display text-lg text-charcoal">{guide.title}</span>
                       <span className="line-clamp-3 text-ink-soft">{guide.quickAnswer}</span>
-                      <span className="font-display text-xs uppercase tracking-[0.2em] text-champagne-ink">{guide.minutes} minutes</span>
+                      <span className="font-display text-xs uppercase tracking-[0.2em] text-champagne-ink">{minutesLabel(guide.minutes)}</span>
                     </Link>
                   </li>
                 ))}

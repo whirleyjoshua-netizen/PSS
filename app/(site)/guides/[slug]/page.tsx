@@ -8,7 +8,7 @@ import { GuideCta } from "@/components/guides/GuideCta";
 import { StepCard } from "@/components/guides/StepCard";
 import { breadcrumbSchema, articleSchema } from "@/lib/seo/schema";
 import { categories } from "@/content/products";
-import { guideBySlug, guides, updatedLabel } from "@/content/guides";
+import { guideBySlug, guides, minutesLabel, updatedLabel } from "@/content/guides";
 
 /** An unknown slug is a real 404 rather than a rendered page. */
 export const dynamicParams = false;
@@ -57,7 +57,7 @@ export default async function GuidePage({ params }: { params: Promise<{ slug: st
         <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_18rem] lg:gap-12">
           <article className="max-w-3xl pt-6">
             <p className="flex flex-wrap gap-x-4 gap-y-1 font-display text-sm text-ink-soft">
-              <span className="font-medium text-charcoal">{guide.minutes} minutes</span>
+              <span className="font-medium text-charcoal">{minutesLabel(guide.minutes)}</span>
               <span>{guide.tools}</span>
               <span>Updated {updatedLabel(guide)}</span>
               <span>Written by our installers</span>

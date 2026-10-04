@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { DIAGRAM_IDS, guides, guideBySlug, updatedLabel } from "@/content/guides";
+import { DIAGRAM_IDS, guides, guideBySlug, minutesLabel, updatedLabel } from "@/content/guides";
 import { CATEGORY_SLUGS } from "@/content/products";
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
@@ -55,6 +55,21 @@ describe("guides content", () => {
   it("finds a guide by slug and nothing for an unknown slug", () => {
     expect(guideBySlug("replace-a-broken-blind-slat")?.category).toBe("blinds");
     expect(guideBySlug("nope")).toBeUndefined();
+  });
+
+  it("keeps every SEO title within 60 characters, suffix included", () => {
+    for (const guide of guides) expect(guide.seo.title.length, guide.seo.title).toBeLessThanOrEqual(60);
+  });
+
+  it("pins the reviewed copy", () => {
+    expect(guideBySlug("cordless-cellular-shade-wont-stay-up")!.steps[2].title).toBe("Give it three short tugs");
+    expect(guideBySlug("replace-a-broken-blind-slat")!.tools).toBe("Flathead screwdriver");
+  });
+
+  it("labels minutes in the singular and the plural", () => {
+    expect(minutesLabel(1)).toBe("1 minute");
+    expect(minutesLabel(2)).toBe("2 minutes");
+    expect(minutesLabel(15)).toBe("15 minutes");
   });
 
   it("labels the updated date as month and year, independent of time zone", () => {

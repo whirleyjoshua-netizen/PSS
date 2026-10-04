@@ -62,7 +62,7 @@ export const guides: Guide[] = [
     crumb: "Cordless shade won't stay up",
     title: "Cordless cellular shade won't stay up? Reset it in 4 steps",
     seo: {
-      title: "Cordless Cellular Shade Won't Stay Up? 4-Step Reset | Premier Shade Solutions",
+      title: "Fix a Cordless Shade That Drops | Premier Shade Solutions",
       description:
         "A cordless cellular shade that drifts down usually needs its spring reset. Four steps, two minutes, no tools, with diagrams from Las Vegas installers.",
     },
@@ -85,7 +85,7 @@ export const guides: Guide[] = [
         sideView: true,
       },
       {
-        title: "Give it three short, firm tugs",
+        title: "Give it three short tugs",
         body: "Keep the angle. Quick and gentle, not hard. This re-engages the spring inside the headrail.",
         diagram: "cellular-tug",
         sideView: true,
@@ -125,12 +125,12 @@ export const guides: Guide[] = [
     crumb: "Replace a broken slat",
     title: "How to replace a broken blind slat in 4 steps",
     seo: {
-      title: "How to Replace a Broken Blind Slat (4 Steps) | Premier Shade Solutions",
+      title: "Replace a Broken Blind Slat | Premier Shade Solutions",
       description:
         "Swap one cracked slat without replacing the whole blind. Four steps with diagrams, a screwdriver and fifteen minutes, from Las Vegas installers.",
     },
     minutes: 15,
-    tools: "Flathead screwdriver, scissors",
+    tools: "Flathead screwdriver",
     published: "2026-10-03",
     updated: "2026-10-03",
     quickAnswer:
@@ -184,6 +184,11 @@ export const guides: Guide[] = [
 
 export function guideBySlug(slug: string): Guide | undefined {
   return guides.find((guide) => guide.slug === slug);
+}
+
+/** "1 minute", "15 minutes". */
+export function minutesLabel(minutes: number): string {
+  return `${minutes} ${minutes === 1 ? "minute" : "minutes"}`;
 }
 
 /** "Oct 2026". Noon UTC so no time zone can roll the date into another month. */
