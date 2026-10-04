@@ -1,7 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import { describe, it, expect } from "vitest";
 import GuidePage, { generateMetadata, generateStaticParams } from "@/app/(site)/guides/[slug]/page";
-import { guides } from "@/content/guides";
+import { guides, minutesLabel } from "@/content/guides";
 import GuidesIndexPage from "@/app/(site)/guides/page";
 import { Footer } from "@/components/layout/Footer";
 
@@ -34,6 +34,12 @@ describe("guide page", () => {
       expect(link).toHaveAttribute("href", "/contact");
     }
     for (const { q } of guide.faq) expect(screen.getByText(q)).toBeInTheDocument();
+    const faqs = container.querySelectorAll("details");
+    expect(faqs).toHaveLength(guide.faq.length);
+    const open = container.querySelectorAll("details[open]");
+    expect(open).toHaveLength(1);
+    expect(open[0]).toBe(faqs[0]);
+    expect(screen.getByText(minutesLabel(guide.minutes))).toBeInTheDocument();
     for (const slug of guide.related) {
       expect(container.querySelector(`a[href="/guides/${slug}"]`)).not.toBeNull();
     }
@@ -62,8 +68,16 @@ describe("guides index", () => {
     for (const guide of guides) {
       expect(container.querySelector(`a[href="/guides/${guide.slug}"]`)).not.toBeNull();
     }
-    expect(screen.getByRole("heading", { level: 2, name: "Shades" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { level: 2, name: "Blinds" })).toBeInTheDocument();
+    const groups = [
+      { name: "Shades", category: "shades" },
+      { name: "Blinds", category: "blinds" },
+    ];
+    for (const { name, category } of groups) {
+      const section = screen.getByRole("heading", { level: 2, name }).closest("section")!;
+      const hrefs = within(section).getAllByRole("link").map((a) => a.getAttribute("href")).sort();
+      expect(hrefs, name).toEqual(guides.filter((g) => g.category === category).map((g) => `/guides/${g.slug}`).sort());
+    }
+    for (const guide of guides) expect(screen.getAllByText(minutesLabel(guide.minutes)).length).toBeGreaterThan(0);
   });
 });
 

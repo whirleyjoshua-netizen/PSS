@@ -22,10 +22,14 @@ describe("GuideCta", () => {
     expect(screen.getByRole("link", { name: `Call ${business.phone.display}` })).toHaveAttribute("href", business.phone.href);
   });
 
-  it("aside: no heading, same two buttons", () => {
+  it("aside: no heading, same two buttons", async () => {
     render(<GuideCta slug={guide.slug} variant="aside" />);
     expect(screen.queryByRole("heading")).toBeNull();
     expect(screen.getByRole("link", { name: "Book a free in-home measure" })).toHaveAttribute("href", "/contact");
+    const call = screen.getByRole("link", { name: `Call ${business.phone.display}` });
+    expect(call).toHaveAttribute("href", business.phone.href);
+    await userEvent.setup().click(call);
+    expect(sendGAEvent).toHaveBeenCalledWith("event", "guide_cta_click", { guide: guide.slug, kind: "call" });
   });
 
   it("counts each button with the guide's slug", async () => {
