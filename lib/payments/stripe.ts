@@ -25,9 +25,15 @@ export function stripeApiOverride(): { host: string; port: number; protocol: "ht
   return { host: url.hostname, port: Number(url.port || (protocol === "https" ? 443 : 80)), protocol };
 }
 
+/**
+ * A secret from the environment without the whitespace a paste leaves around it. A key with a trailing
+ * newline in Vercel failed every call in production (2026-10-05): Node refuses it in the Authorization header.
+ */
+const secretEnv = (name: "STRIPE_SECRET_KEY" | "STRIPE_WEBHOOK_SECRET"): string => (process.env[name] ?? "").trim();
+
 /** The server SDK, or null when STRIPE_SECRET_KEY is not set. Network errors and 409 conflicts are retried twice. */
 export function stripeClient(): Stripe | null {
-  const key = process.env.STRIPE_SECRET_KEY;
+  const key = secretEnv("STRIPE_SECRET_KEY");
   if (!key) return null;
   return new Stripe(key, { maxNetworkRetries: 2, ...(stripeApiOverride() ?? {}) });
 }
@@ -38,9 +44,9 @@ export function stripeClient(): Stripe | null {
  * Verification needs no API key; a placeholder is used when none is set.
  */
 export function verifyWebhook(body: string, signature: string | null): Stripe.Event {
-  const secret = process.env.STRIPE_WEBHOOK_SECRET;
+  const secret = secretEnv("STRIPE_WEBHOOK_SECRET");
   if (!secret) throw new Error("STRIPE_WEBHOOK_SECRET is not set");
-  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "sk_test_verification_only");
+  const stripe = new Stripe(secretEnv("STRIPE_SECRET_KEY") || "sk_test_verification_only");
   return stripe.webhooks.constructEvent(body, signature ?? "", secret);
 }
 

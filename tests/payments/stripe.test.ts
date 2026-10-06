@@ -1,5 +1,7 @@
 // @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
 import Stripe from "stripe";
 
 const { closeCheckout, refundPayment, stripeApiOverride, stripeClient, verifyWebhook } = await import("@/lib/payments/stripe");
@@ -19,6 +21,29 @@ describe("stripeClient", () => {
   it("is a client with a key", () => {
     vi.stubEnv("STRIPE_SECRET_KEY", "sk_test_unit");
     expect(stripeClient()).toBeInstanceOf(Stripe);
+  });
+  it("sends the key without the newline or spaces a pasted value carries", async () => {
+    // Production 2026-10-05: a key pasted into Vercel with a trailing newline failed every call with
+    // "Invalid character in header content [Authorization]", so no client could pay.
+    let authorization: string | undefined;
+    const server = createServer((request, response) => {
+      authorization = request.headers.authorization;
+      response.setHeader("content-type", "application/json");
+      response.end(JSON.stringify({ id: "cs_1", object: "checkout.session", status: "open" }));
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    try {
+      vi.stubEnv("STRIPE_API_URL", `http://127.0.0.1:${(server.address() as AddressInfo).port}`);
+      vi.stubEnv("STRIPE_SECRET_KEY", " sk_test_unit\r\n");
+      await stripeClient()!.checkout.sessions.retrieve("cs_1");
+      expect(authorization).toBe("Bearer sk_test_unit");
+    } finally {
+      server.close();
+    }
+  });
+  it("is null for a key that is only whitespace", () => {
+    vi.stubEnv("STRIPE_SECRET_KEY", " \n");
+    expect(stripeClient()).toBeNull();
   });
 });
 
@@ -46,6 +71,10 @@ describe("stripeApiOverride", () => {
 describe("verifyWebhook", () => {
   it("returns the event for a body signed with the webhook secret", () => {
     vi.stubEnv("STRIPE_WEBHOOK_SECRET", "whsec_unit");
+    expect(verifyWebhook(payload, sign(payload, "whsec_unit")).type).toBe("checkout.session.expired");
+  });
+  it("verifies with a secret pasted with a trailing newline", () => {
+    vi.stubEnv("STRIPE_WEBHOOK_SECRET", "whsec_unit\n");
     expect(verifyWebhook(payload, sign(payload, "whsec_unit")).type).toBe("checkout.session.expired");
   });
   it("throws for another secret, a changed body, or no header", () => {

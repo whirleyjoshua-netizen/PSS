@@ -18,7 +18,7 @@ import { closeCheckout, stripeClient, verifyWebhook } from "@/lib/payments/strip
 export async function POST(request: Request) {
   // Ruling P13: without the secret nothing can verify. That is our misconfiguration, not a bad sender:
   // answer 500 so Stripe keeps retrying until it is set. The variable is named, its value never logged.
-  if (!process.env.STRIPE_WEBHOOK_SECRET) {
+  if (!process.env.STRIPE_WEBHOOK_SECRET?.trim()) {
     console.error("STRIPE_WEBHOOK_SECRET is not set");
     return new Response("Webhook is not configured", { status: 500 });
   }
