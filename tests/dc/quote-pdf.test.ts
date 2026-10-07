@@ -44,19 +44,33 @@ describe("buildQuotePdf", () => {
     expect((await PDFDocument.load(bytes)).getPageCount()).toBe(1);
   });
 
-  it("draws every line and total exactly where page 1 of the contract does", async () => {
+  it("leaves out the details line under each product, which the contract still prints", async () => {
     const quote = spyOnDrawText();
     await buildQuotePdf(input);
     vi.restoreAllMocks();
     const contract = spyOnDrawText();
     await renderContractPdf(input, { text: "## Terms\n\n1. Something." });
-    const page1 = contract.slice(0, quote.length);
-    expect(page1.map(({ x, y }) => [x, y])).toEqual(quote.map(({ x, y }) => [x, y]));
-    const differing = page1.flatMap((d, i) => (d.text === quote[i].text ? [] : [[d.text, quote[i].text]]));
-    expect(differing).toEqual([
-      ["Contract PSS-1042 · Version 1", "Quote PSS-1042 · Version 1"],
-      ["The terms and conditions on the following pages are part of this contract.",
-        "Approve this quote on your project page and we will send your contract to sign."],
+    const details = '48 1/2" W x 72 3/8" H · Inside Mount · PowerView';
+    expect(contract.map((d) => d.text)).toContain(details);
+    expect(quote.map((d) => d.text)).not.toContain(details);
+    for (const absent of ['48 1/2"', "72 3/8", "Inside Mount"]) expect(quote.some((d) => d.text.includes(absent))).toBe(false);
+  });
+
+  it("prints the same rooms, products, quantities and money as page 1 of the contract", async () => {
+    const quote = spyOnDrawText();
+    await buildQuotePdf(input);
+    vi.restoreAllMocks();
+    const contract = spyOnDrawText();
+    await renderContractPdf(input, { text: "## Terms\n\n1. Something." });
+    const closing = "The terms and conditions on the following pages are part of this contract.";
+    // The accessory's details line is empty, drawn as "": nothing to compare.
+    const page1 = contract.slice(0, contract.findIndex((d) => d.text === closing) + 1).map((d) => d.text).filter(Boolean);
+    const quoteTexts = quote.map((d) => d.text);
+    expect(quoteTexts.filter((t) => !page1.includes(t))).toEqual([
+      "Quote PSS-1042 · Version 1", "Approve this quote on your project page and we will send your contract to sign.",
+    ]);
+    expect(page1.filter((t) => !quoteTexts.includes(t))).toEqual([
+      "Contract PSS-1042 · Version 1", '48 1/2" W x 72 3/8" H · Inside Mount · PowerView', closing,
     ]);
   });
 });

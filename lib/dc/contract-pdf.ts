@@ -38,9 +38,10 @@ export async function buildTermsPdf(text: string): Promise<Uint8Array> {
 /**
  * Page 1+: the letterhead, the client, the priced lines and the totals under `heading`, ending with the
  * `closing` sentence. The contract and the quote both print through this, so the quote the client
- * approves and the contract they sign show the same figures in the same places.
+ * approves and the contract they sign show the same figures. `details` draws the size · mount · fabric ·
+ * control line under each product: the contract prints it, the quote leaves it out (owner, 2026-10-07).
  */
-export function drawPricedPages(doc: PDFDocument, logo: EmbeddedLogo, regular: PDFFont, bold: PDFFont, input: ContractInput, heading: string, closing: string): void {
+export function drawPricedPages(doc: PDFDocument, logo: EmbeddedLogo, regular: PDFFont, bold: PDFFont, input: ContractInput, heading: string, closing: string, { details: showDetails }: { details: boolean }): void {
   const { rows, totals } = contractRows(input);
   const fullWidth = LETTER[0] - 2 * MARGIN;
 
@@ -71,7 +72,7 @@ export function drawPricedPages(doc: PDFDocument, logo: EmbeddedLogo, regular: P
   header();
   for (const row of rows) {
     const product = wrap(row.product, bold, 9, COLS.qty - COLS.product - 40);
-    const details = wrap(row.details, regular, 8, COLS.qty - COLS.product - 40);
+    const details = showDetails ? wrap(row.details, regular, 8, COLS.qty - COLS.product - 40) : [];
     const roomLines = wrap(row.room, regular, 9, COLS.product - COLS.room - 8);
     const height = Math.max(product.length * 11 + details.length * 10, roomLines.length * 11) + 8;
     if (y - height < MARGIN) { page = doc.addPage(LETTER); y = LETTER[1] - MARGIN; header(); }
@@ -102,7 +103,7 @@ export async function renderContractPdf(input: ContractInput, terms: ContractTer
   const bold = await doc.embedFont(StandardFonts.HelveticaBold);
   const logo = await embedLogo(doc);
   drawPricedPages(doc, logo, regular, bold, input, `Contract ${input.projectNo} · Version ${input.version}`,
-    "The terms and conditions on the following pages are part of this contract.");
+    "The terms and conditions on the following pages are part of this contract.", { details: true });
 
   const initials: InitialsMark[] = [];
   let signature: MarkPoint;
