@@ -145,12 +145,12 @@ describe("ResourceUploader", () => {
     expect(refresh).toHaveBeenCalled();
   });
 
-  it("falls back to the default when the picked category is deleted", () => {
+  it("files under the default, not a picked category that has since been deleted", async () => {
     const { rerender } = render(<ResourceUploader categories={["Licenses", "Tax", "Uncategorized"]} />);
     fireEvent.change(screen.getByRole("combobox", { name: "Category" }), { target: { value: "Tax" } });
-    expect(screen.getByRole("combobox", { name: "Category" })).toHaveValue("Tax");
     rerender(<ResourceUploader categories={["Licenses", "Uncategorized"]} />);
-    expect(screen.getByRole("combobox", { name: "Category" })).toHaveValue("Licenses");
+    await act(async () => pick([new File(["x"], "a.pdf")]));
+    await waitFor(() => expect(actions.saveResourceAction).toHaveBeenCalledWith(expect.objectContaining({ category: "Licenses" })));
   });
 
   it("announces each file's progress and result", async () => {
