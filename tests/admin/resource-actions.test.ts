@@ -4,7 +4,10 @@ const requireAdmin = vi.fn();
 vi.mock("@/lib/admin/session", () => ({ requireAdmin }));
 const blob = { head: vi.fn(), del: vi.fn() };
 vi.mock("@vercel/blob", () => blob);
-const store = { createResource: vi.fn(), getResource: vi.fn(), renameResource: vi.fn(), recategorizeResource: vi.fn(), deleteResource: vi.fn() };
+const store = {
+  createResource: vi.fn(), getResource: vi.fn(), renameResource: vi.fn(), recategorizeResource: vi.fn(), deleteResource: vi.fn(),
+  createCategory: vi.fn(), renameCategory: vi.fn(), deleteCategory: vi.fn(),
+};
 vi.mock("@/lib/admin/resources", () => store);
 const revalidatePath = vi.fn();
 vi.mock("next/cache", () => ({ revalidatePath }));
@@ -25,7 +28,11 @@ beforeEach(() => {
   store.renameResource.mockResolvedValue(true);
   store.recategorizeResource.mockResolvedValue(true);
   store.deleteResource.mockResolvedValue(PATH);
+  store.createCategory.mockResolvedValue(true);
+  store.renameCategory.mockResolvedValue(true);
+  store.deleteCategory.mockResolvedValue(true);
 });
+const pgError = (code: string) => Object.assign(new Error(`pg ${code}`), { code });
 
 describe("saveResourceAction", () => {
   it("records the file with the size and type storage reports, not what the browser claimed", async () => {
@@ -44,7 +51,7 @@ describe("saveResourceAction", () => {
   });
 
   it("refuses an empty category and removes the upload", async () => {
-    expect(await actions.saveResourceAction({ pathname: PATH, name: "W-9.pdf", category: "  " })).toEqual({ error: "Pick or type a category (up to 60 characters)." });
+    expect(await actions.saveResourceAction({ pathname: PATH, name: "W-9.pdf", category: "  " })).toEqual({ error: "Pick a category." });
     expect(blob.del).toHaveBeenCalledWith(PATH);
     expect(store.createResource).not.toHaveBeenCalled();
   });
@@ -129,7 +136,12 @@ describe("rename, move and delete", () => {
   it("moves to a cleaned category, refusing an empty one", async () => {
     expect(await actions.recategorizeResourceAction(ID, " Tax  forms ")).toEqual({ ok: true });
     expect(store.recategorizeResource).toHaveBeenCalledWith(ID, "Tax forms");
-    expect(await actions.recategorizeResourceAction(ID, " ")).toEqual({ error: "Pick or type a category (up to 60 characters)." });
+    expect(await actions.recategorizeResourceAction(ID, " ")).toEqual({ error: "Pick a category." });
+  });
+
+  it("a move into a category deleted meanwhile says so", async () => {
+    store.recategorizeResource.mockRejectedValue(pgError("23503"));
+    expect(await actions.recategorizeResourceAction(ID, "Tax")).toEqual({ error: "That category was deleted. Pick another." });
   });
 
   it("says so when the file was already deleted", async () => {
@@ -152,10 +164,56 @@ describe("rename, move and delete", () => {
 
   it("each requires an owner", async () => {
     requireAdmin.mockRejectedValue(new Error("NEXT_REDIRECT"));
-    for (const call of [() => actions.renameResourceAction(ID, "x"), () => actions.recategorizeResourceAction(ID, "x"), () => actions.deleteResourceAction(ID)]) {
+    for (const call of [
+      () => actions.renameResourceAction(ID, "x"), () => actions.recategorizeResourceAction(ID, "x"), () => actions.deleteResourceAction(ID),
+      () => actions.addCategoryAction("x"), () => actions.renameCategoryAction("x", "y"), () => actions.deleteCategoryAction("x"),
+    ]) {
       await expect(call()).rejects.toThrow("NEXT_REDIRECT");
     }
     expect(store.renameResource).not.toHaveBeenCalled();
     expect(store.deleteResource).not.toHaveBeenCalled();
+    expect(store.createCategory).not.toHaveBeenCalled();
+    expect(store.renameCategory).not.toHaveBeenCalled();
+    expect(store.deleteCategory).not.toHaveBeenCalled();
+  });
+});
+
+describe("categories", () => {
+  it("adds a cleaned name, refusing an empty one or one that exists", async () => {
+    expect(await actions.addCategoryAction("  Tax   forms ")).toEqual({ ok: true });
+    expect(store.createCategory).toHaveBeenCalledWith("Tax forms");
+    expect(revalidatePath).toHaveBeenCalledWith("/admin/resources");
+    expect(await actions.addCategoryAction(" ")).toEqual({ error: "Give the category a name (up to 60 characters)." });
+    store.createCategory.mockResolvedValue(false);
+    expect(await actions.addCategoryAction("licenses")).toEqual({ error: "A category named licenses already exists." });
+  });
+
+  it("renames to a cleaned name, and says when the name is taken or the category is gone", async () => {
+    expect(await actions.renameCategoryAction("Tax", " Taxes ")).toEqual({ ok: true });
+    expect(store.renameCategory).toHaveBeenCalledWith("Tax", "Taxes");
+    store.renameCategory.mockRejectedValueOnce(pgError("23505"));
+    expect(await actions.renameCategoryAction("Tax", "Licenses")).toEqual({ error: "A category named Licenses already exists." });
+    store.renameCategory.mockResolvedValueOnce(false);
+    expect(await actions.renameCategoryAction("Tax", "Taxes")).toEqual({ error: "That category was deleted." });
+  });
+
+  it("deletes a category", async () => {
+    expect(await actions.deleteCategoryAction("Tax")).toEqual({ ok: true });
+    expect(store.deleteCategory).toHaveBeenCalledWith("Tax");
+    expect(revalidatePath).toHaveBeenCalledWith("/admin/resources");
+  });
+
+  it("never renames or deletes Uncategorized", async () => {
+    const refused = { error: "Uncategorized can't be renamed or deleted." };
+    expect(await actions.renameCategoryAction("Uncategorized", "Misc")).toEqual(refused);
+    expect(await actions.deleteCategoryAction("Uncategorized")).toEqual(refused);
+    expect(store.renameCategory).not.toHaveBeenCalled();
+    expect(store.deleteCategory).not.toHaveBeenCalled();
+  });
+
+  it("an upload into a category deleted meanwhile is removed and says so", async () => {
+    store.createResource.mockRejectedValue(pgError("23503"));
+    expect(await actions.saveResourceAction({ pathname: PATH, name: "W-9.pdf", category: "Tax" })).toEqual({ error: "That category was deleted. Pick another." });
+    expect(blob.del).toHaveBeenCalledWith(PATH);
   });
 });

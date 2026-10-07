@@ -26,10 +26,10 @@ describe("reading", () => {
     expect(text(sql.mock.calls[0])).toContain("from company_files");
   });
 
-  it("lists the categories in use, A–Z", async () => {
-    sql.mockResolvedValue([{ category: "Licenses" }, { category: "Spec books" }]);
-    expect(await store.listCategories()).toEqual(["Licenses", "Spec books"]);
-    expect(text(sql.mock.calls[0])).toContain("select distinct category from company_files order by category");
+  it("lists every category with its file count, empty ones included", async () => {
+    sql.mockResolvedValue([{ name: "Licenses", file_count: 2 }, { name: "Tax", file_count: "0" }]);
+    expect(await store.listCategories()).toEqual([{ name: "Licenses", fileCount: 2 }, { name: "Tax", fileCount: 0 }]);
+    expect(text(sql.mock.calls[0])).toContain("from resource_categories c left join company_files f on f.category = c.name group by c.name");
   });
 
   it("gets one file with its storage path, and nothing for a non-uuid", async () => {
@@ -63,6 +63,25 @@ describe("writing", () => {
     expect(text(sql.mock.calls[1])).toContain("update company_files set category = ?, updated_at = now() where id = ? returning id");
     expect(await store.renameResource("nope", "x")).toBe(false);
     expect(sql).toHaveBeenCalledTimes(2);
+  });
+
+  it("adds a category, answering false when the name is taken", async () => {
+    sql.mockResolvedValueOnce([{ name: "Tax" }]).mockResolvedValueOnce([]);
+    expect(await store.createCategory("Tax")).toBe(true);
+    expect(await store.createCategory("tax")).toBe(false);
+    expect(text(sql.mock.calls[0])).toContain("insert into resource_categories (name) values (?) on conflict do nothing returning name");
+    expect(values(sql.mock.calls[0])).toEqual(["Tax"]);
+  });
+
+  it("renames and deletes a category, never Uncategorized", async () => {
+    sql.mockResolvedValueOnce([{ name: "Taxes" }]).mockResolvedValueOnce([{ name: "Tax" }]);
+    expect(await store.renameCategory("Tax", "Taxes")).toBe(true);
+    expect(text(sql.mock.calls[0])).toContain("update resource_categories set name = ? where name = ? and name <> ? returning name");
+    expect(values(sql.mock.calls[0])).toEqual(["Taxes", "Tax", "Uncategorized"]);
+    expect(await store.deleteCategory("Tax")).toBe(true);
+    expect(text(sql.mock.calls[1])).toContain("delete from resource_categories where name = ? and name <> ? returning name");
+    expect(values(sql.mock.calls[1])).toEqual(["Tax", "Uncategorized"]);
+    expect(await store.deleteCategory("Gone")).toBe(false);
   });
 
   it("deletes the row and answers its storage path, or null when it was already gone", async () => {

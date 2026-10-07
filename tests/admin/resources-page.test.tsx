@@ -2,7 +2,10 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Resource } from "@/lib/admin/resource-rules";
 
-const actions = { saveResourceAction: vi.fn(), renameResourceAction: vi.fn(), recategorizeResourceAction: vi.fn(), deleteResourceAction: vi.fn() };
+const actions = {
+  saveResourceAction: vi.fn(), renameResourceAction: vi.fn(), recategorizeResourceAction: vi.fn(), deleteResourceAction: vi.fn(),
+  addCategoryAction: vi.fn(), renameCategoryAction: vi.fn(), deleteCategoryAction: vi.fn(),
+};
 vi.mock("@/app/admin/resources/actions", () => actions);
 const upload = vi.fn();
 vi.mock("@vercel/blob/client", () => ({ upload }));
@@ -15,6 +18,7 @@ vi.mock("@/lib/admin/resources", () => store);
 
 const { ResourceList } = await import("@/app/admin/resources/ResourceList");
 const { ResourceUploader } = await import("@/app/admin/resources/ResourceUploader");
+const { CategoryManager } = await import("@/app/admin/resources/CategoryManager");
 const { default: ResourcesPage } = await import("@/app/admin/resources/page");
 
 const file = (id: string, name: string, category: string, sizeBytes = 1536 * 1024): Resource => ({
@@ -141,11 +145,12 @@ describe("ResourceUploader", () => {
     expect(refresh).toHaveBeenCalled();
   });
 
-  it("files under an existing category's spelling", async () => {
-    render(<ResourceUploader categories={["Licenses"]} />);
-    fireEvent.change(screen.getByRole("combobox", { name: "Category" }), { target: { value: "licenses " } });
-    await act(async () => pick([new File(["x"], "a.pdf")]));
-    await waitFor(() => expect(actions.saveResourceAction).toHaveBeenCalledWith(expect.objectContaining({ category: "Licenses" })));
+  it("falls back to the default when the picked category is deleted", () => {
+    const { rerender } = render(<ResourceUploader categories={["Licenses", "Tax", "Uncategorized"]} />);
+    fireEvent.change(screen.getByRole("combobox", { name: "Category" }), { target: { value: "Tax" } });
+    expect(screen.getByRole("combobox", { name: "Category" })).toHaveValue("Tax");
+    rerender(<ResourceUploader categories={["Licenses", "Uncategorized"]} />);
+    expect(screen.getByRole("combobox", { name: "Category" })).toHaveValue("Licenses");
   });
 
   it("announces each file's progress and result", async () => {
@@ -163,26 +168,88 @@ describe("ResourceUploader", () => {
     expect(actions.saveResourceAction).not.toHaveBeenCalled();
   });
 
-  it("starts with the General category, and needs one", async () => {
-    render(<ResourceUploader categories={[]} />);
-    expect(screen.getByRole("combobox", { name: "Category" })).toHaveValue("General");
-    fireEvent.change(screen.getByRole("combobox", { name: "Category" }), { target: { value: " " } });
-    await act(async () => pick([new File(["x"], "a.pdf")]));
-    expect(upload).not.toHaveBeenCalled();
-    expect(screen.getByRole("alert")).toHaveTextContent("Pick or type a category (up to 60 characters).");
+  it("picks from the categories only, starting on General when there is one", () => {
+    const { unmount } = render(<ResourceUploader categories={["General", "Licenses", "Uncategorized"]} />);
+    const select = screen.getByRole("combobox", { name: "Category" });
+    expect(select.tagName).toBe("SELECT");
+    expect(select).toHaveValue("General");
+    expect(within(select).getAllByRole("option").map((o) => o.textContent)).toEqual(["General", "Licenses", "Uncategorized"]);
+    unmount();
+    render(<ResourceUploader categories={["Licenses", "Uncategorized"]} />);
+    expect(screen.getByRole("combobox", { name: "Category" })).toHaveValue("Licenses");
+  });
+});
+
+describe("CategoryManager", () => {
+  const CATS = [{ name: "Tax", fileCount: 0 }, { name: "Licenses", fileCount: 3 }, { name: "Uncategorized", fileCount: 0 }];
+  const names = () => within(screen.getByRole("list", { name: "Categories" })).getAllByRole("listitem").map((li) => li.firstChild?.firstChild?.textContent);
+
+  it("lists the categories A–Z with their file counts, hiding an empty Uncategorized", () => {
+    render(<CategoryManager categories={CATS} />);
+    expect(names()).toEqual(["Licenses", "Tax"]);
+    expect(screen.getByText("3 files")).toBeInTheDocument();
+    expect(screen.getByText("0 files")).toBeInTheDocument();
+  });
+
+  it("adds a category and clears the field, or shows why not", async () => {
+    render(<CategoryManager categories={CATS} />);
+    fireEvent.change(screen.getByRole("textbox", { name: "New category" }), { target: { value: "Warranty" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add category" }));
+    await waitFor(() => expect(actions.addCategoryAction).toHaveBeenCalledWith("Warranty"));
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "New category" })).toHaveValue(""));
+    actions.addCategoryAction.mockResolvedValue({ error: "A category named Tax already exists." });
+    fireEvent.change(screen.getByRole("textbox", { name: "New category" }), { target: { value: "Tax" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add category" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("A category named Tax already exists.");
+    expect(screen.getByRole("textbox", { name: "New category" })).toHaveValue("Tax");
+  });
+
+  it("renames a category", async () => {
+    render(<CategoryManager categories={CATS} />);
+    fireEvent.click(screen.getByRole("button", { name: "Rename category Tax" }));
+    expect(screen.getByRole("textbox", { name: "New name" })).toHaveValue("Tax");
+    fireEvent.change(screen.getByRole("textbox", { name: "New name" }), { target: { value: "Taxes" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(actions.renameCategoryAction).toHaveBeenCalledWith("Tax", "Taxes"));
+  });
+
+  it("deletes only after a confirmation that says where the files go", async () => {
+    render(<CategoryManager categories={CATS} />);
+    fireEvent.click(screen.getByRole("button", { name: "Delete category Licenses" }));
+    expect(screen.getByText("Delete Licenses? Its 3 files move to Uncategorized.")).toBeInTheDocument();
+    expect(actions.deleteCategoryAction).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Yes, delete" }));
+    await waitFor(() => expect(actions.deleteCategoryAction).toHaveBeenCalledWith("Licenses"));
+  });
+
+  it("an empty category's confirmation mentions no files", () => {
+    render(<CategoryManager categories={CATS} />);
+    fireEvent.click(screen.getByRole("button", { name: "Delete category Tax" }));
+    expect(screen.getByText("Delete Tax?")).toBeInTheDocument();
+  });
+
+  it("shows Uncategorized once it holds files, with no rename or delete", () => {
+    render(<CategoryManager categories={[{ name: "Uncategorized", fileCount: 2 }]} />);
+    expect(names()).toEqual(["Uncategorized"]);
+    expect(screen.queryByRole("button", { name: /category Uncategorized/ })).toBeNull();
   });
 });
 
 describe("Resources page", () => {
   it("is for owners, and shows the uploader and the list", async () => {
     store.listResources.mockResolvedValue(LIST);
-    store.listCategories.mockResolvedValue(["Licenses", "Spec books"]);
+    store.listCategories.mockResolvedValue([
+      { name: "Licenses", fileCount: 2 }, { name: "Spec books", fileCount: 1 }, { name: "Tax", fileCount: 0 }, { name: "Uncategorized", fileCount: 0 },
+    ]);
     render(await ResourcesPage());
     expect(requireAdmin).toHaveBeenCalled();
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Resources");
     expect(screen.getByLabelText("Choose files")).toBeInTheDocument();
     expect(screen.getAllByRole("region").map((r) => r.getAttribute("aria-label") ?? within(r).getByRole("heading").textContent)).toEqual([
-      "Upload files", "Licenses (2)", "Spec books (1)",
+      "Upload files", "Categories", "Licenses (2)", "Spec books (1)", "Tax (0)",
     ]);
+    expect(within(screen.getByRole("region", { name: "Tax (0)" })).getByText("No files yet.")).toBeInTheDocument();
+    expect(within(screen.getByRole("combobox", { name: "Category" })).getAllByRole("option").map((o) => o.textContent))
+      .toEqual(["Licenses", "Spec books", "Tax", "Uncategorized"]);
   });
 });

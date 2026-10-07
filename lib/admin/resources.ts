@@ -1,7 +1,7 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { isUuid } from "./ids";
-import type { Resource } from "./resource-rules";
+import { UNCATEGORIZED, type Category, type Resource } from "./resource-rules";
 
 /**
  * The Resources library's rows (migration 036). The unit tests pin this SQL's text only;
@@ -22,9 +22,35 @@ export async function listResources(): Promise<Resource[]> {
   return rows.map(toResource);
 }
 
-export async function listCategories(): Promise<string[]> {
-  const rows = await db()`select distinct category from company_files order by category`;
-  return rows.map((r) => r.category as string);
+/** Every category (migration 041) with how many files it holds, Uncategorized included. */
+export async function listCategories(): Promise<Category[]> {
+  const rows = await db()`
+    select c.name, count(f.id)::int as file_count
+    from resource_categories c left join company_files f on f.category = c.name
+    group by c.name order by c.name`;
+  return rows.map((r) => ({ name: r.name as string, fileCount: Number(r.file_count) }));
+}
+
+/** Adds an empty category. False when one by that name exists already, whatever its case. */
+export async function createCategory(name: string): Promise<boolean> {
+  const rows = await db()`insert into resource_categories (name) values (${name}) on conflict do nothing returning name`;
+  return rows.length > 0;
+}
+
+/**
+ * Renames a category; its files follow (on update cascade). False when `from` is gone or is Uncategorized.
+ * Throws 23505 when another category already has the new name.
+ */
+export async function renameCategory(from: string, to: string): Promise<boolean> {
+  const rows = await db()`
+    update resource_categories set name = ${to} where name = ${from} and name <> ${UNCATEGORIZED} returning name`;
+  return rows.length > 0;
+}
+
+/** Deletes a category; its files drop to Uncategorized (on delete set default). False when gone or Uncategorized. */
+export async function deleteCategory(name: string): Promise<boolean> {
+  const rows = await db()`delete from resource_categories where name = ${name} and name <> ${UNCATEGORIZED} returning name`;
+  return rows.length > 0;
 }
 
 export async function getResource(id: string): Promise<(Resource & { pathname: string }) | null> {

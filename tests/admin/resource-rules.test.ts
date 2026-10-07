@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  CATEGORY_MAX, NAME_MAX, RESOURCE_MAX_BYTES, cleanCategory, cleanName, formatBytes, groupResources, matchCategory, opensInline,
-  resourceIdFromPathname, resourcePathname, uploadName, type Resource,
+  CATEGORY_MAX, NAME_MAX, RESOURCE_MAX_BYTES, cleanCategory, cleanName, formatBytes, groupResources, opensInline,
+  categoryChoices, resourceIdFromPathname, resourcePathname, shownCategories, UNCATEGORIZED, uploadName, type Resource,
 } from "@/lib/admin/resource-rules";
 
 const ID = "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c";
@@ -56,15 +56,17 @@ describe("uploadName", () => {
   });
 });
 
-describe("matchCategory", () => {
-  it("reuses an existing category's spelling when only the case or spacing differs", () => {
-    expect(matchCategory(" licenses ", ["Licenses", "Spec books"])).toBe("Licenses");
-    expect(matchCategory("spec  BOOKS", ["Licenses", "Spec books"])).toBe("Spec books");
+describe("categories", () => {
+  const cats = [{ name: "spec books", fileCount: 0 }, { name: UNCATEGORIZED, fileCount: 0 }, { name: "Licenses", fileCount: 2 }];
+
+  it("Upload and Move offer the named categories A–Z, then Uncategorized last", () => {
+    expect(categoryChoices(cats)).toEqual(["Licenses", "spec books", "Uncategorized"]);
+    expect(categoryChoices([])).toEqual(["Uncategorized"]);
   });
 
-  it("cleans a new one, and refuses an empty one", () => {
-    expect(matchCategory("  Tax   forms", ["Licenses"])).toBe("Tax forms");
-    expect(matchCategory(" ", ["Licenses"])).toBeNull();
+  it("lists Uncategorized only while it holds files", () => {
+    expect(shownCategories(cats).map((c) => c.name)).toEqual(["Licenses", "spec books"]);
+    expect(shownCategories([...cats.slice(0, 1), { name: UNCATEGORIZED, fileCount: 3 }]).map((c) => c.name)).toEqual(["spec books", "Uncategorized"]);
   });
 });
 
@@ -92,6 +94,18 @@ describe("groupResources", () => {
       ["Licenses", ["COI 2026.pdf", "W-9.pdf"]],
       ["Spec books", ["Alustra spec.pdf", "Duette spec.pdf"]],
     ]);
+  });
+
+  it("lists empty categories too, but never an empty Uncategorized", () => {
+    expect(groupResources(list, "", ["Tax", "Licenses", UNCATEGORIZED]).map((g) => [g.category, g.files.length])).toEqual([
+      ["Licenses", 2], ["Spec books", 2], ["Tax", 0],
+    ]);
+    const stray = file("old.pdf", UNCATEGORIZED);
+    expect(groupResources([stray], "", [UNCATEGORIZED]).map((g) => g.category)).toEqual([UNCATEGORIZED]);
+  });
+
+  it("a search lists only the categories holding matching files", () => {
+    expect(groupResources(list, "w-9", ["Tax", "Licenses"]).map((g) => g.category)).toEqual(["Licenses"]);
   });
 
   it("filters by name or category, ignoring case, and drops empty groups", () => {

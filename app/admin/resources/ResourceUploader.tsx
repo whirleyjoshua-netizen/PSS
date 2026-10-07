@@ -1,9 +1,9 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { upload } from "@vercel/blob/client";
-import { CATEGORY_MAX, matchCategory, RESOURCE_MAX_BYTES, resourcePathname } from "@/lib/admin/resource-rules";
+import { RESOURCE_MAX_BYTES, resourcePathname, UNCATEGORIZED } from "@/lib/admin/resource-rules";
 import { saveResourceAction } from "./actions";
 
 type Item = { key: string; name: string; percent: number; status: "uploading" | "saved" | "failed"; message?: string };
@@ -12,18 +12,18 @@ const TOO_BIG = "Files must be 200 MB or smaller.";
 const FAILED = "Upload failed. Check your connection and try again.";
 const EMPTY = "That file is empty.";
 const NOT_SAVED = "The file couldn't be saved. Try again.";
-const NO_CATEGORY = `Pick or type a category (up to ${CATEGORY_MAX} characters).`;
 
 /**
  * Picks files and sends each straight to private storage (spec Part B2), so big spec books never
- * pass through a function, then records it under the chosen category.
+ * pass through a function, then records it under the chosen category. `categories` is categoryChoices():
+ * the select starts on General when there is one, else the first.
  */
 export function ResourceUploader({ categories }: { categories: string[] }) {
   const router = useRouter();
-  const listId = useId();
-  const [category, setCategory] = useState("General");
+  const [picked, setCategory] = useState<string | null>(null);
+  // A category deleted since it was picked falls back to the default, so the select never shows one that's gone.
+  const category = picked && categories.includes(picked) ? picked : categories.includes("General") ? "General" : categories[0] ?? UNCATEGORIZED;
   const [items, setItems] = useState<Item[]>([]);
-  const [error, setError] = useState<string | null>(null);
   const update = (key: string, change: Partial<Item>) => setItems((all) => all.map((i) => (i.key === key ? { ...i, ...change } : i)));
 
   async function send(file: File, chosen: string) {
@@ -52,11 +52,8 @@ export function ResourceUploader({ categories }: { categories: string[] }) {
   }
 
   async function pick(files: File[]) {
-    const chosen = matchCategory(category, categories);
-    if (!chosen) return setError(NO_CATEGORY);
-    setError(null);
     // Each file settles on its own: one failure never stops the others or the refresh.
-    await Promise.allSettled(files.map((file) => send(file, chosen)));
+    await Promise.allSettled(files.map((file) => send(file, category)));
     router.refresh();
   }
 
@@ -65,9 +62,9 @@ export function ResourceUploader({ categories }: { categories: string[] }) {
       <div className="flex flex-wrap items-end gap-3">
         <label className="flex flex-col gap-1 text-sm">
           Category
-          <input value={category} onChange={(e) => setCategory(e.target.value)} list={listId} maxLength={CATEGORY_MAX}
-            className="min-h-11 border border-rule bg-white px-3" />
-          <datalist id={listId}>{categories.map((c) => <option key={c} value={c} />)}</datalist>
+          <select value={category} onChange={(e) => setCategory(e.target.value)} className="min-h-11 border border-rule bg-white px-3">
+            {categories.map((c) => <option key={c} value={c}>{c}</option>)}
+          </select>
         </label>
         <label className="inline-flex min-h-11 cursor-pointer items-center border border-charcoal px-4 text-sm focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-champagne-ink">
           Choose files
@@ -80,7 +77,6 @@ export function ResourceUploader({ categories }: { categories: string[] }) {
         </label>
       </div>
       <p className="text-sm text-ink-soft">Any file, up to 200 MB each. PDFs and photos open in the browser; other files download.</p>
-      {error ? <p role="alert" className="text-sm text-red-700">{error}</p> : null}
       <div aria-live="polite">
       {items.length > 0 ? (
         <ul className="flex flex-col gap-2 text-sm">

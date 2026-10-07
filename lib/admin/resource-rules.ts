@@ -9,6 +9,11 @@ export const RESOURCE_MAX_BYTES = 200 * 1024 * 1024;
 export const NAME_MAX = 200;
 export const CATEGORY_MAX = 60;
 
+/** Where a deleted category's files go (migration 041). Never renamed or deleted. */
+export const UNCATEGORIZED = "Uncategorized";
+
+export type Category = { name: string; fileCount: number };
+
 export type Resource = {
   id: string; name: string; category: string; contentType: string; sizeBytes: number; uploadedBy: string; createdAt: Date;
 };
@@ -45,13 +50,6 @@ export function uploadName(raw: string): string {
   return `${name.slice(0, NAME_MAX - 1 - ext.length)}…${ext}`;
 }
 
-/** A typed category, cleaned, spelled as an existing one when it differs only in case, so "licenses" files under "Licenses". */
-export function matchCategory(raw: string, existing: string[]): string | null {
-  const category = cleanCategory(raw);
-  if (!category) return null;
-  return existing.find((c) => c.toLowerCase() === category.toLowerCase()) ?? category;
-}
-
 export function cleanCategory(raw: string): string | null {
   const category = raw.trim().replace(/\s+/g, " ");
   return category.length >= 1 && category.length <= CATEGORY_MAX ? category : null;
@@ -73,14 +71,31 @@ export function formatBytes(bytes: number): string {
   return `${Number(value.toFixed(value < 10 ? 1 : 0))} ${units[unit]}`;
 }
 
-/** The list as the page shows it: matching files by category A–Z, each category's files by name A–Z. */
-export function groupResources(list: Resource[], query: string): { category: string; files: Resource[] }[] {
+const byName = (a: string, b: string) => a.localeCompare(b, "en", { sensitivity: "base" });
+
+/** The categories in A–Z order, Uncategorized only while it holds files: the order the page lists them in. */
+export function shownCategories(categories: Category[]): Category[] {
+  return categories.filter((c) => c.name !== UNCATEGORIZED || c.fileCount > 0).sort((a, b) => byName(a.name, b.name));
+}
+
+/** What Upload and Move offer: the named categories A–Z, then Uncategorized last. */
+export function categoryChoices(categories: Category[]): string[] {
+  const named = categories.map((c) => c.name).filter((n) => n !== UNCATEGORIZED).sort(byName);
+  return [...named, UNCATEGORIZED];
+}
+
+/**
+ * The list as the page shows it: categories A–Z, each category's files by name A–Z. Without a search every
+ * category in `categories` is listed, empty ones too (Uncategorized only with files); a search lists only the
+ * categories holding matching files.
+ */
+export function groupResources(list: Resource[], query: string, categories: string[] = []): { category: string; files: Resource[] }[] {
   const q = query.trim().toLowerCase();
   const matching = q ? list.filter((r) => r.name.toLowerCase().includes(q) || r.category.toLowerCase().includes(q)) : list;
   const byCategory = new Map<string, Resource[]>();
+  if (!q) for (const c of categories) if (c !== UNCATEGORIZED) byCategory.set(c, []);
   for (const r of matching) byCategory.set(r.category, [...(byCategory.get(r.category) ?? []), r]);
-  const order = (a: string, b: string) => a.localeCompare(b, "en", { sensitivity: "base" });
-  return [...byCategory.keys()].sort(order).map((category) => ({
-    category, files: byCategory.get(category)!.sort((a, b) => order(a.name, b.name)),
+  return [...byCategory.keys()].sort(byName).map((category) => ({
+    category, files: byCategory.get(category)!.sort((a, b) => byName(a.name, b.name)),
   }));
 }
