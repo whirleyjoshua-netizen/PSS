@@ -14,7 +14,7 @@ The owner's taste profile, from the character questionnaire of 2026-10-03. Marcu
 
 ## What we stand for
 - **Family**: family-run, and clients get treated like family.
-- **Honesty**: straight answers, a quote at the visit, no games.
+- **Honesty**: straight answers, a written quote, no games.
 - The feeling we want after the job: *"I feel good about doing business with them."*
 
 ## The problem we solve
@@ -41,18 +41,19 @@ Mostly Las Vegas valley homeowners aged 35–65 (Las Vegas, Henderson, Summerlin
 
 ## Things that are true (use them)
 - Family-owned and local.
-- Free in-home consultation: we bring samples to your home, measure every window, and quote before we leave.
+- Free in-home consultation: we bring samples to your home, measure every window, and send a written quote. (Never promise the quote "before we leave" or "on the spot": owner, 2026-10-08, it is not always possible.)
 - The owners do the work.
 - Products: plantation shutters, solar shades, motorized shades and blinds, roller/cellular/roman shades, wood and faux-wood blinds, outdoor patio shades, valances, skylight shades, blackout and room-darkening shades, cordless blinds. We sell Hunter Douglas. Wholesale blinds are available.
 - Owner-confirmed 2026-10-08 (the ad landing page promises these, content/consultation.ts):
   - **Measurement guarantee**: Josh measures every window himself; if a measurement is off, we remake and reinstall it free.
   - **Lead time in writing**: on the quote (blinds and shades 3–5 weeks, shutters 6–10, from content/lead-times.ts).
-  - **Temporary shades** while the order is made.
+  - **Free temporary shades** while the order is made.
   - Clients **text the owners** directly; the project page shows where an order is.
   - **We clean up** and **haul old blinds away free**.
 - Reviews from before PSS opened are labeled as past work (FTC). Never present them as PSS reviews.
 
 ## Things we can't say
+- "Quote before we leave", "quote on the spot" or any promise of when the quote arrives (owner, 2026-10-08: not always possible).
 - "#1", "best in Las Vegas", "lowest price", or any claim we can't prove.
 - Anything about Lutron or Norman until those accounts are open.
 - Hunter Douglas: the owner confirmed (2026-10-03) PSS carries Hunter Douglas, so the brand name is OK in ad text. Watch for Google trademark limits.

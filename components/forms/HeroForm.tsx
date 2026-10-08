@@ -37,7 +37,7 @@ export function HeroForm({
         Free in-home consultation
       </h2>
       <p className="mt-2 text-sm text-ink-soft">
-        We bring the samples, measure every window and quote before we leave. No
+        We bring the samples, measure every window and send you a written quote. No
         charge, no obligation.
       </p>
 

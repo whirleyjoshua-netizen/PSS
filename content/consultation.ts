@@ -8,7 +8,7 @@ import type { CategorySlug } from "@/content/products";
  * on feat/voc-scraper): 2–4 star Google reviews of the five biggest Las Vegas window
  * companies. The five pains below are the five most-repeated complaints, headed in the
  * words customers use. Every answer is something the owner confirmed on 2026-10-08:
- * free haul-away, clean-up, temporary shades, texting the owners, and the measurement
+ * free haul-away, clean-up, free temporary shades, texting the owners, and the measurement
  * guarantee ("we guarantee our measures cause I do them" — Josh measures every window).
  * Change a promise here only after the owner confirms the new one is true.
  */
@@ -34,7 +34,7 @@ export const PAINS: Pain[] = [
   {
     heard: "“It took forever.”",
     answer: "Your lead time, in writing",
-    body: `Your quote says when to expect your install: ${LEAD_TIME_LINE}. Need privacy while you wait? We put up temporary shades.`,
+    body: `Your quote says when to expect your install: ${LEAD_TIME_LINE}. Need privacy while you wait? We put up temporary shades, free.`,
   },
   {
     heard: "“They measured wrong.”",
@@ -61,14 +61,14 @@ export const PAINS: Pain[] = [
 export const STEPS = [
   { title: "Invite us over", body: "We bring samples to your home, so you see every color and fabric in your own light." },
   { title: "Josh measures", body: "Every window, by the owner, backed by our measurement guarantee." },
-  { title: "Your quote, before we leave", body: `With your lead time on it: ${LEAD_TIME_LINE}.` },
+  { title: "Your written quote", body: `With your lead time on it: ${LEAD_TIME_LINE}.` },
   { title: "Install day", body: "We install, clean up, and haul your old blinds away free." },
 ];
 
 export const FAQ = [
   {
     q: "How long until my install?",
-    a: `${LEAD_TIME_LINE[0]!.toUpperCase()}${LEAD_TIME_LINE.slice(1)}, counted from the day you order. It is written on your quote, and we can put up temporary shades while you wait.`,
+    a: `${LEAD_TIME_LINE[0]!.toUpperCase()}${LEAD_TIME_LINE.slice(1)}, counted from the day you order. It is written on your quote, and we put up temporary shades for free while you wait.`,
   },
   {
     q: "What if something doesn't fit?",

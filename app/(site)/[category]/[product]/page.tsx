@@ -110,7 +110,7 @@ export default async function ProductPage({
       <ReviewSpotlight reviews={spotlightReviewsExceptFeatured} />
       <ConsultationCta
         title={`Thinking about ${found.name.toLowerCase()}?`}
-        body="We bring samples to your windows, measure every opening, and quote before we leave. No charge and no obligation."
+        body="We bring samples to your windows, measure every opening, and send you a written quote. No charge and no obligation."
         href="#book"
       />
     </>

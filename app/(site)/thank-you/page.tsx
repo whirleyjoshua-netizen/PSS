@@ -29,7 +29,7 @@ const STEPS = [
   },
   {
     title: "Your in-home visit",
-    body: "We bring real samples to your windows, in your own light, measure each window, and can quote before we leave. No charge, no obligation.",
+    body: "We bring real samples to your windows, in your own light, measure each window, and send you a written quote. No charge, no obligation.",
   },
   {
     title: "Made for your home",

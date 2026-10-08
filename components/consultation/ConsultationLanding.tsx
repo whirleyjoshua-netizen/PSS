@@ -101,7 +101,7 @@ export function ConsultationLanding({
       <ConsultationCta
         href="#book"
         title="Ready when you are."
-        body="Samples in your own light, every window measured by the owner, and a quote before we leave."
+        body="Samples in your own light, every window measured by the owner, and a written quote with your lead time on it."
       />
     </>
   );

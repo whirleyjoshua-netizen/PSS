@@ -87,7 +87,7 @@ export default function AboutPage() {
             },
             {
               title: "Measurement and quote",
-              body: "We measure every opening ourselves — the single most common cause of a bad window treatment is a bad measurement — and give you a written quote before we leave.",
+              body: "We measure every opening ourselves — the single most common cause of a bad window treatment is a bad measurement — and give you a written quote.",
             },
             {
               title: "Order and build",

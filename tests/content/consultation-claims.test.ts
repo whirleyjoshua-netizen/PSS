@@ -9,3 +9,25 @@ describe("the landing page never calls takedown free", () => {
     expect(FAQ.find((f) => /old blinds/.test(f.q))!.a).toMatch(/Taking them down is priced per window on your quote/);
   });
 });
+
+/** The owner can't always quote at the visit (2026-10-08), so no customer-facing copy promises when the quote arrives. */
+describe("no copy promises the quote at the visit", () => {
+  it("never says 'before we leave' or 'on the spot' about the quote", async () => {
+    const { readFileSync, readdirSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const files = (dir: string): string[] =>
+      readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+        e.isDirectory() ? files(join(dir, e.name)) : /\.tsx?$/.test(e.name) ? [join(dir, e.name)] : [],
+      );
+    const offenders = ["app", "components", "content", "lib"]
+      .flatMap(files)
+      .filter((f) => /quote[^.]{0,40}(before we leave|on the spot)/i.test(readFileSync(f, "utf8")));
+    expect(offenders).toEqual([]);
+  });
+});
+
+describe("temporary shades", () => {
+  it("are promised free, as the owner confirmed on 2026-10-08", () => {
+    expect(PAINS.find((p) => /took forever/.test(p.heard))!.body).toMatch(/temporary shades, free/);
+  });
+});

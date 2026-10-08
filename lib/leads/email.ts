@@ -96,7 +96,7 @@ export async function sendCustomerConfirmation(
     "What happens next:",
     "",
     "1. We call you within 3 business days to find a time that works.",
-    "2. At the visit we bring real samples to your windows, measure each window, and can give you a quote before we leave. No charge, no obligation.",
+    "2. At the visit we bring real samples to your windows, measure each window, and send you a written quote. No charge, no obligation.",
     "3. If you choose to move forward, your window treatments are made to order, and we install them ourselves.",
     "",
     "Before we visit, it helps to think about which rooms matter most, whether glare, heat, or privacy is the main problem, and to have everyone who is deciding at home.",

@@ -92,7 +92,7 @@ export function CategoryGrid() {
 const PILLARS = [
   {
     title: "We come to you, at no charge",
-    body: "Fabric and finish look completely different in your own light than they do on a showroom wall or a screen. We bring the samples to your windows, measure every opening ourselves, and quote before we leave.",
+    body: "Fabric and finish look completely different in your own light than they do on a showroom wall or a screen. We bring the samples to your windows, measure every opening ourselves, and send you a written quote.",
   },
   {
     title: "We do the work ourselves",
