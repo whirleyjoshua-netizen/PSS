@@ -56,6 +56,18 @@ export function ConsultationLanding({
               </Reveal>
             </li>
           ))}
+          {/* Five promises leave the sixth cell of the three-column grid empty; it carries the next step instead. */}
+          <li className="bg-charcoal md:col-span-2 lg:col-span-1">
+            <div className="flex h-full flex-col justify-center gap-4 p-6 md:p-8">
+              <p className="font-display text-xl font-medium text-ivory">See the difference in your own home.</p>
+              <a
+                href="#book"
+                className="font-display text-sm uppercase tracking-[0.14em] text-champagne underline-offset-4 hover:underline"
+              >
+                Book your free consultation →
+              </a>
+            </div>
+          </li>
         </ul>
       </Section>
 
