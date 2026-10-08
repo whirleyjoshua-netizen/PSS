@@ -44,6 +44,12 @@ Mostly Las Vegas valley homeowners aged 35–65 (Las Vegas, Henderson, Summerlin
 - Free in-home consultation: we bring samples to your home, measure every window, and quote before we leave.
 - The owners do the work.
 - Products: plantation shutters, solar shades, motorized shades and blinds, roller/cellular/roman shades, wood and faux-wood blinds, outdoor patio shades, valances, skylight shades, blackout and room-darkening shades, cordless blinds. We sell Hunter Douglas. Wholesale blinds are available.
+- Owner-confirmed 2026-10-08 (the ad landing page promises these, content/consultation.ts):
+  - **Measurement guarantee**: Josh measures every window himself; if a measurement is off, we remake and reinstall it free.
+  - **Lead time in writing**: on the quote (blinds and shades 3–5 weeks, shutters 6–10, from content/lead-times.ts).
+  - **Temporary shades** while the order is made.
+  - Clients **text the owners** directly; the project page shows where an order is.
+  - **We clean up** and **haul old blinds away free**.
 - Reviews from before PSS opened are labeled as past work (FTC). Never present them as PSS reviews.
 
 ## Things we can't say
