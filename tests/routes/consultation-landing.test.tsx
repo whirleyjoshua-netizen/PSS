@@ -89,12 +89,12 @@ describe("landing routes", () => {
     expect(FAQ[0]!.a).toContain(weeks("Shutters"));
   });
 
-  it("makes only the promises the owner confirmed on 2026-10-08", () => {
-    const text = [...PAINS.map((p) => p.body), ...FAQ.map((f) => f.a)].join(" ");
-    expect(text).toMatch(/temporary shades/);
-    expect(text).toMatch(/remake it/);
-    expect(text).toMatch(/haul (them|your old blinds) away/);
-    expect(text).toMatch(/text Shade or Josh/);
-    expect(text).toMatch(/clean up/);
+  it("answers each pain with the promise the owner confirmed on 2026-10-08", () => {
+    const answer = (heard: RegExp) => PAINS.find((p) => heard.test(p.heard))!.body;
+    expect(answer(/took forever/)).toMatch(/temporary shades/);
+    expect(answer(/measured wrong/)).toMatch(/Josh measures every window himself.*remake it/);
+    expect(answer(/called me back/)).toMatch(/text Shade or Josh directly/);
+    expect(answer(/left a mess/)).toMatch(/clean up.*haul your old blinds away for free/);
+    expect(answer(/had my money/)).toMatch(/stand behind the job/);
   });
 });
