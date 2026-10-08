@@ -62,7 +62,7 @@ export const STEPS = [
   { title: "Invite us over", body: "We bring samples to your home, so you see every color and fabric in your own light." },
   { title: "Josh measures", body: "Every window, by the owner, backed by our measurement guarantee." },
   { title: "Your quote, before we leave", body: `With your lead time on it: ${LEAD_TIME_LINE}.` },
-  { title: "Install day", body: "We install, clean up, and take your old blinds with us." },
+  { title: "Install day", body: "We install, clean up, and haul your old blinds away free." },
 ];
 
 export const FAQ = [
@@ -76,7 +76,7 @@ export const FAQ = [
   },
   {
     q: "What happens to my old blinds?",
-    a: "We take them down and haul them away for free.",
+    a: "Hauling them away is free. Taking them down is priced per window on your quote, so you see it before you say yes.",
   },
   {
     q: "Is the consultation really free?",
