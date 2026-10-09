@@ -31,10 +31,12 @@ export type Task = {
   completedAt: Date | null;
   lastRemindedAt: Date | null;
   lastRemindedBy: string | null;
+  /** Uploads and Resources links on it (migration 043). */
+  fileCount: number;
 };
 
 /** What an email about a task needs. */
-export type TaskSummary = Pick<Task, "id" | "title" | "notes" | "dueOn" | "assigneeEmail">;
+export type TaskSummary = Pick<Task, "id" | "title" | "notes" | "dueOn" | "assigneeEmail"> & { fileNames: string[] };
 
 /** "joshua.whirley@…" → "Joshua Whirley". Sign-ins have no name, only an email. */
 export function displayName(email: string): string {

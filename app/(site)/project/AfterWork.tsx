@@ -55,7 +55,7 @@ export function AfterWork({
       <h2 id="after-work-heading" className="font-display text-xs uppercase tracking-[0.2em] text-champagne-ink">
         After the work is done
       </h2>
-      <p>Happy with the work? A review helps two people running a small business more than you would think.</p>
+      <p>Happy with the work? A review helps a family business more than you would think.</p>
       <div className="flex flex-wrap gap-3">
         <a
           href={business.socials.googleBusinessProfile}

@@ -75,11 +75,11 @@ describe("reviews page filters", () => {
     render(<ReviewsPage />);
     const filters = screen.getByRole("group", { name: /show reviews about/i });
 
-    fireEvent.click(within(filters).getByRole("button", { name: "Shade" }));
+    fireEvent.click(within(filters).getByRole("button", { name: "Shade’" }));
     const shadeCards = screen.getAllByRole("article");
     expect(shadeCards).toHaveLength(pastReviews.filter((review) => review.about === "Shade").length);
-    for (const card of shadeCards) expect(card).toHaveTextContent("About Shade");
-    expect(within(filters).getByRole("button", { name: "Shade" })).toHaveAttribute("aria-pressed", "true");
+    for (const card of shadeCards) expect(card).toHaveTextContent("About Shade’");
+    expect(within(filters).getByRole("button", { name: "Shade’" })).toHaveAttribute("aria-pressed", "true");
 
     fireEvent.click(within(filters).getByRole("button", { name: "All" }));
     expect(screen.getAllByRole("article")).toHaveLength(pastReviews.length);

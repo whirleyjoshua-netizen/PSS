@@ -4,9 +4,10 @@ import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/admin/session";
 import { pollMailbox } from "@/lib/dc/import";
 import { sendContract, sendQuote } from "@/lib/dc/send";
-import { addQuoteOption, setLineOverride, setVersionChoices } from "@/lib/dc/store";
+import { addQuoteOption, setLineOverride, setVersionChoices, setVersionDiscount, validDiscountLabel } from "@/lib/dc/store";
 
 const PCT = /^\d{1,4}(\.\d{1,2})?$/;
+const DOLLARS = /^\$?\d{1,3}(,?\d{3})*(\.\d{1,2})?$/;
 const LOCKED = "This version can no longer be changed.";
 const refresh = (jobId: string) => revalidatePath(`/admin/jobs/${jobId}`);
 
@@ -29,6 +30,36 @@ export async function setChoicesAction(jobId: string, versionId: string, choices
     noInstall: typeof choices?.noInstall === "boolean" ? choices.noInstall : undefined,
   };
   if (!(await setVersionChoices(jobId, versionId, clean))) return { error: LOCKED };
+  refresh(jobId);
+  return {};
+}
+
+/**
+ * The version's discount: a percent ("10") or a dollar amount ("200" or "$1,250.50"), with the label the client
+ * sees. Null removes it. Drafts only.
+ */
+export async function setDiscountAction(
+  jobId: string, versionId: string, input: { kind: "pct" | "amount"; value: string; label: string } | null,
+): Promise<{ error?: string }> {
+  const admin = await requireAdmin();
+  let discount: { pct: number | null; amountCents: number | null; label: string } | null = null;
+  if (input !== null) {
+    const value = typeof input?.value === "string" ? input.value.trim() : "";
+    const label = typeof input?.label === "string" ? input.label.trim() : "";
+    if (!validDiscountLabel(label)) return { error: "Give the discount a name of up to 60 characters, like Holiday special." };
+    if (input.kind === "pct") {
+      const pct = Number(value.replace(/%$/, ""));
+      if (!PCT.test(value.replace(/%$/, "")) || pct <= 0 || pct >= 100) return { error: "Enter a percentage over 0 and under 100, like 10" };
+      discount = { pct, amountCents: null, label };
+    } else if (input.kind === "amount") {
+      const cents = Math.round(Number(value.replace(/[$,]/g, "")) * 100);
+      if (!DOLLARS.test(value) || cents <= 0) return { error: "Enter a dollar amount like 200 or 150.50" };
+      discount = { pct: null, amountCents: cents, label };
+    } else {
+      return { error: "Choose percent or dollars." };
+    }
+  }
+  if (!(await setVersionDiscount(jobId, versionId, discount, admin.email))) return { error: LOCKED };
   refresh(jobId);
   return {};
 }

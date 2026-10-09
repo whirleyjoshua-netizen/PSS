@@ -14,7 +14,7 @@ The owner's taste profile, from the character questionnaire of 2026-10-03. Marcu
 
 ## What we stand for
 - **Family**: family-run, and clients get treated like family.
-- **Honesty**: straight answers, a quote at the visit, no games.
+- **Honesty**: straight answers, a written quote, no games.
 - The feeling we want after the job: *"I feel good about doing business with them."*
 
 ## The problem we solve
@@ -41,12 +41,24 @@ Mostly Las Vegas valley homeowners aged 35–65 (Las Vegas, Henderson, Summerlin
 
 ## Things that are true (use them)
 - Family-owned and local.
-- Free in-home consultation: we bring samples to your home, measure every window, and quote before we leave.
+- **Shade’ is always written with the mark: Shade’** (owner, 2026-10-09). Never "Shade" for her name. Customer review quotes stay verbatim.
+- Free in-home consultation: we bring samples to your home, measure every window, and send a written quote. (Never promise the quote "before we leave" or "on the spot": owner, 2026-10-08, it is not always possible.)
 - The owners do the work.
 - Products: plantation shutters, solar shades, motorized shades and blinds, roller/cellular/roman shades, wood and faux-wood blinds, outdoor patio shades, valances, skylight shades, blackout and room-darkening shades, cordless blinds. We sell Hunter Douglas. Wholesale blinds are available.
+- Owner-confirmed 2026-10-08 (the ad landing page promises these, content/consultation.ts):
+  - **Measurement guarantee**: Josh measures every window himself; if a measurement is off, we remake and reinstall it free.
+  - **Lead time in writing**: on the quote (blinds and shades 3–5 weeks, shutters 6–10, from content/lead-times.ts).
+  - **Free temporary shades** while the order is made.
+  - Clients **text the owners** directly; the project page shows where an order is. Frame it as personal service: "Not customer service. Personal service." (owner, 2026-10-09). In ads say "More Than Customer Service", not "Text the Owners Directly" or "Personal Customer Service".
+  - **We clean up** and **haul old blinds away free**.
+  - We **walk through every window with the client** at the end of the install.
+  - We **never hand the client off to a third party for install**: "From your first call to the final install, we're family."
+  - We do NOT do repairs.
 - Reviews from before PSS opened are labeled as past work (FTC). Never present them as PSS reviews.
 
 ## Things we can't say
+- Headcount promises: "two people", "same two faces". Say "From your first call to the final install, we're family" and "we never hand you off to a third party for install" (owner, 2026-10-09: it must stay true as we grow).
+- "Quote before we leave", "quote on the spot" or any promise of when the quote arrives (owner, 2026-10-08: not always possible).
 - "#1", "best in Las Vegas", "lowest price", or any claim we can't prove.
 - Anything about Lutron or Norman until those accounts are open.
 - Hunter Douglas: the owner confirmed (2026-10-03) PSS carries Hunter Douglas, so the brand name is OK in ad text. Watch for Google trademark limits.
@@ -54,8 +66,7 @@ Mostly Las Vegas valley homeowners aged 35–65 (Las Vegas, Henderson, Summerlin
 
 ## Sample lines in the voice (starter set; replace with approved ones)
 - "Your windows called. They want somebody who actually shows up."
-- "One crew. Start to finish. That's personal."
-- "We measure it, we quote it, we install it. Same faces every time."
+- "From your first call to the final install, we're family." (owner's line, 2026-10-09)
 - "Vegas sun doesn't take days off. Your shades shouldn't either."
 
 ## Owner feedback log

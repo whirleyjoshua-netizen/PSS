@@ -55,7 +55,7 @@ describe("AfterWork", () => {
     const section = screen.getByRole("region", { name: "After the work is done" });
     expect(
       within(section).getByText(
-        "Happy with the work? A review helps two people running a small business more than you would think.",
+        "Happy with the work? A review helps a family business more than you would think.",
       ),
     ).toBeInTheDocument();
   });

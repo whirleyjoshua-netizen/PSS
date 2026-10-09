@@ -1,7 +1,7 @@
 import { Reveal } from "@/components/ui/Reveal";
 
 export const FAMILY_LINE =
-  "Shade and Josh measure, order and install every job themselves. No call center, no subcontractors.";
+  "Shade’ and Josh personally handle every step of your project, from design and measurements to ordering and installation. No call centers. No subcontractors. Just personalized, streamlined service from start to finish.";
 
 /** The badges under the photo: what the consultation is, in three words or fewer each. */
 export const PROMISES = ["Free consultation", "Family-run", "No obligation"];

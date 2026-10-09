@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { isPromoLive, promoHideScript, promoStorageKey, type Promo } from "@/lib/promo";
-import { holidayPromo } from "@/content/promo";
+import { holidayOffer, holidayPromo, promos } from "@/content/promo";
 
 const promo: Promo = {
   id: "test-promo",
@@ -38,6 +38,27 @@ describe("the holiday promo", () => {
 
   it("sends visitors to the consultation form", () => {
     expect(holidayPromo.href).toBe("/contact");
+  });
+});
+
+describe("the 10% offer", () => {
+  it("runs through the end of Nov 15, Las Vegas time, then hands over to the holiday strip with no gap or overlap", () => {
+    expect(isPromoLive(holidayOffer, new Date("2026-11-16T07:59:59Z"))).toBe(true);
+    expect(isPromoLive(holidayOffer, new Date("2026-11-16T08:00:00Z"))).toBe(false);
+    expect(isPromoLive(holidayPromo, new Date("2026-11-16T07:59:59Z"))).toBe(false);
+    expect(isPromoLive(holidayPromo, new Date("2026-11-16T08:00:00Z"))).toBe(true);
+  });
+
+  it("is live today and states the terms: 10%, 3 or more shades, by Nov 15", () => {
+    expect(isPromoLive(holidayOffer, new Date("2026-10-09T19:00:00Z"))).toBe(true);
+    expect(holidayOffer.message).toMatch(/10% off 3 or more custom shades\. Book by Nov 15\./);
+    expect(holidayOffer.href).toBe("/contact");
+  });
+
+  it("no two strips are ever live at once", () => {
+    for (let t = new Date("2026-10-01T00:00:00Z").getTime(); t < new Date("2026-12-26T00:00:00Z").getTime(); t += 3_600_000) {
+      expect(promos.filter((p) => isPromoLive(p, new Date(t))).length).toBeLessThanOrEqual(1);
+    }
   });
 });
 

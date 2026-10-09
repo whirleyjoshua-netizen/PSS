@@ -2,12 +2,14 @@ import Image from "next/image";
 import { HeroForm } from "@/components/forms/HeroForm";
 import { Container } from "@/components/ui/Container";
 import { business } from "@/content/business";
+import { FAMILY_LINE } from "@/components/booking/PromiseRow";
+import { altaPhotos } from "@/content/stock-photos";
 
 export function Hero() {
   return (
     <section className="relative overflow-hidden bg-charcoal text-ivory">
       <Image
-        src="/gallery/timber-great-room-hero-wide.webp"
+        src={altaPhotos.sheerShadingsLivingRoom.src}
         alt=""
         fill
         priority
@@ -34,8 +36,7 @@ export function Hero() {
             </h1>
 
             <p className="max-w-xl text-lg text-sand/80">
-              Shade and Josh measure, order and install every job themselves. No
-              call center, no subcontractors.
+              {FAMILY_LINE}
             </p>
 
             <div className="flex flex-wrap items-center gap-4 pt-2">

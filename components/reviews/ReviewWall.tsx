@@ -9,7 +9,7 @@ type Filter = "all" | PastReview["about"];
 const FILTERS: { id: Filter; label: string }[] = [
   { id: "all", label: "All" },
   { id: "Josh", label: "Josh" },
-  { id: "Shade", label: "Shade" },
+  { id: "Shade", label: "Shade’" },
 ];
 
 export function ReviewWall({ reviews }: { reviews: PastReview[] }) {

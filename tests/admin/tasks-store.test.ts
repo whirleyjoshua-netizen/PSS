@@ -12,7 +12,7 @@ const text = (call: unknown[]) => (call[0] as TemplateStringsArray).join("?").re
 const row = {
   id: ID, title: "Flyers", notes: null, status: "todo", assignee_email: "shade@x.com", due_on: "2026-10-09",
   created_by: "joshua@x.com", created_at: "2026-10-01T15:00:00Z", completed_at: null,
-  last_reminded_at: null, last_reminded_by: null,
+  last_reminded_at: null, last_reminded_by: null, file_count: 2,
 };
 const input = { title: "Flyers", notes: null, assignee: "shade@x.com", dueOn: "2026-10-09", status: "todo" as const };
 
@@ -36,9 +36,10 @@ describe("reading tasks", () => {
     expect(task).toEqual({
       id: ID, title: "Flyers", notes: null, status: "todo", assigneeEmail: "shade@x.com", dueOn: "2026-10-09",
       createdBy: "joshua@x.com", createdAt: new Date("2026-10-01T15:00:00Z"), completedAt: null,
-      lastRemindedAt: null, lastRemindedBy: null,
+      lastRemindedAt: null, lastRemindedBy: null, fileCount: 2,
     });
     expect(text(sql.mock.calls[0])).toContain("due_on::text as due_on");
+    expect(text(sql.mock.calls[0])).toContain("(select count(*) from task_files f where f.task_id = tasks.id)::int as file_count");
     expect(text(sql.mock.calls[0])).toMatch(/where status <> 'done' or completed_at > now\(\) - make_interval\(days => \?::int\)/);
     expect(sql.mock.calls[0]).toContain(14);
   });
@@ -49,16 +50,56 @@ describe("reading tasks", () => {
 });
 
 describe("createTask", () => {
-  it("inserts only when the assignee may sign in", async () => {
-    sql.mockResolvedValue([{ id: ID }]);
-    expect(await store.createTask(input, "joshua@x.com")).toEqual({ id: ID });
+  const FILE = "9a8b7c6d-1e2f-4a3b-8c4d-5e6f7a8b9c0d";
+  const RES = "5c4b3a29-1e2f-4a3b-8c4d-5e6f7a8b9c0d";
+  const files = {
+    id: ID,
+    uploads: [{ id: FILE, name: "Headlines.pdf", contentType: "application/pdf", sizeBytes: 900, pathname: `task-files/${ID}/${FILE}/Headlines.pdf` }],
+    resourceIds: [RES],
+  };
+
+  it("writes the task with the form's id and its uploads and links in one statement, only when the assignee may sign in", async () => {
+    sql.mockResolvedValue([{ existed: false, allowed: true, created: true, file_names: ["Headlines.pdf", "Price guide.pdf"] }]);
+    expect(await store.createTask(input, "joshua@x.com", files)).toEqual({ id: ID, created: true, fileNames: ["Headlines.pdf", "Price guide.pdf"] });
+    expect(sql).toHaveBeenCalledTimes(1);
     const query = text(sql.mock.calls[0]);
-    expect(query).toContain("insert into tasks");
-    expect(query).toMatch(/where \?::text is null or \?::text = any\(\?::text\[\]\) or exists \(select 1 from admin_access where email = \?::text\)/);
+    expect(query).toContain("insert into tasks (id, title, notes, status, assignee_email, due_on, created_by, completed_at)");
+    expect(query).toContain("on conflict (id) do nothing");
+    expect(query).toMatch(/select \(\?::text is null or \?::text = any\(\?::text\[\]\) or exists \(select 1 from admin_access where email = \?::text\)\) as ok/);
+    expect(query).toContain("where (select ok from allowed)");
+    expect(query).toContain("from ins, jsonb_to_recordset(?::jsonb)");
+    expect(query).toContain("from ins, unnest(?::uuid[]) as r(id)");
     expect(sql.mock.calls[0]).toContainEqual(["joshua@x.com", "owner2@x.com"]);
+    expect(sql.mock.calls[0]).toContainEqual([RES]);
+    expect(sql.mock.calls[0]).toContain(JSON.stringify([
+      { id: FILE, name: "Headlines.pdf", content_type: "application/pdf", size_bytes: 900, blob_pathname: `task-files/${ID}/${FILE}/Headlines.pdf` },
+    ]));
+  });
+  it("answers created: false with no file names when an earlier save took the id", async () => {
+    sql.mockResolvedValue([{ existed: true, allowed: true, created: false, file_names: [] }]);
+    expect(await store.createTask(input, "joshua@x.com", files)).toEqual({ id: ID, created: false, fileNames: [] });
   });
   it("reports a refused assignee", async () => {
-    expect(await store.createTask(input, "joshua@x.com")).toBe("not-assignable");
+    sql.mockResolvedValue([{ existed: false, allowed: false, created: false, file_names: [] }]);
+    expect(await store.createTask(input, "joshua@x.com", files)).toBe("not-assignable");
+  });
+});
+
+describe("deleteTask", () => {
+  it("deletes the task and answers its uploads' storage paths, read in the same statement", async () => {
+    sql.mockResolvedValue([{ deleted: true, paths: ["task-files/a", "task-files/b"] }]);
+    expect(await store.deleteTask(ID)).toEqual(["task-files/a", "task-files/b"]);
+    expect(sql).toHaveBeenCalledTimes(1);
+    const query = text(sql.mock.calls[0]);
+    expect(query).toContain("select blob_pathname from task_files where task_id = ? and blob_pathname is not null");
+    expect(query).toContain("delete from tasks where id = ? returning id");
+  });
+  it("answers null when the task was already gone, and never queries for a malformed id", async () => {
+    sql.mockResolvedValue([{ deleted: false, paths: [] }]);
+    expect(await store.deleteTask(ID)).toBeNull();
+    sql.mockClear();
+    expect(await store.deleteTask("nope")).toBeNull();
+    expect(sql).not.toHaveBeenCalled();
   });
 });
 

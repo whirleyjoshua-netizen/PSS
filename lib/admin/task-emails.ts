@@ -10,8 +10,14 @@ export type Email = { subject: string; text: string };
 
 export const taskUrl = (id: string): string => `${adminOrigin()}/admin/tasks/${id}`;
 
+/** Files are named, not attached: they open from the task, behind sign-in. */
 const body = (first: string, task: TaskSummary): string =>
-  [first, ...(task.notes ? ["", task.notes] : []), "", `Open the task: ${taskUrl(task.id)}`].join("\n");
+  [
+    first,
+    ...(task.notes ? ["", task.notes] : []),
+    ...(task.fileNames.length > 0 ? ["", "Files:", ...task.fileNames.map((name) => `- ${name}`)] : []),
+    "", `Open the task: ${taskUrl(task.id)}`,
+  ].join("\n");
 
 export function assignmentEmail(task: TaskSummary, actor: string): Email {
   return {

@@ -1,11 +1,14 @@
 import { sellUnitCents } from "./money";
 
 export type PricingLine = { position: number; qty: number; collection: string; msrpUnitCents: number; costExtendedCents: number; pctOverride: number | null };
+/** A percent or a dollar amount off the products, never both, with the label the client sees (migration 042). */
+export type Discount = { pct: number | null; amountCents: number | null; label: string };
 export type InstallChoice = { id: string; kind: "estimate" | "final"; totalCents: number; createdAt: Date };
 export type PricingInput = {
   lines: PricingLine[]; rules: Record<string, number>;
   handlingFeeCents: number; oversizedFeeCents: number; dealerTotalCents: number;
   waiveHandling: boolean; install: InstallChoice | null; noInstall: boolean;
+  discount?: Discount | null;
 };
 export type PricedLine = { position: number; pct: number | null; source: "rule" | "override" | "missing"; sellUnitCents: number | null; sellExtendedCents: number | null; marginCents: number | null };
 export type PricedVersion = {
@@ -18,6 +21,11 @@ export type PricedVersion = {
   lines: PricedLine[]; productsCents: number | null; handlingChargedCents: number; handlingFoldedCents: number; oversizedCents: number;
   installCents: number; installFoldedCents: number; installLineCents: number; installQuoteId: string | null; clientTotalCents: number | null;
   costCents: number; marginCents: number | null; waiveHandling: boolean; blockers: string[];
+  /**
+   * The amount taken off the products (0 with no discount), its label and its percent (null for a dollar amount).
+   * clientTotalCents is the total after it, so the margin, the deposit and the contract all follow.
+   */
+  discountCents: number; discountLabel: string | null; discountPct: number | null;
 };
 export type SendContext = { hasTerms: boolean; isLatest: boolean; versionStatus: string; jobStatus: string; customerEmail: string | null };
 
@@ -103,7 +111,10 @@ export function priceVersion(input: PricingInput): PricedVersion {
   const handlingFoldedCents = folded(handlingExtra);
   const installFoldedCents = folded(installExtra);
   const productsCents = missing.size > 0 ? null : lines.reduce((sum, l) => sum + (l.sellExtendedCents ?? 0), 0);
-  const clientTotalCents = productsCents === null ? null : productsCents + input.oversizedFeeCents;
+  const discount = input.discount ?? null;
+  const discountCents = productsCents === null || discount === null ? 0 : discountOff(productsCents, discount);
+  if (productsCents !== null && discount !== null && discountCents >= productsCents) blockers.push("The discount can't be the whole price. Lower it or remove it.");
+  const clientTotalCents = productsCents === null ? null : productsCents + input.oversizedFeeCents - discountCents;
   return {
     lines, productsCents, handlingChargedCents: 0, handlingFoldedCents, oversizedCents: input.oversizedFeeCents,
     installCents, installFoldedCents, installLineCents: 0, installQuoteId: install?.id ?? null, clientTotalCents,
@@ -111,7 +122,14 @@ export function priceVersion(input: PricingInput): PricedVersion {
     // Product margin: the installation charged (built into the lines) is excluded.
     marginCents: clientTotalCents === null ? null : clientTotalCents - installFoldedCents - input.dealerTotalCents,
     waiveHandling: input.waiveHandling, blockers,
+    discountCents, discountLabel: discount?.label ?? null, discountPct: discount?.pct ?? null,
   };
+}
+
+/** The cents a discount takes off `productsCents`: a percent rounded to the cent, or the dollar amount as entered. */
+export function discountOff(productsCents: number, discount: Discount): number {
+  if (discount.pct !== null) return Math.round((productsCents * discount.pct) / 100);
+  return discount.amountCents ?? 0;
 }
 
 /** The newest final install price, else the newest estimate. */
@@ -137,5 +155,6 @@ export function pricingFingerprint(p: PricedVersion): string {
     lines: p.lines.map((l) => [l.position, l.pct, l.sellUnitCents, l.sellExtendedCents]),
     handling: p.handlingChargedCents, folded: p.handlingFoldedCents, waive: p.waiveHandling, oversized: p.oversizedCents,
     install: [p.installQuoteId, p.installCents, p.installFoldedCents, p.installLineCents], total: p.clientTotalCents,
+    discount: [p.discountCents, p.discountLabel, p.discountPct],
   });
 }

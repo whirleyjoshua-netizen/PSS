@@ -1,7 +1,7 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { isUuid } from "./ids";
-import { UNCATEGORIZED, type Category, type Resource } from "./resource-rules";
+import { UNCATEGORIZED, type Category, type ListedResource, type Resource } from "./resource-rules";
 
 /**
  * The Resources library's rows (migration 036). The unit tests pin this SQL's text only;
@@ -16,10 +16,13 @@ function toResource(row: Record<string, unknown>): Resource {
   };
 }
 
-export async function listResources(): Promise<Resource[]> {
+/** Each file with how many tasks link to it (migration 043), so Delete can say they'll lose it. */
+export async function listResources(): Promise<ListedResource[]> {
   const rows = await db()`
-    select id, name, category, content_type, size_bytes, uploaded_by, created_at from company_files order by category, name`;
-  return rows.map(toResource);
+    select id, name, category, content_type, size_bytes, uploaded_by, created_at,
+           (select count(*) from task_files t where t.resource_id = company_files.id)::int as task_count
+    from company_files order by category, name`;
+  return rows.map((row) => ({ ...toResource(row), taskCount: Number(row.task_count ?? 0) }));
 }
 
 /** Every category (migration 041) with how many files it holds, Uncategorized included. */

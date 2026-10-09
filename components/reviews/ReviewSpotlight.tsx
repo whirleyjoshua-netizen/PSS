@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Section } from "@/components/ui/Section";
-import { pastWork, type PastReview } from "@/content/reviews";
+import { ownerName, pastWork, type PastReview } from "@/content/reviews";
 import { formatReviewDate } from "./ReviewCard";
 
 const INTERVAL_MS = 7000;
@@ -43,7 +43,7 @@ export function ReviewSpotlight({ reviews }: { reviews: PastReview[] }) {
                 &ldquo;{review.quote}&rdquo;
               </blockquote>
               <figcaption className="font-display text-xs uppercase tracking-[0.16em] text-sand">
-                {review.name} · {formatReviewDate(review.date)} · About {review.about}
+                {review.name} · {formatReviewDate(review.date)} · About {ownerName(review.about)}
               </figcaption>
             </figure>
           ))}

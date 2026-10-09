@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { foldFee, pickInstallQuote, priceVersion, pricingFingerprint, ruleFor, sendBlockers, type PricingInput } from "@/lib/dc/pricing";
+import { discountOff, foldFee, pickInstallQuote, priceVersion, pricingFingerprint, ruleFor, sendBlockers, type PricingInput } from "@/lib/dc/pricing";
 
 const base: PricingInput = {
   lines: [
@@ -134,6 +134,42 @@ describe("priceVersion", () => {
   });
   it("oversized fees pass through to the client", () => {
     expect(priceVersion({ ...base, oversizedFeeCents: 1500 }).clientTotalCents).toBe(106780 + 6600 + 1500 + 25000);
+  });
+});
+
+describe("a discount", () => {
+  const plain = priceVersion(base);
+  it("a percent comes off the products, rounded to the cent, and lowers the total and the margin by the same", () => {
+    const p = priceVersion({ ...base, discount: { pct: 10, amountCents: null, label: "Holiday special" } });
+    const off = Math.round(plain.productsCents! * 0.1);
+    expect(p.discountCents).toBe(off);
+    expect(p.productsCents).toBe(plain.productsCents);
+    expect(p.lines).toEqual(plain.lines);
+    expect(p.clientTotalCents).toBe(plain.clientTotalCents! - off);
+    expect(p.marginCents).toBe(plain.marginCents! - off);
+    expect(p).toMatchObject({ discountLabel: "Holiday special", discountPct: 10, blockers: [] });
+  });
+  it("Jennie's quote: 10% of $2,812.40 is $281.24", () => {
+    expect(discountOff(281240, { pct: 10, amountCents: null, label: "x" })).toBe(28124);
+    expect(discountOff(281240, { pct: 12.5, amountCents: null, label: "x" })).toBe(35155);
+  });
+  it("a dollar amount comes off as entered", () => {
+    const p = priceVersion({ ...base, discount: { pct: null, amountCents: 20000, label: "Thank you" } });
+    expect(p.discountCents).toBe(20000);
+    expect(p.clientTotalCents).toBe(plain.clientTotalCents! - 20000);
+    expect(p.discountPct).toBeNull();
+  });
+  it("no discount takes nothing off", () => {
+    expect(plain).toMatchObject({ discountCents: 0, discountLabel: null, discountPct: null });
+  });
+  it("a discount as big as the products blocks Send", () => {
+    const p = priceVersion({ ...base, discount: { pct: null, amountCents: plain.productsCents!, label: "Oops" } });
+    expect(p.blockers).toContain("The discount can't be the whole price. Lower it or remove it.");
+  });
+  it("changes the fingerprint, so Send refuses a discount the owner did not see", () => {
+    const ten = priceVersion({ ...base, discount: { pct: 10, amountCents: null, label: "Holiday special" } });
+    expect(pricingFingerprint(ten)).not.toBe(pricingFingerprint(plain));
+    expect(pricingFingerprint(priceVersion({ ...base, discount: { pct: 10, amountCents: null, label: "Other name" } }))).not.toBe(pricingFingerprint(ten));
   });
 });
 

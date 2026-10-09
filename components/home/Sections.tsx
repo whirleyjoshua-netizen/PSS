@@ -92,11 +92,11 @@ export function CategoryGrid() {
 const PILLARS = [
   {
     title: "We come to you, at no charge",
-    body: "Fabric and finish look completely different in your own light than they do on a showroom wall or a screen. We bring the samples to your windows, measure every opening ourselves, and quote before we leave.",
+    body: "Fabric and finish look completely different in your own light than they do on a showroom wall or a screen. We bring the samples to your windows, measure every opening ourselves, and send you a written quote.",
   },
   {
-    title: "We do the work ourselves",
-    body: "The same two people who measure your windows are the ones who install them. Nothing is handed to a subcontractor who has never spoken to you, and there is no salesperson working a commission target.",
+    title: "From your first call to the final install, we're family",
+    body: "We are a family business, and we never hand you off to a third party for install. There is no salesperson working a commission target.",
   },
   {
     title: "Specified for this climate",
@@ -198,7 +198,7 @@ export function FamilySection() {
         <div className="relative mx-auto aspect-4/3 w-full overflow-hidden bg-sand">
           <Image
             src="/brand/owners-family.webp"
-            alt="Josh and Shade standing outside in the sun with their young daughter held between them"
+            alt="Josh and Shade’ standing outside in the sun with their young daughter held between them"
             fill
             sizes="(min-width: 1024px) 36rem, 100vw"
             className="object-cover"

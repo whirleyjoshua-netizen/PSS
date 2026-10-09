@@ -5,6 +5,7 @@ import { parseAllowlist } from "./allowlist";
 import { listAddedAdmins } from "./admin-access";
 import { DONE_VISIBLE_DAYS, REMIND_COOLDOWN_MINUTES, type Task, type TaskStatus } from "./task-rules";
 import type { TaskInput } from "./task-schema";
+import type { StoredUpload } from "./task-files";
 
 const at = (value: unknown): Date | null => (value === null || value === undefined ? null : new Date(value as string));
 
@@ -21,6 +22,7 @@ function toTask(row: Record<string, unknown>): Task {
     completedAt: at(row.completed_at),
     lastRemindedAt: at(row.last_reminded_at),
     lastRemindedBy: (row.last_reminded_by as string | null) ?? null,
+    fileCount: Number(row.file_count ?? 0),
   };
 }
 
@@ -35,7 +37,8 @@ export async function assignableEmails(): Promise<string[]> {
 export async function listTasks(): Promise<Task[]> {
   const rows = await db()`
     select id, title, notes, status, assignee_email, due_on::text as due_on, created_by, created_at,
-           completed_at, last_reminded_at, last_reminded_by
+           completed_at, last_reminded_at, last_reminded_by,
+           (select count(*) from task_files f where f.task_id = tasks.id)::int as file_count
     from tasks
     where status <> 'done' or completed_at > now() - make_interval(days => ${DONE_VISIBLE_DAYS}::int)
     order by created_at`;
@@ -46,24 +49,58 @@ export async function getTask(id: string): Promise<Task | null> {
   if (!isUuid(id)) return null;
   const rows = await db()`
     select id, title, notes, status, assignee_email, due_on::text as due_on, created_by, created_at,
-           completed_at, last_reminded_at, last_reminded_by
+           completed_at, last_reminded_at, last_reminded_by,
+           (select count(*) from task_files f where f.task_id = tasks.id)::int as file_count
     from tasks where id = ${id}`;
   return rows[0] ? toTask(rows[0]) : null;
 }
 
+/** What a new task is saved with: the id the form made, and the files picked on it. */
+export type NewTaskFiles = { id: string; uploads: StoredUpload[]; resourceIds: string[] };
+
 /**
- * The assignee is checked inside the insert, so a stale tab can't assign someone already removed.
- * A save racing a removal in the same instant is not prevented.
+ * One statement writes the task and its files, so the assignment email can list them all.
+ * The assignee is checked inside the insert, so a stale tab can't assign someone already removed
+ * (a save racing a removal in the same instant is not prevented). The id comes from the form:
+ * a repeat submit finds it taken and answers created: false, writing nothing.
+ * Throws 23503 when a picked Resources file was deleted, and then nothing is written.
  */
-export async function createTask(input: TaskInput, actor: string): Promise<{ id: string } | "not-assignable"> {
+export async function createTask(
+  input: TaskInput, actor: string, files: NewTaskFiles,
+): Promise<{ id: string; created: boolean; fileNames: string[] } | "not-assignable"> {
   const a = input.assignee;
-  const rows = await db()`
-    insert into tasks (title, notes, status, assignee_email, due_on, created_by, completed_at)
-    select ${input.title}::text, ${input.notes}::text, ${input.status}::text, ${a}::text, ${input.dueOn}::date, ${actor}::text,
-           case when ${input.status}::text = 'done' then now() end
-    where ${a}::text is null or ${a}::text = any(${owners()}::text[]) or exists (select 1 from admin_access where email = ${a}::text)
-    returning id`;
-  return rows[0] ? { id: rows[0].id as string } : "not-assignable";
+  const uploads = JSON.stringify(files.uploads.map((u) => ({
+    id: u.id, name: u.name, content_type: u.contentType, size_bytes: u.sizeBytes, blob_pathname: u.pathname,
+  })));
+  const [row] = await db()`
+    with allowed as (
+      select (${a}::text is null or ${a}::text = any(${owners()}::text[])
+              or exists (select 1 from admin_access where email = ${a}::text)) as ok
+    ), ins as (
+      insert into tasks (id, title, notes, status, assignee_email, due_on, created_by, completed_at)
+      select ${files.id}::uuid, ${input.title}::text, ${input.notes}::text, ${input.status}::text, ${a}::text, ${input.dueOn}::date, ${actor}::text,
+             case when ${input.status}::text = 'done' then now() end
+      where (select ok from allowed)
+      on conflict (id) do nothing
+      returning id
+    ), ups as (
+      insert into task_files (id, task_id, name, content_type, size_bytes, blob_pathname, added_by)
+      select u.id, ins.id, u.name, u.content_type, u.size_bytes, u.blob_pathname, ${actor}::text
+      from ins, jsonb_to_recordset(${uploads}::jsonb) as u(id uuid, name text, content_type text, size_bytes bigint, blob_pathname text)
+      returning name
+    ), links as (
+      insert into task_files (id, task_id, resource_id, added_by)
+      select gen_random_uuid(), ins.id, r.id, ${actor}::text
+      from ins, unnest(${files.resourceIds}::uuid[]) as r(id)
+      returning resource_id
+    )
+    select exists (select 1 from tasks where id = ${files.id}::uuid) as existed, (select ok from allowed) as allowed,
+           exists (select 1 from ins) as created,
+           array(select name from ups order by name) || array(select c.name from company_files c join links l on l.resource_id = c.id order by c.name) as file_names`;
+  // The statement's snapshot predates its own insert, so "existed" means an earlier save took this id.
+  if (row?.existed) return { id: files.id, created: false, fileNames: [] };
+  if (!row?.allowed) return "not-assignable";
+  return { id: files.id, created: Boolean(row.created), fileNames: (row.file_names as string[] | null) ?? [] };
 }
 
 /**
@@ -111,10 +148,21 @@ export async function setTaskStatus(id: string, status: TaskStatus): Promise<boo
   return rows.length > 0;
 }
 
-export async function deleteTask(id: string): Promise<boolean> {
-  if (!isUuid(id)) return false;
-  const rows = await db()`delete from tasks where id = ${id} returning id`;
-  return rows.length > 0;
+/**
+ * Deletes the task; its file rows go with it (on delete cascade). Answers the storage paths of its
+ * uploads so the caller removes those files, or null when the task was already gone. The paths are read
+ * in the same statement, whose snapshot predates the cascade.
+ */
+export async function deleteTask(id: string): Promise<string[] | null> {
+  if (!isUuid(id)) return null;
+  const [row] = await db()`
+    with paths as (
+      select blob_pathname from task_files where task_id = ${id} and blob_pathname is not null
+    ), gone as (
+      delete from tasks where id = ${id} returning id
+    )
+    select exists (select 1 from gone) as deleted, array(select blob_pathname from paths order by blob_pathname) as paths`;
+  return row?.deleted ? ((row.paths as string[] | null) ?? []) : null;
 }
 
 /** Timestamps travel as Postgres text so restoring one is exact to the microsecond. */

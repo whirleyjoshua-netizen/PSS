@@ -7,7 +7,7 @@ import {
 const task = (over: Partial<Task>): Task => ({
   id: "t", title: "T", notes: null, status: "todo", assigneeEmail: null, dueOn: null,
   createdBy: "a@x.com", createdAt: new Date("2026-09-01T00:00:00Z"), completedAt: null,
-  lastRemindedAt: null, lastRemindedBy: null, ...over,
+  lastRemindedAt: null, lastRemindedBy: null, fileCount: 0, ...over,
 });
 const TODAY = "2026-10-01"; // a Thursday
 

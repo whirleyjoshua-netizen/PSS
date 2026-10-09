@@ -10,6 +10,8 @@
  * search for. Generic manufacturer boilerplate does not rank and does not sell.
  */
 
+import { altaPhotos } from "./stock-photos";
+
 export const CATEGORY_SLUGS = [
   "blinds",
   "shades",
@@ -49,7 +51,7 @@ export type Category = {
   navLabel: string;
   tagline: string;
   intro: string[];
-  /** A photo of our own install, shown beside the intro. */
+  /** The photo beside the intro: an Alta stock photo (content/stock-photos.ts), or our own install where Alta has none. */
   image?: Photo;
   /**
    * A different photo of this category, shown in the booking block under the
@@ -94,14 +96,8 @@ export const categories: Category[] = [
       "Blinds give you something no other treatment does: the ability to keep the light and lose the glare. Tilt the slats and an afternoon that was unusable becomes comfortable, without closing the room off or giving up the view.",
       "They are also the most practical choice for the rooms that take the hardest use — kitchens, bathrooms, garages, and home offices — because they wipe clean, tolerate humidity, and cost less to cover a lot of glass than most alternatives.",
     ],
-    image: {
-      src: "/gallery/faux-wood-blinds-living-room.webp",
-      alt: "White faux wood blinds with wide slats on two windows above a grey sofa with patterned pillows.",
-    },
-    bookingPhoto: {
-      src: "/gallery/sheer-vertical-patio-slider.webp",
-      alt: "Floor-to-ceiling sheer vertical blinds drawn across a patio slider in a living room, with the backyard visible through the fabric vanes.",
-    },
+    image: altaPhotos.fauxWoodLivingRoom,
+    bookingPhoto: altaPhotos.woodBlindsKitchen,
     highlights: [
       { label: "Glare control", icon: "sun" },
       { label: "Privacy", icon: "eye" },
@@ -128,14 +124,8 @@ export const categories: Category[] = [
       "Shades are a single panel of fabric rather than a stack of slats, so they read as part of the room instead of hardware bolted to a window. That makes them the most versatile category we carry — the same window can get a sheer that glows all afternoon or a blackout that reads as midnight at two in the afternoon.",
       "In this valley the fabric choice matters more than anywhere else. Openness factor, screen weave, and liner determine whether a west-facing room stays livable in July, and it is the part homeowners most often get wrong when they buy online.",
     ],
-    image: {
-      src: "/gallery/cellular-shades-cabin-dining-room.webp",
-      alt: "White cellular shades on the tall windows of a wood-paneled great room, above a dining table set with candles",
-    },
-    bookingPhoto: {
-      src: "/gallery/roller-shades-bay-closeup.webp",
-      alt: "Close view of light grey roller shades in a white-trimmed bay window, one raised to show trees below, with clear transom windows above.",
-    },
+    image: altaPhotos.rollerBreakfastNook,
+    bookingPhoto: altaPhotos.honeycombLivingRoom,
     highlights: [
       { label: "Light control", icon: "sun" },
       { label: "Privacy", icon: "eye" },
@@ -166,10 +156,7 @@ export const categories: Category[] = [
       src: "/gallery/plantation-shutters-kitchen-sink.webp",
       alt: "White plantation shutters with open louvers over a farmhouse kitchen sink and marble countertop",
     },
-    bookingPhoto: {
-      src: "/gallery/plantation-shutters-primary-bath-pendant.webp",
-      alt: "White plantation shutters with louvers tilted open on a wide primary-bathroom window, beside a round wire pendant light above the tub.",
-    },
+    bookingPhoto: altaPhotos.shuttersFrenchDoors,
     highlights: [
       { label: "Built to fit", icon: "ruler" },
       { label: "Sun-proof", icon: "sun" },
@@ -222,14 +209,8 @@ export const categories: Category[] = [
       "Motorization stopped being a luxury the moment it stopped requiring an electrician. Modern shades run on a rechargeable battery tube, pair to an app or a wall remote, and install in the same visit as a manual shade.",
       "It earns its keep in three places: windows nobody can reach, whole rooms that should move together, and schedules that beat the sun to the window — a shade that closes at 2pm every summer afternoon protects your floors and your thermostat whether or not anyone is home.",
     ],
-    image: {
-      src: "/gallery/cellular-shades-nook-motorized.webp",
-      alt: "Motorized white cellular shades lowered on the windows of a bay breakfast nook, around a round glass table with patterned upholstered chairs.",
-    },
-    bookingPhoto: {
-      src: "/gallery/cellular-shades-great-room-motorized.webp",
-      alt: "White cellular shades lowered partway across a wall of tall windows in a wood-paneled great room, with armchairs and a holiday-set dining table in front.",
-    },
+    image: altaPhotos.honeycombSkylights,
+    bookingPhoto: altaPhotos.rollerKitchenMotorized,
     highlights: [
       { label: "App & remote", icon: "phone" },
       { label: "Schedules", icon: "clock" },
@@ -269,10 +250,7 @@ export const products: Product[] = [
       "Collects far less dust than a horizontal blind of the same size",
     ],
     bestFor: "Sliding glass doors, patio doors, and windows wider than they are tall.",
-    image: {
-      src: "/gallery/vertical-blinds-patio-door-valance.webp",
-      alt: "White vertical blinds drawn across a sliding patio door beneath a grey floral swag valance, with a sunroom visible through the glass.",
-    },
+    image: altaPhotos.verticalDiningRoom,
     storyPhoto: {
       src: "/gallery/sheer-vertical-patio-slider.webp",
       alt: "Floor-to-ceiling sheer vertical blinds drawn across a patio slider in a living room, with the backyard visible through the fabric vanes.",
@@ -301,14 +279,8 @@ export const products: Product[] = [
       "Cordless lift available for homes with children or pets",
     ],
     bestFor: "Living rooms, dining rooms, and bedrooms wanting warmth without shutter cost.",
-    image: {
-      src: "/gallery/faux-wood-blinds-front-window.webp",
-      alt: "White faux wood blinds with wide slats and cloth tapes in a tall front window, framed by cream curtains, looking out to a covered porch and the street.",
-    },
-    storyPhoto: {
-      src: "/gallery/faux-wood-blinds-living-room.webp",
-      alt: "White faux wood blinds with wide slats on two windows above a grey sofa with patterned pillows.",
-    },
+    image: altaPhotos.woodBlindsCornice,
+    storyPhoto: altaPhotos.fauxWoodBath,
     seo: {
       title: "Wood & Faux Wood Blinds in Las Vegas, NV",
       description:
@@ -335,14 +307,8 @@ export const products: Product[] = [
       "Cordless, chain, or motorized operation",
     ],
     bestFor: "Bedrooms, media rooms, and any room wanting a clean modern line.",
-    image: {
-      src: "/gallery/roller-shades-dining-room.webp",
-      alt: "Light textured roller shades in slim cassettes, half raised on four windows around a dining table, with a green yard outside.",
-    },
-    storyPhoto: {
-      src: "/gallery/roller-shades-transom-closeup.webp",
-      alt: "Grey roller shades lowered in three bay windows beneath gridded transom windows, with white orchids in the foreground.",
-    },
+    image: altaPhotos.rollerKidsRoom,
+    storyPhoto: altaPhotos.rollerKitchenBay,
     seo: {
       title: "Roller Shades in Las Vegas, NV | Premier Shade Solutions",
       description:
@@ -367,14 +333,8 @@ export const products: Product[] = [
       "Reduces cooling load on west and south elevations",
     ],
     bestFor: "West and south-facing living rooms, home offices, and rooms with a view worth keeping.",
-    image: {
-      src: "/gallery/solar-shades-balcony-view.webp",
-      alt: "Two white solar screen shades lowered over balcony doors in a high-rise, with the city still visible through the weave.",
-    },
-    storyPhoto: {
-      src: "/gallery/solar-shades-nursery.webp",
-      alt: "Light grey solar roller shades in white cassettes on tall corner windows of a nursery, lowered partway over a sunlit street, beside a rocking chair.",
-    },
+    image: altaPhotos.rollerSunroom,
+    storyPhoto: altaPhotos.rollerBreakfastNook,
     seo: {
       title: "Solar Shades in Las Vegas, NV | Premier Shade Solutions",
       description:
@@ -399,14 +359,8 @@ export const products: Product[] = [
       "Light filtering and blackout cell fabrics",
     ],
     bestFor: "Bedrooms, older windows, and any home where the summer power bill is a concern.",
-    image: {
-      src: "/gallery/cellular-shades-great-room.webp",
-      alt: "White cellular shades lowered across two rows of windows in a vaulted great room with exposed wood beams and a stone fireplace.",
-    },
-    storyPhoto: {
-      src: "/gallery/cellular-shades-top-down-bedroom.webp",
-      alt: "Top-down bottom-up cellular shades covering the lower half of two wood-trimmed windows in a bedroom, with sky visible above.",
-    },
+    image: altaPhotos.honeycombEntry,
+    storyPhoto: altaPhotos.honeycombTopDown,
     seo: {
       title: "Cellular Shades in Las Vegas, NV | Premier Shade",
       description:
@@ -463,11 +417,8 @@ export const products: Product[] = [
       "Coordinating edge banding and valances",
     ],
     bestFor: "Living rooms, sunrooms, and organic-modern or desert-contemporary interiors.",
-    // Tall and soft: it reads well at its own shape in the story, not stretched across the hero.
-    storyPhoto: {
-      src: "/gallery/woven-wood-shades-hall-window.webp",
-      alt: "A natural woven wood shade lowered over a tall window at the end of a hallway, daylight glowing through the grass weave.",
-    },
+    image: altaPhotos.wovenBedroom,
+    storyPhoto: altaPhotos.wovenLivingRoom,
     seo: {
       title: "Woven Wood Shades in Las Vegas, NV | Premier Shade",
       description:
@@ -492,10 +443,8 @@ export const products: Product[] = [
       "Motorization available",
     ],
     bestFor: "Contemporary homes, newer construction, and rooms needing both daylight and privacy.",
-    image: {
-      src: "/gallery/transitional-shades-slider-wall.webp",
-      alt: "Charcoal transitional sheer shades raised across a four-panel glass slider wall in a living room, with a river and balcony seating visible beyond.",
-    },
+    image: altaPhotos.bandedLivingRoom,
+    storyPhoto: altaPhotos.bandedBedroom,
     seo: {
       title: "Transitional Zebra Shades in Las Vegas, NV",
       description:
@@ -522,14 +471,8 @@ export const products: Product[] = [
       "The window treatment most likely to return value at resale",
     ],
     bestFor: "Front-facing rooms, primary living spaces, and homes being held long term.",
-    image: {
-      src: "/gallery/plantation-shutters-dining-room.webp",
-      alt: "White plantation shutters on three windows in a dining room with blue walls and industrial pendant lights over the table.",
-    },
-    storyPhoto: {
-      src: "/gallery/plantation-shutters-bedroom.webp",
-      alt: "White plantation shutters with open louvers on two windows in a bedroom with grey walls.",
-    },
+    image: altaPhotos.shuttersKitchen,
+    storyPhoto: altaPhotos.shuttersFrenchDoors,
     seo: {
       title: "Plantation Shutters in Las Vegas, NV | Premier Shade",
       description:
@@ -554,14 +497,8 @@ export const products: Product[] = [
       "Backed by strong manufacturer warranties",
     ],
     bestFor: "Most Las Vegas homes, and any window on a west or south elevation.",
-    image: {
-      src: "/gallery/plantation-shutters-french-doors.webp",
-      alt: "White plantation shutters mounted on a pair of French doors and on the tall window beside them.",
-    },
-    storyPhoto: {
-      src: "/gallery/plantation-shutters-bedroom.webp",
-      alt: "White plantation shutters with open louvers on two windows in a bedroom with grey walls.",
-    },
+    image: altaPhotos.compositeShuttersDining,
+    storyPhoto: altaPhotos.shuttersFrenchDoors,
     seo: {
       title: "Composite Shutters in Las Vegas, NV | Premier Shade",
       description:
@@ -586,10 +523,7 @@ export const products: Product[] = [
       "Best suited to shaded elevations and dry interior rooms",
     ],
     bestFor: "Shaded windows, formal rooms, and homes with wood floors or beams to match.",
-    image: {
-      src: "/gallery/plantation-shutters-bath.webp",
-      alt: "White plantation shutters with wide louvers on a primary bathroom window above a soaking tub.",
-    },
+    image: altaPhotos.woodShuttersKitchen,
     storyPhoto: {
       src: "/gallery/plantation-shutters-kitchen-sink.webp",
       alt: "White plantation shutters with open louvers over a farmhouse kitchen sink and marble countertop",

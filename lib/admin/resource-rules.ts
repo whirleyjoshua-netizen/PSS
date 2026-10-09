@@ -18,6 +18,17 @@ export type Resource = {
   id: string; name: string; category: string; contentType: string; sizeBytes: number; uploadedBy: string; createdAt: Date;
 };
 
+/** A file as the library lists it: with how many tasks link to it. */
+export type ListedResource = Resource & { taskCount: number };
+
+/** What Delete asks, warning when tasks link to the file: the link goes with it. */
+export function deleteQuestion(file: ListedResource): string {
+  const tasks = file.taskCount === 1 ? "1 task and will be removed from it" : `${file.taskCount} tasks and will be removed from them`;
+  return file.taskCount > 0
+    ? `Delete ${file.name}? It's attached to ${tasks}. This can't be undone.`
+    : `Delete ${file.name}? This can't be undone.`;
+}
+
 const PATH = /^resources\/([0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\/([A-Za-z0-9._-]{1,80})$/;
 
 /** Where an upload is stored: its own folder, named by the id its row will have. */
@@ -89,10 +100,10 @@ export function categoryChoices(categories: Category[]): string[] {
  * category in `categories` is listed, empty ones too (Uncategorized only with files); a search lists only the
  * categories holding matching files.
  */
-export function groupResources(list: Resource[], query: string, categories: string[] = []): { category: string; files: Resource[] }[] {
+export function groupResources<T extends Resource>(list: T[], query: string, categories: string[] = []): { category: string; files: T[] }[] {
   const q = query.trim().toLowerCase();
   const matching = q ? list.filter((r) => r.name.toLowerCase().includes(q) || r.category.toLowerCase().includes(q)) : list;
-  const byCategory = new Map<string, Resource[]>();
+  const byCategory = new Map<string, T[]>();
   if (!q) for (const c of categories) if (c !== UNCATEGORIZED) byCategory.set(c, []);
   for (const r of matching) byCategory.set(r.category, [...(byCategory.get(r.category) ?? []), r]);
   return [...byCategory.keys()].sort(byName).map((category) => ({

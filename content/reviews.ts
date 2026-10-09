@@ -25,6 +25,9 @@ export type PastReview = {
   spotlight?: true;
 };
 
+/** How an owner's name is written on the site: Shade spells hers with the mark, Shade’ (owner, 2026-10-09). */
+export const ownerName = (about: PastReview["about"]) => (about === "Shade" ? "Shade’" : about);
+
 /**
  * Totals across every survey received, including the ones not quoted below:
  * Josh 24 (twenty 5-star, four 4-star), Shade 20 (all 5-star). Surveys with no

@@ -1,4 +1,4 @@
-import type { PastReview } from "@/content/reviews";
+import { ownerName, type PastReview } from "@/content/reviews";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -40,7 +40,7 @@ export function ReviewCard({
       <div className="flex items-center justify-between gap-3">
         <Stars />
         <p className="font-display text-[11px] font-medium uppercase tracking-[0.16em] text-champagne-ink">
-          About {review.about}
+          About {ownerName(review.about)}
         </p>
       </div>
       <p className="text-base leading-relaxed text-pretty text-charcoal">&ldquo;{review.quote}&rdquo;</p>

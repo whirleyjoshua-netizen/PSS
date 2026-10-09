@@ -9,8 +9,9 @@ import { dcQuoteUrl } from "@/lib/dc/links";
 import { cancellationWindowLastDay, inCancellationWindow } from "@/lib/docs/business-days";
 import { ruleFor, type PricedLine } from "@/lib/dc/pricing";
 import type { Review } from "@/lib/dc/send";
+import type { Discount } from "@/lib/dc/pricing";
 import type { StoredLine, StoredVersion } from "@/lib/dc/store";
-import { sendContractAction, sendQuoteAction, setChoicesAction, setLinePctAction } from "./quote-actions";
+import { sendContractAction, sendQuoteAction, setChoicesAction, setDiscountAction, setLinePctAction } from "./quote-actions";
 import { HEADING, TEXT_LINK } from "./ui";
 
 const STATUS: Record<StoredVersion["status"], string> = {
@@ -91,6 +92,53 @@ function Choice({ label, checked, locked, busy, resets, onChange }: {
  */
 function inLines(folded: number, whole: number): string {
   return folded === whole ? `${formatCents(folded)} in line prices` : `${formatCents(folded)} of ${formatCents(whole)} in line prices`;
+}
+
+/**
+ * The draft's discount (migration 042): percent or dollars, and the name the client reads on the quote. Uncontrolled
+ * and keyed by the saved discount, so a refresh after a save shows what the server stored.
+ */
+function DiscountEditor({ jobId, versionId, saved }: { jobId: string; versionId: string; saved: Discount | null }) {
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+  const key = JSON.stringify(saved);
+  const save = (input: Parameters<typeof setDiscountAction>[2]) =>
+    startTransition(async () => {
+      const result = await setDiscountAction(jobId, versionId, input);
+      setError(result.error ?? null);
+    });
+  return (
+    <form key={key} className="flex flex-wrap items-end justify-end gap-2 pb-1 text-sm"
+      onSubmit={(event) => {
+        event.preventDefault();
+        const form = new FormData(event.currentTarget);
+        save({ kind: form.get("kind") === "amount" ? "amount" : "pct", value: String(form.get("value") ?? ""), label: String(form.get("label") ?? "") });
+      }}>
+      <label className="flex flex-col gap-1">
+        <span className="text-xs text-ink-soft">Name on the quote</span>
+        <input name="label" aria-label="Discount name" maxLength={60} defaultValue={saved?.label ?? "Holiday special"}
+          className="min-h-11 w-44 border border-rule px-2" />
+      </label>
+      <label className="flex flex-col gap-1">
+        <span className="text-xs text-ink-soft">Amount</span>
+        <input name="value" aria-label="Discount amount" inputMode="decimal" required
+          defaultValue={saved ? String(saved.pct ?? (saved.amountCents! / 100).toFixed(2)) : ""}
+          className="min-h-11 w-24 border border-rule px-2 text-right" />
+      </label>
+      <select name="kind" aria-label="Percent or dollars" defaultValue={saved?.amountCents != null ? "amount" : "pct"}
+        className="min-h-11 border border-rule px-2">
+        <option value="pct">% off</option>
+        <option value="amount">$ off</option>
+      </select>
+      <button type="submit" disabled={pending} className="min-h-11 border border-charcoal px-4 disabled:opacity-40">
+        {saved ? "Update discount" : "Add discount"}
+      </button>
+      {saved ? (
+        <button type="button" disabled={pending} onClick={() => save(null)} className={`min-h-11 px-2 ${TEXT_LINK}`}>Remove</button>
+      ) : null}
+      {error ? <p role="alert" className="basis-full text-right text-xs text-red-700">{error}</p> : null}
+    </form>
+  );
 }
 
 function Total({ label, value, children, muted }: { label: string; value: string; children?: ReactNode; muted?: boolean }) {
@@ -276,6 +324,12 @@ export function QuoteReview({ jobId, review, now }: { jobId: string; review: Rev
           )}
           <Choice label="No installation on this job" checked={version.noInstall} locked={locked} busy={choosing} resets={refusals} onChange={(checked) => choose({ noInstall: checked })} />
         </Total>
+        {/* Shown to the client only when there is one: the quote and contract print it above the total. */}
+        {priced.discountCents > 0 ? (
+          <Total label={priced.discountPct !== null ? `${priced.discountLabel} (${priced.discountPct}% off)` : priced.discountLabel ?? "Discount"}
+            value={`−${formatCents(priced.discountCents)}`} />
+        ) : !locked ? <Total label="Discount" value="None" muted /> : null}
+        {!locked ? <DiscountEditor jobId={jobId} versionId={version.id} saved={version.discount} /> : null}
         <div className="border-t border-charcoal pt-1 font-semibold">
           <Total label="Client total" value={formatCents(priced.clientTotalCents)} />
         </div>

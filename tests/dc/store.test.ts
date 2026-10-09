@@ -87,6 +87,51 @@ describe("setLineOverride / setVersionChoices", () => {
   });
 });
 
+describe("setVersionDiscount", () => {
+  it("sets a percent or dollars on a draft of this job, and logs it in the same statement", async () => {
+    sql.mockResolvedValue([{ id: "e" }]);
+    expect(await store.setVersionDiscount(JOB, VERSION, { pct: 10, amountCents: null, label: " Holiday special " }, "o@x.com")).toBe(true);
+    const s = text(sql.mock.calls[0]);
+    for (const part of ["update dc_quote_versions set discount_pct = ?, discount_amount_cents = ?, discount_label = ?",
+      "where id = ? and lead_id = ? and status = 'draft'", "insert into job_events (lead_id, actor, kind, body)", "'quote'"]) expect(s).toContain(part);
+    expect(sql.mock.calls[0]).toEqual(expect.arrayContaining([10, null, "Holiday special", "Discount: Holiday special, 10% off"]));
+    sql.mockClear();
+    await store.setVersionDiscount(JOB, VERSION, { pct: null, amountCents: 20000, label: "Thank you" }, "o@x.com");
+    expect(sql.mock.calls[0]).toEqual(expect.arrayContaining([null, 20000, "Thank you", "Discount: Thank you, $200 off"]));
+  });
+  it("null clears all three and logs the removal", async () => {
+    sql.mockResolvedValue([{ id: "e" }]);
+    await store.setVersionDiscount(JOB, VERSION, null, "o@x.com");
+    expect(sql.mock.calls[0]).toEqual(expect.arrayContaining(["Discount removed"]));
+    expect(sql.mock.calls[0].slice(1, 4)).toEqual([null, null, null]);
+  });
+  it("answers false when no draft matched", async () => {
+    sql.mockResolvedValue([]);
+    expect(await store.setVersionDiscount(JOB, VERSION, null, "o@x.com")).toBe(false);
+  });
+  it("refuses both or neither, 0% or 100%, a non-cent or zero amount, and a bad name, without touching the database", async () => {
+    for (const bad of [
+      { pct: 10, amountCents: 100, label: "x" }, { pct: null, amountCents: null, label: "x" }, { pct: 0, amountCents: null, label: "x" },
+      { pct: 100, amountCents: null, label: "x" }, { pct: 10.123, amountCents: null, label: "x" }, { pct: null, amountCents: 0, label: "x" },
+      { pct: null, amountCents: 12.5, label: "x" }, { pct: 10, amountCents: null, label: " " }, { pct: 10, amountCents: null, label: "x".repeat(61) },
+    ]) await expect(store.setVersionDiscount(JOB, VERSION, bad, "o@x.com")).resolves.toBe(false);
+    expect(sql).not.toHaveBeenCalled();
+  });
+  it("reads the discount and the frozen cents back", async () => {
+    const row = { id: VERSION, lead_id: JOB, version: 1, dc_quote_no: "1", po_reference: "PSS-1042", client_name: "", source_file_id: FILE,
+      source_sha256: "x", status: "offered", dealer_subtotal_cents: 1, handling_fee_cents: 0, oversized_fee_cents: 0, dealer_total_cents: 1,
+      created_at: new Date().toISOString(), option: "A" };
+    sql.mockResolvedValueOnce([{ ...row, discount_pct: "10.00", discount_amount_cents: null, discount_label: "Holiday special", discount_cents: 28124 }]).mockResolvedValueOnce([]);
+    const [v] = await store.listVersions(JOB);
+    expect(v.discount).toEqual({ pct: 10, amountCents: null, label: "Holiday special" });
+    expect(v.discountCents).toBe(28124);
+    sql.mockResolvedValueOnce([row]).mockResolvedValueOnce([]);
+    const [none] = await store.listVersions(JOB);
+    expect(none.discount).toBeNull();
+    expect(none.discountCents).toBeNull();
+  });
+});
+
 describe("saveMarkupRule", () => {
   it("trims the collection and upserts, or deletes for null", async () => {
     sql.mockResolvedValue([]);

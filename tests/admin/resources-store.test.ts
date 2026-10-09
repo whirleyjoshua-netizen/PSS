@@ -21,9 +21,10 @@ beforeEach(() => { sql.mockReset().mockResolvedValue([]); });
 
 describe("reading", () => {
   it("lists every file, size as a number", async () => {
-    sql.mockResolvedValue([row]);
-    expect(await store.listResources()).toEqual([resource]);
+    sql.mockResolvedValue([{ ...row, task_count: 3 }]);
+    expect(await store.listResources()).toEqual([{ ...resource, taskCount: 3 }]);
     expect(text(sql.mock.calls[0])).toContain("from company_files");
+    expect(text(sql.mock.calls[0])).toContain("(select count(*) from task_files t where t.resource_id = company_files.id)::int as task_count");
   });
 
   it("lists every category with its file count, empty ones included", async () => {

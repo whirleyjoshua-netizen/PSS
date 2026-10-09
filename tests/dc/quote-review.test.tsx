@@ -6,11 +6,12 @@ import { DC_NEW_QUOTE_URL, dcQuoteUrl } from "@/lib/dc/links";
 
 const setLinePctAction = vi.fn();
 const setChoicesAction = vi.fn();
+const setDiscountAction = vi.fn();
 const sendQuoteAction = vi.fn();
 const sendContractAction = vi.fn();
 const checkNowAction = vi.fn();
 const addQuoteOptionAction = vi.fn();
-vi.mock("@/app/admin/jobs/[id]/quote-actions", () => ({ setLinePctAction, setChoicesAction, sendQuoteAction, sendContractAction, checkNowAction, addQuoteOptionAction }));
+vi.mock("@/app/admin/jobs/[id]/quote-actions", () => ({ setLinePctAction, setChoicesAction, setDiscountAction, sendQuoteAction, sendContractAction, checkNowAction, addQuoteOptionAction }));
 const loadReview = vi.fn();
 vi.mock("@/lib/dc/send", () => ({ loadReview }));
 const depositState = vi.fn(async (_id: string) => null as unknown);
@@ -46,7 +47,7 @@ const version = (over: Partial<StoredVersion> = {}): StoredVersion => ({
   status: "draft", subtotalCents: 0, handlingFeeCents: 2500, oversizedFeeCents: 0, dealerTotalCents: 121277,
   waiveHandling: false, noInstall: false, installQuoteId: null, installCents: null, productsCents: null, clientTotalCents: null,
   contractFileId: null, sentAt: null, signedAt: null, createdAt: new Date("2026-09-20T18:00:00Z"),
-  quoteFileId: null, offeredAt: null, approvedAt: null, handlingFoldedCents: null, installFoldedCents: null, lines: LINES, ...over,
+  quoteFileId: null, offeredAt: null, approvedAt: null, handlingFoldedCents: null, installFoldedCents: null, discount: null, discountCents: null, lines: LINES, ...over,
 });
 
 /** Odd-cent figures no recomputation from the lines would land on, so each one on screen came from here. */
@@ -59,7 +60,7 @@ const review = (over: Partial<Review> = {}): Review => ({
       { position: 3, pct: 50, source: "rule", sellUnitCents: 10007, sellExtendedCents: 10007, marginCents: 127 },
     ],
     productsCents: 137314, handlingChargedCents: 2507, handlingFoldedCents: 0, oversizedCents: 0, installCents: 45013, installFoldedCents: 0, installLineCents: 45013, installQuoteId: "iq-1",
-    clientTotalCents: 184834, costCents: 121279, marginCents: 18542, waiveHandling: false, blockers: [],
+    clientTotalCents: 184834, costCents: 121279, marginCents: 18542, waiveHandling: false, blockers: [], discountCents: 0, discountLabel: null, discountPct: null,
   },
   blockers: [], fingerprint: FP,
   install: { id: "iq-1", kind: "final", totalCents: 45013, createdAt: new Date("2026-09-20T18:00:00Z") },
@@ -73,6 +74,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   setLinePctAction.mockResolvedValue({});
   setChoicesAction.mockResolvedValue({});
+  setDiscountAction.mockResolvedValue({});
   sendQuoteAction.mockResolvedValue({ ok: true, emailed: true });
   sendContractAction.mockResolvedValue({ ok: true, emailed: true });
   checkNowAction.mockResolvedValue({ message: "No new Dealer Copies." });
@@ -235,6 +237,62 @@ describe("QuoteReview % of MSRP", () => {
     expect(within(row(/Accessory/)).getByRole("link", { name: "Set a markup in Settings" })).toHaveAttribute("href", "/admin/settings#markup-heading");
     expect(screen.getByLabelText("Line 3 % of MSRP")).toHaveValue("");
     expect(total("Client total")).toHaveTextContent("—");
+  });
+});
+
+describe("QuoteReview discount", () => {
+  const withDiscount = (priced: Partial<Review["priced"]>, saved: StoredVersion["discount"]) => {
+    const r = review();
+    return review({ version: version({ discount: saved }), priced: { ...r.priced, ...priced } });
+  };
+
+  it("on a draft with none, says None and offers Add discount, named Holiday special", async () => {
+    render(<QuoteReview jobId={J} review={review()} />);
+    expect(total("Discount")).toHaveTextContent("None");
+    expect(screen.getByRole("textbox", { name: "Discount name" })).toHaveValue("Holiday special");
+    fireEvent.change(screen.getByRole("textbox", { name: "Discount amount" }), { target: { value: "10" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add discount" }));
+    await waitFor(() => expect(setDiscountAction).toHaveBeenCalledWith(J, V, { kind: "pct", value: "10", label: "Holiday special" }));
+  });
+
+  it("saves dollars when $ off is chosen", async () => {
+    render(<QuoteReview jobId={J} review={review()} />);
+    fireEvent.change(screen.getByRole("combobox", { name: "Percent or dollars" }), { target: { value: "amount" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "Discount amount" }), { target: { value: "200" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "Discount name" }), { target: { value: "Thank you" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add discount" }));
+    await waitFor(() => expect(setDiscountAction).toHaveBeenCalledWith(J, V, { kind: "amount", value: "200", label: "Thank you" }));
+  });
+
+  it("shows the discount line from review.priced above the total, and Remove clears it", async () => {
+    render(<QuoteReview jobId={J} review={withDiscount({ discountCents: 13731, discountLabel: "Holiday special", discountPct: 10, clientTotalCents: 171103 },
+      { pct: 10, amountCents: null, label: "Holiday special" })} />);
+    expect(total("Holiday special (10% off)")).toHaveTextContent("−$137.31");
+    expect(total("Client total")).toHaveTextContent("$1,711.03");
+    expect(screen.getByRole("textbox", { name: "Discount amount" })).toHaveValue("10");
+    fireEvent.click(screen.getByRole("button", { name: "Remove" }));
+    await waitFor(() => expect(setDiscountAction).toHaveBeenCalledWith(J, V, null));
+  });
+
+  it("shows the action's refusal", async () => {
+    setDiscountAction.mockResolvedValueOnce({ error: "Enter a percentage over 0 and under 100, like 10" });
+    render(<QuoteReview jobId={J} review={review()} />);
+    fireEvent.change(screen.getByRole("textbox", { name: "Discount amount" }), { target: { value: "150" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add discount" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Enter a percentage over 0 and under 100");
+  });
+
+  it("once sent, shows the discount it was sent with and no editor; with none, no discount row at all", () => {
+    const sent = version({ status: "sent", sentAt: new Date("2026-09-21T18:00:00Z"), clientTotalCents: 184834 });
+    const { unmount } = render(<QuoteReview jobId={J} review={review({
+      version: { ...sent, discount: { pct: null, amountCents: 5000, label: "Thank you" }, discountCents: 5000 },
+      priced: { ...review().priced, discountCents: 5000, discountLabel: "Thank you", discountPct: null },
+    })} />);
+    expect(total("Thank you")).toHaveTextContent("−$50");
+    expect(screen.queryByRole("button", { name: /discount/i })).toBeNull();
+    unmount();
+    render(<QuoteReview jobId={J} review={review({ version: sent })} />);
+    expect(screen.queryByText("Discount", { selector: "dt" })).toBeNull();
   });
 });
 

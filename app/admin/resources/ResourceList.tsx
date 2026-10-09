@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { displayName } from "@/lib/admin/task-rules";
 import { formatWhen } from "@/lib/admin/time";
-import { formatBytes, groupResources, NAME_MAX, type Resource } from "@/lib/admin/resource-rules";
+import { deleteQuestion, formatBytes, groupResources, NAME_MAX, type ListedResource } from "@/lib/admin/resource-rules";
 import { deleteResourceAction, recategorizeResourceAction, renameResourceAction, type ResourceResult } from "./actions";
 
 const BUTTON = "min-h-11 px-3 text-sm underline underline-offset-4";
@@ -11,7 +11,7 @@ const INPUT = "min-h-11 border border-rule bg-white px-3 text-sm";
 
 type Mode = "view" | "rename" | "move" | "delete";
 
-function Row({ file, categories }: { file: Resource; categories: string[] }) {
+function Row({ file, categories }: { file: ListedResource; categories: string[] }) {
   const [mode, setMode] = useState<Mode>("view");
   const [value, setValue] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -44,7 +44,7 @@ function Row({ file, categories }: { file: Resource; categories: string[] }) {
         </div>
       ) : mode === "delete" ? (
         <div key="delete" className="flex flex-wrap items-center gap-2 text-sm">
-          <span>{`Delete ${file.name}? This can't be undone.`}</span>
+          <span>{deleteQuestion(file)}</span>
           <button type="button" autoFocus disabled={pending} className={`${BUTTON} text-red-700`} onClick={() => run(() => deleteResourceAction(file.id))}>Yes, delete</button>
           <button type="button" disabled={pending} className={BUTTON} onClick={() => setMode("view")}>No</button>
         </div>
@@ -76,7 +76,7 @@ function Row({ file, categories }: { file: Resource; categories: string[] }) {
  * The library by category, with a search over names and categories (spec Part B3). `categories` is
  * categoryChoices(): Move offers them, and every one but an empty Uncategorized is listed, empty ones too.
  */
-export function ResourceList({ resources, categories }: { resources: Resource[]; categories: string[] }) {
+export function ResourceList({ resources, categories }: { resources: ListedResource[]; categories: string[] }) {
   const [query, setQuery] = useState("");
   if (resources.length === 0) {
     return <p className="text-sm text-ink-soft">No files yet. Upload price sheets, spec books, certificates — anything you want on hand.</p>;

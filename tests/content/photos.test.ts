@@ -1,96 +1,62 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { describe, it, expect } from "vitest";
-import { categories, products } from "@/content/products";
+import { categories, products, type Photo } from "@/content/products";
 import { consultationPhoto, gallery } from "@/content/gallery";
+import { altaPhotos } from "@/content/stock-photos";
 
 const onDisk = (src: string) => existsSync(path.join(process.cwd(), "public", src));
+const stock = Object.values(altaPhotos);
 
-/** Spec §8: only photos that truly show the product. Changing this list is an owner decision. */
-const PRODUCT_PHOTOS: Record<string, string> = {
-  // The owners sent these on 2026-10-01; the earlier two moved to the story slots.
-  "vertical-blinds": "/gallery/vertical-blinds-patio-door-valance.webp",
-  "wood-blinds": "/gallery/faux-wood-blinds-front-window.webp",
-  // The owners sent the roller, roman and solar photos on 2026-10-01.
-  "roller-shades": "/gallery/roller-shades-dining-room.webp",
-  "solar-shades": "/gallery/solar-shades-balcony-view.webp",
-  "cellular-shades": "/gallery/cellular-shades-great-room.webp",
-  "roman-shades": "/gallery/roman-shades-woven-dining-room.webp",
-  "transitional-shades": "/gallery/transitional-shades-slider-wall.webp",
-  "plantation-shutters": "/gallery/plantation-shutters-dining-room.webp",
-  // Owner 2026-10-01: the shutter types look alike, so their photos are shared.
-  "composite-shutters": "/gallery/plantation-shutters-french-doors.webp",
-  "wood-shutters": "/gallery/plantation-shutters-bath.webp",
-};
+const pagePhotos: [string, Photo][] = [
+  ["consultation", consultationPhoto],
+  ...categories.flatMap((c) => [c.image, c.bookingPhoto].flatMap((p) => (p ? [[c.slug, p] as [string, Photo]] : []))),
+  ...products.flatMap((p) => [p.image, p.storyPhoto].flatMap((photo) => (photo ? [[p.slug, photo] as [string, Photo]] : []))),
+];
 
+/**
+ * Owner rule (2026-10-09): heroes and info photos are professional Alta stock
+ * photos; the gallery is real work only. Our own installs stay on a page only
+ * where Alta has no photo of that product.
+ */
 describe("photos in the content model", () => {
-  it("gives exactly the approved products a photo", () => {
-    const withPhoto = Object.fromEntries(
-      products.filter((product) => product.image).map((product) => [product.slug, product.image!.src]),
-    );
-    expect(withPhoto).toEqual(PRODUCT_PHOTOS);
+  it("gives every product a hero photo except Solar Screens, which Alta has no photo of", () => {
+    expect(products.filter((product) => !product.image).map((product) => product.slug)).toEqual(["solar-screens"]);
   });
 
-  it("uses only our own gallery photos for products, with the gallery's reviewed alt text", () => {
-    for (const product of products) {
-      if (!product.image) continue;
-      const match = gallery.find((item) => item.src === product.image!.src);
-      expect(match, product.slug).toBeDefined();
-      expect(product.image.alt).toBe(match!.alt);
+  it("uses Alta photos (with their alt text) or our own install photos, nothing else", () => {
+    for (const [where, photo] of pagePhotos) {
+      if (photo.src.startsWith("/stock/")) expect(stock, `${where}: ${photo.src}`).toContainEqual(photo);
+      else expect(photo.src, where).toMatch(/^\/gallery\//);
     }
   });
 
-  it("gives Blinds, Shades, Shutters and Motorization their own booking photo, from our gallery, in that category", () => {
-    const booking = Object.fromEntries(
-      categories.filter((category) => category.bookingPhoto).map((category) => [category.slug, category.bookingPhoto!.src]),
-    );
-    expect(booking).toEqual({
-      blinds: "/gallery/sheer-vertical-patio-slider.webp",
-      shades: "/gallery/roller-shades-bay-closeup.webp",
-      shutters: "/gallery/plantation-shutters-primary-bath-pendant.webp",
-      // Owner 2026-10-01: the great-room cellular shades lead Motorization.
-      motorization: "/gallery/cellular-shades-great-room-motorized.webp",
-    });
-    for (const category of categories) {
-      if (!category.bookingPhoto) continue;
-      const match = gallery.find((item) => item.src === category.bookingPhoto!.src);
-      expect(match?.treatment, category.slug).toBe(category.slug);
-      expect(category.bookingPhoto.alt).toBe(match!.alt);
-    }
+  it("keeps the gallery real work only: no stock photo is ever in it", () => {
+    expect(gallery.filter((item) => item.src.startsWith("/stock/"))).toEqual([]);
   });
 
-  it("gives Blinds the faux wood photo beside its intro", () => {
-    expect(categories.find((category) => category.slug === "blinds")?.image?.src).toBe(
-      "/gallery/faux-wood-blinds-living-room.webp",
-    );
+  it("never describes a stock photo as our own work", () => {
+    for (const photo of stock) expect(photo.alt, photo.src).not.toMatch(/\b(our|we|installed by|client)\b/i);
+  });
+
+  it("gives Blinds the Alta faux wood photo beside its intro", () => {
+    expect(categories.find((category) => category.slug === "blinds")?.image).toEqual(altaPhotos.fauxWoodLivingRoom);
   });
 
   it("points every photo at a real file with real alt text", () => {
-    const photos = [
-      consultationPhoto,
-      ...categories.flatMap((category) => (category.image ? [category.image] : [])),
-      ...products.flatMap((product) => (product.image ? [product.image] : [])),
-    ];
-    for (const photo of photos) {
+    for (const photo of [...stock, ...pagePhotos.map(([, p]) => p)]) {
       expect(onDisk(photo.src), photo.src).toBe(true);
       expect(photo.alt.trim().length, photo.src).toBeGreaterThan(20);
     }
   });
 
-  it("takes the consultation photo's alt text from its reviewed gallery entry", () => {
-    const match = gallery.find((item) => item.src === consultationPhoto.src);
-    expect(match).toBeDefined();
-    expect(consultationPhoto).toEqual({ src: match!.src, alt: match!.alt });
-  });
-
-  it("never uses a family photo as the consultation stand-in", () => {
+  it("uses the Alta sheer shadings dining room as the stand-in, and never a family photo", () => {
+    expect(consultationPhoto).toEqual(altaPhotos.sheerShadingsDiningRoom);
     expect(consultationPhoto.src).not.toMatch(/^\/brand\//);
   });
 
-  // Owner 2026-10-01: the woven roman dining room replaces the living-room stand-in,
-  // which showed too much of a client's home; that photo is gone from the site.
-  it("uses the woven roman dining room as the stand-in, and the old living-room photo nowhere", () => {
-    expect(consultationPhoto.src).toBe("/gallery/roman-shades-woven-dining-room.webp");
+  // Owner 2026-10-01: that photo showed too much of a client's home and is gone from the site.
+  it("never brings back the old living-room stand-in", () => {
     expect(gallery.some((item) => item.src === "/gallery/shades-open-living-room.webp")).toBe(false);
     expect(onDisk("/gallery/shades-open-living-room.webp")).toBe(false);
   });

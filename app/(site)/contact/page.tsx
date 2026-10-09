@@ -10,7 +10,7 @@ import { cityPath } from "@/lib/content/cities";
 export const metadata: Metadata = {
   title: "Book a Free Consultation | Premier Shade Solutions",
   description:
-    "Book a free in-home window treatment consultation in Las Vegas, Henderson, Summerlin, or North Las Vegas. We measure and quote on the spot.",
+    "Book a free in-home window treatment consultation in Las Vegas, Henderson, Summerlin, or North Las Vegas. We measure every window and send you a written quote.",
   alternates: { canonical: "/contact" },
 };
 
@@ -32,7 +32,7 @@ export default function ContactPage() {
             <div className="relative aspect-4/5 w-full overflow-hidden bg-sand">
               <Image
                 src="/brand/family-backyard-pool.webp"
-                alt="Josh and Shade smiling by a backyard pool under palm trees, each holding one of their two young children"
+                alt="Josh and Shade’ smiling by a backyard pool under palm trees, each holding one of their two young children"
                 fill
                 sizes="(min-width: 1024px) 22rem, 100vw"
                 className="object-cover"
@@ -86,7 +86,7 @@ export default function ContactPage() {
               <ul className="mt-4 flex flex-col gap-3 text-sm leading-relaxed text-ink-soft">
                 <li>We call to schedule, usually within 3 business days.</li>
                 <li>We bring real samples to your windows, in your own light.</li>
-                <li>We measure each window and can quote before we leave.</li>
+                <li>We measure each window and send you a written quote.</li>
                 <li>No deposit is required to get a quote.</li>
               </ul>
             </div>
