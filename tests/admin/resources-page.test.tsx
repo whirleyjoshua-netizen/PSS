@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { Resource } from "@/lib/admin/resource-rules";
+import type { ListedResource } from "@/lib/admin/resource-rules";
 
 const actions = {
   saveResourceAction: vi.fn(), renameResourceAction: vi.fn(), recategorizeResourceAction: vi.fn(), deleteResourceAction: vi.fn(),
@@ -21,8 +21,8 @@ const { ResourceUploader } = await import("@/app/admin/resources/ResourceUploade
 const { CategoryManager } = await import("@/app/admin/resources/CategoryManager");
 const { default: ResourcesPage } = await import("@/app/admin/resources/page");
 
-const file = (id: string, name: string, category: string, sizeBytes = 1536 * 1024): Resource => ({
-  id, name, category, contentType: "application/pdf", sizeBytes, uploadedBy: "joshua.whirley@example.com", createdAt: new Date("2026-10-02T17:00:00Z"),
+const file = (id: string, name: string, category: string, sizeBytes = 1536 * 1024, taskCount = 0): ListedResource => ({
+  id, name, category, contentType: "application/pdf", sizeBytes, uploadedBy: "joshua.whirley@example.com", createdAt: new Date("2026-10-02T17:00:00Z"), taskCount,
 });
 const LIST = [file("a", "W-9.pdf", "Licenses"), file("b", "Duette spec.pdf", "Spec books"), file("c", "COI 2026.pdf", "Licenses")];
 const PATH = /^resources\/[0-9a-f-]{36}\/[A-Za-z0-9._-]+$/;
@@ -99,6 +99,14 @@ describe("ResourceList", () => {
     expect(screen.getByRole("button", { name: "Yes, delete" })).toHaveFocus();
     fireEvent.click(screen.getByRole("button", { name: "Yes, delete" }));
     await waitFor(() => expect(actions.deleteResourceAction).toHaveBeenCalledWith("a"));
+  });
+
+  it("warns before deleting a file tasks link to", () => {
+    render(<ResourceList resources={[file("a", "W-9.pdf", "Licenses", 1024, 2), file("b", "COI.pdf", "Licenses", 1024, 1)]} categories={[]} />);
+    fireEvent.click(screen.getByRole("button", { name: "Delete W-9.pdf" }));
+    expect(screen.getByText("Delete W-9.pdf? It's attached to 2 tasks and will be removed from them. This can't be undone.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Delete COI.pdf" }));
+    expect(screen.getByText("Delete COI.pdf? It's attached to 1 task and will be removed from it. This can't be undone.")).toBeInTheDocument();
   });
 });
 
