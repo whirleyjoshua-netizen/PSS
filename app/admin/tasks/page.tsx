@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { CARD } from "@/app/admin/jobs/[id]/ui";
 import { requireAdmin } from "@/lib/admin/session";
+import { listResources } from "@/lib/admin/resources";
 import { assignableEmails, listTasks } from "@/lib/admin/tasks";
 import { boardColumns, DONE_VISIBLE_DAYS, TASK_STATUSES, type TaskStatus } from "@/lib/admin/task-rules";
 import { lasVegasDate } from "@/lib/admin/time";
@@ -19,7 +20,8 @@ const TOGGLE = "inline-flex min-h-11 items-center px-4 text-sm border border-cha
 export default async function TasksPage({ searchParams }: { searchParams: Promise<{ view?: string | string[] }> }) {
   const admin = await requireAdmin();
   const me = admin.email.toLowerCase();
-  const [tasks, people, query] = await Promise.all([listTasks(), assignableEmails(), searchParams]);
+  const [tasks, people, query, library] = await Promise.all([listTasks(), assignableEmails(), searchParams, listResources()]);
+  const resources = library.map(({ id, name, category }) => ({ id, name, category }));
   const mine = (Array.isArray(query.view) ? query.view[0] : query.view) === "mine";
   const now = new Date();
   const today = lasVegasDate(now);
@@ -42,6 +44,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
           defaults={{ title: "", notes: "", assignee: people.includes(me) ? me : "", dueOn: "", status: "todo" }}
           submitLabel="Add task"
           idPrefix="new-task"
+          newFiles={{ resources }}
         />
       </details>
       <div className="grid gap-6 md:grid-cols-3">

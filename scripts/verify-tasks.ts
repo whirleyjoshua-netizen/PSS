@@ -69,6 +69,7 @@
  *     from prev)` — step 10 "keeps a removed assignee" must fail.
  * Put each back.
  */
+import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { neon } from "@neondatabase/serverless";
 import { test } from "vitest";
@@ -145,6 +146,9 @@ async function throwsWith(run: () => Promise<unknown>): Promise<string | null> {
   try { await run(); return null; } catch (error) { return error instanceof Error ? error.message : String(error); }
 }
 
+/** A task with no files (migration 043): the form makes its id. scripts/verify-task-files.ts covers files. */
+const create = (fields: Parameters<typeof createTask>[0], actor: string) => createTask(fields, actor, { id: randomUUID(), uploads: [], resourceIds: [] });
+
 const idOf = (result: { id: string } | "not-assignable") => {
   if (result === "not-assignable") throw new Error("FAILED: expected a task to be created");
   return result.id;
@@ -154,20 +158,20 @@ test("task board against a real database", async () => {
   console.log(`\nverify-tasks: writing to ${host}\n`);
   try {
     // 1. Unassigned and owner-assigned tasks are created.
-    const loose = idOf(await createTask(input({}), OWNER));
+    const loose = idOf(await create(input({}), OWNER));
     check((await getTask(loose))?.assigneeEmail === null, "an unassigned task is created", "assignee not null");
-    const mine = idOf(await createTask(input({ assignee: OWNER }), OWNER));
+    const mine = idOf(await create(input({ assignee: OWNER }), OWNER));
     check((await getTask(mine))?.assigneeEmail === OWNER, "an owner can be assigned", "assignee wrong");
 
     // 2. Someone who cannot sign in cannot be assigned, and nothing is written.
-    const refused = await createTask(input({ assignee: STRANGER }), OWNER);
+    const refused = await create(input({ assignee: STRANGER }), OWNER);
     const strays = await sql`select count(*)::int as n from tasks where assignee_email = ${STRANGER}`;
     check(refused === "not-assignable" && Number(strays[0].n) === 0, "a stranger is refused", `got ${JSON.stringify(refused)}, rows ${strays[0].n}`);
 
     // 3. An added admin can be assigned.
     await sql`insert into admin_access (email, added_by) values (${GUEST}, ${OWNER})`;
-    const guestOpen = idOf(await createTask(input({ assignee: GUEST, dueOn: "2026-10-09" }), OWNER));
-    const guestDone = idOf(await createTask(input({ assignee: GUEST, status: "done" }), OWNER));
+    const guestOpen = idOf(await create(input({ assignee: GUEST, dueOn: "2026-10-09" }), OWNER));
+    const guestDone = idOf(await create(input({ assignee: GUEST, status: "done" }), OWNER));
     const guestDoneRow = await getTask(guestDone);
     check(guestDoneRow !== null && guestDoneRow.completedAt instanceof Date, "a task created as done has completed_at", JSON.stringify(guestDoneRow));
 
@@ -225,11 +229,11 @@ test("task board against a real database", async () => {
     check(strangerUpdate === "not-assignable" && (await getTask(loose))?.assigneeEmail === OWNER, "update to a stranger is refused and nothing changes", JSON.stringify(strangerUpdate));
 
     // 9. Digest: due on or before the given day, open and assigned only.
-    const yesterday = idOf(await createTask(input({ assignee: OWNER, dueOn: "2026-09-30" }), OWNER));
-    const tomorrow = idOf(await createTask(input({ assignee: OWNER, dueOn: "2026-10-02" }), OWNER));
-    const later = idOf(await createTask(input({ assignee: OWNER, dueOn: "2026-10-03" }), OWNER));
-    const overdueDone = idOf(await createTask(input({ assignee: OWNER, dueOn: "2026-09-30", status: "done" }), OWNER));
-    const overdueLoose = idOf(await createTask(input({ dueOn: "2026-09-30" }), OWNER));
+    const yesterday = idOf(await create(input({ assignee: OWNER, dueOn: "2026-09-30" }), OWNER));
+    const tomorrow = idOf(await create(input({ assignee: OWNER, dueOn: "2026-10-02" }), OWNER));
+    const later = idOf(await create(input({ assignee: OWNER, dueOn: "2026-10-03" }), OWNER));
+    const overdueDone = idOf(await create(input({ assignee: OWNER, dueOn: "2026-09-30", status: "done" }), OWNER));
+    const overdueLoose = idOf(await create(input({ dueOn: "2026-09-30" }), OWNER));
     const digestIds = (await listDigestTasks("2026-10-02")).map((t) => t.id);
     check(digestIds.includes(yesterday) && digestIds.includes(tomorrow) && !digestIds.includes(later) && !digestIds.includes(guestDone),
       "the digest takes overdue to tomorrow, not later or done", JSON.stringify(digestIds));

@@ -25,6 +25,9 @@ export function TaskCard({ task, today }: { task: Task; today: string }) {
       <p className="text-ink-soft">{task.assigneeEmail ? displayName(task.assigneeEmail) : "Unassigned"}</p>
       {open && task.dueOn ? <p className={DUE_TEXT[due]}>{dueLine(task.dueOn, today)}</p> : null}
       {!open && task.completedAt ? <p className="text-ink-soft">Done {formatShortDate(task.completedAt)}</p> : null}
+      {task.fileCount > 0 ? (
+        <p className="text-ink-soft"><span aria-hidden="true">📎 </span>{task.fileCount === 1 ? "1 file" : `${task.fileCount} files`}</p>
+      ) : null}
       <form action={moveTaskAction.bind(null, task.id)} className="flex items-center gap-2">
         <label htmlFor={`status-${task.id}`} className="sr-only">{`Status of ${task.title}`}</label>
         <SubmitOnChange id={`status-${task.id}`} name="status" defaultValue={task.status}>

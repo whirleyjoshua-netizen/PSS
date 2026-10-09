@@ -1,19 +1,22 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { TEXT_LINK } from "@/app/admin/jobs/[id]/ui";
+import { CARD, TEXT_LINK } from "@/app/admin/jobs/[id]/ui";
 import { DeleteButton } from "@/app/admin/jobs/[id]/DeleteButton";
 import { requireAdmin } from "@/lib/admin/session";
+import { listResources } from "@/lib/admin/resources";
+import { listTaskFiles } from "@/lib/admin/task-files";
 import { assignableEmails, getTask } from "@/lib/admin/tasks";
 import { displayName } from "@/lib/admin/task-rules";
 import { formatWhen } from "@/lib/admin/time";
 import { deleteTaskAction, updateTaskAction } from "../actions";
 import { RemindButton } from "../RemindButton";
+import { TaskFiles } from "../TaskFiles";
 import { TaskForm } from "../TaskForm";
 
 export default async function TaskPage({ params }: { params: Promise<{ id: string }> }) {
   await requireAdmin();
   const { id } = await params;
-  const [task, people] = await Promise.all([getTask(id), assignableEmails()]);
+  const [task, people, files, library] = await Promise.all([getTask(id), assignableEmails(), listTaskFiles(id), listResources()]);
   if (!task) notFound();
   // A done task keeps the name of someone who has since lost access; the list must show it,
   // or the select would silently fall back to Unassigned and saving would erase it.
@@ -31,6 +34,10 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
           : ""}
       </p>
       {task.status !== "done" && task.assigneeEmail ? <RemindButton taskId={task.id} title={task.title} /> : null}
+      <section aria-labelledby="task-files" className={CARD}>
+        <h2 id="task-files" className="text-lg font-semibold">Files</h2>
+        <TaskFiles taskId={task.id} files={files} resources={library.map(({ id: resourceId, name, category }) => ({ id: resourceId, name, category }))} />
+      </section>
       <TaskForm
         action={updateTaskAction.bind(null, task.id)}
         people={options}
