@@ -10,7 +10,10 @@
  *   2. Tara and Tobi are seeded, and there is exactly one settings row;
  *   3. raw writes THROW each check: slug, send cap, report status, report type, email fields,
  *      external id, report body size, suppression address case, and the unique (agent, external_id) index.
- * It deletes its rows (agents named verify-*, cascading to their items), so repeated runs leave nothing behind.
+ *   4. runs lib/agents/store.ts on that database: upsert/lock, owner edits survive a push, a concurrent claim has one
+ *      winner, pull-once for items and replies, the 2-minute poll claim, suppressions, cards and digest facts.
+ * It deletes its rows (agents named verify-*, cascading to their items and replies, and the a@b.co suppression),
+ * and restores agent_settings.last_reply_poll_at, so repeated runs leave nothing behind.
  *
  * IT WRITES TO THE DATABASE IT IS GIVEN. It takes its connection from E2E_POSTGRES_URL alone and
  * refuses production (ep-cold-term).
@@ -74,4 +77,68 @@ test("agents: migration 042", async () => {
   await sql`insert into agent_items (agent_slug, external_id, kind, title, status) values (${SLUG}, 'd1', 'decision', 't', 'pending')`;
   await bad("a duplicate (agent, external_id)", () => sql`insert into agent_items (agent_slug, external_id, kind, title, status) values (${SLUG}, 'd1', 'decision', 't', 'pending')`);
 });
-afterAll(async () => { await sql`delete from agents where slug like 'verify-%'`; });
+let savedPoll: string | null | undefined;
+test("agents: store SQL on a real database", async () => {
+  const store = await import("@/lib/agents/store");
+  const { lasVegasDate } = await import("@/lib/admin/time");
+  const email = { kind: "email" as const, external_id: "mail-1", title: "Intro", email_to: "pat@example.com", email_subject: "Hello", email_body: "Hi" };
+  check((await store.upsertItem(SLUG, email)) === "created", "upsertItem: a new email is created", "");
+  check((await store.upsertItem(SLUG, email)) === "updated", "upsertItem: the same push again updates", "");
+  const [{ id }] = await sql`select id from agent_items where agent_slug = ${SLUG} and external_id = 'mail-1'`;
+  check(await store.saveEmailEdits(id, { to: "x@y.co", subject: "Edited", body: "Owner body" }), "saveEmailEdits saves", "");
+  check((await store.upsertItem(SLUG, { ...email, email_body: "Agent rewrite" })) === "updated", "upsertItem after an owner edit still updates the proposal", "");
+  const edited = await store.getItem(id);
+  check(edited?.finalBody === "Owner body" && edited?.emailBody === "Agent rewrite", "a push never overwrites the owner's edit", JSON.stringify({ final: edited?.finalBody, proposal: edited?.emailBody }));
+
+  await store.upsertItem(SLUG, { kind: "decision", external_id: "dec-1", title: "Which?" });
+  const card = (await store.listAgentCards()).find((c) => c.slug === SLUG);
+  check(card?.pending === 3, "listAgentCards counts the agent's pending items (d1 from the migration test, mail-1, dec-1)", JSON.stringify(card));
+  check((await store.listNeedsYou()).filter((i) => i.agentSlug === SLUG).length === 3, "listNeedsYou lists them", "");
+
+  const claims = await Promise.all([store.claimForSend(id, "a@x.co"), store.claimForSend(id, "b@x.co")]);
+  const won = claims.filter((c) => c !== null);
+  check(won.length === 1, "claimForSend twice at once: exactly one wins", `${won.length} won`);
+  check(won[0]?.finalTo === "x@y.co" && won[0]?.finalBody === "Owner body", "the claim keeps the owner's edits", JSON.stringify(won[0]));
+  await store.markSent(id, { sentBody: "Owner body + footer", graphMessageId: "g-1", conversationId: `conv-${SLUG}`, internetMessageId: `<sent-${SLUG}@test>` });
+  check((await store.upsertItem(SLUG, email)) === "locked", "upsertItem on a sent email is locked", "");
+  check((await store.sentTodayCount(SLUG, lasVegasDate(new Date()))) === 1, "sentTodayCount counts it on today's Las Vegas date", "");
+  check((await store.sentConversations(30)).some((c) => c.id === id && c.conversationId === `conv-${SLUG}`), "sentConversations includes it", "");
+
+  const firstPull = await store.pullUpdates(SLUG);
+  check(firstPull.length === 1 && firstPull[0].id === id && firstPull[0].status === "sent", "pullUpdates returns the sent item", JSON.stringify(firstPull.map((i) => [i.externalId, i.status])));
+  check((await store.pullUpdates(SLUG)).length === 0, "pullUpdates returns it only once", "");
+
+  const [{ id: decId }] = await sql`select id from agent_items where agent_slug = ${SLUG} and external_id = 'dec-1'`;
+  check(!(await store.decideItem(id, { status: "approved", note: null, by: "o@x.co" })), "decideItem refuses a sent email", "");
+  check(await store.decideItem(decId, { status: "answered", note: "Go with A", by: "o@x.co" }), "decideItem answers a decision", "");
+  const decided = await store.pullUpdates(SLUG);
+  check(decided.length === 1 && decided[0].ownerNote === "Go with A", "pullUpdates delivers the answer", JSON.stringify(decided.map((i) => i.externalId)));
+
+  const reply = { itemId: id, internetMessageId: `<reply-${SLUG}@test>`, from: " Pat@Example.com ", receivedAt: new Date(), subject: "Re: Hello", bodyText: "Sounds good" };
+  check(await store.insertReply(reply), "insertReply stores a reply", "");
+  check(!(await store.insertReply(reply)), "insertReply ignores the same message twice", "");
+  check(!(await store.pullReplies("tara")).some((r) => r.external_id === "mail-1" && r.body_text === "Sounds good"), "pullReplies never gives another agent's reply", "");
+  const replies = await store.pullReplies(SLUG);
+  check(replies.length === 1 && replies[0].from === "pat@example.com" && replies[0].external_id === "mail-1", "pullReplies returns this agent's reply", JSON.stringify(replies));
+  check((await store.pullReplies(SLUG)).length === 0, "pullReplies returns it only once", "");
+  check((await store.listRecentReplies(50)).some((r) => r.itemId === id && !r.seen), "listRecentReplies shows it unseen", "");
+
+  savedPoll = (await sql`select last_reply_poll_at::text as v from agent_settings`)[0].v;
+  await sql`update agent_settings set last_reply_poll_at = null`;
+  check(await store.claimReplyPoll(), "claimReplyPoll claims when nobody has", "");
+  check(!(await store.claimReplyPoll()), "claimReplyPoll refuses inside 2 minutes", "");
+
+  await store.addSuppression(" A@B.co ", "test", "owner");
+  check(await store.isSuppressed("a@b.co"), "addSuppression normalizes and isSuppressed finds it", "");
+
+  const facts = await store.digestFacts(null);
+  check(typeof facts.pending === "number" && facts.newReplies >= 1, "digestFacts runs", JSON.stringify({ pending: facts.pending, newReplies: facts.newReplies }));
+  check(typeof (await store.needsYouCount()) === "number", "needsYouCount runs", "");
+  await store.getAgentSettings();
+  check((await store.listItems(SLUG)).length === 3 && (await store.listItems(SLUG, "daily")).length === 0, "listItems filters by report type", "");
+});
+afterAll(async () => {
+  await sql`delete from agents where slug like 'verify-%'`;
+  await sql`delete from email_suppressions where address = 'a@b.co'`;
+  if (savedPoll !== undefined) await sql`update agent_settings set last_reply_poll_at = ${savedPoll}::timestamptz`;
+});
