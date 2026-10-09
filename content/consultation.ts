@@ -53,7 +53,7 @@ export const PAINS: Pain[] = [
   },
   {
     heard: "“Once they had my money, they disappeared.”",
-    answer: "A family affair, start to finish",
+    answer: "From your first call to the final install, we're family",
     body: "We are a Las Vegas family business, and we never hand you off to a third party for install. We walk through every window with you before we go, and we stand behind the job.",
   },
 ];
