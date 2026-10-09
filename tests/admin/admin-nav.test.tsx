@@ -27,12 +27,13 @@ describe("AdminNav", () => {
     expect(nav.getByRole("link", { name: "Schedule" })).toHaveAttribute("href", "/admin/schedule");
     expect(nav.getByRole("link", { name: "Documents" })).toHaveAttribute("href", "/admin/documents");
     expect(nav.getByRole("link", { name: "Tasks" })).toHaveAttribute("href", "/admin/tasks");
-    // Order: Tasks sits between Schedule and Documents.
+    // Order: Tasks follows Schedule; Agents sits between Tasks and Documents.
     expect(nav.getAllByRole("link").map((link) => link.textContent?.trim())).toEqual(
-      expect.arrayContaining(["Jobs", "Schedule", "Tasks", "Documents", "Settings"]));
+      expect.arrayContaining(["Jobs", "Schedule", "Tasks", "Agents", "Documents", "Settings"]));
     const names = nav.getAllByRole("link").map((link) => link.textContent?.trim());
     expect(names.indexOf("Tasks")).toBe(names.indexOf("Schedule") + 1);
-    expect(names.indexOf("Documents")).toBe(names.indexOf("Tasks") + 1);
+    expect(names.indexOf("Agents")).toBe(names.indexOf("Tasks") + 1);
+    expect(names.indexOf("Documents")).toBe(names.indexOf("Agents") + 1);
   });
 
   it("marks the board and every task page as Tasks", () => {
@@ -81,10 +82,24 @@ describe("AdminNav", () => {
       unmount();
     }
   });
-  it("lists the six sections in order", () => {
+  it("lists the seven sections in order", () => {
     pathname.mockReturnValue("/admin");
     render(<AdminNav email="owner@example.com" />);
-    expect(within(column()).getAllByRole("link").map((l) => l.textContent)).toEqual(["Jobs", "Schedule", "Tasks", "Documents", "Resources", "Settings"]);
+    expect(within(column()).getAllByRole("link").map((l) => l.textContent)).toEqual(["Jobs", "Schedule", "Tasks", "Agents", "Documents", "Resources", "Settings"]);
+  });
+
+  it("links to Agents, marks its pages, and badges what needs the owner", () => {
+    pathname.mockReturnValue("/admin/agents/tara");
+    const { unmount } = render(<AdminNav email="owner@example.com" badge={3} />);
+    const link = within(column()).getByRole("link", { name: /^Agents/ });
+    expect(link).toHaveAttribute("href", "/admin/agents");
+    expect(link).toHaveAttribute("aria-current", "page");
+    expect(within(link).getByLabelText("3 need you")).toHaveTextContent("3");
+    unmount();
+
+    render(<AdminNav email="owner@example.com" badge={0} />);
+    const plain = within(column()).getByRole("link", { name: "Agents" });
+    expect(plain.textContent).toBe("Agents");
   });
 
   it("marks the Resources page as Resources", () => {

@@ -5,7 +5,11 @@ const getAdmin = vi.fn();
 vi.mock("@/lib/admin/session", () => ({ getAdmin }));
 // A stand-in that shows where the layout puts the worker registration.
 vi.mock("@/app/admin/RegisterOpsWorker", () => ({ RegisterOpsWorker: () => <span data-testid="register-ops-worker" /> }));
-vi.mock("@/app/admin/AdminNav", () => ({ AdminNav: ({ email }: { email: string }) => <nav aria-label="Admin">{email}</nav> }));
+vi.mock("@/app/admin/AdminNav", () => ({
+  AdminNav: ({ email, badge }: { email: string; badge?: number }) => <nav aria-label="Admin" data-badge={badge}>{email}</nav>,
+}));
+const needsYouCount = vi.fn();
+vi.mock("@/lib/agents/store", () => ({ needsYouCount }));
 
 const { default: AdminLayout } = await import("@/app/admin/layout");
 
@@ -14,7 +18,33 @@ const renderLayout = async () => render(await AdminLayout({ children: <p>page bo
 
 const SIDES = ["pl-[max(1rem,env(safe-area-inset-left))]", "pr-[max(1rem,env(safe-area-inset-right))]"];
 
-beforeEach(() => getAdmin.mockReset());
+beforeEach(() => {
+  getAdmin.mockReset();
+  needsYouCount.mockReset().mockResolvedValue(0);
+});
+
+describe("agents badge", () => {
+  it("passes the needs-you count to the nav", async () => {
+    getAdmin.mockResolvedValue({ email: "owner@example.com" });
+    needsYouCount.mockResolvedValue(4);
+    await renderLayout();
+    expect(screen.getByRole("navigation", { name: "Admin" })).toHaveAttribute("data-badge", "4");
+  });
+
+  it("still renders every admin page when the agent tables are missing", async () => {
+    getAdmin.mockResolvedValue({ email: "owner@example.com" });
+    needsYouCount.mockRejectedValue(new Error('relation "agent_items" does not exist'));
+    await renderLayout();
+    expect(screen.getByRole("main")).toHaveTextContent("page body");
+    expect(screen.getByRole("navigation", { name: "Admin" })).toHaveAttribute("data-badge", "0");
+  });
+
+  it("doesn't query the count for a signed-out visitor", async () => {
+    getAdmin.mockResolvedValue(null);
+    await renderLayout();
+    expect(needsYouCount).not.toHaveBeenCalled();
+  });
+});
 
 describe("admin layout", () => {
   it("signed in: pads the page clear of the notch and home bar, in landscape too", async () => {

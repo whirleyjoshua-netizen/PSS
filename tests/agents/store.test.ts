@@ -115,3 +115,19 @@ describe("getItem", () => {
     expect(sql.query.mock.calls[0][1]).toEqual([ID]);
   });
 });
+
+describe("listRepliesForItem", () => {
+  it("reads one email's replies, oldest first, and maps them", async () => {
+    sql.mockResolvedValue([{ from_address: "pat@example.com", received_at: "2026-10-09T16:00:00Z", subject: "Re: Hello", body_text: "Sure" }]);
+    expect(await store.listRepliesForItem(ID)).toEqual([
+      { from: "pat@example.com", receivedAt: new Date("2026-10-09T16:00:00Z"), subject: "Re: Hello", bodyText: "Sure" },
+    ]);
+    const q = text(sql.mock.calls[0]);
+    expect(q).toContain("select from_address, received_at, subject, body_text from agent_replies where item_id = ? order by received_at");
+    expect(values(sql.mock.calls[0])).toEqual([ID]);
+  });
+  it("never queries for a malformed id", async () => {
+    expect(await store.listRepliesForItem("nope")).toEqual([]);
+    expect(sql).not.toHaveBeenCalled();
+  });
+});

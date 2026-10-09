@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { getAdmin } from "@/lib/admin/session";
+import { needsYouCount } from "@/lib/agents/store";
 import { AdminNav } from "./AdminNav";
 import { RegisterOpsWorker } from "./RegisterOpsWorker";
 
@@ -36,9 +37,12 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     );
   }
 
+  // The agent tables arrive with migration 042: until it is applied, a failed count must not break every admin page.
+  const badge = await needsYouCount().catch(() => 0);
+
   return (
     <div className="admin-theme flex min-h-screen flex-1 flex-col md:flex-row">
-      <AdminNav email={admin.email} />
+      <AdminNav email={admin.email} badge={badge} />
       <RegisterOpsWorker />
       <main className="min-w-0 flex-1 pt-6 pr-[max(1rem,env(safe-area-inset-right))] pb-[max(1.5rem,env(safe-area-inset-bottom))] pl-[max(1rem,env(safe-area-inset-left))] sm:pr-[max(2rem,env(safe-area-inset-right))] sm:pl-[max(2rem,env(safe-area-inset-left))]">
         {children}

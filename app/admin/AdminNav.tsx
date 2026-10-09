@@ -11,6 +11,7 @@ const LINKS: readonly { href: string; label: string; icon: IconName }[] = [
   { href: "/admin", label: "Jobs", icon: "jobs" },
   { href: "/admin/schedule", label: "Schedule", icon: "calendar" },
   { href: "/admin/tasks", label: "Tasks", icon: "check" },
+  { href: "/admin/agents", label: "Agents", icon: "lead" },
   { href: "/admin/documents", label: "Documents", icon: "document" },
   { href: "/admin/resources", label: "Resources", icon: "folder" },
   { href: "/admin/settings", label: "Settings", icon: "settings" },
@@ -32,7 +33,7 @@ export function initialsFor(email: string): string {
   return letters.toUpperCase();
 }
 
-function NavLinks({ pathname }: { pathname: string }) {
+function NavLinks({ pathname, badge }: { pathname: string; badge?: number }) {
   return (
     <ul className="flex flex-col gap-1">
       {LINKS.map(({ href, label, icon }) => {
@@ -50,6 +51,11 @@ function NavLinks({ pathname }: { pathname: string }) {
             >
               <Icon name={icon} className="size-5" />
               {label}
+              {href === "/admin/agents" && badge ? (
+                <span className="ml-auto rounded-full bg-champagne px-2 text-xs font-semibold text-charcoal" aria-label={`${badge} need you`}>
+                  {badge}
+                </span>
+              ) : null}
             </Link>
           </li>
         );
@@ -84,7 +90,7 @@ function Brand() {
 }
 
 /** Dark left column on desktop; a dark header with a Menu on phones. */
-export function AdminNav({ email }: { email: string }) {
+export function AdminNav({ email, badge }: { email: string; badge?: number }) {
   const pathname = usePathname();
 
   return (
@@ -93,7 +99,7 @@ export function AdminNav({ email }: { email: string }) {
         <div className="flex flex-col gap-8">
           <Brand />
           <nav aria-label="Admin">
-            <NavLinks pathname={pathname} />
+            <NavLinks pathname={pathname} badge={badge} />
           </nav>
         </div>
         <Account email={email} />
@@ -109,7 +115,7 @@ export function AdminNav({ email }: { email: string }) {
           {/* Scrolls inside the sticky header when taller than the screen below the 3.5rem summary. */}
           <div className="flex max-h-[calc(100dvh-3.5rem)] flex-col gap-4 overflow-y-auto pb-4">
             <nav aria-label="Admin">
-              <NavLinks pathname={pathname} />
+              <NavLinks pathname={pathname} badge={badge} />
             </nav>
             <Account email={email} />
           </div>

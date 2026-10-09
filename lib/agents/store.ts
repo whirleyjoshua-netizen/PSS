@@ -168,6 +168,15 @@ export async function listRecentReplies(limit: number): Promise<RecentReply[]> {
     bodyText: r.body_text as string, seen: r.seen_at != null,
   }));
 }
+export type ItemReply = { from: string; receivedAt: Date; subject: string | null; bodyText: string };
+export async function listRepliesForItem(id: string): Promise<ItemReply[]> {
+  if (!isUuid(id)) return [];
+  const rows = await db()`select from_address, received_at, subject, body_text from agent_replies where item_id = ${id} order by received_at`;
+  return rows.map((r) => ({
+    from: r.from_address as string, receivedAt: new Date(r.received_at as string),
+    subject: (r.subject as string | null) ?? null, bodyText: r.body_text as string,
+  }));
+}
 export async function markRepliesSeen(): Promise<void> {
   await db()`update agent_replies set seen_at = now() where seen_at is null`;
 }
