@@ -21,13 +21,15 @@ import { getDcSettings, listMarkupRules, listSeenCollections } from "@/lib/dc/st
 import { MarkupSection } from "./MarkupSection";
 import { TermsSection } from "./TermsSection";
 import { liveTemplateOfKind } from "@/lib/docs/templates";
+import { getAgentSettings, listAgentCards, listSuppressions } from "@/lib/agents/store";
+import { AgentsSection } from "./AgentsSection";
 
 /** The team list, plus account and client-portal options as later portal steps land. */
 export default async function SettingsPage() {
   const admin = await requireAdmin();
   const enabled = calendarEnabled();
   // Read both together, so neither rejection is left unhandled while the other is awaited.
-  const [team, rates, installSettings, calendar, routeSettings, defaultAssignee, addedAdmins, rules, collections, dcSettings, termsTemplate, faceIdDevices] = await Promise.all([
+  const [team, rates, installSettings, calendar, routeSettings, defaultAssignee, addedAdmins, rules, collections, dcSettings, termsTemplate, faceIdDevices, agents, agentSettings, suppressions] = await Promise.all([
     listTeam(),
     listInstallRates(),
     getInstallSettings(),
@@ -49,6 +51,19 @@ export default async function SettingsPage() {
     getDcSettings(),
     liveTemplateOfKind("terms"),
     listPasskeys(admin.email),
+    // Each falls back, so Settings still loads before migration 042 (the agents tables) is applied.
+    listAgentCards().catch((error: unknown) => {
+      console.error("Could not read the agents", error);
+      return [];
+    }),
+    getAgentSettings().catch((error: unknown) => {
+      console.error("Could not read the agent settings", error);
+      return { mailingAddress: null, signature: null };
+    }),
+    listSuppressions().catch((error: unknown) => {
+      console.error("Could not read the do-not-contact list", error);
+      return [];
+    }),
   ]);
   const routeSetup = {
     map: Boolean(process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY && process.env.NEXT_PUBLIC_GOOGLE_MAP_ID),
@@ -64,6 +79,7 @@ export default async function SettingsPage() {
       <InstallSection />
       <TeamSection team={team} />
       <AdminAccessSection owners={parseAllowlist(process.env.ADMIN_EMAILS)} added={addedAdmins} me={admin.email} />
+      <AgentsSection agents={agents} settings={agentSettings} suppressions={suppressions} />
       <FaceIdSection devices={faceIdDevices} />
       <LeadDefaultsSection team={team} defaultAssignee={defaultAssignee} />
       <RoutesSection settings={routeSettings} setup={routeSetup} />

@@ -58,6 +58,18 @@ vi.mock("@simplewebauthn/browser", () => ({
   browserSupportsWebAuthn: () => false, platformAuthenticatorIsAvailable: async () => false, startRegistration: vi.fn(),
 }));
 
+const agentStore = {
+  listAgentCards: vi.fn(async (): Promise<unknown[]> => []),
+  getAgentSettings: vi.fn(async () => ({ mailingAddress: null as string | null, signature: null as string | null, lastDigestAt: null })),
+  listSuppressions: vi.fn(async (): Promise<unknown[]> => []),
+};
+vi.mock("@/lib/agents/store", () => agentStore);
+vi.mock("@/app/admin/settings/agent-actions", () => ({
+  addAgentAction: vi.fn(async () => ({})), createKeyAction: vi.fn(async () => ({})),
+  saveAgentSettingsAction: vi.fn(async () => ({})), addSuppressionAction: vi.fn(async () => ({})),
+  removeSuppressionAction: vi.fn(),
+}));
+
 const { default: SettingsPage } = await import("@/app/admin/settings/page");
 
 beforeEach(() => {
@@ -270,5 +282,32 @@ describe("Direct Connect sections", () => {
     render(await SettingsPage());
     expect(liveTemplateOfKind).toHaveBeenCalledWith("terms");
     expect(screen.getByRole("region", { name: "Contract terms" })).toHaveTextContent("Contracts print the terms from the Documents page");
+  });
+});
+
+describe("agents section", () => {
+  it("shows the agents after admin access, with the saved mailing address", async () => {
+    calendarEnabled.mockReturnValue(false);
+    agentStore.getAgentSettings.mockResolvedValueOnce({ mailingAddress: "PO Box 1", signature: null, lastDigestAt: null });
+    render(await SettingsPage());
+    const agents = screen.getByRole("region", { name: "Agents" });
+    expect(screen.getByRole("heading", { name: "Agents" })).toHaveAttribute("id", "agents-heading");
+    const access = screen.getByRole("region", { name: "Admin access" });
+    expect(access.compareDocumentPosition(agents) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByLabelText("Mailing address")).toHaveValue("PO Box 1");
+  });
+
+  it("still loads when the agents tables are missing (migration 042 not applied)", async () => {
+    calendarEnabled.mockReturnValue(false);
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const missing = new Error('relation "agents" does not exist');
+    agentStore.listAgentCards.mockRejectedValueOnce(missing);
+    agentStore.getAgentSettings.mockRejectedValueOnce(missing);
+    agentStore.listSuppressions.mockRejectedValueOnce(missing);
+    render(await SettingsPage());
+    expect(screen.getByRole("heading", { name: "Settings" })).toBeInTheDocument();
+    expect(screen.getByText("No agents yet.")).toBeInTheDocument();
+    expect(screen.getByLabelText("Mailing address")).toHaveValue("");
+    error.mockRestore();
   });
 });
