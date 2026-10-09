@@ -16,20 +16,28 @@ function explain(status: number, step: string): string {
 /** Sends one approved email from support@: create a draft (to learn its ids), then send it. */
 export async function sendApproved(item: AgentItem, sentBody: string): Promise<{ ok: true } | { ok: false; error: string }> {
   const fail = async (error: string) => { await markFailed(item.id, error); return { ok: false as const, error }; };
+  let created: { id: string; conversationId: string; internetMessageId: string };
   try {
     const draft = await graphFetch(`${mailboxPath()}/messages`, {
       method: "POST",
       body: { subject: item.finalSubject, body: { contentType: "Text", content: sentBody }, toRecipients: [{ emailAddress: { address: item.finalTo } }] },
     });
     if (!draft.ok) return fail(explain(draft.status, "draft"));
-    const created = (await draft.json()) as { id: string; conversationId: string; internetMessageId: string };
+    created = (await draft.json()) as typeof created;
     const sent = await graphFetch(`${mailboxPath()}/messages/${encodeURIComponent(created.id)}/send`, { method: "POST" });
     if (!sent.ok) return fail(explain(sent.status, "send"));
-    await markSent(item.id, { sentBody, graphMessageId: created.id, conversationId: created.conversationId, internetMessageId: created.internetMessageId });
-    return { ok: true };
   } catch (error) {
     return fail(`Couldn't reach Microsoft: ${error instanceof Error ? error.message : String(error)}`);
   }
+  // The email is out. A failure to record it must never mark it failed: failed is retryable, so it could send twice.
+  // The row stays 'approved', which claimForSend won't claim.
+  try {
+    await markSent(item.id, { sentBody, graphMessageId: created.id, conversationId: created.conversationId, internetMessageId: created.internetMessageId });
+  } catch (error) {
+    console.error("Agent email sent but not recorded", item.id, error);
+    return { ok: false, error: "The email was sent, but saving that failed. Don't send it again; refresh in a minute." };
+  }
+  return { ok: true };
 }
 
 export function htmlToText(html: string): string {

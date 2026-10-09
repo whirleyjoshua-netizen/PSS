@@ -44,6 +44,18 @@ describe("sendApproved", () => {
     expect(await sendApproved(item, "b")).toMatchObject({ ok: false });
     expect(store.markFailed).toHaveBeenCalled();
   });
+  it("a database error after a successful send never marks it failed", async () => {
+    graphFetch
+      .mockResolvedValueOnce(json(201, { id: "m1", conversationId: "c1", internetMessageId: "<x>" }))
+      .mockResolvedValueOnce(new Response(null, { status: 202 }));
+    store.markSent.mockRejectedValueOnce(new Error("neon blip"));
+    const errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
+    const result = await sendApproved(item, "b");
+    expect(result).toEqual({ ok: false, error: expect.stringContaining("was sent") });
+    expect(store.markFailed).not.toHaveBeenCalled();
+    expect(errorLog).toHaveBeenCalledWith("Agent email sent but not recorded", "i1", expect.any(Error));
+    errorLog.mockRestore();
+  });
 });
 
 describe("pollReplies", () => {
