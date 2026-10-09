@@ -37,7 +37,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     );
   }
 
-  // The agent tables arrive with migration 042: until it is applied, a failed count must not break every admin page.
+  // The agent tables arrive with migration 044: until it is applied, a failed count must not break every admin page.
   const badge = await needsYouCount().catch(() => 0);
 
   return (

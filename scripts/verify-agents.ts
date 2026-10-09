@@ -1,12 +1,12 @@
 /**
- * Behavioural proof of migration 042 (agents, agent_items, agent_replies, email_suppressions, agent_settings).
+ * Behavioural proof of migration 044 (agents, agent_items, agent_replies, email_suppressions, agent_settings).
  *
  * THIS IS NOT AUTOMATED COVERAGE. It is run by hand, is in no suite, and CI does not run it. If you
- * change migration 042, run it yourself, or say the agent tables' SQL is unverified.
+ * change migration 044, run it yourself, or say the agent tables' SQL is unverified.
  * The unit tests mock the database, so they pin the SQL's text only.
  *
  * What it does, against a throwaway database:
- *   1. applies migration 042, twice (re-runnable);
+ *   1. applies migration 044, twice (re-runnable);
  *   2. Tara and Tobi are seeded, and there is exactly one settings row;
  *   3. raw writes THROW each check: slug, send cap, report status, report type, email fields,
  *      external id, report body size, suppression address case, and the unique (agent, external_id) index.
@@ -22,7 +22,7 @@
  * Usage: E2E_POSTGRES_URL='<neon test branch url>' npx vitest run --config scripts/verify-agents.config.mts --disableConsoleIntercept
  *   (without the flag, vitest hides a passing test's "ok" lines)
  *
- * To watch it fail: change agents_cap_check in migration 042 to `between 0 and 60` and run
+ * To watch it fail: change agents_cap_check in migration 044 to `between 0 and 60` and run
  * ("refuses a cap of 51" fails), then put 50 back and run again (the re-apply restores the check).
  */
 import { readFileSync } from "node:fs";
@@ -58,10 +58,10 @@ async function apply(file: string) {
   for (const statement of statements) await sql.query(statement);
 }
 
-test("agents: migration 042", async () => {
-  await apply("042_agents.sql");
-  await apply("042_agents.sql");
-  check(true, "migration 042 applies, and re-applies", "");
+test("agents: migration 044", async () => {
+  await apply("044_agents.sql");
+  await apply("044_agents.sql");
+  check(true, "migration 044 applies, and re-applies", "");
   const seeded = await sql`select slug, stats_access from agents where slug in ('tara','tobi') order by slug`;
   check(seeded.length === 2 && seeded[0].stats_access === true && seeded[1].stats_access === false, "Tara and Tobi seeded", JSON.stringify(seeded));
   check((await sql`select count(*)::int as n from agent_settings`)[0].n === 1, "one settings row", "");

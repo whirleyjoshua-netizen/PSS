@@ -297,7 +297,7 @@ describe("agents section", () => {
     expect(screen.getByLabelText("Mailing address")).toHaveValue("PO Box 1");
   });
 
-  it("still loads when the agents tables are missing (migration 042 not applied)", async () => {
+  it("still loads when the agents tables are missing (migration 044 not applied)", async () => {
     calendarEnabled.mockReturnValue(false);
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     const missing = new Error('relation "agents" does not exist');

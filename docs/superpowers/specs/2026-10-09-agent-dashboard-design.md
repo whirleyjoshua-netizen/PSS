@@ -1,6 +1,6 @@
 # Agent dashboard and agent standard — design
 
-Date: 2026-10-09 · Branch: `feat/agent-dashboard` · Migration: **042** (claimed 2026-10-09; 001–041 exist across branches)
+Date: 2026-10-09 · Branch: `feat/agent-dashboard` · Migration: **044** (claimed 2026-10-09 as 042; renamed to 044 after main took 042 quote_discount and 043 task_files)
 
 ## 1. Intent
 
@@ -38,7 +38,7 @@ The agent's Claude session never makes the network calls for publishing, and nev
 
 If the PULL fails (offline, 5xx), the runner logs it, writes `inbox/latest.md` saying "could not reach the dashboard", and still runs the agent. If the PUSH fails, the outbox files stay in place and are retried on the next run. Items are idempotent by `(agent, external_id)`, so retries never duplicate.
 
-## 3. Data model (migration `042_agents.sql`, every statement re-runnable)
+## 3. Data model (migration `044_agents.sql`, every statement re-runnable)
 
 **`agents`**
 - `slug text primary key`, constrained to `^[a-z][a-z0-9-]{1,30}$`
@@ -208,7 +208,7 @@ Only `final_*` is ever sent, and it is what the owner saw.
 - digest sends nothing when nothing changed.
 
 **Real database:**
-- Migration 042 runs twice on a Neon test branch.
+- migration 044 runs twice on a Neon test branch.
 - The new SQL (idempotent upsert, per-kind status check) runs against that branch.
 - Cron/CHECK constraint names are grepped.
 
@@ -222,7 +222,7 @@ Only `final_*` is ever sent, and it is what the owner saw.
 
 ## 9. Rollout order
 
-1. **Ship 1 (no owner steps):** migration 042 → production (proven on a branch first) → deploy dashboard, reports, decisions, stats, settings and digest. Create keys for Tara and Tobi, set up `pss/agents/`, move both agents onto the shared runner and schedules.
+1. **Ship 1 (no owner steps):** migration 044 → production (proven on a branch first) → deploy dashboard, reports, decisions, stats, settings and digest. Create keys for Tara and Tobi, set up `pss/agents/`, move both agents onto the shared runner and schedules.
 2. **Ship 2 (code ships with 1; activates when the owner completes the steps):** the owner adds **Mail.Send (Application)** to the "PSS Job Calendar" Azure app with admin consent (Mail.Read is already granted, 2026-09-28) and enters a mailing address. Until both are in place, Approve & send shows a clear message saying what's missing and doesn't send.
 
 ## 10. Out of scope (this version)

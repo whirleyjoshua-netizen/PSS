@@ -51,7 +51,7 @@ export default async function SettingsPage() {
     getDcSettings(),
     liveTemplateOfKind("terms"),
     listPasskeys(admin.email),
-    // Each falls back, so Settings still loads before migration 042 (the agents tables) is applied.
+    // Each falls back, so Settings still loads before migration 044 (the agents tables) is applied.
     listAgentCards().catch((error: unknown) => {
       console.error("Could not read the agents", error);
       return [];

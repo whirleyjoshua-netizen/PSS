@@ -4,7 +4,7 @@
 
 **Goal:** Every PSS agent's reports, email proposals and decision requests land on one owner dashboard (`/admin/agents`) with a weekday summary email. Approved emails are sent by the app from support@, and agents follow one shared standard (`pss/agents/`) for folders, tools and a runner.
 
-**Architecture:** The agents never call the app. A shared PowerShell runner pulls the owner's decisions, email replies and business counts into the agent's `inbox/`, runs the agent headless, then pushes the agent's `outbox/` to `POST /api/agents/sync` with a per-agent bearer key. The app stores items in Postgres (migration 042), renders them in the admin, sends approved emails through Microsoft Graph, polls only agent-email conversations for replies, and sends a Resend digest by cron.
+**Architecture:** The agents never call the app. A shared PowerShell runner pulls the owner's decisions, email replies and business counts into the agent's `inbox/`, runs the agent headless, then pushes the agent's `outbox/` to `POST /api/agents/sync` with a per-agent bearer key. The app stores items in Postgres (migration 044), renders them in the admin, sends approved emails through Microsoft Graph, polls only agent-email conversations for replies, and sends a Resend digest by cron.
 
 **Tech Stack:** Next.js 16.3 App Router (this repo's version: read `node_modules/next/dist/docs/` for route handlers and server actions before writing them), Neon serverless Postgres (`db()` tagged templates), zod 4, vitest 4, Playwright, Resend, Microsoft Graph (`lib/calendar/graph.ts`), `react-markdown` + `remark-gfm`, PowerShell 5.1, Windows Task Scheduler.
 
@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- Migration number **042** (`db/migrations/042_agents.sql`). Every statement re-runnable. Whole-line `--` comments only, and no semicolons in comments.
+- Migration number **044** (renamed from 042 on 2026-10-09: main took 042 and 043) (`db/migrations/044_agents.sql`). Every statement re-runnable. Whole-line `--` comments only, and no semicolons in comments.
 - Production DB endpoint is `ep-cold-term`. Never print a connection string. Scripts that write refuse it.
 - One recipient per email. No CC/BCC, attachments or HTML in v1.
 - `daily_send_cap` default **10**, allowed range **0–50**. Counted per America/Los_Angeles day.
@@ -41,7 +41,7 @@
 
 | File | Responsibility |
 |---|---|
-| `db/migrations/042_agents.sql` | tables `agents`, `agent_items`, `agent_replies`, `email_suppressions`, `agent_settings`; seeds Tara and Tobi |
+| `db/migrations/044_agents.sql` | tables `agents`, `agent_items`, `agent_replies`, `email_suppressions`, `agent_settings`; seeds Tara and Tobi |
 | `lib/agents/rules.ts` | pure: kinds, statuses, zod push schemas, key helpers, footer, opt-out, send blockers |
 | `lib/agents/store.ts` | all SQL for the above tables |
 | `lib/agents/stats.ts` | aggregate business counts (no PII) |
@@ -54,7 +54,7 @@
 | `app/admin/AdminNav.tsx`, `app/admin/layout.tsx` | "Agents" link + badge |
 | `app/admin/settings/AgentsSection.tsx`, `AgentKeyButton.tsx`, `agent-actions.ts` | agents, keys, mailing address, signature, do-not-contact |
 | `lib/agents/digest.ts`, `app/api/cron/agent-digest/route.ts`, `vercel.json` | morning email |
-| `scripts/verify-agents.ts` + `.config.mts` | real-DB proof of migration 042 and the store SQL |
+| `scripts/verify-agents.ts` + `.config.mts` | real-DB proof of migration 044 and the store SQL |
 | `e2e/agents.spec.ts`, `playwright.config.ts` | end-to-end |
 | `pss/agents/*` (outside this repo) | STANDARD.md, TOOLS.md, registry.json, run-agent.ps1, set-agent-key.ps1, install-schedules.ps1, README.md |
 | `pss/agent_growth/*`, `pss/agent_outreach/*` | move Tara and Tobi onto the standard |
@@ -82,10 +82,10 @@ Spec refinement (no change in intent): `final_to/final_subject/final_body` hold 
 
 ---
 
-### Task 1: Migration 042 and its real-database proof
+### Task 1: Migration 044 and its real-database proof
 
 **Files:**
-- Create: `db/migrations/042_agents.sql`
+- Create: `db/migrations/044_agents.sql`
 - Create: `scripts/verify-agents.ts`, `scripts/verify-agents.config.mts`
 
 **Interfaces:**
@@ -227,10 +227,10 @@ insert into agents (slug, name, role, stats_access) values ('tobi', 'Tobi', 'B2B
 
 ```ts
 const SLUG = `verify-${Date.now().toString(36)}`;
-test("agents: migration 042", async () => {
-  await apply("042_agents.sql");
-  await apply("042_agents.sql");
-  check(true, "migration 042 applies, and re-applies", "");
+test("agents: migration 044", async () => {
+  await apply("044_agents.sql");
+  await apply("044_agents.sql");
+  check(true, "migration 044 applies, and re-applies", "");
   const seeded = await sql`select slug, stats_access from agents where slug in ('tara','tobi') order by slug`;
   check(seeded.length === 2 && seeded[0].stats_access === true && seeded[1].stats_access === false, "Tara and Tobi seeded", JSON.stringify(seeded));
   check((await sql`select count(*)::int as n from agent_settings`)[0].n === 1, "one settings row", "");
@@ -260,8 +260,8 @@ Expected: every line `ok`, PASS. To watch it fail: change the cap check to `betw
 - [ ] **Step 5: Commit**
 
 ```bash
-git add db/migrations/042_agents.sql scripts/verify-agents.ts scripts/verify-agents.config.mts
-git commit -m "feat(agents): migration 042 agents, items, replies, suppressions, settings, with real-database proof"
+git add db/migrations/044_agents.sql scripts/verify-agents.ts scripts/verify-agents.config.mts
+git commit -m "feat(agents): migration 044 agents, items, replies, suppressions, settings, with real-database proof"
 ```
 
 ---
@@ -615,7 +615,7 @@ import { db } from "@/lib/db";
 import { isUuid } from "@/lib/admin/ids";
 import { normalizeAddress, type Agent, type AgentItem, type ItemStatus, type PushItem } from "./rules";
 
-/** Rows for migration 042. Unit tests pin this SQL's text. scripts/verify-agents.ts runs it on a real database. */
+/** Rows for migration 044. Unit tests pin this SQL's text. scripts/verify-agents.ts runs it on a real database. */
 
 const date = (v: unknown) => (v ? new Date(v as string) : null);
 const ITEM_COLUMNS = `id, agent_slug, external_id, kind, title, summary, report_type, body_md, email_to, email_subject, email_body,
@@ -1784,7 +1784,7 @@ export default async function AgentsPage() {
 - Render `{href === "/admin/agents" && badge ? <span className="ml-auto rounded-full bg-champagne px-2 text-xs font-semibold text-charcoal" aria-label={`${badge} need you`}>{badge}</span> : null}`.
 
 `app/admin/layout.tsx`:
-- `const badge = await needsYouCount().catch(() => 0);` (a missing table must not break every admin page before 042 is applied).
+- `const badge = await needsYouCount().catch(() => 0);` (a missing table must not break every admin page before 044 is applied).
 - Pass `<AdminNav email={admin.email} badge={badge} />`.
 
 - [ ] **Step 5: Run the new tests plus the whole admin suite.** Run: `npx vitest run tests/agents tests/admin --maxWorkers=2`. Expected PASS. Then `npm run typecheck`, expected clean.
@@ -1923,7 +1923,7 @@ export async function removeSuppressionAction(addr: string): Promise<void> {
 
 Small client forms follow the `GiveAccessForm` pattern.
 
-`page.tsx`: add `listAgentCards()`, `getAgentSettings()` and `listSuppressions()` to the `Promise.all`, each with `.catch(() => [] or the default)` so Settings still loads before migration 042. Render `<AgentsSection … />` after `AdminAccessSection`.
+`page.tsx`: add `listAgentCards()`, `getAgentSettings()` and `listSuppressions()` to the `Promise.all`, each with `.catch(() => [] or the default)` so Settings still loads before migration 044. Render `<AgentsSection … />` after `AdminAccessSection`.
 
 `tests/agents/agents-section.test.tsx`: render `AgentsSection` with Tara (with key) and Tobi (without) and assert "Replace key" vs "Create key", the mailing-address field, and the empty do-not-contact message.
 
@@ -2115,7 +2115,7 @@ test("a pushed report, email and decision reach the dashboard, and the owner's d
 
 The decision card's `aria-label` must be the title, as for `EmailCard` (`Decision from {agent}: {title}`). The regex above matches that.
 
-- [ ] **Step 2: Apply migration 042 to the test branch** (the verify script in Task 1 already did), then run the e2e. Per memory: build in a fresh worktree, `next start` on 127.0.0.1, test branch only.
+- [ ] **Step 2: Apply migration 044 to the test branch** (the verify script in Task 1 already did), then run the e2e. Per memory: build in a fresh worktree, `next start` on 127.0.0.1, test branch only.
 
 Run: `E2E_POSTGRES_URL=… E2E_TEST_ENDPOINT=<ep-id if not lingering-fog> npx playwright test e2e/agents.spec.ts --project=desktop`
 Expected: 1 passed.
@@ -2126,14 +2126,14 @@ Expected: 1 passed.
 
 ---
 
-### Task 12: Production: migration 042, then deploy
+### Task 12: Production: migration 044, then deploy
 
 The owner approved the rollout order in the spec. Before pushing to `main`, tell the owner in one line and wait for "go": a push to main deploys production.
 
-- [ ] **Step 1:** Merge `origin/main` into the branch. Re-run `npx vitest run --maxWorkers=2` and `npm run typecheck`. Check that no other branch has taken 042 since: run `git fetch` and `git ls-tree` across `refs/remotes`.
-- [ ] **Step 2:** Apply migration 042 to production following `pss-production-migrations`:
+- [ ] **Step 1:** Merge `origin/main` into the branch. Re-run `npx vitest run --maxWorkers=2` and `npm run typecheck`. Check that no other branch has taken 044 since: run `git fetch` and `git ls-tree` across `refs/remotes`.
+- [ ] **Step 2:** Apply migration 044 to production following `pss-production-migrations`:
   - confirm the target endpoint pattern is `ep-cold-term` without printing the URL, and that `MIGRATE_DATABASE_URL` is unset;
-  - run `node scripts/migrate.mjs > migrate-042.log 2>&1`, check the exit code, and `grep -iE "error|fail" migrate-042.log`;
+  - run `node scripts/migrate.mjs > migrate-044.log 2>&1`, check the exit code, and `grep -iE "error|fail" migrate-044.log`;
   - verify read-only with a small script: the 5 tables exist, Tara and Tobi rows are present, and `leads` and `agent_settings` row counts are as expected.
 - [ ] **Step 3:** After the owner's "go": `git push origin feat/agent-dashboard:main` (fast-forward after the merge), which triggers the production deploy. Wait for it, then `curl -s -o /dev/null -w "%{http_code}" https://premiershadesolutions.com/api/agents/sync` → `401`.
 - [ ] **Step 4:** In the browser (Chrome tools), sign-in is the owner's. Ask the owner to open `/admin/agents` and confirm the page and the "Agents" nav link load. Ask the owner to click **Create key** for Tara and Tobi in Settings → Agents and paste each into `set-agent-key.ps1` (Task 13). Never ask them to paste a key into chat.

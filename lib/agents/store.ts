@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { isUuid } from "@/lib/admin/ids";
 import { normalizeAddress, type Agent, type AgentItem, type ItemStatus, type PushItem } from "./rules";
 
-/** Rows for migration 042. Unit tests pin this SQL's text. scripts/verify-agents.ts runs it on a real database. */
+/** Rows for migration 044. Unit tests pin this SQL's text. scripts/verify-agents.ts runs it on a real database. */
 
 const date = (v: unknown) => (v ? new Date(v as string) : null);
 const ITEM_COLUMNS = `id, agent_slug, external_id, kind, title, summary, report_type, body_md, email_to, email_subject, email_body,
