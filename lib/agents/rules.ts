@@ -62,8 +62,27 @@ export const pushSchema = z.object({
 });
 
 export const OPT_OUT_LINE = `If you'd rather not hear from us, just reply "no thanks".`;
-const OPT_OUT = /\b(no thanks|unsubscribe|stop|remove me)\b/i;
-export const isOptOut = (text: string): boolean => OPT_OUT.test(text);
+const OPT_OUT = /\b(no thanks|unsubscribe|remove me|stop emailing|stop contacting|stop sending)\b/i;
+const QUOTE_START = /^(-----Original Message-----|On .+ wrote:|From: )/;
+
+/** The reply's own words: every email we send ends with OPT_OUT_LINE ("reply \"no thanks\""), and most mail
+ * clients quote the original in a reply, so quoted text and our footer are removed before matching. Otherwise
+ * almost every reply would read as an opt-out. */
+function ownWords(text: string): string {
+  const own: string[] = [];
+  for (const line of text.split(OPT_OUT_LINE).join("").split(/\r?\n/)) {
+    if (QUOTE_START.test(line.trim())) break;
+    if (/^\s*>/.test(line)) continue;
+    own.push(line);
+  }
+  return own.join("\n");
+}
+
+/** True when the reply asks us to stop. A bare "stop" counts only when it is the whole reply. */
+export function isOptOut(text: string): boolean {
+  const own = ownWords(text);
+  return OPT_OUT.test(own) || own.trim().replace(/[.!?,;:\s]+$/, "").toLowerCase() === "stop";
+}
 
 export const defaultSignature = (): string =>
   [business.name, business.phone.display, business.domain.replace(/^https?:\/\//, "")].join("\n");

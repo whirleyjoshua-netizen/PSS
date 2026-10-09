@@ -52,8 +52,22 @@ describe("email body", () => {
     expect(defaultSignature()).toBe("Premier Shade Solutions\n(702) 859-8294\npremiershadesolutions.com");
   });
   it("spots opt-outs, and not lookalikes", () => {
-    for (const t of ["No thanks.", "please UNSUBSCRIBE me", "STOP", "remove me from your list"]) expect(isOptOut(t)).toBe(true);
-    for (const t of ["Thanks so much!", "nonstop schedule", "let's not stopgap"]) expect(isOptOut(t)).toBe(false);
+    for (const t of [
+      "No thanks.", "please UNSUBSCRIBE me", "STOP", "remove me from your list", "Please stop emailing me",
+      "No thanks.\n\nOn Mon PSS wrote:\n> " + OPT_OUT_LINE,
+    ]) expect(isOptOut(t)).toBe(true);
+    for (const t of [
+      "Thanks so much!", "nonstop schedule", "let's not stopgap", "I'll stop by Tuesday",
+      "Sounds great, let's talk\n\n-----Original Message-----\nHi Pat\n\n--\nPSS\n\n" + OPT_OUT_LINE,
+      "Yes please\n\nOn Mon, Oct 12, 2026 at 9:00 AM PSS wrote:\n> Hi\n> " + OPT_OUT_LINE,
+      "Interested!\n> " + OPT_OUT_LINE,
+      // Each stripping step on its own: a footer left unquoted, a rewrapped footer under ">", and rewrapped quoted originals.
+      "Interested!\n\n" + OPT_OUT_LINE,
+      "Interested!\n> If you'd rather not hear from us, just reply\n> \"no thanks\".",
+      "Sounds great\n\n-----Original Message-----\nIf you'd rather not hear from us, just reply\n\"no thanks\".",
+      "Yes please\n\nOn Mon PSS wrote:\nIf you'd rather not hear from us, just reply\n\"no thanks\".",
+      "Yes please\n\nFrom: PSS <support@example.com>\nIf you'd rather not hear from us, just reply\n\"no thanks\".",
+    ]) expect(isOptOut(t)).toBe(false);
   });
 });
 
