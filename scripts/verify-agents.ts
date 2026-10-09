@@ -12,6 +12,7 @@
  *      external id, report body size, suppression address case, and the unique (agent, external_id) index.
  *   4. runs lib/agents/store.ts on that database: upsert/lock, owner edits survive a push, a concurrent claim has one
  *      winner, pull-once for items and replies, the 2-minute poll claim, suppressions, cards and digest facts.
+ *   5. runs lib/agents/stats.ts businessCounts (7 and 28 days), read-only: the nine keys, numbers only.
  * It deletes its rows (agents named verify-*, cascading to their items and replies, and the a@b.co suppression),
  * and restores agent_settings.last_reply_poll_at, so repeated runs leave nothing behind.
  *
@@ -136,6 +137,14 @@ test("agents: store SQL on a real database", async () => {
   check(typeof (await store.needsYouCount()) === "number", "needsYouCount runs", "");
   await store.getAgentSettings();
   check((await store.listItems(SLUG)).length === 3 && (await store.listItems(SLUG, "daily")).length === 0, "listItems filters by report type", "");
+});
+test("agents: business counts on a real database", async () => {
+  const { businessCounts } = await import("@/lib/agents/stats");
+  const c = await businessCounts(7);
+  check(Object.keys(c).length === 9, "business counts run on a real database", JSON.stringify(Object.keys(c)));
+  const c28 = await businessCounts(28);
+  const numeric = (v: unknown) => typeof v === "number" ? Number.isFinite(v) : Object.values(v as Record<string, unknown>).every((n) => typeof n === "number" && Number.isFinite(n));
+  check(Object.values(c28).every(numeric) && c28.window_days === 28, "business counts (28 days) are numbers only", JSON.stringify(Object.keys(c28)));
 });
 afterAll(async () => {
   await sql`delete from agents where slug like 'verify-%'`;
