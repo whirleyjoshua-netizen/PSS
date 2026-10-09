@@ -73,10 +73,23 @@ describe("PromoBannerClient", () => {
 });
 
 describe("PromoBanner", () => {
-  it("renders the banner and its early script inside the window", () => {
+  const scripts = (container: HTMLElement) => Array.from(container.querySelectorAll("script")).map((s) => s.textContent ?? "");
+
+  it("built during the offer, renders the offer and the holiday strip that follows it, each with its early script", () => {
     vi.useFakeTimers({ now: new Date("2026-11-01T12:00:00Z"), toFake: ["Date"] });
     const { container } = render(<PromoBanner />);
-    expect(container.querySelector("script")).not.toBeNull();
+    expect(screen.getByRole("link", { name: /10% off 3 or more custom shades/i })).toBeInTheDocument();
+    // Not started yet, so its script hides it until the offer ends; it must be in the page to take over without a redeploy.
+    expect(screen.getByRole("link", { name: /holidays are coming/i })).toBeInTheDocument();
+    const [offer, holiday] = scripts(container);
+    expect(offer).toContain('[data-promo=\\"holiday-10-off-2026\\"]');
+    expect(holiday).toContain('[data-promo=\\"holiday-2026\\"]');
+  });
+
+  it("built after the offer ends, renders only the holiday strip", () => {
+    vi.useFakeTimers({ now: new Date("2026-11-16T08:00:00Z"), toFake: ["Date"] });
+    render(<PromoBanner />);
+    expect(screen.queryByRole("link", { name: /10% off/i })).toBeNull();
     expect(screen.getByRole("link", { name: /holidays are coming/i })).toBeInTheDocument();
   });
 
