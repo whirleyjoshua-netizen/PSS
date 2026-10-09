@@ -13,6 +13,12 @@ vi.mock("@/lib/admin/task-emails", async () => ({
   sendTaskEmail,
 }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+const listTaskFiles = vi.fn();
+vi.mock("@/lib/admin/task-files", () => ({ listTaskFiles }));
+const verifyTaskUpload = vi.fn();
+vi.mock("@/lib/admin/task-file-uploads", () => ({ verifyTaskUpload }));
+const blob = { del: vi.fn() };
+vi.mock("@vercel/blob", () => blob);
 const redirect = vi.fn(() => { throw new Error("NEXT_REDIRECT"); });
 vi.mock("next/navigation", () => ({ redirect }));
 
@@ -26,6 +32,14 @@ const form = (entries: Record<string, string>) => {
   return data;
 };
 const filled = { title: "Finish new flyers", notes: "", assignee: "shade@x.com", dueOn: "2026-10-09" };
+const fields = filled;
+const newForm = (entries: Record<string, string>, uploads: object[] = [], resourceIds: string[] = []) => {
+  const data = form({ taskId: ID, ...entries });
+  for (const upload of uploads) data.append("upload", JSON.stringify(upload));
+  for (const id of resourceIds) data.append("resourceId", id);
+  return data;
+};
+const created = (fileNames: string[] = []) => ({ id: ID, created: true, fileNames });
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -36,40 +50,83 @@ beforeEach(() => {
   vi.resetAllMocks();
   requireAdmin.mockResolvedValue({ email: ME });
   sendTaskEmail.mockResolvedValue(true);
+  listTaskFiles.mockResolvedValue([]);
+  blob.del.mockResolvedValue(undefined);
   vi.stubEnv("ADMIN_BASE_URL", "https://pss.test");
 });
 
 describe("createTaskAction", () => {
   it("checks the session before reading input", async () => {
     requireAdmin.mockRejectedValue(new Error("NEXT_REDIRECT"));
-    await expect(actions.createTaskAction({}, form(filled))).rejects.toThrow("NEXT_REDIRECT");
+    await expect(actions.createTaskAction({}, newForm(fields))).rejects.toThrow("NEXT_REDIRECT");
     expect(store.createTask).not.toHaveBeenCalled();
   });
   it("creates a to-do and emails the assignee", async () => {
-    store.createTask.mockResolvedValue({ id: ID });
-    expect(await actions.createTaskAction({}, form(filled))).toEqual({ ok: "Task added." });
+    store.createTask.mockResolvedValue(created());
+    expect(await actions.createTaskAction({}, newForm(fields))).toEqual({ ok: "Task added." });
     expect(store.createTask).toHaveBeenCalledWith(
-      { title: "Finish new flyers", notes: null, assignee: "shade@x.com", dueOn: "2026-10-09", status: "todo" }, ME);
+      { title: "Finish new flyers", notes: null, assignee: "shade@x.com", dueOn: "2026-10-09", status: "todo" }, ME,
+      { id: ID, uploads: [], resourceIds: [] });
     expect(sendTaskEmail).toHaveBeenCalledWith("shade@x.com", expect.objectContaining({ subject: "Joshua assigned you: Finish new flyers" }));
   });
   it("sends nothing when you assign yourself or nobody", async () => {
-    store.createTask.mockResolvedValue({ id: ID });
-    await actions.createTaskAction({}, form({ ...filled, assignee: ME }));
-    await actions.createTaskAction({}, form({ ...filled, assignee: "" }));
+    store.createTask.mockResolvedValue(created());
+    await actions.createTaskAction({}, newForm({ ...fields, assignee: ME }));
+    await actions.createTaskAction({}, newForm({ ...fields, assignee: "" }));
     expect(sendTaskEmail).not.toHaveBeenCalled();
   });
   it("says so when the email fails, but the task is saved", async () => {
-    store.createTask.mockResolvedValue({ id: ID });
+    store.createTask.mockResolvedValue(created());
     sendTaskEmail.mockResolvedValue(false);
-    expect(await actions.createTaskAction({}, form(filled))).toEqual({
+    expect(await actions.createTaskAction({}, newForm(fields))).toEqual({
       ok: "Task added.", notice: "Saved, but the email to Shade didn't send.",
     });
   });
   it("returns what was typed on a bad form or a refused assignee", async () => {
-    const bad = await actions.createTaskAction({}, form({ ...filled, title: " " }));
+    const bad = await actions.createTaskAction({}, newForm({ ...fields, title: " " }));
     expect(bad).toEqual({ error: "Give the task a title", values: { ...filled, title: " ", status: "todo" } });
     store.createTask.mockResolvedValue("not-assignable");
-    expect((await actions.createTaskAction({}, form(filled))).error).toBe("That person no longer has access. Pick someone from the list.");
+    expect((await actions.createTaskAction({}, newForm(fields))).error).toBe("That person no longer has access. Pick someone from the list.");
+    expect(sendTaskEmail).not.toHaveBeenCalled();
+  });
+
+  const FILE = "9a8b7c6d-1e2f-4a3b-8c4d-5e6f7a8b9c0d";
+  const RES = "5c4b3a29-1e2f-4a3b-8c4d-5e6f7a8b9c0d";
+  const pending = { pathname: `task-files/${ID}/${FILE}/Headlines.pdf`, name: "Headlines.pdf" };
+  const stored = { id: FILE, name: "Headlines.pdf", contentType: "application/pdf", sizeBytes: 900, pathname: pending.pathname };
+
+  it("saves the task with its checked uploads and picked Resources files, and the email lists them", async () => {
+    verifyTaskUpload.mockResolvedValue({ upload: stored });
+    store.createTask.mockResolvedValue(created(["Headlines.pdf", "Price guide.pdf"]));
+    expect(await actions.createTaskAction({}, newForm(fields, [pending], [RES, RES]))).toEqual({ ok: "Task added." });
+    expect(verifyTaskUpload).toHaveBeenCalledWith(ID, pending);
+    expect(store.createTask).toHaveBeenCalledWith(expect.anything(), ME, { id: ID, uploads: [stored], resourceIds: [RES] });
+    const email = sendTaskEmail.mock.calls[0][1] as { text: string };
+    expect(email.text).toContain("Files:\n- Headlines.pdf\n- Price guide.pdf");
+  });
+  it("names an upload that failed its check and saves nothing", async () => {
+    verifyTaskUpload.mockResolvedValue({ error: "The upload didn't finish. Try again." });
+    const result = await actions.createTaskAction({}, newForm(fields, [pending]));
+    expect(result.error).toBe("Headlines.pdf: The upload didn't finish. Try again. Remove it and try again.");
+    expect(result.values?.title).toBe("Finish new flyers");
+    expect(store.createTask).not.toHaveBeenCalled();
+  });
+  it("refuses a form with no task id, an unreadable upload or a malformed Resources id, before saving", async () => {
+    for (const data of [form(fields), (() => { const d = newForm(fields); d.append("upload", "{oops"); return d; })(), newForm(fields, [], ["nope"])]) {
+      expect((await actions.createTaskAction({}, data)).error).toBe("Reload the page and try again.");
+    }
+    expect(verifyTaskUpload).not.toHaveBeenCalled();
+    expect(store.createTask).not.toHaveBeenCalled();
+  });
+  it("tells you when a picked Resources file was deleted meanwhile", async () => {
+    store.createTask.mockRejectedValue(Object.assign(new Error("fk"), { code: "23503" }));
+    expect((await actions.createTaskAction({}, newForm(fields, [], [RES]))).error).toBe(
+      "A file you picked from Resources was deleted. Remove it and try again.");
+    expect(sendTaskEmail).not.toHaveBeenCalled();
+  });
+  it("answers a repeat submit as added without a second email", async () => {
+    store.createTask.mockResolvedValue({ id: ID, created: false, fileNames: [] });
+    expect(await actions.createTaskAction({}, newForm(fields))).toEqual({ ok: "Task added." });
     expect(sendTaskEmail).not.toHaveBeenCalled();
   });
 });
@@ -91,6 +148,13 @@ describe("updateTaskAction", () => {
       ok: "Saved.",
       values: { title: "Finish new flyers", notes: "", assignee: "shade@x.com", dueOn: "2026-10-09", status: "doing" },
     });
+  });
+  it("emails the new assignee the task's files", async () => {
+    store.updateTask.mockResolvedValue({ previousAssignee: null });
+    listTaskFiles.mockResolvedValue([{ name: "Headlines.pdf" }]);
+    await actions.updateTaskAction(ID, {}, form({ ...filled, status: "todo" }));
+    expect(listTaskFiles).toHaveBeenCalledWith(ID);
+    expect((sendTaskEmail.mock.calls[0][1] as { text: string }).text).toContain("Files:\n- Headlines.pdf");
   });
   it("reports a deleted task", async () => {
     store.updateTask.mockResolvedValue("missing");
@@ -125,6 +189,13 @@ describe("remindTaskAction", () => {
     expect(sendTaskEmail).toHaveBeenCalledWith("shade@x.com", expect.objectContaining({ subject: "Reminder from Joshua: Finish new flyers" }), ME);
     expect(store.releaseReminder).not.toHaveBeenCalled();
   });
+  it("lists the task's files in the reminder, read before the claim is taken", async () => {
+    listTaskFiles.mockResolvedValue([{ name: "Headlines.pdf" }]);
+    store.claimReminder.mockResolvedValue({ claim });
+    await actions.remindTaskAction(ID, {}, form({}));
+    expect((sendTaskEmail.mock.calls[0][1] as { text: string }).text).toContain("Files:\n- Headlines.pdf");
+    expect(listTaskFiles.mock.invocationCallOrder[0]).toBeLessThan(store.claimReminder.mock.invocationCallOrder[0]);
+  });
   it("gives the claim back when the email fails", async () => {
     store.claimReminder.mockResolvedValue({ claim });
     sendTaskEmail.mockResolvedValue(false);
@@ -157,9 +228,20 @@ describe("remindTaskAction", () => {
 
 describe("deleteTaskAction", () => {
   it("deletes and returns to the board", async () => {
+    store.deleteTask.mockResolvedValue([]);
     await expect(actions.deleteTaskAction(ID)).rejects.toThrow("NEXT_REDIRECT");
     expect(store.deleteTask).toHaveBeenCalledWith(ID);
+    expect(blob.del).not.toHaveBeenCalled();
     expect(redirect).toHaveBeenCalledWith("/admin/tasks");
+  });
+  it("removes the deleted task's uploads from storage, and still returns to the board if that fails", async () => {
+    store.deleteTask.mockResolvedValue(["task-files/a", "task-files/b"]);
+    await expect(actions.deleteTaskAction(ID)).rejects.toThrow("NEXT_REDIRECT");
+    expect(blob.del).toHaveBeenCalledWith(["task-files/a", "task-files/b"]);
+    blob.del.mockRejectedValue(new Error("down"));
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    await expect(actions.deleteTaskAction(ID)).rejects.toThrow("NEXT_REDIRECT");
+    expect(consoleError).toHaveBeenCalled();
   });
 });
 
