@@ -22,13 +22,17 @@ export async function GET(request: Request) {
   if (!agent) return json({ error: "unauthorized" }, 401);
   // A mailbox outage must not stop the runner getting the owner's decisions.
   try { await pollReplies(); } catch (error) { console.error("Agent reply poll failed", error); }
-  const [updates, replies, stats] = await Promise.all([
-    pullUpdates(agent.slug),
-    pullReplies(agent.slug),
-    agent.statsAccess
-      ? Promise.all([businessCounts(7), businessCounts(28)]).then(([last_7, last_28]) => ({ last_7, last_28 }))
-      : Promise.resolve(null),
-  ]);
+  // pullUpdates and pullReplies mark rows delivered in the same statement that returns them, so once they run
+  // this response must go out. Anything that can fail runs first or is caught, never alongside them.
+  const stats = agent.statsAccess
+    ? await Promise.all([businessCounts(7), businessCounts(28)])
+        .then(([last_7, last_28]) => ({ last_7, last_28 }))
+        .catch((error) => { console.error("Agent stats failed", error); return null; })
+    : null;
+  // If this throws, nothing was marked, so a 500 loses nothing.
+  const updates = await pullUpdates(agent.slug);
+  // A failed single statement marks nothing, so these replies come on the next pull.
+  const replies = await pullReplies(agent.slug).catch((error) => { console.error("Agent reply pull failed", error); return []; });
   return json({
     agent: agent.slug, now: new Date().toISOString(), stats, replies,
     updates: updates.map((i) => ({

@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const store = { findAgentByKeyHash: vi.fn(), upsertItem: vi.fn(), recordRun: vi.fn(), pullUpdates: vi.fn(), pullReplies: vi.fn() };
 vi.mock("@/lib/agents/store", () => store);
 const businessCounts = vi.fn();
@@ -23,6 +23,7 @@ beforeEach(() => {
   store.pullUpdates.mockResolvedValue([]); store.pullReplies.mockResolvedValue([]);
   businessCounts.mockReset().mockResolvedValue({ leads: 1 }); pollReplies.mockReset().mockResolvedValue({ stored: 0 });
 });
+afterEach(() => vi.restoreAllMocks());
 
 describe("auth", () => {
   it("401s with no key, a wrong key, or a malformed header, and reads nothing", async () => {
@@ -74,6 +75,38 @@ describe("GET", () => {
     pollReplies.mockRejectedValue(new Error("graph down"));
     expect((await GET(req("GET"))).status).toBe(200);
   });
+
+  // pullUpdates and pullReplies mark rows delivered in the statement that returns them, so once they have run
+  // the response must go out: a later failure would lose the owner's decisions for good.
+  const update = { externalId: "A-001", kind: "decision", status: "approved", ownerNote: null, finalTo: null, finalSubject: null, finalBody: null, decidedAt: null, sentAt: null, error: null };
+  it("answers without stats when business counts fail, and still delivers the updates", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    businessCounts.mockRejectedValue(new Error("db hiccup"));
+    store.pullUpdates.mockResolvedValue([update]);
+    const res = await GET(req("GET"));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.stats).toBeNull();
+    expect(body.updates.map((u: { external_id: string }) => u.external_id)).toEqual(["A-001"]);
+  });
+  it("still delivers marked updates when pulling replies fails, with no replies", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    store.pullUpdates.mockResolvedValue([update]);
+    store.pullReplies.mockRejectedValue(new Error("db hiccup"));
+    const res = await GET(req("GET"));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.updates.map((u: { external_id: string }) => u.external_id)).toEqual(["A-001"]);
+    expect(body.replies).toEqual([]);
+  });
+  it("reads stats before pulling updates, and updates before replies", async () => {
+    await GET(req("GET"));
+    const statsOrder = Math.max(...businessCounts.mock.invocationCallOrder);
+    const [updatesOrder] = store.pullUpdates.mock.invocationCallOrder;
+    const [repliesOrder] = store.pullReplies.mock.invocationCallOrder;
+    expect(statsOrder).toBeLessThan(updatesOrder);
+    expect(updatesOrder).toBeLessThan(repliesOrder);
+  });
 });
 
 describe("POST", () => {
@@ -88,7 +121,7 @@ describe("POST", () => {
     const { results } = await res.json();
     expect(results[0]).toEqual({ external_id: "r1", result: "created" });
     expect(results[1]).toMatchObject({ external_id: "e1" });
-    expect(results[1].result).toMatch(/^invalid:/);
+    expect(results[1].result).toMatch(/^invalid: .*one email address/);
     expect(store.upsertItem).toHaveBeenCalledTimes(1);
     expect(store.upsertItem).toHaveBeenCalledWith("tara", expect.objectContaining({ external_id: "r1", kind: "report" }));
     expect(store.recordRun).toHaveBeenCalledWith("tara", "ok", "fine");
