@@ -63,6 +63,7 @@ export function TreatmentHero({
             idPrefix="book"
             source="booking"
             treatment={treatment}
+            introOnPhone={false}
             className="relative z-10 lg:col-start-9 lg:col-end-13 lg:row-span-2 lg:row-start-1 lg:self-start"
           />
 

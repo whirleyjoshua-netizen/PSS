@@ -172,7 +172,7 @@ test.describe("on a 390×844 phone", () => {
   for (const path of paths) {
     test(`${path} shows Invite Us Over without scrolling`, async ({ page }) => {
       await page.goto(path);
-      await expect(page.locator("section#book").getByRole("button", { name: /invite us over/i })).toBeInViewport();
+      await expect(page.locator("section#book").getByRole("button", { name: /invite us over/i })).toBeInViewport({ ratio: 1 });
     });
   }
 });

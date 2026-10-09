@@ -15,6 +15,8 @@ import { FormMessage, Honeypot, TextField } from "./Field";
  * a page; `city` is the page's city so a Henderson lead is not filed as Las Vegas.
  * `treatment` is the page's category name (the value the /contact checkbox
  * sends), so a booking from /shutters/plantation-shutters arrives as "Shutters".
+ * `introOnPhone={false}` hides the intro under the heading below sm, where TreatmentHero needs
+ * the room to keep Invite Us Over above a 390×844 fold.
  */
 export function HeroForm({
   className,
@@ -22,12 +24,14 @@ export function HeroForm({
   source = "hero",
   city = business.serviceArea[0],
   treatment,
+  introOnPhone = true,
 }: {
   className?: string;
   idPrefix?: string;
   source?: LeadSource;
   city?: ServiceCity;
   treatment?: string;
+  introOnPhone?: boolean;
 }) {
   const { state, error, submit } = useConsultationForm(source);
 
@@ -36,7 +40,7 @@ export function HeroForm({
       <h2 className="font-display text-xl font-light tracking-tight text-charcoal">
         Free in-home consultation
       </h2>
-      <p className="mt-2 text-sm text-ink-soft">
+      <p className={`mt-2 text-sm text-ink-soft ${introOnPhone ? "" : "hidden sm:block"}`}>
         We bring the samples, measure every window and send you a written quote. No
         charge, no obligation.
       </p>
