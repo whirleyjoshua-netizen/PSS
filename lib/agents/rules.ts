@@ -63,7 +63,7 @@ export const pushSchema = z.object({
 
 export const OPT_OUT_LINE = `If you'd rather not hear from us, just reply "no thanks".`;
 const OPT_OUT = /\b(no thanks|unsubscribe|remove me|stop emailing|stop contacting|stop sending)\b/i;
-const QUOTE_START = /^(-----Original Message-----|On .+ wrote:|From: )/;
+const QUOTE_START = /^(-----Original Message-----|On .+ wrote:$|From: )/;
 
 /** The reply's own words: every email we send ends with OPT_OUT_LINE ("reply \"no thanks\""), and most mail
  * clients quote the original in a reply, so quoted text and our footer are removed before matching. Otherwise
