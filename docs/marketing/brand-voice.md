@@ -49,7 +49,7 @@ Mostly Las Vegas valley homeowners aged 35–65 (Las Vegas, Henderson, Summerlin
   - **Measurement guarantee**: Josh measures every window himself; if a measurement is off, we remake and reinstall it free.
   - **Lead time in writing**: on the quote (blinds and shades 3–5 weeks, shutters 6–10, from content/lead-times.ts).
   - **Free temporary shades** while the order is made.
-  - Clients **text the owners** directly; the project page shows where an order is.
+  - Clients **text the owners** directly; the project page shows where an order is. Frame it as personal service: "Not customer service. Personal service." (owner, 2026-10-09). In ads say "Personal Customer Service", not "Text the Owners Directly".
   - **We clean up** and **haul old blinds away free**.
   - We **walk through every window with the client** at the end of the install.
   - We **never hand the client off to a third party for install**: "From your first call to the final install, we're family."

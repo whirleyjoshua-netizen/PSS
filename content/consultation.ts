@@ -43,8 +43,8 @@ export const PAINS: Pain[] = [
   },
   {
     heard: "“Nobody called me back.”",
-    answer: "Text the owners",
-    body: "No call center and no sales rep to chase. You text Shade’ or Josh directly, and your project page shows where your order is, any time.",
+    answer: "Not customer service. Personal service.",
+    body: "No call center and no sales rep to chase. You text the owners, Shade’ and Josh, directly, and your project page shows where your order is, any time.",
   },
   {
     heard: "“The crew left a mess.”",
