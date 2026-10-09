@@ -31,3 +31,25 @@ describe("temporary shades", () => {
     expect(PAINS.find((p) => /took forever/.test(p.heard))!.body).toMatch(/temporary shades, free/);
   });
 });
+
+/** The owner's promise is accountability, not headcount: it must stay true as the business grows (2026-10-09). */
+describe("no copy promises a headcount", () => {
+  it("never promises 'two people' or 'the same faces'", async () => {
+    const { readFileSync, readdirSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const files = (dir: string): string[] =>
+      readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+        e.isDirectory() ? files(join(dir, e.name)) : /\.tsx?$/.test(e.name) ? [join(dir, e.name)] : [],
+      );
+    const offenders = ["app", "components", "content", "lib"]
+      .flatMap(files)
+      .filter((f) => /two people|same (two )?faces|same people who/i.test(readFileSync(f, "utf8")));
+    expect(offenders).toEqual([]);
+  });
+
+  it("answers 'they disappeared' with the family business and no third-party installers", () => {
+    const pain = PAINS.find((p) => /had my money/.test(p.heard))!;
+    expect(pain.answer).toBe("A family affair, start to finish");
+    expect(pain.body).toMatch(/never hand you off to a third party for install/);
+  });
+});

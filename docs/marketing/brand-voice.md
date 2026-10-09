@@ -51,10 +51,12 @@ Mostly Las Vegas valley homeowners aged 35–65 (Las Vegas, Henderson, Summerlin
   - Clients **text the owners** directly; the project page shows where an order is.
   - **We clean up** and **haul old blinds away free**.
   - We **walk through every window with the client** at the end of the install.
+  - We **never hand the client off to a third party for install**; a family affair from start to finish.
   - We do NOT do repairs.
 - Reviews from before PSS opened are labeled as past work (FTC). Never present them as PSS reviews.
 
 ## Things we can't say
+- Headcount: "two people", "same two faces", "the two of us" as a promise. Say "family business" and "we never hand you off to a third party for install" (owner, 2026-10-09: it must stay true as we grow).
 - "Quote before we leave", "quote on the spot" or any promise of when the quote arrives (owner, 2026-10-08: not always possible).
 - "#1", "best in Las Vegas", "lowest price", or any claim we can't prove.
 - Anything about Lutron or Norman until those accounts are open.
@@ -63,8 +65,7 @@ Mostly Las Vegas valley homeowners aged 35–65 (Las Vegas, Henderson, Summerlin
 
 ## Sample lines in the voice (starter set; replace with approved ones)
 - "Your windows called. They want somebody who actually shows up."
-- "One crew. Start to finish. That's personal."
-- "We measure it, we quote it, we install it. Same faces every time."
+- "A family affair, start to finish."
 - "Vegas sun doesn't take days off. Your shades shouldn't either."
 
 ## Owner feedback log

@@ -19,7 +19,7 @@ export default function ReviewsPage() {
       <PageHero
         eyebrow="Client reviews"
         title="What clients said about our work"
-        lead={`These surveys come from our years installing and designing for ${pastWork.source}, in Ohio and here in Las Vegas, before we opened Premier Shade Solutions. They are about the two of us — the same two people who will measure and install your windows.`}
+        lead={`These surveys come from our years installing and designing for ${pastWork.source}, in Ohio and here in Las Vegas, before we opened Premier Shade Solutions. They are about the two of us, the owners of this family business.`}
         trail={[{ name: "Reviews", url: "/reviews" }]}
       />
 

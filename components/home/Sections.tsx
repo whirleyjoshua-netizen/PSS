@@ -95,8 +95,8 @@ const PILLARS = [
     body: "Fabric and finish look completely different in your own light than they do on a showroom wall or a screen. We bring the samples to your windows, measure every opening ourselves, and send you a written quote.",
   },
   {
-    title: "We do the work ourselves",
-    body: "The same two people who measure your windows are the ones who install them. Nothing is handed to a subcontractor who has never spoken to you, and there is no salesperson working a commission target.",
+    title: "A family affair, start to finish",
+    body: "We are a family business, and we never hand you off to a third party for install. Nothing is handed to a subcontractor who has never spoken to you, and there is no salesperson working a commission target.",
   },
   {
     title: "Specified for this climate",
