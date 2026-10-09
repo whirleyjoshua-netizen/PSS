@@ -50,6 +50,8 @@ Mostly Las Vegas valley homeowners aged 35–65 (Las Vegas, Henderson, Summerlin
   - **Free temporary shades** while the order is made.
   - Clients **text the owners** directly; the project page shows where an order is.
   - **We clean up** and **haul old blinds away free**.
+  - We **walk through every window with the client** at the end of the install.
+  - We do NOT do repairs.
 - Reviews from before PSS opened are labeled as past work (FTC). Never present them as PSS reviews.
 
 ## Things we can't say

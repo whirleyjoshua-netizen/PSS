@@ -8,7 +8,7 @@ import type { CategorySlug } from "@/content/products";
  * on feat/voc-scraper): 2–4 star Google reviews of the five biggest Las Vegas window
  * companies. The five pains below are the five most-repeated complaints, headed in the
  * words customers use. Every answer is something the owner confirmed on 2026-10-08:
- * free haul-away, clean-up, free temporary shades, texting the owners, and the measurement
+ * free haul-away, clean-up, a walkthrough at install, free temporary shades, texting the owners, and the measurement
  * guarantee ("we guarantee our measures cause I do them" — Josh measures every window).
  * Change a promise here only after the owner confirms the new one is true.
  */
@@ -54,7 +54,7 @@ export const PAINS: Pain[] = [
   {
     heard: "“Once they had my money, they disappeared.”",
     answer: "Same two faces, start to finish",
-    body: "The people who measure your windows are the people who install them and stand behind the job. You will know us by name.",
+    body: "The people who measure your windows are the people who install them, walk through every window with you before we go, and stand behind the job. You will know us by name.",
   },
 ];
 
@@ -62,7 +62,7 @@ export const STEPS = [
   { title: "Invite us over", body: "We bring samples to your home, so you see every color and fabric in your own light." },
   { title: "Josh measures", body: "Every window, by the owner, backed by our measurement guarantee." },
   { title: "Your written quote", body: `With your lead time on it: ${LEAD_TIME_LINE}.` },
-  { title: "Install day", body: "We install, clean up, and haul your old blinds away free." },
+  { title: "Install day", body: "We install, walk through every window with you, clean up, and haul your old blinds away free." },
 ];
 
 export const FAQ = [

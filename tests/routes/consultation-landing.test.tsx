@@ -95,6 +95,6 @@ describe("landing routes", () => {
     expect(answer(/measured wrong/)).toMatch(/Josh measures every window himself.*remake it/);
     expect(answer(/called me back/)).toMatch(/text Shade or Josh directly/);
     expect(answer(/left a mess/)).toMatch(/clean up.*haul your old blinds away for free/);
-    expect(answer(/had my money/)).toMatch(/stand behind the job/);
+    expect(answer(/had my money/)).toMatch(/walk through every window with you.*stand behind the job/);
   });
 });
