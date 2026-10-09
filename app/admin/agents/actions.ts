@@ -8,7 +8,7 @@ import { calendarEnabled } from "@/lib/calendar/config";
 import { lasVegasDate } from "@/lib/admin/time";
 import { composeEmailBody, defaultSignature, emailEditSchema, sendBlocker } from "@/lib/agents/rules";
 import {
-  claimForSend, decideItem, getAgent, getAgentSettings, getItem, isSuppressed, saveEmailEdits, sentTodayCount,
+  claimForSend, decideItem, getAgent, getAgentSettings, getItem, isSuppressed, markFailed, saveEmailEdits, sentTodayCount,
 } from "@/lib/agents/store";
 import { pollReplies, sendApproved } from "@/lib/agents/mail";
 
@@ -55,6 +55,13 @@ export async function approveAndSend(id: string, _prev: CardState, form: FormDat
   if (!(await saveEmailEdits(id, parsed.data))) return { error: "This email was already sent or decided." };
   const claimed = await claimForSend(id, admin.email);
   if (!claimed) return { error: "This email was already sent or decided." };
+  // Save and claim are two writes: another admin's edit can land between them. Never send text this owner didn't see.
+  if (claimed.finalTo !== parsed.data.to || claimed.finalSubject !== parsed.data.subject || claimed.finalBody !== parsed.data.body) {
+    const changed = "The email changed while you were approving it. Review it and approve again.";
+    await markFailed(id, changed);
+    refresh();
+    return { error: changed };
+  }
   const sentBody = composeEmailBody(claimed.finalBody ?? "", settings.signature ?? defaultSignature(), settings.mailingAddress ?? "");
   const result = await sendApproved(claimed, sentBody);
   refresh();

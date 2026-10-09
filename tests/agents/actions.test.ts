@@ -75,6 +75,12 @@ describe("approveAndSend", () => {
     expect((await actions.approveAndSend(ID, {}, edited)).error).toMatch(/already/);
     expect(mail.sendApproved).not.toHaveBeenCalled();
   });
+  it("never sends text the approving owner didn't see when another edit lands between save and claim", async () => {
+    store.claimForSend.mockResolvedValue({ ...pending, status: "approved", finalTo: "pat@example.com", finalSubject: "Hello there", finalBody: "someone else's edit" });
+    expect((await actions.approveAndSend(ID, {}, edited)).error).toContain("changed while you were approving");
+    expect(mail.sendApproved).not.toHaveBeenCalled();
+    expect(store.markFailed).toHaveBeenCalledWith(ID, "The email changed while you were approving it. Review it and approve again.");
+  });
   it("shows Microsoft's refusal and leaves it retryable", async () => {
     mail.sendApproved.mockResolvedValue({ ok: false, error: "needs the Mail.Send permission" });
     expect((await actions.approveAndSend(ID, {}, edited)).error).toContain("Mail.Send");
