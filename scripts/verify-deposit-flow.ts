@@ -44,6 +44,8 @@
  *      kept, a payment event and NO second stage event;
  *  15f. ruling P23: a card payment on v2 expires a pending row on v1 of the same job and answers its session;
  *      cancelDeposit then unshares v2's quote PDF in the same statement;
+ *  15g. a Signed job with an official window (card) or its designer measure kept as official (check) goes on
+ *      to Official measure, logging Sold then Official measure in order; one with only a designer window stops at Sold;
  *  16. deleteJob(A), with its deposits, succeeds and leaves no deposit rows;
  *  17. deletes everything it wrote, even on failure.
  *
@@ -513,6 +515,41 @@ test("the deposit flow's SQL holds against a real database", async () => {
     check(await cancelDeposit({ leadId: P, deposit: stateP!.paid!, actor: ACTOR }), "cancelDeposit on P answers true", "false");
     const [quotePAfter] = await sql`select shared_at from job_files where id = ${quoteP.id}`;
     check(quotePAfter.shared_at === null, "the cancelled version's quote PDF is unshared in the same statement", JSON.stringify(quotePAfter));
+
+    console.log("step 15g: an official measure already on file skips Sold");
+    const window = (leadId: string, kind: string) => sql`
+      insert into window_measurements (lead_id, measured_by, position, room, width_eighths, height_eighths, mount, kind)
+      values (${leadId}, ${ACTOR}, 1, 'Living room', 288, 480, 'inside', ${kind})`;
+    // M: an official window, paid by card. K: the designer measure kept as official, paid by check.
+    // N: a designer window only, paid by check, which still stops at Sold.
+    const M = await newLead("M", "signed", 100000);
+    const vM = await newVersion(M, 1, "signed", 100000);
+    await window(M, "official");
+    const K = await newLead("K", "signed", 100000);
+    const vK = await newVersion(K, 1, "signed", 100000);
+    await window(K, "designer");
+    await sql`update leads set designer_kept_official_at = now(), designer_kept_official_by = ${ACTOR} where id = ${K}`;
+    const N = await newLead("N", "signed", 100000);
+    const vN = await newVersion(N, 1, "signed", 100000);
+    await window(N, "designer");
+    const claimM = await claimStripeDeposit({ leadId: M, versionId: vM, amountCents: 50000 });
+    check(claimM !== null && (await attachSession(claimM.id, `cs_verify_M_${STAMP}`)), "M has an open card checkout", JSON.stringify(claimM));
+    const paidM = await markStripeDepositPaid({ depositId: claimM!.id, sessionId: `cs_verify_M_${STAMP}`, paymentIntentId: "pi_verify_M", amountCents: 50000 });
+    check(paidM?.stageBefore === "signed", "M's card payment answers stageBefore signed", JSON.stringify(paidM));
+    check(await recordDepositPayment({ leadId: K, versionId: vK, amountCents: 50000, method: "check", actor: ACTOR }) !== null, "K's check is recorded", "null");
+    check(await recordDepositPayment({ leadId: N, versionId: vN, amountCents: 50000, method: "check", actor: ACTOR }) !== null, "N's check is recorded", "null");
+    const stages = async (id: string) => (await sql`
+      select from_status, to_status, body from job_events where lead_id = ${id} and kind = 'stage' order by created_at`)
+      .map((r) => `${r.from_status}>${r.to_status}:${r.body}`);
+    for (const [id, label, body] of [[M, "M (official window, card)", "Deposit paid"], [K, "K (designer kept official, check)", "Deposit recorded"]] as const) {
+      const row = await leadRow(id);
+      check(row.status === "measure" && row.deposit_cents === 50000, `${label} is at Official measure with its deposit`, JSON.stringify(row));
+      const got = await stages(id);
+      check(same(got, [`signed>sold:${body}`, "sold>measure:Official measure already recorded"]),
+        `${label} logs Sold, then Official measure, in that order`, JSON.stringify(got));
+    }
+    check((await leadRow(N)).status === "sold", "N (designer window only) stops at Sold", JSON.stringify(await leadRow(N)));
+    check(same(await stages(N), ["signed>sold:Deposit recorded"]), "N logs Sold only", JSON.stringify(await stages(N)));
 
     console.log("step 16: deleting a job with deposits");
     check((await deleteJob(A, ACTOR)) === "deleted", "deleteJob(A) answers deleted", "not deleted");
