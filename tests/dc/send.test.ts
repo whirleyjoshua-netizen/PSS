@@ -244,7 +244,7 @@ describe("sendQuote", () => {
       "when status in ('new','contacted','visit_booked','approved') then 'quoted'", "'Quote sent'", "'quote'",
       "stage_changed_at = case when status in ('new','contacted','visit_booked','approved') then now() else stage_changed_at end",
     ]) expect(s).toContain(part);
-    expect(quoteEmail.sendQuoteEmail).toHaveBeenCalledWith(job, "Quote PSS-1042 v1.pdf");
+    expect(quoteEmail.sendQuoteEmail).toHaveBeenCalledWith(job, "Quote PSS-1042 v1.pdf", new Uint8Array([2]));
     expect(pdf.renderContractPdf).not.toHaveBeenCalled();
     expect(email.sendContractEmail).not.toHaveBeenCalled();
     expect(blob.get).toHaveBeenCalledWith("settings/terms.pdf", { access: "private" });
@@ -561,7 +561,7 @@ describe("quote options (spec §5)", () => {
     expect(await sendQuote({ jobId: JOB, versionId: VB, fingerprint: review!.fingerprint, actor: OWNER })).toEqual({ ok: true, emailed: true });
     expect(createFile).toHaveBeenCalledWith(expect.objectContaining({ name: "Quote PSS-1042-B v1.pdf", docType: "quote" }));
     expect(quotePdf.buildQuotePdf.mock.calls[0][0]).toMatchObject({ projectNo: "PSS-1042-B", version: 1 });
-    expect(quoteEmail.sendQuoteEmail).toHaveBeenCalledWith(job, "Quote PSS-1042-B v1.pdf");
+    expect(quoteEmail.sendQuoteEmail).toHaveBeenCalledWith(job, "Quote PSS-1042-B v1.pdf", new Uint8Array([2]));
     const call = sql.mock.calls[0];
     const s = text(call);
     const offeredCte = s.slice(s.indexOf("offered as ("), s.indexOf("priced_lines as ("));

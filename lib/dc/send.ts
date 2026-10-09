@@ -300,7 +300,7 @@ export async function sendQuote(input: { jobId: string; versionId: string; finge
     return { error: RACE };
   }
   try {
-    await sendQuoteEmail(job, name);
+    await sendQuoteEmail(job, name, pdf);
     return { ok: true, emailed: true };
   } catch (error) {
     console.error(`Quote ${name} sent but the client email failed`, error);
