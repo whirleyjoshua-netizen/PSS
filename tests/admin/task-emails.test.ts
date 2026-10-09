@@ -14,8 +14,9 @@ const ID = "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c";
 const task = (over: Partial<Task>): Task => ({
   id: ID, title: "Finish new flyers", notes: null, status: "todo", assigneeEmail: "shade@x.com", dueOn: null,
   createdBy: "joshua.whirley@x.com", createdAt: new Date("2026-09-01T00:00:00Z"), completedAt: null,
-  lastRemindedAt: null, lastRemindedBy: null, ...over,
+  lastRemindedAt: null, lastRemindedBy: null, fileCount: 0, ...over,
 });
+const summary = (over: Partial<Task>, fileNames: string[] = []) => ({ ...task(over), fileNames });
 const now = new Date("2026-10-01T14:00:00Z"); // 7:00 AM Thu Oct 1, Las Vegas
 
 beforeEach(() => {
@@ -27,14 +28,27 @@ beforeEach(() => {
 
 describe("assignmentEmail", () => {
   it("names who assigned it, the due day, the notes and the link", () => {
-    expect(assignmentEmail(task({ dueOn: "2026-10-09", notes: "Use the fall photos" }), "joshua.whirley@x.com")).toEqual({
+    expect(assignmentEmail(summary({ dueOn: "2026-10-09", notes: "Use the fall photos" }), "joshua.whirley@x.com")).toEqual({
       subject: "Joshua Whirley assigned you: Finish new flyers",
       text: ["Due Fri, Oct 9", "", "Use the fall photos", "", `Open the task: https://pss.test/admin/tasks/${ID}`].join("\n"),
     });
   });
   it("says when there is no due date and skips empty notes", () => {
-    expect(assignmentEmail(task({}), "joshua.whirley@x.com").text).toBe(
+    expect(assignmentEmail(summary({}), "joshua.whirley@x.com").text).toBe(
       ["No due date", "", `Open the task: https://pss.test/admin/tasks/${ID}`].join("\n"));
+  });
+});
+
+describe("files in task emails", () => {
+  it("lists each file by name under the notes, before the link, without attaching anything", () => {
+    const files = ["Google headlines.pdf", "Price guide.pdf"];
+    const expected = [
+      "Due Fri, Oct 9", "", "Check these", "", "Files:", "- Google headlines.pdf", "- Price guide.pdf", "",
+      `Open the task: https://pss.test/admin/tasks/${ID}`,
+    ].join("\n");
+    expect(assignmentEmail(summary({ dueOn: "2026-10-09", notes: "Check these" }, files), "joshua.whirley@x.com").text).toBe(expected);
+    const reminder = reminderEmail(summary({ dueOn: "2026-10-09" }, files), "joshua.whirley@x.com", now).text;
+    expect(reminder).toContain("Files:\n- Google headlines.pdf\n- Price guide.pdf\n\nOpen the task:");
   });
 });
 
@@ -42,7 +56,7 @@ describe("reminderEmail", () => {
   it("counts overdue days in Las Vegas time", () => {
     // 11:30 PM Oct 1 in Las Vegas is already Oct 2 in UTC; the task due Sep 30 is 1 day late, not 2.
     const lateNight = new Date("2026-10-02T06:30:00Z");
-    const email = reminderEmail(task({ dueOn: "2026-09-30" }), "joshua.whirley@x.com", lateNight);
+    const email = reminderEmail(summary({ dueOn: "2026-09-30" }), "joshua.whirley@x.com", lateNight);
     expect(email.subject).toBe("Reminder from Joshua Whirley: Finish new flyers");
     expect(email.text.split("\n")[0]).toBe("Overdue by 1 day");
   });
