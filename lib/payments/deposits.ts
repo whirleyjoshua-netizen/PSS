@@ -194,7 +194,7 @@ export async function attachSession(depositId: string, sessionId: string): Promi
  * for exactly the amount charged, while no deposit of the version is paid. The row may be pending, or
  * EXPIRED with the very session Stripe completed (ruling P11b): Stripe's verified completion is the
  * truth, so money actually taken is never dropped. Every OTHER pending deposit of the JOB, on any of its
- * versions (ruling P23), is expired in the same statement. deposit_cents is written and a Signed job moves to Sold; a job the
+ * versions (ruling P23), is expired in the same statement. deposit_cents is written and a Signed job moves to Sold (on to Official measure when one is already recorded); a job the
  * owner moved elsewhere keeps its stage, and the payment is still recorded. A duplicate delivery finds
  * the row already paid, matches nothing and answers null.
  *
@@ -223,9 +223,13 @@ export async function markStripeDepositPaid(input: {
       returning id, stripe_session_id
     ),
     prev as (select l.status from leads l join paid on l.id = paid.lead_id),
+    measured as (select exists (
+      select 1 from leads l join paid on l.id = paid.lead_id
+      where l.designer_kept_official_at is not null
+        or exists (select 1 from window_measurements w where w.lead_id = l.id and w.kind = 'official')) as done),
     moved as (
       update leads set deposit_cents = (select amount_cents from paid),
-        status = case when status = 'signed' then 'sold' else status end,
+        status = case when status = 'signed' then case when (select done from measured) then 'measure' else 'sold' end else status end,
         stage_changed_at = case when status = 'signed' then now() else stage_changed_at end,
         updated_at = now()
       where id = (select lead_id from paid)
@@ -239,6 +243,13 @@ export async function markStripeDepositPaid(input: {
       insert into job_events (lead_id, actor, kind, from_status, to_status, body)
       select moved.id, ${STRIPE_ACTOR}, 'stage', prev.status, 'sold', 'Deposit paid' from moved, prev
       where prev.status = 'signed'
+    ),
+    -- Measured before the sale: no measure appointment is left to book, so it goes straight on. A
+    -- millisecond after Sold, so Activity lists the two in the order they happened.
+    measure_logged as (
+      insert into job_events (lead_id, actor, kind, from_status, to_status, body, created_at)
+      select moved.id, ${STRIPE_ACTOR}, 'stage', 'sold', 'measure', 'Official measure already recorded', now() + interval '1 millisecond'
+      from moved, prev, measured where prev.status = 'signed' and measured.done
     )
     select paid.lead_id, paid.dc_quote_version_id, (select status from prev) as stage_before,
       array(select stripe_session_id from others_expired where stripe_session_id is not null) as other_sessions
@@ -255,7 +266,7 @@ export async function markStripeDepositPaid(input: {
 /**
  * The owner's "Payment received": one statement inserts the paid row (Signed job and version, nothing
  * paid yet), expires any pending card checkout of the version, writes deposit_cents, moves Signed to
- * Sold and logs both. The caller closes the Stripe session first (closeCheckout).
+ * Sold (on to Official measure when one is already recorded) and logs it. The caller closes the Stripe session first (closeCheckout).
  */
 export async function recordDepositPayment(input: {
   leadId: string; versionId: string; amountCents: number; method: RecordedMethod; actor: string;
@@ -278,9 +289,13 @@ export async function recordDepositPayment(input: {
       returning id
     ),
     prev as (select l.status from leads l join paid on l.id = paid.lead_id),
+    measured as (select exists (
+      select 1 from leads l join paid on l.id = paid.lead_id
+      where l.designer_kept_official_at is not null
+        or exists (select 1 from window_measurements w where w.lead_id = l.id and w.kind = 'official')) as done),
     moved as (
       update leads set deposit_cents = (select amount_cents from paid),
-        status = case when status = 'signed' then 'sold' else status end,
+        status = case when status = 'signed' then case when (select done from measured) then 'measure' else 'sold' end else status end,
         stage_changed_at = case when status = 'signed' then now() else stage_changed_at end,
         updated_at = now()
       where id = (select lead_id from paid)
@@ -295,6 +310,13 @@ export async function recordDepositPayment(input: {
       insert into job_events (lead_id, actor, kind, from_status, to_status, body)
       select moved.id, ${input.actor}, 'stage', prev.status, 'sold', 'Deposit recorded' from moved, prev
       where prev.status = 'signed'
+    ),
+    -- Measured before the sale: no measure appointment is left to book, so it goes straight on. A
+    -- millisecond after Sold, so Activity lists the two in the order they happened.
+    measure_logged as (
+      insert into job_events (lead_id, actor, kind, from_status, to_status, body, created_at)
+      select moved.id, ${input.actor}, 'stage', 'sold', 'measure', 'Official measure already recorded', now() + interval '1 millisecond'
+      from moved, prev, measured where prev.status = 'signed' and measured.done
     )
     select id from paid`;
   return rows[0] ? { depositId: rows[0].id as string } : null;

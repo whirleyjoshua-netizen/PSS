@@ -196,7 +196,7 @@ describe("markStripeDepositPaid", () => {
       "where id = ? and method = 'stripe' and ((status = 'pending' and (stripe_session_id = ? or stripe_session_id is null)) or (status = 'expired' and stripe_session_id = ?))",
       "and amount_cents = ?",
       "not exists (select 1 from deposits d where d.dc_quote_version_id = deposits.dc_quote_version_id and d.status = 'paid')",
-      "deposit_cents = (select amount_cents from paid)", "status = case when status = 'signed' then 'sold' else status end",
+      "deposit_cents = (select amount_cents from paid)", "status = case when status = 'signed' then case when (select done from measured) then 'measure' else 'sold' end else status end",
       "'payment'", "'stage', prev.status, 'sold', 'Deposit paid'", "where prev.status = 'signed'",
     ]) expect(s).toContain(part);
     expect(values(sql.mock.calls[0])).toEqual(expect.arrayContaining(["cs_1", "pi_1", DEPOSIT, 92417, "Stripe", "Deposit $924.17 paid by card"]));
@@ -268,6 +268,24 @@ describe("markStripeDepositPaid", () => {
   });
 });
 
+describe("an official measure already on file", () => {
+  const MEASURED = [
+    "measured as (select exists ( select 1 from leads l join paid on l.id = paid.lead_id where l.designer_kept_official_at is not null or exists (select 1 from window_measurements w where w.lead_id = l.id and w.kind = 'official')) as done)",
+    "insert into job_events (lead_id, actor, kind, from_status, to_status, body, created_at)",
+    "'stage', 'sold', 'measure', 'Official measure already recorded', now() + interval '1 millisecond' from moved, prev, measured where prev.status = 'signed' and measured.done",
+  ];
+  it("sends a paid Signed job on to Official measure, logging Sold then Official measure, for a card or a hand payment", async () => {
+    await d.markStripeDepositPaid({ depositId: DEPOSIT, sessionId: "cs_1", paymentIntentId: "pi_1", amountCents: 92417 });
+    await d.recordDepositPayment({ leadId: LEAD, versionId: VERSION, amountCents: 92400, method: "check", actor: "owner@example.com" });
+    for (const call of sql.mock.calls) {
+      const s = text(call);
+      for (const part of MEASURED) expect(s).toContain(part);
+      expect(s.indexOf("'sold', 'Deposit")).toBeLessThan(s.indexOf("'sold', 'measure'"));
+    }
+    expect(sql).toHaveBeenCalledTimes(2);
+  });
+});
+
 describe("recordDepositPayment", () => {
   it("in ONE statement inserts a paid row, expires any open card checkout, moves Signed to Sold and logs both", async () => {
     sql.mockResolvedValueOnce([{ id: "new" }]);
@@ -280,7 +298,7 @@ describe("recordDepositPayment", () => {
       "'paid', ?, now()", "and v.status = 'signed' and l.status = 'signed'",
       "not exists (select 1 from deposits d where d.dc_quote_version_id = v.id and d.status = 'paid')",
       "update deposits set status = 'expired' where dc_quote_version_id = ? and status = 'pending' and exists (select 1 from paid)",
-      "status = case when status = 'signed' then 'sold' else status end", "'Deposit recorded'",
+      "status = case when status = 'signed' then case when (select done from measured) then 'measure' else 'sold' end else status end", "'Deposit recorded'",
     ]) expect(s).toContain(part);
     expect(values(sql.mock.calls[0])).toEqual(expect.arrayContaining([92400, "check", "owner@example.com", "Deposit $924 received by check"]));
   });

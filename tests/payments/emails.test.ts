@@ -82,6 +82,23 @@ describe("sendDepositReceipts", () => {
     expect(sent()[1].text).toContain("The job has moved to Sold. Book the official measure.");
   });
 
+  it("says the job went on to Official measure, and tells the client no measure is coming, when it was already measured", async () => {
+    jobs.getJob.mockResolvedValue({ ...job, status: "measure" });
+    await sendDepositReceipts(LEAD, { stageBefore: "signed" });
+    const [client, owners] = sent();
+    expect(owners.text).toContain("The job has moved to Official measure: its official measure was already recorded, so there is no measure to book.");
+    expect(owners.text).not.toContain("Book the official measure");
+    expect(client.text).toContain("Your windows are already measured");
+    expect(client.text).not.toContain("final measure");
+    expect(client.text).toContain("You may cancel until the end of Oct 1, 2026");
+  });
+
+  it("a job an owner moved to Official measure before paying is still a not-Signed review", async () => {
+    jobs.getJob.mockResolvedValue({ ...job, status: "measure" });
+    await sendDepositReceipts(LEAD, { stageBefore: "measure" });
+    expect(sent()[1].text).toContain("The job was not in Signed (it was Official measure)");
+  });
+
   it("sends nothing when nothing is paid, and never throws when an email fails", async () => {
     deposits.depositState.mockResolvedValue({ ...state, paid: null });
     await sendDepositReceipts(LEAD);

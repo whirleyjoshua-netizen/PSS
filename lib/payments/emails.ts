@@ -51,6 +51,8 @@ export async function sendDepositReceipts(leadId: string, options: { stageBefore
   const lastDay = formatDateOnly(cancellationWindowLastDay(state.signedAt));
   const to = normalizeEmail(job.email);
   const wasSigned = options.stageBefore === undefined || options.stageBefore === "signed";
+  // The payment's statement skips Sold when an official measure was already recorded.
+  const measured = wasSigned && job.status === "measure";
   const sends: Promise<void>[] = [];
   if (to) {
     sends.push(emailClient(to, `Payment received — ${projectNo}`, [
@@ -63,7 +65,7 @@ export async function sendDepositReceipts(leadId: string, options: { stageBefore
       `Deposit paid:     ${formatCents(deposit.amountCents)} ${how} on ${formatShortDate(deposit.paidAt ?? new Date())}`,
       `Balance due at installation: ${formatCents(state.soldCents - deposit.amountCents)}`, "",
       ...(wasSigned
-        ? ["Next, we will call you to book your final measure.",
+        ? [measured ? "Your windows are already measured, so next we place your order." : "Next, we will call you to book your final measure.",
           `You may cancel until the end of ${lastDay}. If you do, we refund your deposit in full.`, ""]
         : []),
       `Questions? Call us at ${business.phone.display} or just reply to this email.`, "", business.name,
@@ -79,7 +81,9 @@ export async function sendDepositReceipts(leadId: string, options: { stageBefore
       `Project:  ${projectNo}`,
       `Contract: ${formatCents(state.soldCents)}`,
       deposit.recordedBy ? `Recorded by: ${deposit.recordedBy}` : null, "",
-      wasSigned
+      measured
+        ? `The job has moved to Official measure: its official measure was already recorded, so there is no measure to book. Order after the cancellation window closes at the end of ${lastDay}.`
+        : wasSigned
         ? `The job has moved to Sold. Book the official measure. Order after the cancellation window closes at the end of ${lastDay}.`
         : `The job was not in Signed (it was ${stageLabel(options.stageBefore ?? "unknown")}), so its stage was not changed. Review this job: the payment is recorded, but it may need refunding or moving on by hand.`,
       `Open in tracker: ${adminOrigin()}/admin/jobs/${job.id}?tab=quote`,
