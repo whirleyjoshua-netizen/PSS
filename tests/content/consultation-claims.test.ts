@@ -53,3 +53,20 @@ describe("no copy promises a headcount", () => {
     expect(pain.body).toMatch(/never hand you off to a third party for install/);
   });
 });
+
+/** The owner's name is Shade’, with the mark (2026-10-09). Customer review quotes in content/reviews.ts stay verbatim. */
+describe("Shade’ is written with the mark", () => {
+  it("never names her as plain 'Shade' in site copy", async () => {
+    const { readFileSync, readdirSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const files = (dir: string): string[] =>
+      readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+        e.isDirectory() ? files(join(dir, e.name)) : /\.tsx?$/.test(e.name) ? [join(dir, e.name)] : [],
+      );
+    const offenders = ["app", "components", "content", "lib"]
+      .flatMap(files)
+      .filter((f) => !f.endsWith(join("content", "reviews.ts")))
+      .filter((f) => /\b(Josh (and|or) Shade|Shade (and|or) Josh|Shade (designs|found|smiling|personally))\b(?!’)|Shade's|About Shade"/.test(readFileSync(f, "utf8")));
+    expect(offenders).toEqual([]);
+  });
+});

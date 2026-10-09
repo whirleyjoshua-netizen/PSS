@@ -8,7 +8,7 @@ import { pastReviews } from "@/content/reviews";
 export const metadata: Metadata = {
   title: "Meet the Family | Premier Shade Solutions",
   description:
-    "Premier Shade Solutions is a family-run window treatment company serving the Las Vegas valley. Shade designs, Josh installs, and we handle every job ourselves.",
+    "Premier Shade Solutions is a family-run window treatment company serving the Las Vegas valley. Shade’ designs, Josh installs, and we handle every job ourselves.",
   alternates: { canonical: "/about" },
 };
 
@@ -33,7 +33,7 @@ export default function AboutPage() {
               it yourself, and stand behind it.
             </p>
             <p>
-              <strong className="font-medium text-charcoal">Shade found the design side.</strong>{" "}
+              <strong className="font-medium text-charcoal">Shade’ found the design side.</strong>{" "}
               With Josh&rsquo;s encouragement she started designing, and she fell in love with it —
               not just the fabrics and the finishes, but the people: sitting down in someone&rsquo;s
               home, listening, and helping them get it exactly right. She became a top designer,
@@ -41,7 +41,7 @@ export default function AboutPage() {
             </p>
             <p>
               <strong className="font-medium text-charcoal">Now it&rsquo;s our family&rsquo;s business.</strong>{" "}
-              Shade designs, Josh installs, and our kids are growing up around it the way Josh did.
+              Shade’ designs, Josh installs, and our kids are growing up around it the way Josh did.
               When you invite us into your home, you&rsquo;re working with us — not a call center,
               not a rotating crew.
             </p>
@@ -63,7 +63,7 @@ export default function AboutPage() {
             <div className="relative aspect-4/5 w-full overflow-hidden bg-sand">
               <Image
                 src="/brand/shade-with-kids.webp"
-                alt="Shade smiling in an armchair with their baby son and young daughter on her lap, the daughter grinning with a hand to her cheek"
+                alt="Shade’ smiling in an armchair with their baby son and young daughter on her lap, the daughter grinning with a hand to her cheek"
                 fill
                 sizes="(min-width: 1024px) 24rem, 100vw"
                 className="object-cover"

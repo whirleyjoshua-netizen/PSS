@@ -32,7 +32,7 @@ export default function ContactPage() {
             <div className="relative aspect-4/5 w-full overflow-hidden bg-sand">
               <Image
                 src="/brand/family-backyard-pool.webp"
-                alt="Josh and Shade smiling by a backyard pool under palm trees, each holding one of their two young children"
+                alt="Josh and Shade’ smiling by a backyard pool under palm trees, each holding one of their two young children"
                 fill
                 sizes="(min-width: 1024px) 22rem, 100vw"
                 className="object-cover"

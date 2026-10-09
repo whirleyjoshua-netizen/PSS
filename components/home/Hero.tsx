@@ -2,6 +2,7 @@ import Image from "next/image";
 import { HeroForm } from "@/components/forms/HeroForm";
 import { Container } from "@/components/ui/Container";
 import { business } from "@/content/business";
+import { FAMILY_LINE } from "@/components/booking/PromiseRow";
 
 export function Hero() {
   return (
@@ -34,8 +35,7 @@ export function Hero() {
             </h1>
 
             <p className="max-w-xl text-lg text-sand/80">
-              Shade and Josh measure, order and install every job themselves. No
-              call center, no subcontractors.
+              {FAMILY_LINE}
             </p>
 
             <div className="flex flex-wrap items-center gap-4 pt-2">

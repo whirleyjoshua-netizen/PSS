@@ -41,6 +41,7 @@ Mostly Las Vegas valley homeowners aged 35–65 (Las Vegas, Henderson, Summerlin
 
 ## Things that are true (use them)
 - Family-owned and local.
+- **Shade’ is always written with the mark: Shade’** (owner, 2026-10-09). Never "Shade" for her name. Customer review quotes stay verbatim.
 - Free in-home consultation: we bring samples to your home, measure every window, and send a written quote. (Never promise the quote "before we leave" or "on the spot": owner, 2026-10-08, it is not always possible.)
 - The owners do the work.
 - Products: plantation shutters, solar shades, motorized shades and blinds, roller/cellular/roman shades, wood and faux-wood blinds, outdoor patio shades, valances, skylight shades, blackout and room-darkening shades, cordless blinds. We sell Hunter Douglas. Wholesale blinds are available.

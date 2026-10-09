@@ -15,7 +15,7 @@ describe("/about — Meet the family", () => {
     render(<AboutPage />);
     for (const lead of [
       "It started with Josh’s dad.",
-      "Shade found the design side.",
+      "Shade’ found the design side.",
       "Now it’s our family’s business.",
       "You let us into your home. We let you into our family.",
     ]) {

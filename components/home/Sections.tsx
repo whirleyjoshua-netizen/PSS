@@ -198,7 +198,7 @@ export function FamilySection() {
         <div className="relative mx-auto aspect-4/3 w-full overflow-hidden bg-sand">
           <Image
             src="/brand/owners-family.webp"
-            alt="Josh and Shade standing outside in the sun with their young daughter held between them"
+            alt="Josh and Shade’ standing outside in the sun with their young daughter held between them"
             fill
             sizes="(min-width: 1024px) 36rem, 100vw"
             className="object-cover"

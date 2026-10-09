@@ -93,7 +93,7 @@ describe("landing routes", () => {
     const answer = (heard: RegExp) => PAINS.find((p) => heard.test(p.heard))!.body;
     expect(answer(/took forever/)).toMatch(/temporary shades/);
     expect(answer(/measured wrong/)).toMatch(/Josh measures every window himself.*remake it/);
-    expect(answer(/called me back/)).toMatch(/text Shade or Josh directly/);
+    expect(answer(/called me back/)).toMatch(/text Shade’ or Josh directly/);
     expect(answer(/left a mess/)).toMatch(/clean up.*haul your old blinds away for free/);
     expect(answer(/had my money/)).toMatch(/walk through every window with you.*stand behind the job/);
   });
