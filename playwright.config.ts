@@ -44,7 +44,7 @@ export default defineConfig({
     // face-id.spec.ts needs a localhost RP ID, so only playwright.face-id.config.ts runs it.
     { name: "desktop", use: { ...devices["Desktop Chrome"] }, testIgnore: /(admin-mobile|face-id)\.spec\.ts/ },
     // admin.spec.ts, portal.spec.ts, and call.spec.ts run serially, desktop-only
-    { name: "mobile", use: { ...devices["Pixel 7"] }, testIgnore: /(admin|admin-access|portal|call|follow-ups|questionnaire|stages|team|appointments|install|routes|dc-quote|documents|tasks|face-id)\.spec\.ts/ },
+    { name: "mobile", use: { ...devices["Pixel 7"] }, testIgnore: /(admin|admin-access|portal|call|follow-ups|questionnaire|stages|team|appointments|install|routes|dc-quote|documents|tasks|agents|face-id)\.spec\.ts/ },
   ],
 
   // Tests run against a production build, so what is verified is what ships.

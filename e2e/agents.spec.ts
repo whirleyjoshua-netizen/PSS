@@ -36,11 +36,15 @@ test.beforeAll(async () => {
 
 test.afterAll(async () => {
   if (!url) return;
-  // agent_items and agent_replies go with the agent (on delete cascade).
-  await sql()`delete from agents where slug like 'e2e-%'`;
-  await sql()`delete from admin_sessions where email = ${OWNER}`;
-  await sql()`delete from admin_login_tokens where email = ${OWNER}`;
-  if (readSettings) await sql()`update agent_settings set mailing_address = ${savedMailingAddress} where id`;
+  try {
+    // Only this run's agent. Its agent_items and agent_replies go with it (on delete cascade).
+    await sql()`delete from agents where slug = ${SLUG}`;
+    await sql()`delete from admin_sessions where email = ${OWNER}`;
+    await sql()`delete from admin_login_tokens where email = ${OWNER}`;
+  } finally {
+    // Restored even if a delete fails.
+    if (readSettings) await sql()`update agent_settings set mailing_address = ${savedMailingAddress} where id`;
+  }
 });
 
 test("a pushed report, email and decision reach the dashboard, and the owner's decision reaches the agent", async ({ page, request }) => {
