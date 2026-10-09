@@ -51,7 +51,7 @@ const version: StoredVersion = {
   dealerTotalCents: quote.dealerTotalCents, waiveHandling: false, noInstall: false,
   installQuoteId: null, installCents: null, productsCents: null, clientTotalCents: null,
   contractFileId: null, sentAt: null, signedAt: null, createdAt: new Date("2026-09-27T19:30:00Z"),
-  quoteFileId: null, offeredAt: null, approvedAt: null, handlingFoldedCents: null, installFoldedCents: null,
+  quoteFileId: null, offeredAt: null, approvedAt: null, handlingFoldedCents: null, installFoldedCents: null, discount: null, discountCents: null,
   lines: quote.lines.map((l) => ({ ...l, pctOverride: null, markupPct: null, sellUnitCents: null, markupOverridden: false })),
 };
 const line = version.lines[0];
@@ -124,7 +124,7 @@ describe("loadReview", () => {
         lines: [{ position: line.position, pct: 60, source: "rule", sellUnitCents: 39300, sellExtendedCents: productsCents, marginCents: productsCents - line.costExtendedCents }],
         productsCents, handlingChargedCents: version.handlingFeeCents, handlingFoldedCents: 0, oversizedCents: version.oversizedFeeCents,
         installCents: 25000, installFoldedCents: 0, installLineCents: 25000, installQuoteId: INSTALL, clientTotalCents: frozenTotal, costCents: version.dealerTotalCents,
-        marginCents: frozenTotal - 25000 - version.dealerTotalCents, waiveHandling: false, blockers: [],
+        marginCents: frozenTotal - 25000 - version.dealerTotalCents, waiveHandling: false, blockers: [], discountCents: 0, discountLabel: null, discountPct: null,
       });
       expect(review!.install).toEqual(install);
     });
@@ -293,6 +293,49 @@ describe("sendQuote", () => {
     expect(valueAfter(" and no_install = ")).toBe(false);
   });
 
+  it("a discount the owner set is priced, frozen with the price, re-checked where it is stored, and printed", async () => {
+    const discounted = { ...version, discount: { pct: 10, amountCents: null, label: "Holiday special" } };
+    store.listVersions.mockResolvedValue([discounted]);
+    const review = await loadReview(JOB);
+    const { priced } = review!;
+    expect(priced.discountCents).toBe(Math.round(priced.productsCents! * 0.1));
+    expect(priced.clientTotalCents).toBe(priced.productsCents! + priced.oversizedCents - priced.discountCents);
+    expect(await sendQuote({ jobId: JOB, versionId: V1, fingerprint: review!.fingerprint, actor: OWNER })).toEqual({ ok: true, emailed: true });
+    const call = sql.mock.calls[0];
+    const strings = call[0] as TemplateStringsArray;
+    const valueAfter = (fragment: string) => call[1 + strings.findIndex((part) => part.replace(/\s+/g, " ").endsWith(fragment))];
+    expect(valueAfter("discount_cents = ")).toBe(priced.discountCents);
+    expect(valueAfter("and discount_pct is not distinct from ")).toBe(10);
+    expect(valueAfter("and discount_amount_cents is not distinct from ")).toBeNull();
+    expect(valueAfter("and discount_label is not distinct from ")).toBe("Holiday special");
+    expect(call.slice(1)).toContain(priced.clientTotalCents);
+    expect(quotePdf.buildQuotePdf.mock.calls[0][0]).toMatchObject({
+      clientTotalCents: priced.clientTotalCents, discount: { label: "Holiday special", pct: 10, cents: priced.discountCents },
+    });
+  });
+
+  it("with no discount the PDF gets none and the re-check is for no discount", async () => {
+    await send();
+    expect(quotePdf.buildQuotePdf.mock.calls[0][0].discount).toBeNull();
+    const call = sql.mock.calls[0];
+    const strings = call[0] as TemplateStringsArray;
+    const valueAfter = (fragment: string) => call[1 + strings.findIndex((part) => part.replace(/\s+/g, " ").endsWith(fragment))];
+    expect(valueAfter("discount_cents = ")).toBe(0);
+    expect(valueAfter("and discount_label is not distinct from ")).toBeNull();
+  });
+
+  it("a sent version shows and prints the discount it was sent with, never a later one", async () => {
+    const sentWith = { ...offered, status: "sent" as const, clientTotalCents: frozenTotal - 5000, discountCents: 5000,
+      discount: { pct: null, amountCents: 5000, label: "Thank you" } };
+    store.listVersions.mockResolvedValue([sentWith]);
+    const review = await loadReview(JOB);
+    expect(review!.priced).toMatchObject({ discountCents: 5000, discountLabel: "Thank you", discountPct: null, clientTotalCents: frozenTotal - 5000,
+      marginCents: frozenTotal - 5000 - 25000 - version.dealerTotalCents });
+    // Sent before 042: no frozen discount, so none shows even if a label were somehow present.
+    store.listVersions.mockResolvedValue([{ ...offered, discount: { pct: 10, amountCents: null, label: "Later" }, discountCents: null }]);
+    expect((await loadReview(JOB))!.priced).toMatchObject({ discountCents: 0, discountLabel: null });
+  });
+
   it("re-checks, where they are stored, that the job is not Lost and has an email", async () => {
     await send();
     const s = text(sql.mock.calls[0]);
@@ -344,6 +387,15 @@ describe("sendContract, from the approved quote", () => {
     jobs.getJob.mockResolvedValue({ ...job, status: "approved" });
   });
   const contract = () => sendContract({ jobId: JOB, versionId: V1, actor: "Sent on approval" });
+
+  it("the contract prints the discount the quote was sent with, and the same total", async () => {
+    store.listVersions.mockResolvedValue([{ ...offered, clientTotalCents: frozenTotal - 3930, discountCents: 3930,
+      discount: { pct: 10, amountCents: null, label: "Holiday special" } }]);
+    expect(await contract()).toEqual({ ok: true, emailed: true });
+    expect(pdf.renderContractPdf.mock.calls[0][0]).toMatchObject({
+      clientTotalCents: frozenTotal - 3930, discount: { label: "Holiday special", pct: 10, cents: 3930 },
+    });
+  });
 
   it("builds the contract from the frozen figures, with its sign marks, and sends it in ONE statement", async () => {
     expect(await contract()).toEqual({ ok: true, emailed: true });

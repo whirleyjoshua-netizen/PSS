@@ -2,6 +2,8 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { db } from "@/lib/db";
 import { isUuid } from "@/lib/admin/jobs";
+import { formatCents } from "@/lib/admin/money";
+import type { Discount } from "./pricing";
 import type { DcLine, DcQuote, ImportOutcome } from "./types";
 
 export type StoredLine = DcLine & { pctOverride: number | null; markupPct: number | null; sellUnitCents: number | null; markupOverridden: boolean };
@@ -22,6 +24,9 @@ export type StoredVersion = {
   handlingFoldedCents: number | null;
   /** The installation Send quote built into the line prices; null on versions sent before (migration 038). */
   installFoldedCents: number | null;
+  /** The owner's discount, a percent or a dollar amount with its label (null when none), and the cents Send quote took off (migration 042). */
+  discount: Discount | null;
+  discountCents: number | null;
 };
 export type DcSettings = { termsPathname: string | null; termsUpdatedAt: Date | null; lastPolledAt: Date | null };
 
@@ -201,6 +206,9 @@ export async function listVersions(leadId: string): Promise<StoredVersion[]> {
     quoteFileId: (v.quote_file_id as string | null) ?? null, offeredAt: date(v.offered_at), approvedAt: date(v.approved_at),
     handlingFoldedCents: num(v.handling_folded_cents),
     installFoldedCents: num(v.install_folded_cents),
+    discount: v.discount_label === null || v.discount_label === undefined ? null
+      : { pct: num(v.discount_pct), amountCents: num(v.discount_amount_cents), label: v.discount_label as string },
+    discountCents: num(v.discount_cents),
     lines: lines.filter((l) => l.version_id === v.id).map(toLine),
   }));
 }
@@ -230,6 +238,36 @@ export async function setVersionChoices(leadId: string, versionId: string, choic
       waive_handling = coalesce(${choices.waiveHandling ?? null}::boolean, waive_handling),
       no_install = coalesce(${choices.noInstall ?? null}::boolean, no_install)
     where id = ${versionId} and lead_id = ${leadId} and status = 'draft'
+    returning id`;
+  return rows.length > 0;
+}
+
+/** A discount's label: 1–60 characters once trimmed. */
+export const validDiscountLabel = (label: string) => label.trim().length >= 1 && label.trim().length <= 60;
+
+/**
+ * Sets (or, with null, removes) the version's discount, only on a draft of this job, and logs it in the same
+ * statement. A percent is over 0 and under 100 with at most two decimals; a dollar amount is whole cents over 0.
+ */
+export async function setVersionDiscount(leadId: string, versionId: string, discount: Discount | null, actor: string): Promise<boolean> {
+  if (!isUuid(leadId) || !isUuid(versionId)) return false;
+  if (discount !== null) {
+    const { pct, amountCents, label } = discount;
+    if ((pct === null) === (amountCents === null) || !validDiscountLabel(label)) return false;
+    if (pct !== null && !(validPct(pct) && pct < 100)) return false;
+    if (amountCents !== null && !(Number.isInteger(amountCents) && amountCents > 0)) return false;
+  }
+  const label = discount?.label.trim() ?? null;
+  const said = discount === null ? "Discount removed"
+    : `Discount: ${label}, ${discount.pct !== null ? `${discount.pct}% off` : `${formatCents(discount.amountCents!)} off`}`;
+  const rows = await db()`
+    with changed as (
+      update dc_quote_versions set discount_pct = ${discount?.pct ?? null}, discount_amount_cents = ${discount?.amountCents ?? null}, discount_label = ${label}
+      where id = ${versionId} and lead_id = ${leadId} and status = 'draft'
+      returning lead_id
+    )
+    insert into job_events (lead_id, actor, kind, body)
+    select lead_id, ${actor}, 'quote', ${said} from changed
     returning id`;
   return rows.length > 0;
 }

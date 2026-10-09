@@ -63,6 +63,9 @@ function frozenPrice(version: StoredVersion): PricedVersion {
     // As priceVersion computes it: product margin, the installation charged excluded.
     marginCents: clientTotalCents === null ? null : clientTotalCents - installFoldedCents - installLineCents - version.dealerTotalCents,
     waiveHandling: version.waiveHandling, blockers: [],
+    // client_total_cents was stored after the discount; versions sent before 042 have none.
+    discountCents: version.discountCents ?? 0, discountLabel: version.discountCents ? version.discount?.label ?? null : null,
+    discountPct: version.discountCents ? version.discount?.pct ?? null : null,
   };
 }
 
@@ -110,6 +113,7 @@ async function review(jobId: string, which: Which): Promise<{ review: Review; jo
       lines: version.lines.map((l) => ({ position: l.position, qty: l.qty, collection: l.collection, msrpUnitCents: l.msrpUnitCents, costExtendedCents: l.costExtendedCents, pctOverride: l.pctOverride })),
       rules, handlingFeeCents: version.handlingFeeCents, oversizedFeeCents: version.oversizedFeeCents,
       dealerTotalCents: version.dealerTotalCents, waiveHandling: version.waiveHandling, install, noInstall: version.noInstall,
+      discount: version.discount,
     });
   } else {
     // Offered, sent, signed, superseded or cancelled: what was sent, never a re-price with today's markup or install price.
@@ -166,6 +170,7 @@ function pricedInput(job: Job, version: StoredVersion, priced: PricedVersion, pr
     // Only what prints as its own line: built-in installation and handling are inside the line prices.
     installCents: priced.installLineCents, handlingChargedCents: priced.handlingChargedCents,
     oversizedCents: priced.oversizedCents, clientTotalCents: priced.clientTotalCents!,
+    discount: priced.discountCents > 0 ? { label: priced.discountLabel!, pct: priced.discountPct, cents: priced.discountCents } : null,
   };
 }
 
@@ -232,6 +237,7 @@ export async function sendQuote(input: { jobId: string; versionId: string; finge
         update dc_quote_versions set status = 'offered', install_quote_id = ${priced.installQuoteId}, install_cents = ${priced.installCents},
           products_cents = ${priced.productsCents}, client_total_cents = ${priced.clientTotalCents},
           handling_folded_cents = ${priced.handlingFoldedCents}, install_folded_cents = ${priced.installFoldedCents},
+          discount_cents = ${priced.discountCents},
           quote_file_id = ${file.id}, offered_at = now(), offered_by = ${input.actor}
         where id = ${version.id} and lead_id = ${job.id} and status = 'draft'
           and version = (select max(version) from dc_quote_versions where lead_id = ${job.id} and option = ${version.option})
@@ -239,6 +245,9 @@ export async function sendQuote(input: { jobId: string; versionId: string; finge
           and not exists (select 1 from dc_quote_versions s where s.lead_id = ${job.id} and s.status = 'signed' and s.option <> ${version.option})
           -- The inputs this price was computed from must be the ones still stored.
           and waive_handling = ${version.waiveHandling} and no_install = ${version.noInstall}
+          and discount_pct is not distinct from ${version.discount?.pct ?? null}
+          and discount_amount_cents is not distinct from ${version.discount?.amountCents ?? null}
+          and discount_label is not distinct from ${version.discount?.label ?? null}
           and not exists (
             select 1 from dc_quote_lines q
             join jsonb_to_recordset(${lineRows}::jsonb) as r(position int, override numeric) on q.position = r.position

@@ -20,7 +20,12 @@ const addQuoteOption = vi.fn(async (..._args: unknown[]): Promise<{ letter: stri
   order.push("store");
   return { letter: "B" };
 });
-vi.mock("@/lib/dc/store", () => ({ setLineOverride, setVersionChoices, addQuoteOption }));
+const setVersionDiscount = vi.fn(async (..._args: unknown[]) => {
+  order.push("store");
+  return true;
+});
+const validDiscountLabel = (label: string) => label.trim().length >= 1 && label.trim().length <= 60;
+vi.mock("@/lib/dc/store", () => ({ setLineOverride, setVersionChoices, setVersionDiscount, validDiscountLabel, addQuoteOption }));
 const sendQuote = vi.fn(async (..._args: unknown[]): Promise<{ ok: true; emailed: boolean } | { error: string }> => {
   order.push("send");
   return { ok: true, emailed: true };
@@ -36,7 +41,7 @@ const pollMailbox = vi.fn(async (): Promise<{ seen: number; results: { messageId
 });
 vi.mock("@/lib/dc/import", () => ({ pollMailbox }));
 
-const { setLinePctAction, setChoicesAction, sendQuoteAction, sendContractAction, checkNowAction, addQuoteOptionAction } = await import("@/app/admin/jobs/[id]/quote-actions");
+const { setLinePctAction, setChoicesAction, setDiscountAction, sendQuoteAction, sendContractAction, checkNowAction, addQuoteOptionAction } = await import("@/app/admin/jobs/[id]/quote-actions");
 
 const J = "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c";
 const V = "7a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
@@ -72,6 +77,41 @@ describe("setLinePctAction", () => {
     setLineOverride.mockResolvedValueOnce(false);
     expect(await setLinePctAction(J, V, 1, "60")).toEqual(LOCKED);
     expect(revalidatePath).not.toHaveBeenCalled();
+  });
+});
+
+describe("setDiscountAction", () => {
+  it("checks the admin first, then saves a percent with its trimmed name", async () => {
+    expect(await setDiscountAction(J, V, { kind: "pct", value: " 10 ", label: "  Holiday special " })).toEqual({});
+    expect(order).toEqual(["auth", "store"]);
+    expect(setVersionDiscount).toHaveBeenCalledWith(J, V, { pct: 10, amountCents: null, label: "Holiday special" }, "o@x.com");
+    expect(revalidatePath).toHaveBeenCalledWith(`/admin/jobs/${J}`);
+  });
+  it("reads dollars with or without $ and commas, to the cent", async () => {
+    await setDiscountAction(J, V, { kind: "amount", value: "$1,250.50", label: "Friends and family" });
+    expect(setVersionDiscount).toHaveBeenLastCalledWith(J, V, { pct: null, amountCents: 125050, label: "Friends and family" }, "o@x.com");
+    await setDiscountAction(J, V, { kind: "amount", value: "200", label: "x" });
+    expect(setVersionDiscount).toHaveBeenLastCalledWith(J, V, { pct: null, amountCents: 20000, label: "x" }, "o@x.com");
+  });
+  it("null removes the discount", async () => {
+    expect(await setDiscountAction(J, V, null)).toEqual({});
+    expect(setVersionDiscount).toHaveBeenCalledWith(J, V, null, "o@x.com");
+  });
+  it("refuses a bad percent, a bad amount or a missing name without touching the store", async () => {
+    for (const value of ["0", "100", "abc", "12.345", "-5"]) {
+      expect((await setDiscountAction(J, V, { kind: "pct", value, label: "Sale" })).error).toMatch(/percentage/);
+    }
+    for (const value of ["0", "abc", "1.234", "-20"]) {
+      expect((await setDiscountAction(J, V, { kind: "amount", value, label: "Sale" })).error).toMatch(/dollar amount/);
+    }
+    expect((await setDiscountAction(J, V, { kind: "pct", value: "10", label: "   " })).error).toMatch(/name/);
+    expect((await setDiscountAction(J, V, { kind: "pct", value: "10", label: "x".repeat(61) })).error).toMatch(/name/);
+    expect((await setDiscountAction(J, V, { kind: "both" as "pct", value: "10", label: "Sale" })).error).toMatch(/percent or dollars/);
+    expect(setVersionDiscount).not.toHaveBeenCalled();
+  });
+  it("says the version is locked when the store refuses", async () => {
+    setVersionDiscount.mockResolvedValueOnce(false);
+    expect(await setDiscountAction(J, V, { kind: "pct", value: "10", label: "Sale" })).toEqual({ error: "This version can no longer be changed." });
   });
 });
 

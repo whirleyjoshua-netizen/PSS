@@ -51,6 +51,16 @@ describe("contractRows", () => {
     expect(rows[1].room).toBe("Accessory");
     expect(totals).toEqual([["Installation", "$250"], ["Hunter Douglas handling", "$66"], ["Total", "$1,802.51"]]);
   });
+  it("prints a discount as Subtotal, the named discount and the Total after it, only when there is one", () => {
+    const { totals } = contractRows({ ...input, clientTotalCents: 162226, discount: { label: "Holiday special", pct: 10, cents: 18025 } });
+    expect(totals).toEqual([["Installation", "$250"], ["Hunter Douglas handling", "$66"], ["Subtotal", "$1,802.51"],
+      ["Holiday special (10% off)", "-$180.25"], ["Total", "$1,622.26"]]);
+    const dollars = contractRows({ ...input, clientTotalCents: 160251, discount: { label: "Thank you", pct: null, cents: 20000 } }).totals;
+    expect(dollars).toContainEqual(["Thank you", "-$200"]);
+    for (const none of [null, undefined, { label: "Zero", pct: 10, cents: 0 }]) {
+      expect(contractRows({ ...input, discount: none }).totals.map(([label]) => label)).toEqual(["Installation", "Hunter Douglas handling", "Total"]);
+    }
+  });
   it("omits handling when waived and oversized when zero", () => {
     const { totals } = contractRows({ ...input, handlingChargedCents: 0, clientTotalCents: 173651 });
     expect(totals.map(([label]) => label)).toEqual(["Installation", "Total"]);

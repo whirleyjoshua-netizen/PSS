@@ -9,6 +9,8 @@ export type ContractInput = {
   client: { name: string; address: string | null; city: string; email: string | null };
   lines: { room: string; description: string; options: [string, string][]; qty: number; sellUnitCents: number; sellExtendedCents: number }[];
   installCents: number; handlingChargedCents: number; oversizedCents: number; clientTotalCents: number;
+  /** The owner's discount (migration 042), printed as its own line only when there is one; clientTotalCents is after it. */
+  discount?: { label: string; pct: number | null; cents: number } | null;
 };
 export type ContractRow = { room: string; product: string; details: string; qty: string; unit: string; total: string };
 
@@ -61,6 +63,12 @@ export function contractRows(input: ContractInput): { rows: ContractRow[]; total
   if (input.installCents > 0) totals.push(["Installation", formatCents(input.installCents)]);
   if (input.handlingChargedCents > 0) totals.push(["Hunter Douglas handling", formatCents(input.handlingChargedCents)]);
   if (input.oversizedCents > 0) totals.push(["Oversize charge", formatCents(input.oversizedCents)]);
+  const discount = input.discount && input.discount.cents > 0 ? input.discount : null;
+  if (discount) {
+    totals.push(["Subtotal", formatCents(input.clientTotalCents + discount.cents)]);
+    // A plain hyphen: the PDF fonts have no minus sign.
+    totals.push([discount.pct !== null ? `${discount.label} (${discount.pct}% off)` : discount.label, `-${formatCents(discount.cents)}`]);
+  }
   totals.push(["Total", formatCents(input.clientTotalCents)]);
   return { rows, totals };
 }
