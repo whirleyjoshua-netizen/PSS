@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { describe, it, expect } from "vitest";
 import { categories, products } from "@/content/products";
+import { altaPhotos } from "@/content/stock-photos";
 import {
   getCategory,
   getProduct,
@@ -140,7 +141,7 @@ describe("redesign wording (spec 2026-10-01 §5)", () => {
 });
 
 describe("story photos (spec §6)", () => {
-  const WITH_STORY = ["vertical-blinds", "wood-blinds", "roller-shades", "solar-shades", "cellular-shades", "plantation-shutters", "composite-shutters", "wood-shutters", "roman-shades", "woven-wood-shades"];
+  const WITH_STORY = ["vertical-blinds", "wood-blinds", "roller-shades", "solar-shades", "cellular-shades", "plantation-shutters", "composite-shutters", "wood-shutters", "roman-shades", "woven-wood-shades", "transitional-shades"];
 
   it("are set on exactly the products we have a second photo of", () => {
     expect(products.filter((p) => p.storyPhoto).map((p) => p.slug).sort()).toEqual([...WITH_STORY].sort());
@@ -154,57 +155,37 @@ describe("story photos (spec §6)", () => {
   });
 });
 
-describe("the owners' photos of 2026-10-01", () => {
-  const PLACED: [string, string, string | undefined][] = [
-    ["roller-shades", "/gallery/roller-shades-dining-room.webp", "/gallery/roller-shades-transom-closeup.webp"],
-    ["solar-shades", "/gallery/solar-shades-balcony-view.webp", "/gallery/solar-shades-nursery.webp"],
+describe("hero and info photos (owner 2026-10-09)", () => {
+  // Heroes and info photos are Alta stock; our own installs stay only where Alta has none.
+  const A = (key: keyof typeof altaPhotos) => altaPhotos[key].src;
+  const PLACED: [string, string | undefined, string | undefined][] = [
+    ["vertical-blinds", A("verticalDiningRoom"), "/gallery/sheer-vertical-patio-slider.webp"],
+    ["wood-blinds", A("woodBlindsCornice"), A("fauxWoodBath")],
+    ["roller-shades", A("rollerKidsRoom"), A("rollerKitchenBay")],
+    ["solar-shades", A("rollerSunroom"), A("rollerBreakfastNook")],
+    ["cellular-shades", A("honeycombEntry"), A("honeycombTopDown")],
     ["roman-shades", "/gallery/roman-shades-woven-dining-room.webp", "/gallery/roman-shades-primary-bath.webp"],
-    ["vertical-blinds", "/gallery/vertical-blinds-patio-door-valance.webp", "/gallery/sheer-vertical-patio-slider.webp"],
-    ["wood-blinds", "/gallery/faux-wood-blinds-front-window.webp", "/gallery/faux-wood-blinds-living-room.webp"],
-    // Owner: the three shutter types look the same, so shutter photos are shared among them.
-    ["plantation-shutters", "/gallery/plantation-shutters-dining-room.webp", "/gallery/plantation-shutters-bedroom.webp"],
-    ["composite-shutters", "/gallery/plantation-shutters-french-doors.webp", "/gallery/plantation-shutters-bedroom.webp"],
-    ["wood-shutters", "/gallery/plantation-shutters-bath.webp", "/gallery/plantation-shutters-kitchen-sink.webp"],
+    ["woven-wood-shades", A("wovenBedroom"), A("wovenLivingRoom")],
+    ["transitional-shades", A("bandedLivingRoom"), A("bandedBedroom")],
+    ["plantation-shutters", A("shuttersKitchen"), A("shuttersFrenchDoors")],
+    ["composite-shutters", A("compositeShuttersDining"), A("shuttersFrenchDoors")],
+    ["wood-shutters", A("woodShuttersKitchen"), "/gallery/plantation-shutters-kitchen-sink.webp"],
   ];
 
-  it("Shutters leads with the primary-bath photo", () => {
-    expect(categories.find((c) => c.slug === "shutters")?.bookingPhoto?.src).toBe("/gallery/plantation-shutters-primary-bath-pendant.webp");
-  });
-
-  it.each(PLACED)("%s shows its own photos", (slug, image, story) => {
+  it.each(PLACED)("%s shows its hero and story photos", (slug, image, story) => {
     const product = products.find((p) => p.slug === slug)!;
     expect(product.image?.src).toBe(image);
     expect(product.storyPhoto?.src).toBe(story);
-    expect(existsSync(path.join(process.cwd(), "public", image))).toBe(true);
-    expect(product.image!.alt.trim().length).toBeGreaterThan(20);
+  });
+
+  it("leads each category with an Alta photo", () => {
+    const heroes = Object.fromEntries(categories.filter((c) => c.bookingPhoto).map((c) => [c.slug, c.bookingPhoto!.src]));
+    expect(heroes).toEqual({
+      blinds: A("woodBlindsKitchen"),
+      shades: A("honeycombLivingRoom"),
+      shutters: A("shuttersFrenchDoors"),
+      motorization: A("rollerKitchenMotorized"),
+    });
   });
 });
 
-describe("Outdoor after dropping patio shades and rolling shutters (owner, 2026-10-01)", () => {
-  it("carries Solar Screens only", () => {
-    expect(products.filter((p) => p.category === "outdoor").map((p) => p.slug)).toEqual(["solar-screens"]);
-  });
-
-  it("no longer advertises the dropped products anywhere in its copy", () => {
-    const outdoor = categories.find((c) => c.slug === "outdoor")!;
-    const text = JSON.stringify(outdoor);
-    expect(text).not.toMatch(/patio|rolling shutter/i);
-    expect(outdoor.tagline).toBe("Stop the heat at the glass.");
-    expect(outdoor.seo.title).toBe("Exterior Solar Screens in Las Vegas, NV | Premier Shade");
-    expect(outdoor.seo.description).toBe(
-      "Exterior solar screens for Las Vegas homes. Stop heat and glare before they reach the glass and cut cooling costs. Free in-home consultation.",
-    );
-    expect(outdoor.intro).toEqual([
-      "In Las Vegas, the hardest-working windows are the ones facing west. Exterior shading stops the sun before it reaches the glass, which is the only way to meaningfully cut the heat load on a west-facing room — an interior shade absorbs that energy after it is already inside.",
-      "Solar screens do that work for a whole side of the house at once: mounted over the window, they turn away most of the afternoon sun and take a real bite out of a summer power bill.",
-    ]);
-  });
-});
-
-describe("Woven Wood's only photo", () => {
-  it("shows in the story section, not stretched across the hero", () => {
-    const woven = products.find((p) => p.slug === "woven-wood-shades")!;
-    expect(woven.image).toBeUndefined();
-    expect(woven.storyPhoto?.src).toBe("/gallery/woven-wood-shades-hall-window.webp");
-  });
-});

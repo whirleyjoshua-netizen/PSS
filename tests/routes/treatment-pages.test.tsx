@@ -6,6 +6,7 @@ import CityPage from "@/app/(site)/service-area/[city]/page";
 import ReviewsPage from "@/app/(site)/reviews/page";
 import { categories, products } from "@/content/products";
 import { consultationPhoto } from "@/content/gallery";
+import { altaPhotos } from "@/content/stock-photos";
 import { FEATURED_REVIEW } from "@/components/booking/FeaturedReview";
 
 const category = (slug: string) => categories.find((c) => c.slug === slug)!;
@@ -29,7 +30,7 @@ describe("category page redesign", () => {
     const roller = screen.getByRole("link", { name: /Roller Shades/ });
     expect(roller).toHaveAttribute("href", "/shades/roller-shades");
     expect(roller.querySelector("img")).not.toBeNull();
-    expect(screen.getByRole("link", { name: /Woven Wood Shades/ }).querySelector("img")).toBeNull();
+    expect(screen.getByRole("link", { name: /Woven Wood Shades/ }).querySelector("img")).not.toBeNull();
 
     expect(screen.getByText(/In our clients/)).toBeInTheDocument();
     expect(screen.getAllByText(new RegExp(FEATURED_REVIEW!.quote.slice(0, 30)))).toHaveLength(1);
@@ -41,18 +42,18 @@ describe("category page redesign", () => {
 
   it("Motorization: its own photos in the hero and the story, no Explore grid", async () => {
     const { container } = await renderCategory("motorization");
-    expect(srcs(container.querySelector("section#book")!)[0]).toContain("/gallery/cellular-shades-great-room-motorized.webp");
+    expect(srcs(container.querySelector("section#book")!)[0]).toContain(altaPhotos.rollerKitchenMotorized.src);
     expect(screen.queryByRole("heading", { level: 2, name: /Explore/ })).toBeNull();
     const story = screen.getByRole("heading", { level: 2, name: category("motorization").story.heading }).closest("section")!;
-    expect(srcs(story)).toEqual([expect.stringContaining("/gallery/cellular-shades-nook-motorized.webp")]);
+    expect(srcs(story)).toEqual([expect.stringContaining(altaPhotos.honeycombSkylights.src)]);
   });
 
   it("Blinds: both product cards show their own photo, none repeated from above", async () => {
     const { container } = await renderCategory("blinds");
     const cards = screen.getByRole("heading", { level: 2, name: "Explore Blinds" }).closest("section")!;
     expect(srcs(cards)).toEqual([
-      expect.stringContaining("/gallery/vertical-blinds-patio-door-valance.webp"),
-      expect.stringContaining("/gallery/faux-wood-blinds-front-window.webp"),
+      expect.stringContaining(altaPhotos.verticalDiningRoom.src),
+      expect.stringContaining(altaPhotos.woodBlindsCornice.src),
     ]);
     const all = srcs(container);
     expect(new Set(all).size).toBe(all.length);

@@ -3,12 +3,13 @@ import { HeroForm } from "@/components/forms/HeroForm";
 import { Container } from "@/components/ui/Container";
 import { business } from "@/content/business";
 import { FAMILY_LINE } from "@/components/booking/PromiseRow";
+import { altaPhotos } from "@/content/stock-photos";
 
 export function Hero() {
   return (
     <section className="relative overflow-hidden bg-charcoal text-ivory">
       <Image
-        src="/gallery/timber-great-room-hero-wide.webp"
+        src={altaPhotos.sheerShadingsLivingRoom.src}
         alt=""
         fill
         priority

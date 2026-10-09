@@ -1,4 +1,5 @@
 import type { CategorySlug, Photo } from "./products";
+import { altaPhotos } from "./stock-photos";
 
 export type GalleryItem = Photo & { treatment: CategorySlug; caption?: string };
 
@@ -211,15 +212,7 @@ export const gallery: GalleryItem[] = [
 /**
  * The stand-in wherever a page has no photo of its own: the hero of a
  * category or product we have no photo of, and the booking block on the
- * city pages and /reviews. The owners chose the woven roman dining room
- * (2026-10-01): it shows the work without much of a client's home. Keep it
- * a gallery photo, and never one with the children in it.
+ * city pages, /reviews and /consultation. Owner 2026-10-09: heroes use the
+ * Alta stock photos, so it is the sheer shadings dining room, not a gallery photo.
  */
-export const consultationPhoto: Photo = galleryPhoto("/gallery/roman-shades-woven-dining-room.webp");
-
-/** A gallery photo's src and reviewed alt text; throws at module load if the gallery lacks it. */
-function galleryPhoto(src: string): Photo {
-  const entry = gallery.find((item) => item.src === src);
-  if (!entry) throw new Error(`content/gallery: no gallery entry for ${src}`);
-  return { src: entry.src, alt: entry.alt };
-}
+export const consultationPhoto: Photo = altaPhotos.sheerShadingsDiningRoom;
