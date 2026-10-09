@@ -59,11 +59,13 @@ export default defineConfig({
       ? {
           POSTGRES_URL: process.env.E2E_POSTGRES_URL,
           // Each spec signs in as its own owner so their cleanups can't collide
-          ADMIN_EMAILS: "e2e-owner@example.com,e2e-mobile@example.com,e2e-portal-owner@example.com,e2e-call-owner@example.com,e2e-followup-owner@example.com,e2e-questionnaire-owner@example.com,e2e-stages-owner@example.com,e2e-team-owner@example.com,e2e-appt-owner@example.com,e2e-install@example.com,e2e-routes-owner@example.com,e2e-access-owner@example.com,e2e-dc-owner@example.com,e2e-docs-owner@example.com,e2e-tasks-owner@example.com,e2e-tasks-mate@example.com",
+          ADMIN_EMAILS: "e2e-owner@example.com,e2e-mobile@example.com,e2e-portal-owner@example.com,e2e-call-owner@example.com,e2e-followup-owner@example.com,e2e-questionnaire-owner@example.com,e2e-stages-owner@example.com,e2e-team-owner@example.com,e2e-appt-owner@example.com,e2e-install@example.com,e2e-routes-owner@example.com,e2e-access-owner@example.com,e2e-dc-owner@example.com,e2e-docs-owner@example.com,e2e-tasks-owner@example.com,e2e-tasks-mate@example.com,e2e-agents-owner@example.com",
           ADMIN_BASE_URL: baseURL,
           // The e2e run posts real leads to the consultation API; this must
           // never send real email through Resend.
           RESEND_API_KEY: "",
+          // Outlook (Graph) is off in e2e, so no agent email can be sent and the calendar never calls Microsoft.
+          MS_TENANT_ID: "",
           BLOB_READ_WRITE_TOKEN: process.env.E2E_BLOB_READ_WRITE_TOKEN ?? "",
           // Route planning goes to the local stub that routes.spec.ts starts, never to Google.
           ROUTE_OPTIMIZATION_URL: "http://127.0.0.1:3199/optimize",
