@@ -52,8 +52,9 @@ function retryDelay(header: string | null): number {
   return Math.min(wait, RETRY_CAP_MS);
 }
 
-/** One Graph request. Retries once on 429/503, honoring Retry-After. Callers check the status. */
-export async function graphFetch(path: string, init: { method?: string; body?: unknown } = {}): Promise<Response> {
+/** One Graph request. Retries once on 429/503, honoring Retry-After, unless `retry: false` (a request that must
+ * never run twice, such as sendMail). Callers check the status. */
+export async function graphFetch(path: string, init: { method?: string; body?: unknown; retry?: boolean } = {}): Promise<Response> {
   const url = path.startsWith("https://") ? path : GRAPH + path.replace(/^\/+/, "");
   const send = async () =>
     fetch(url, {
@@ -67,7 +68,7 @@ export async function graphFetch(path: string, init: { method?: string; body?: u
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
   const first = await send();
-  if (first.status !== 429 && first.status !== 503) return first;
+  if (init.retry === false || (first.status !== 429 && first.status !== 503)) return first;
   const wait = retryDelay(first.headers.get("Retry-After"));
   await new Promise((resolve) => setTimeout(resolve, wait));
   return send();

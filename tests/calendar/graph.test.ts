@@ -118,6 +118,17 @@ describe("graphFetch", () => {
     vi.useRealTimers();
   });
 
+  it("never retries a request sent with retry: false, and still retries by default", async () => {
+    fetchMock.mockResolvedValueOnce(token())
+      .mockResolvedValueOnce(new Response(null, { status: 503, headers: { "Retry-After": "0" } }));
+    expect((await graph.graphFetch("users/x/sendMail", { method: "POST", body: {}, retry: false })).status).toBe(503);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 503, headers: { "Retry-After": "0" } }))
+      .mockResolvedValueOnce(Response.json({}));
+    expect((await graph.graphFetch("me")).status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+  });
+
   it("graphJson throws GraphError with the status on failure", async () => {
     fetchMock.mockResolvedValueOnce(token()).mockResolvedValueOnce(new Response("nope", { status: 404 }));
     await expect(graph.graphJson("x")).rejects.toMatchObject({ name: "GraphError", status: 404 });
