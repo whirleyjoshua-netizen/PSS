@@ -11,7 +11,10 @@
  *   3. raw writes THROW each check: slug, send cap, report status, report type, email fields,
  *      external id, report body size, suppression address case, and the unique (agent, external_id) index.
  *   4. runs lib/agents/store.ts on that database: upsert/lock, owner edits survive a push, a concurrent claim has one
- *      winner, pull-once for items and replies, the 2-minute poll claim, suppressions, cards and digest facts.
+ *      winner, pull-once for items and replies, the 2-minute poll claim (forced, and handed back), suppressions, cards
+ *      and digest facts; and the send records: a retry learns its earlier attempt, a failed email can be declined,
+ *      a send recorded without Sent Items ids gets them later, an email stuck mid-send shows in Needs you, and
+ *      migration 044's indexes (agent_replies.item_id indexed, the unused conversation index dropped).
  *   5. runs lib/agents/stats.ts businessCounts (7 and 28 days), read-only: the nine keys, numbers only.
  * It deletes its rows (agents named verify-*, cascading to their items and replies, and the a@b.co suppression),
  * and restores agent_settings.last_reply_poll_at, so repeated runs leave nothing behind.
@@ -99,7 +102,8 @@ test("agents: store SQL on a real database", async () => {
   const claims = await Promise.all([store.claimForSend(id, "a@x.co"), store.claimForSend(id, "b@x.co")]);
   const won = claims.filter((c) => c !== null);
   check(won.length === 1, "claimForSend twice at once: exactly one wins", `${won.length} won`);
-  check(won[0]?.finalTo === "x@y.co" && won[0]?.finalBody === "Owner body", "the claim keeps the owner's edits", JSON.stringify(won[0]));
+  check(won[0]?.item.finalTo === "x@y.co" && won[0]?.item.finalBody === "Owner body", "the claim keeps the owner's edits", JSON.stringify(won[0]));
+  check(won[0]?.earlierAttemptAt === null, "a first claim reports no earlier attempt", JSON.stringify(won[0]?.earlierAttemptAt));
   await store.markSent(id, { sentBody: "Owner body + footer", graphMessageId: "g-1", conversationId: `conv-${SLUG}`, internetMessageId: `<sent-${SLUG}@test>` });
   check((await store.upsertItem(SLUG, email)) === "locked", "upsertItem on a sent email is locked", "");
   check((await store.sentTodayCount(SLUG, lasVegasDate(new Date()))) === 1, "sentTodayCount counts it on today's Las Vegas date", "");
@@ -126,8 +130,17 @@ test("agents: store SQL on a real database", async () => {
 
   savedPoll = (await sql`select last_reply_poll_at::text as v from agent_settings`)[0].v;
   await sql`update agent_settings set last_reply_poll_at = null`;
-  check(await store.claimReplyPoll(), "claimReplyPoll claims when nobody has", "");
-  check(!(await store.claimReplyPoll()), "claimReplyPoll refuses inside 2 minutes", "");
+  const firstPoll = await store.claimReplyPoll();
+  check(firstPoll !== null && firstPoll.previous === null, "claimReplyPoll claims when nobody has, with no previous poll", JSON.stringify(firstPoll));
+  check((await store.claimReplyPoll()) === null, "claimReplyPoll refuses inside 2 minutes", "");
+  const forced = await store.claimReplyPoll(true);
+  check(forced !== null && forced.previous?.getTime() === new Date(firstPoll!.claimedAt).getTime(), "a forced claim takes it anyway and answers the previous poll time", JSON.stringify({ forced, firstPoll }));
+  await store.releaseReplyPoll(firstPoll!.claimedAt, new Date("2026-01-01T00:00:00Z"));
+  const [{ v: notReleased }] = await sql`select last_reply_poll_at::text as v from agent_settings`;
+  check(notReleased === forced!.claimedAt, "releaseReplyPoll leaves a newer claim alone", String(notReleased));
+  await store.releaseReplyPoll(forced!.claimedAt, forced!.previous);
+  const [{ v: released }] = await sql`select last_reply_poll_at::text as v from agent_settings`;
+  check(new Date(released).getTime() === new Date(firstPoll!.claimedAt).getTime(), "releaseReplyPoll hands the window back to the previous poll time", String(released));
 
   await store.addSuppression(" A@B.co ", "test", "owner");
   check(await store.isSuppressed("a@b.co"), "addSuppression normalizes and isSuppressed finds it", "");
@@ -137,6 +150,62 @@ test("agents: store SQL on a real database", async () => {
   check(typeof (await store.needsYouCount()) === "number", "needsYouCount runs", "");
   await store.getAgentSettings();
   check((await store.listItems(SLUG)).length === 3 && (await store.listItems(SLUG, "daily")).length === 0, "listItems filters by report type", "");
+});
+test("agents: send records on a real database", async () => {
+  const store = await import("@/lib/agents/store");
+  const push = (external_id: string) => store.upsertItem(SLUG, { kind: "email", external_id, title: "t", email_to: "pat@example.com", email_subject: "s", email_body: "b" });
+  const idOf = async (external_id: string) => (await sql`select id from agent_items where agent_slug = ${SLUG} and external_id = ${external_id}`)[0].id as string;
+
+  // A send that fails, then a retry: the retry learns when the failed attempt was claimed.
+  await push("mail-2");
+  const m2 = await idOf("mail-2");
+  const first = await store.claimForSend(m2, "o@x.co");
+  await store.setSendingBody(m2, "b + footer");
+  await store.markFailed(m2, "Microsoft didn't answer");
+  const failed = await store.getItem(m2);
+  check(failed?.status === "failed" && failed.sentBody === "b + footer", "setSendingBody stores the text before the send, and markFailed fails the claimed row", JSON.stringify(failed));
+  const retry = await store.claimForSend(m2, "o@x.co");
+  check(retry !== null && retry.earlierAttemptAt?.getTime() === first?.item.decidedAt?.getTime(), "claiming a failed email answers when its last attempt was claimed", JSON.stringify({ retry: retry?.earlierAttemptAt, first: first?.item.decidedAt }));
+  await store.markFailed(m2, "again");
+  const retries = await Promise.all([store.claimForSend(m2, "a@x.co"), store.claimForSend(m2, "b@x.co")]);
+  check(retries.filter((c) => c !== null).length === 1, "a failed email claimed twice at once: exactly one wins", JSON.stringify(retries.map((c) => c !== null)));
+  await store.markFailed(m2, "again");
+  check(await store.decideItem(m2, { status: "declined", note: "never mind", by: "o@x.co" }), "decideItem declines a failed email", "");
+  check((await store.getItem(m2))?.status === "declined", "the failed email is now declined", "");
+  await push("mail-2b");
+  const m2b = await idOf("mail-2b");
+  await store.claimForSend(m2b, "o@x.co");
+  await store.markFailed(m2b, "x");
+  check(!(await store.decideItem(m2b, { status: "approved", note: null, by: "o@x.co" })), "decideItem never approves a failed email", "");
+
+  // Sent, but Sent Items didn't show the copy yet: the ids are filled in later.
+  await push("mail-3");
+  const m3 = await idOf("mail-3");
+  await store.claimForSend(m3, "o@x.co");
+  await store.setSendingBody(m3, "kept body");
+  await store.markSent(m3, { sentBody: null, graphMessageId: null, conversationId: null, internetMessageId: null });
+  const sentNoIds = await store.getItem(m3);
+  check(sentNoIds?.status === "sent" && sentNoIds.sentBody === "kept body" && sentNoIds.conversationId === null, "markSent with no ids is sent, and keeps the stored body", JSON.stringify(sentNoIds));
+  check((await store.sentWithoutIds(60)).some((r) => r.id === m3), "sentWithoutIds lists it", "");
+  await store.markFailed(m3, "late");
+  check((await store.getItem(m3))?.status === "sent", "markFailed never touches a sent email", "");
+  await store.setSentIds(m3, { graphMessageId: "g-3", conversationId: `conv3-${SLUG}`, internetMessageId: `<m3-${SLUG}@test>` });
+  check((await store.getItem(m3))?.conversationId === `conv3-${SLUG}` && !(await store.sentWithoutIds(60)).some((r) => r.id === m3), "setSentIds fills them in, and it leaves the list", "");
+
+  // Claimed long ago and never recorded: status unknown.
+  await push("mail-4");
+  const m4 = await idOf("mail-4");
+  await store.claimForSend(m4, "o@x.co");
+  check(!(await store.listNeedsYou()).some((i) => i.id === m4), "a send in progress is not in Needs you", "");
+  await sql`update agent_items set updated_at = now() - interval '20 minutes' where id = ${m4}`;
+  check((await store.listNeedsYou()).some((i) => i.id === m4 && i.status === "approved"), "an email stuck in approved over 5 minutes is in Needs you", "");
+  const pending = (await store.listAgentCards()).find((c) => c.slug === SLUG)?.pending;
+  check(pending === 3, "listAgentCards counts it (with d1, pending, and mail-2b, failed)", JSON.stringify(pending));
+  check((await store.stuckApproved(15)).some((r) => r.id === m4), "stuckApproved(15) lists it", "");
+  check(typeof (await store.needsYouCount()) === "number" && (await store.digestFacts(null)).pending >= 2, "needsYouCount and digestFacts run with the stuck condition", "");
+
+  const indexes = (await sql`select indexname from pg_indexes where tablename in ('agent_items', 'agent_replies')`).map((r) => r.indexname as string);
+  check(indexes.includes("agent_replies_item_id_idx") && !indexes.includes("agent_items_conversation_idx"), "migration 044: agent_replies has its item_id index, and the unused conversation index is gone", JSON.stringify(indexes));
 });
 test("agents: business counts on a real database", async () => {
   const { businessCounts } = await import("@/lib/agents/stats");

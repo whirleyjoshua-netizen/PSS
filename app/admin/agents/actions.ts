@@ -6,7 +6,7 @@ import { requireAdmin } from "@/lib/admin/session";
 import { isUuid } from "@/lib/admin/ids";
 import { calendarEnabled } from "@/lib/calendar/config";
 import { lasVegasDate } from "@/lib/admin/time";
-import { composeEmailBody, defaultSignature, emailEditSchema, sendBlocker } from "@/lib/agents/rules";
+import { composeEmailBody, defaultSignature, emailEditSchema, emailFooter, sameText, sendBlocker } from "@/lib/agents/rules";
 import {
   claimForSend, decideItem, getAgent, getAgentSettings, getItem, isSuppressed, markFailed, saveEmailEdits, sentTodayCount,
 } from "@/lib/agents/store";
@@ -43,6 +43,12 @@ export async function approveAndSend(id: string, _prev: CardState, form: FormDat
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const item = await getItem(id);
   if (!item || item.kind !== "email") return { error: "That email no longer exists." };
+  // A "no thanks" that arrived since the last poll must block this send. Claim-gated: at most once per 2 minutes.
+  try {
+    await pollReplies();
+  } catch (error) {
+    console.error("Agent reply poll before send failed", error);
+  }
   const [agent, settings, suppressed, sentToday] = await Promise.all([
     getAgent(item.agentSlug), getAgentSettings(), isSuppressed(parsed.data.to),
     sentTodayCount(item.agentSlug, lasVegasDate(new Date())),
@@ -52,9 +58,15 @@ export async function approveAndSend(id: string, _prev: CardState, form: FormDat
     sentToday, cap: agent?.dailySendCap ?? 0,
   });
   if (blocker) return { error: blocker };
+  // Send only the footer the owner saw: the signature or mailing address may have changed since the page loaded.
+  const footer = emailFooter(settings.signature ?? defaultSignature(), settings.mailingAddress ?? "");
+  if (!sameText(String(form.get("footer") ?? ""), footer)) {
+    return { error: "The signature or mailing address changed since this page loaded. Reload the page, check the footer, and approve again." };
+  }
   if (!(await saveEmailEdits(id, parsed.data))) return { error: "This email was already sent or decided." };
-  const claimed = await claimForSend(id, admin.email);
-  if (!claimed) return { error: "This email was already sent or decided." };
+  const claim = await claimForSend(id, admin.email);
+  if (!claim) return { error: "This email was already sent or decided." };
+  const claimed = claim.item;
   // Save and claim are two writes: another admin's edit can land between them. Never send text this owner didn't see.
   if (claimed.finalTo !== parsed.data.to || claimed.finalSubject !== parsed.data.subject || claimed.finalBody !== parsed.data.body) {
     const changed = "The email changed while you were approving it. Review it and approve again.";
@@ -63,10 +75,11 @@ export async function approveAndSend(id: string, _prev: CardState, form: FormDat
     return { error: changed };
   }
   const sentBody = composeEmailBody(claimed.finalBody ?? "", settings.signature ?? defaultSignature(), settings.mailingAddress ?? "");
-  const result = await sendApproved(claimed, sentBody);
+  const result = await sendApproved(claimed, sentBody, claim.earlierAttemptAt);
   refresh();
   // A failure here may be "sent, but saving that failed": shown unchanged so the owner doesn't send it again.
-  return result.ok ? { ok: "Sent." } : { error: result.error };
+  if (!result.ok) return { error: result.error };
+  return { ok: result.alreadySent ? "It was already in Sent Items, so it wasn't sent again. Marked sent." : "Sent." };
 }
 
 export async function declineItem(id: string, _prev: CardState, form: FormData): Promise<CardState> {

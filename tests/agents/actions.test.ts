@@ -17,7 +17,9 @@ const actions = await import("@/app/admin/agents/actions");
 const ID = "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c";
 const pending = { id: ID, kind: "email", status: "pending", agentSlug: "tobi", emailTo: "pat@example.com", emailSubject: "Hello", emailBody: "Hi", finalTo: null, finalSubject: null, finalBody: null };
 const form = (fields: Record<string, string>) => { const f = new FormData(); for (const [k, v] of Object.entries(fields)) f.set(k, v); return f; };
-const edited = form({ to: "pat@example.com", subject: "Hello there", body: "Hi Pat, edited" });
+// The footer the card showed, posted back as a hidden field (default signature + the saved mailing address).
+const FOOTER = `--\nPremier Shade Solutions\n(702) 859-8294\npremiershadesolutions.com\nPO Box 1, Las Vegas NV 89101\n\nIf you'd rather not hear from us, just reply "no thanks".`;
+const edited = form({ to: "pat@example.com", subject: "Hello there", body: "Hi Pat, edited", footer: FOOTER });
 
 beforeEach(() => {
   outlook = true;
@@ -30,8 +32,11 @@ beforeEach(() => {
   store.isSuppressed.mockResolvedValue(false);
   store.sentTodayCount.mockResolvedValue(0);
   store.saveEmailEdits.mockResolvedValue(true);
-  store.claimForSend.mockImplementation(async () => ({ ...pending, status: "approved", finalTo: "pat@example.com", finalSubject: "Hello there", finalBody: "Hi Pat, edited" }));
+  store.claimForSend.mockImplementation(async () => ({
+    item: { ...pending, status: "approved", finalTo: "pat@example.com", finalSubject: "Hello there", finalBody: "Hi Pat, edited" }, earlierAttemptAt: null,
+  }));
   mail.sendApproved.mockResolvedValue({ ok: true });
+  mail.pollReplies.mockResolvedValue({ stored: 0 });
 });
 
 describe("approveAndSend", () => {
@@ -48,6 +53,44 @@ describe("approveAndSend", () => {
     expect(sentBody.startsWith("Hi Pat, edited\n\n--\nPremier Shade Solutions")).toBe(true);
     expect(sentBody).toContain("PO Box 1, Las Vegas NV 89101");
     expect(sentBody.endsWith(`If you'd rather not hear from us, just reply "no thanks".`)).toBe(true);
+    expect(sentBody).toBe(`Hi Pat, edited\n\n${FOOTER}`);
+    expect(mail.sendApproved.mock.calls[0][2]).toBeNull();
+  });
+  it("passes a retry's earlier attempt time to the sender, which checks Sent Items first", async () => {
+    const earlier = new Date("2026-10-09T17:00:00Z");
+    store.claimForSend.mockResolvedValue({ item: { ...pending, status: "approved", finalTo: "pat@example.com", finalSubject: "Hello there", finalBody: "Hi Pat, edited" }, earlierAttemptAt: earlier });
+    mail.sendApproved.mockResolvedValue({ ok: true, alreadySent: true });
+    expect(await actions.approveAndSend(ID, {}, edited)).toEqual({ ok: "It was already in Sent Items, so it wasn't sent again. Marked sent." });
+    expect(mail.sendApproved.mock.calls[0][2]).toBe(earlier);
+  });
+  it("polls for replies first, so a \"no thanks\" that just arrived blocks the send", async () => {
+    let suppressed = false;
+    mail.pollReplies.mockImplementation(async () => { suppressed = true; return { stored: 1 }; });
+    store.isSuppressed.mockImplementation(async () => suppressed);
+    expect((await actions.approveAndSend(ID, {}, edited)).error).toContain("do-not-contact");
+    expect(mail.pollReplies).toHaveBeenCalledWith();
+    expect(mail.pollReplies.mock.invocationCallOrder[0]).toBeLessThan(store.isSuppressed.mock.invocationCallOrder[0]);
+    expect(store.claimForSend).not.toHaveBeenCalled();
+    expect(mail.sendApproved).not.toHaveBeenCalled();
+  });
+  it("still checks every blocker and sends when the reply poll fails", async () => {
+    const error = new Error("graph down");
+    mail.pollReplies.mockRejectedValue(error);
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(await actions.approveAndSend(ID, {}, edited)).toEqual({ ok: "Sent." });
+    expect(log).toHaveBeenCalledWith("Agent reply poll before send failed", error);
+    log.mockRestore();
+  });
+  it("refuses when the footer changed since the page loaded, and sends nothing", async () => {
+    store.getAgentSettings.mockResolvedValue({ mailingAddress: "2 New Rd, Henderson NV 89002", signature: null });
+    expect((await actions.approveAndSend(ID, {}, edited)).error).toMatch(/changed since this page loaded\. Reload the page/);
+    expect(store.saveEmailEdits).not.toHaveBeenCalled();
+    expect(store.claimForSend).not.toHaveBeenCalled();
+    expect(mail.sendApproved).not.toHaveBeenCalled();
+  });
+  it("accepts the shown footer posted with Windows line breaks", async () => {
+    const crlf = form({ to: "pat@example.com", subject: "Hello there", body: "Hi Pat, edited", footer: FOOTER.replace(/\n/g, "\r\n") });
+    expect(await actions.approveAndSend(ID, {}, crlf)).toEqual({ ok: "Sent." });
   });
   it("refuses without a mailing address, to a suppressed address, over the cap, or without Outlook, and sends nothing", async () => {
     const cases: [string, () => void][] = [
@@ -76,7 +119,7 @@ describe("approveAndSend", () => {
     expect(mail.sendApproved).not.toHaveBeenCalled();
   });
   it("never sends text the approving owner didn't see when another edit lands between save and claim", async () => {
-    store.claimForSend.mockResolvedValue({ ...pending, status: "approved", finalTo: "pat@example.com", finalSubject: "Hello there", finalBody: "someone else's edit" });
+    store.claimForSend.mockResolvedValue({ item: { ...pending, status: "approved", finalTo: "pat@example.com", finalSubject: "Hello there", finalBody: "someone else's edit" }, earlierAttemptAt: null });
     expect((await actions.approveAndSend(ID, {}, edited)).error).toContain("changed while you were approving");
     expect(mail.sendApproved).not.toHaveBeenCalled();
     expect(store.markFailed).toHaveBeenCalledWith(ID, "The email changed while you were approving it. Review it and approve again.");
@@ -130,6 +173,12 @@ describe("decisions", () => {
   });
   it("refuses an unknown choice", async () => {
     expect((await actions.decide(ID, {}, form({ choice: "maybe" }))).error).toBeTruthy();
+  });
+  it("declines an email whose send failed (decideItem accepts failed emails for decline)", async () => {
+    store.decideItem.mockResolvedValue(true);
+    store.getItem.mockResolvedValue({ ...pending, status: "failed" });
+    expect(await actions.declineItem(ID, {}, form({}))).toEqual({ ok: "Declined." });
+    expect(store.decideItem).toHaveBeenCalledWith(ID, { status: "declined", note: null, by: "owner@example.com" });
   });
   it("declines an email with a note", async () => {
     store.decideItem.mockResolvedValue(true);

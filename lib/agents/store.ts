@@ -73,10 +73,13 @@ export async function upsertItem(slug: string, item: PushItem): Promise<"created
   return rows[0].created ? "created" : "updated";
 }
 
+/** What needs the owner: pending or failed emails and decisions, and emails whose send started over 5 minutes ago and
+ * was never recorded ("status unknown"). The same condition is written out in needsYouCount, listAgentCards and
+ * digestFacts, which use tagged templates. */
+const NEEDS_YOU = `kind in ('email', 'decision') and (status in ('pending', 'failed')
+  or (kind = 'email' and status = 'approved' and updated_at < now() - interval '5 minutes'))`;
 export async function listNeedsYou(): Promise<AgentItem[]> {
-  const rows = await db().query(
-    `select ${ITEM_COLUMNS} from agent_items where kind in ('email', 'decision') and status in ('pending', 'failed') order by created_at`,
-  );
+  const rows = await db().query(`select ${ITEM_COLUMNS} from agent_items where ${NEEDS_YOU} order by created_at`);
   return rows.map(toItem);
 }
 export async function listItems(slug: string, reportType?: string): Promise<AgentItem[]> {
@@ -104,27 +107,63 @@ export async function decideItem(id: string, input: { status: "approved" | "decl
   const rows = await db()`
     update agent_items set status = ${input.status}, owner_note = ${input.note}, decided_by = ${input.by}, decided_at = now(),
       delivered_at = null, updated_at = now()
-    where id = ${id} and status = 'pending' and (kind = 'decision' or ${input.status} = 'declined') returning id`;
+    where id = ${id} and (kind = 'decision' or ${input.status} = 'declined')
+      and (status = 'pending' or (kind = 'email' and status = 'failed' and ${input.status} = 'declined')) returning id`;
   return rows.length > 0;
 }
-export async function claimForSend(id: string, by: string): Promise<AgentItem | null> {
+/** A claimed email, and when an earlier attempt to send it started (null for a first send). */
+export type Claim = { item: AgentItem; earlierAttemptAt: Date | null };
+/** One statement: the row lock means two clicks can't both claim it. A failed row's decided_at is when its last attempt
+ * was claimed, which tells the sender how far back to look in Sent Items before trying again. */
+export async function claimForSend(id: string, by: string): Promise<Claim | null> {
   const rows = await db()`
-    update agent_items set status = 'approved', final_to = coalesce(final_to, email_to),
+    with prev as (
+      select id, status, decided_at, created_at from agent_items
+      where id = ${id} and kind = 'email' and status in ('pending', 'failed') for update
+    )
+    update agent_items i set status = 'approved', final_to = coalesce(final_to, email_to),
       final_subject = coalesce(final_subject, email_subject), final_body = coalesce(final_body, email_body),
       decided_by = ${by}, decided_at = now(), error = null, delivered_at = null, updated_at = now()
-    where id = ${id} and kind = 'email' and status in ('pending', 'failed')
-    returning *`;
-  return rows[0] ? toItem(rows[0]) : null;
+    from prev where i.id = prev.id
+    returning i.*, case when prev.status = 'failed' then coalesce(prev.decided_at, prev.created_at) end as earlier_attempt_at`;
+  return rows[0] ? { item: toItem(rows[0]), earlierAttemptAt: date(rows[0].earlier_attempt_at) } : null;
 }
-export async function markSent(id: string, sent: { sentBody: string; graphMessageId: string; conversationId: string; internetMessageId: string }): Promise<void> {
+/** What is about to go out, written before the send so a row stuck in 'approved' still shows it. */
+export async function setSendingBody(id: string, sentBody: string): Promise<void> {
+  await db()`update agent_items set sent_body = ${sentBody}, updated_at = now() where id = ${id} and status = 'approved'`;
+}
+export type SentIds = { graphMessageId: string | null; conversationId: string | null; internetMessageId: string | null };
+/** sentBody null keeps the body written by setSendingBody. The ids are null when Sent Items didn't show the copy yet. */
+export async function markSent(id: string, sent: { sentBody: string | null } & SentIds): Promise<void> {
   await db()`
-    update agent_items set status = 'sent', sent_body = ${sent.sentBody}, graph_message_id = ${sent.graphMessageId},
+    update agent_items set status = 'sent', sent_body = coalesce(${sent.sentBody}, sent_body), graph_message_id = ${sent.graphMessageId},
       conversation_id = ${sent.conversationId}, internet_message_id = ${sent.internetMessageId}, sent_at = now(),
       delivered_at = null, updated_at = now()
-    where id = ${id}`;
+    where id = ${id} and status = 'approved'`;
 }
 export async function markFailed(id: string, error: string): Promise<void> {
-  await db()`update agent_items set status = 'failed', error = ${error.slice(0, 500)}, delivered_at = null, updated_at = now() where id = ${id}`;
+  await db()`update agent_items set status = 'failed', error = ${error.slice(0, 500)}, delivered_at = null, updated_at = now() where id = ${id} and status = 'approved'`;
+}
+/** Fills in the Sent Items ids of a sent email recorded without them. */
+export async function setSentIds(id: string, ids: SentIds): Promise<void> {
+  await db()`
+    update agent_items set graph_message_id = ${ids.graphMessageId}, conversation_id = ${ids.conversationId},
+      internet_message_id = ${ids.internetMessageId}, updated_at = now()
+    where id = ${id} and status = 'sent' and conversation_id is null`;
+}
+/** Sent emails whose Sent Items copy hasn't been found yet (so replies can't be matched to them). */
+export async function sentWithoutIds(days: number): Promise<{ id: string; sentAt: Date }[]> {
+  const rows = await db()`
+    select id, sent_at from agent_items
+    where kind = 'email' and status = 'sent' and conversation_id is null and sent_at > now() - make_interval(days => ${days})`;
+  return rows.map((r) => ({ id: r.id as string, sentAt: new Date(r.sent_at as string) }));
+}
+/** Emails claimed for sending more than `minutes` ago and never recorded as sent or failed. */
+export async function stuckApproved(minutes: number): Promise<{ id: string; claimedAt: Date }[]> {
+  const rows = await db()`
+    select id, coalesce(decided_at, updated_at) as claimed_at from agent_items
+    where kind = 'email' and status = 'approved' and updated_at < now() - make_interval(mins => ${minutes})`;
+  return rows.map((r) => ({ id: r.id as string, claimedAt: new Date(r.claimed_at as string) }));
 }
 export async function sentTodayCount(slug: string, laDate: string): Promise<number> {
   const [row] = await db()`
@@ -210,19 +249,29 @@ export async function saveAgentSettings(input: { mailingAddress: string; signatu
     update agent_settings set mailing_address = ${input.mailingAddress || null}, signature = ${input.signature || null},
       updated_by = ${input.by}, updated_at = now() where id`;
 }
-export async function claimReplyPoll(): Promise<boolean> {
+/** Takes the reply poll: at most once per 2 minutes unless forced. Answers when the previous poll was (the inbox is
+ * read from just before then) and the exact claim time, so a failed poll can hand its window back. */
+export async function claimReplyPoll(force = false): Promise<{ claimedAt: string; previous: Date | null } | null> {
   const rows = await db()`
-    update agent_settings set last_reply_poll_at = now()
-    where id and (last_reply_poll_at is null or last_reply_poll_at < now() - interval '2 minutes') returning id`;
-  return rows.length > 0;
+    update agent_settings s set last_reply_poll_at = now()
+    from (select last_reply_poll_at as previous from agent_settings where id for update) p
+    where s.id and (${force}::boolean or p.previous is null or p.previous < now() - interval '2 minutes')
+    returning s.last_reply_poll_at::text as claimed_at, p.previous`;
+  return rows[0] ? { claimedAt: rows[0].claimed_at as string, previous: date(rows[0].previous) } : null;
+}
+/** Moves the poll mark back (to `mark`) unless another poll has claimed since. */
+export async function releaseReplyPoll(claimedAt: string, mark: Date | null): Promise<void> {
+  await db()`
+    update agent_settings set last_reply_poll_at = ${mark ? mark.toISOString() : null}::timestamptz
+    where id and last_reply_poll_at = ${claimedAt}::timestamptz`;
 }
 export async function setDigestAt(at: Date): Promise<void> {
   await db()`update agent_settings set last_digest_at = ${at.toISOString()} where id`;
 }
 export async function needsYouCount(): Promise<number> {
-  const [r] = await db()`
-    select (select count(*) from agent_items where kind in ('email', 'decision') and status in ('pending', 'failed'))
-         + (select count(*) from agent_replies where seen_at is null) as n`;
+  const [r] = await db().query(
+    `select (select count(*) from agent_items where ${NEEDS_YOU}) + (select count(*) from agent_replies where seen_at is null) as n`,
+  );
   return Number(r?.n ?? 0);
 }
 
@@ -231,16 +280,16 @@ export type AgentCard = Agent & {
   newestReport: { id: string; title: string; summary: string | null; status: ItemStatus; createdAt: Date } | null;
 };
 export async function listAgentCards(): Promise<AgentCard[]> {
-  const rows = await db()`
+  const rows = await db().query(`
     select a.*,
-      (select count(*)::int from agent_items i where i.agent_slug = a.slug and i.kind in ('email', 'decision') and i.status in ('pending', 'failed')) as pending,
+      (select count(*)::int from agent_items i where i.agent_slug = a.slug and ${NEEDS_YOU}) as pending,
       (select count(*)::int from agent_items i where i.agent_slug = a.slug and i.kind = 'report' and i.status = 'unread') as unread_reports,
       r.id as report_id, r.title as report_title, r.summary as report_summary, r.status as report_status, r.created_at as report_created_at
     from agents a
     left join lateral (
       select id, title, summary, status, created_at from agent_items where agent_slug = a.slug and kind = 'report' order by created_at desc limit 1
     ) r on true
-    order by a.name`;
+    order by a.name`);
   return rows.map((row) => ({
     ...toAgent(row), pending: Number(row.pending), unreadReports: Number(row.unread_reports),
     newestReport: row.report_id
@@ -250,13 +299,16 @@ export async function listAgentCards(): Promise<AgentCard[]> {
   }));
 }
 
-export type DigestFacts = { newReports: { agentSlug: string; agentName: string; title: string }[]; pending: number; newReplies: number; failedRuns: { agentName: string; note: string | null }[] };
+export type DigestFacts = {
+  newReports: { agentSlug: string; agentName: string; title: string }[]; pending: number; newReplies: number;
+  failedRuns: { agentName: string; note: string | null }[];
+};
 export async function digestFacts(since: Date | null): Promise<DigestFacts> {
   const from = (since ?? new Date(0)).toISOString();
   const [reports, pending, replies, failed] = await Promise.all([
     db()`select i.agent_slug, a.name, i.title from agent_items i join agents a on a.slug = i.agent_slug
          where i.kind = 'report' and i.created_at > ${from} order by a.name, i.created_at`,
-    db()`select count(*)::int as n from agent_items where kind in ('email', 'decision') and status in ('pending', 'failed')`,
+    db().query(`select count(*)::int as n from agent_items where ${NEEDS_YOU}`),
     db()`select count(*)::int as n from agent_replies where created_at > ${from}`,
     db()`select name, last_run_note from agents where last_run_status = 'failed' and last_run_at > ${from}`,
   ]);

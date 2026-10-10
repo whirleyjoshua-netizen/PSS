@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { CONTROL, Label } from "@/components/forms/Field";
 import type { AgentItem } from "@/lib/agents/rules";
@@ -11,7 +11,13 @@ export function EmailCard({ item, agentName, footer }: { item: AgentItem; agentN
   const [sendState, send, sending] = useActionState<CardState, FormData>(approveAndSend.bind(null, item.id), {});
   const [editState, save, saving] = useActionState<CardState, FormData>(saveEdits.bind(null, item.id), {});
   const [declineState, decline, declining] = useActionState<CardState, FormData>(declineItem.bind(null, item.id), {});
-  const state = sendState.error || sendState.ok ? sendState : editState.error || editState.ok ? editState : declineState;
+  // Show the result of whichever button was pressed last, so a save that works clears an earlier send error.
+  const [last, setLast] = useState<"send" | "save" | "decline" | null>(null);
+  const pressed = (which: "send" | "save" | "decline", action: (form: FormData) => void) => (form: FormData) => {
+    setLast(which);
+    action(form);
+  };
+  const state = last === "send" ? sendState : last === "save" ? editState : last === "decline" ? declineState : {};
   const busy = sending || saving || declining;
   const id = (f: string) => `${item.id}-${f}`;
   const failed = item.status === "failed";
@@ -33,14 +39,16 @@ export function EmailCard({ item, agentName, footer }: { item: AgentItem; agentN
         <p className="whitespace-pre-wrap text-xs text-ink-soft" aria-label="Added to every email">
           {footer ?? "Add a mailing address in Settings → Agents before this can be sent."}
         </p>
+        {/* The send refuses unless this still matches the footer it would add. */}
+        <input type="hidden" name="footer" value={footer ?? ""} />
         <div className="flex flex-wrap gap-2">
-          <Button type="submit" formAction={send} disabled={busy}>
+          <Button type="submit" formAction={pressed("send", send)} disabled={busy}>
             {failed ? "Retry send" : "Approve & send"}
           </Button>
-          <Button type="submit" variant="outline" formAction={save} disabled={busy}>Save edits</Button>
+          <Button type="submit" variant="outline" formAction={pressed("save", save)} disabled={busy}>Save edits</Button>
         </div>
       </form>
-      <form action={decline} className="flex flex-wrap items-end gap-2">
+      <form action={pressed("decline", decline)} className="flex flex-wrap items-end gap-2">
         <div className="flex min-w-48 flex-1 flex-col gap-1">
           <Label htmlFor={id("note")}>Note to {agentName} (optional)</Label>
           <input id={id("note")} name="note" className={CONTROL} />

@@ -91,4 +91,25 @@ describe("item page", () => {
     expect(store.listRepliesForItem).toHaveBeenCalledWith(sentEmail.id);
     expect(store.markRead).not.toHaveBeenCalled();
   });
+
+  it("shows To, Subject and Body for an email in every status, not only sent", async () => {
+    const email = { ...sentEmail, status: "pending" as const, sentAt: null, sentBody: null, emailTo: "lee@acme.example", emailSubject: "Shades", emailBody: "Agent draft" };
+    const cases: [AgentItem, string, string, string][] = [
+      [email, "Proposed email", "lee@acme.example", "Agent draft"],
+      [{ ...email, status: "declined", finalTo: "kim@acme.example", finalBody: "Owner edit" }, "Declined email", "kim@acme.example", "Owner edit"],
+      [{ ...email, status: "failed", error: "Microsoft refused the email (400)", finalBody: "Owner edit" }, "Send failed", "lee@acme.example", "Owner edit"],
+      [{ ...email, status: "approved", finalTo: "lee@acme.example", finalBody: "Owner edit", sentBody: "Owner edit\n\n--\nPSS" },
+        "Status unknown: check Sent Items in Outlook", "lee@acme.example", "Owner edit\n\n--\nPSS"],
+    ];
+    for (const [item, heading, to, body] of cases) {
+      store.getItem.mockResolvedValue(item);
+      const { unmount } = await openItem("tara", item.id);
+      expect(screen.getByRole("heading", { level: 2, name: heading })).toBeInTheDocument();
+      expect(screen.getByText(to)).toBeInTheDocument();
+      expect(screen.getByText("Shades")).toBeInTheDocument();
+      expect(screen.getByLabelText("Body").textContent).toBe(body);
+      unmount();
+    }
+    expect(store.listRepliesForItem).not.toHaveBeenCalled();
+  });
 });

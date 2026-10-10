@@ -4,10 +4,37 @@ import { Markdown } from "@/components/admin/Markdown";
 import { requireAdmin } from "@/lib/admin/session";
 import { formatWhen } from "@/lib/admin/time";
 import { getAgent, getItem, listRepliesForItem, markRead } from "@/lib/agents/store";
+import type { AgentItem } from "@/lib/agents/rules";
 
 export const dynamic = "force-dynamic";
 
-/** One report, email or decision. Opening a report marks it read; a sent email shows the exact text sent and its replies. */
+const EMAIL_HEADING: Record<string, string> = {
+  pending: "Proposed email", approved: "Status unknown: check Sent Items in Outlook", failed: "Send failed", declined: "Declined email",
+};
+
+/** To, Subject and Body for every email status. Sent (or mid-send) shows the exact composed text, footer included. */
+function EmailText({ item }: { item: AgentItem }) {
+  const composed = item.status === "sent" || item.status === "approved";
+  const to = item.finalTo ?? item.emailTo;
+  const subject = item.finalSubject ?? item.emailSubject;
+  const body = composed ? (item.sentBody ?? item.finalBody) : (item.finalBody ?? item.emailBody);
+  return (
+    <section aria-labelledby="email-heading" className="flex flex-col gap-2">
+      <h2 id="email-heading" className="text-lg font-semibold">
+        {item.status === "sent" ? `Sent to ${item.finalTo}${item.sentAt ? ` · ${formatWhen(item.sentAt)}` : ""}` : EMAIL_HEADING[item.status] ?? "Email"}
+      </h2>
+      {item.status === "failed" && item.error && <p role="alert" className="text-sm text-red-700">{item.error}</p>}
+      <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
+        <dt className="text-ink-soft">To</dt><dd>{to}</dd>
+        <dt className="text-ink-soft">Subject</dt><dd className="font-medium">{subject}</dd>
+      </dl>
+      <pre aria-label="Body" className="whitespace-pre-wrap border border-rule bg-ivory p-4 font-sans text-sm">{body}</pre>
+    </section>
+  );
+}
+
+/** One report, email or decision. Opening a report marks it read. An email shows its To, Subject and Body in every
+ * status, and a sent email shows the exact text sent and its replies. */
 export default async function AgentItemPage({ params }: { params: Promise<{ slug: string; itemId: string }> }) {
   await requireAdmin();
   const { slug, itemId } = await params;
@@ -31,15 +58,7 @@ export default async function AgentItemPage({ params }: { params: Promise<{ slug
 
       {item.bodyMd && <Markdown source={item.bodyMd} />}
 
-      {sent && (
-        <section aria-labelledby="sent-heading" className="flex flex-col gap-2">
-          <h2 id="sent-heading" className="text-lg font-semibold">
-            Sent to {item.finalTo}{item.sentAt ? ` · ${formatWhen(item.sentAt)}` : ""}
-          </h2>
-          {item.finalSubject && <p className="text-sm font-medium">{item.finalSubject}</p>}
-          <pre className="whitespace-pre-wrap border border-rule bg-ivory p-4 font-sans text-sm">{item.sentBody}</pre>
-        </section>
-      )}
+      {item.kind === "email" && <EmailText item={item} />}
 
       {sent && (
         <section aria-labelledby="item-replies-heading" className="flex flex-col gap-2">

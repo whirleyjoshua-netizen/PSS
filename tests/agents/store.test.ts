@@ -42,16 +42,48 @@ describe("upsertItem", () => {
 
 describe("claimForSend", () => {
   it("claims only a pending or failed email, in one statement, keeping owner edits", async () => {
-    sql.mockResolvedValue([itemRow]);
-    expect(await store.claimForSend(ID, "owner@example.com")).toMatchObject({ id: ID, kind: "email" });
+    sql.mockResolvedValue([{ ...itemRow, earlier_attempt_at: null }]);
+    expect(await store.claimForSend(ID, "owner@example.com")).toMatchObject({ item: { id: ID, kind: "email" }, earlierAttemptAt: null });
     const q = text(sql.mock.calls[0]);
     expect(q).toContain("status = 'approved'");
     expect(q).toContain("final_to = coalesce(final_to, email_to)");
-    expect(q).toContain("where id = ? and kind = 'email' and status in ('pending', 'failed')");
+    expect(q).toContain("where id = ? and kind = 'email' and status in ('pending', 'failed') for update");
+    expect(sql).toHaveBeenCalledTimes(1);
+  });
+  it("tells the sender when a failed email's last attempt was claimed, so a retry checks Sent Items first", async () => {
+    sql.mockResolvedValue([{ ...itemRow, status: "approved", earlier_attempt_at: "2026-10-09T17:00:00Z" }]);
+    expect((await store.claimForSend(ID, "o@x.co"))?.earlierAttemptAt).toEqual(new Date("2026-10-09T17:00:00Z"));
+    expect(text(sql.mock.calls[0])).toContain("case when prev.status = 'failed' then coalesce(prev.decided_at, prev.created_at) end as earlier_attempt_at");
   });
   it("answers null when someone else got there first", async () => {
     sql.mockResolvedValue([]);
     expect(await store.claimForSend(ID, "owner@example.com")).toBeNull();
+  });
+});
+
+describe("recording a send", () => {
+  it("markSent and markFailed only move an email that is still claimed ('approved')", async () => {
+    await store.markSent(ID, { sentBody: null, graphMessageId: null, conversationId: null, internetMessageId: null });
+    await store.markFailed(ID, "boom");
+    for (const call of sql.mock.calls) expect(text(call)).toMatch(/where id = \? and status = 'approved'$/);
+    expect(text(sql.mock.calls[0])).toContain("sent_body = coalesce(?, sent_body)");
+  });
+  it("setSendingBody writes the composed text on the claimed row before the send", async () => {
+    await store.setSendingBody(ID, "Hi\n\n--\nPSS");
+    expect(text(sql.mock.calls[0])).toContain("set sent_body = ?, updated_at = now() where id = ? and status = 'approved'");
+    expect(values(sql.mock.calls[0])).toEqual(["Hi\n\n--\nPSS", ID]);
+  });
+  it("setSentIds fills in only a sent row still missing its conversation id", async () => {
+    await store.setSentIds(ID, { graphMessageId: "g", conversationId: "c", internetMessageId: "m" });
+    expect(text(sql.mock.calls[0])).toContain("where id = ? and status = 'sent' and conversation_id is null");
+  });
+  it("sentWithoutIds and stuckApproved find what the reply poll settles from Sent Items", async () => {
+    sql.mockResolvedValueOnce([{ id: ID, sent_at: "2026-10-09T17:00:00Z" }]).mockResolvedValueOnce([{ id: ID, claimed_at: "2026-10-09T16:00:00Z" }]);
+    expect(await store.sentWithoutIds(60)).toEqual([{ id: ID, sentAt: new Date("2026-10-09T17:00:00Z") }]);
+    expect(await store.stuckApproved(15)).toEqual([{ id: ID, claimedAt: new Date("2026-10-09T16:00:00Z") }]);
+    expect(text(sql.mock.calls[0])).toContain("status = 'sent' and conversation_id is null and sent_at > now() - make_interval(days => ?)");
+    expect(text(sql.mock.calls[1])).toContain("status = 'approved' and updated_at < now() - make_interval(mins => ?)");
+    expect(values(sql.mock.calls[1])).toEqual([15]);
   });
 });
 
@@ -76,7 +108,14 @@ describe("decisions reset delivery so the agent hears about them", () => {
     await store.markSent(ID, { sentBody: "b", graphMessageId: "g", conversationId: "c", internetMessageId: "m" });
     await store.markFailed(ID, "boom");
     for (const call of sql.mock.calls) expect(text(call)).toContain("delivered_at = null");
-    expect(text(sql.mock.calls[0])).toContain("where id = ? and status = 'pending'");
+  });
+  it("decideItem decides a pending item, and can also decline (only decline) an email whose send failed", async () => {
+    sql.mockResolvedValue([{ id: ID }]);
+    expect(await store.decideItem(ID, { status: "declined", note: null, by: "o@x.co" })).toBe(true);
+    expect(text(sql.mock.calls[0])).toContain(
+      "where id = ? and (kind = 'decision' or ? = 'declined') and (status = 'pending' or (kind = 'email' and status = 'failed' and ? = 'declined'))",
+    );
+    expect(values(sql.mock.calls[0]).slice(-3)).toEqual([ID, "declined", "declined"]);
   });
 });
 
@@ -89,12 +128,20 @@ describe("sentTodayCount", () => {
 });
 
 describe("claimReplyPoll", () => {
-  it("is one conditional update with a 2-minute window", async () => {
-    sql.mockResolvedValue([{ id: true }]);
-    expect(await store.claimReplyPoll()).toBe(true);
-    expect(text(sql.mock.calls[0])).toContain("last_reply_poll_at < now() - interval '2 minutes'");
+  it("is one conditional update with a 2-minute window, answering the previous poll time", async () => {
+    sql.mockResolvedValue([{ claimed_at: "2026-10-09 18:00:00.123456+00", previous: "2026-10-09T17:00:00Z" }]);
+    expect(await store.claimReplyPoll()).toEqual({ claimedAt: "2026-10-09 18:00:00.123456+00", previous: new Date("2026-10-09T17:00:00Z") });
+    expect(text(sql.mock.calls[0])).toContain("(?::boolean or p.previous is null or p.previous < now() - interval '2 minutes')");
+    expect(values(sql.mock.calls[0])).toEqual([false]);
+    await store.claimReplyPoll(true);
+    expect(values(sql.mock.calls[1])).toEqual([true]);
     sql.mockResolvedValue([]);
-    expect(await store.claimReplyPoll()).toBe(false);
+    expect(await store.claimReplyPoll()).toBeNull();
+  });
+  it("releaseReplyPoll moves the mark back only if no other poll claimed since", async () => {
+    await store.releaseReplyPoll("2026-10-09 18:00:00.123456+00", new Date("2026-10-09T17:00:00Z"));
+    expect(text(sql.mock.calls[0])).toContain("set last_reply_poll_at = ?::timestamptz where id and last_reply_poll_at = ?::timestamptz");
+    expect(values(sql.mock.calls[0])).toEqual(["2026-10-09T17:00:00.000Z", "2026-10-09 18:00:00.123456+00"]);
   });
 });
 
@@ -103,6 +150,21 @@ describe("suppressions", () => {
     await store.addSuppression("  Pat@Example.COM ", "replied no thanks", "reply");
     expect(values(sql.mock.calls[0])[0]).toBe("pat@example.com");
     expect(text(sql.mock.calls[0])).toContain("on conflict (address) do nothing");
+  });
+});
+
+describe("needs you", () => {
+  it("lists pending and failed items, and emails stuck mid-send for over 5 minutes, everywhere it is counted", async () => {
+    sql.mockResolvedValue([]);
+    sql.query.mockResolvedValue([{ n: 0 }]);
+    await store.listNeedsYou();
+    await store.needsYouCount();
+    await store.listAgentCards();
+    await store.digestFacts(null);
+    const stuck = "or (kind = 'email' and status = 'approved' and updated_at < now() - interval '5 minutes')";
+    const queries = sql.query.mock.calls.map((c) => String(c[0]).replace(/\s+/g, " "));
+    expect(queries).toHaveLength(4);
+    for (const q of queries) expect(q).toContain(stuck);
   });
 });
 
