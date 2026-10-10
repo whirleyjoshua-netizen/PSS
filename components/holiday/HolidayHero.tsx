@@ -19,7 +19,7 @@ export function HolidayHero({ stage, photo }: { stage: "offer" | "family"; photo
 
       <Container className="relative">
         <div className="grid gap-4 pb-6 pt-4 sm:gap-6 sm:pt-6 lg:grid-cols-12 lg:gap-8 lg:py-16">
-          <div className="flex flex-col gap-3 sm:gap-4 lg:col-span-6 lg:row-start-1 lg:bg-ivory/85 lg:p-10 lg:backdrop-blur-sm">
+          <div className="flex flex-col gap-3 sm:gap-4 lg:col-span-6 lg:row-start-1 lg:self-start lg:bg-ivory/85 lg:p-10 lg:backdrop-blur-sm">
             <p className="font-display text-xs font-medium uppercase tracking-[0.22em] text-champagne-ink">
               {stage === "offer" ? "Holiday special · Las Vegas valley" : "The holidays · Las Vegas valley"}
             </p>
