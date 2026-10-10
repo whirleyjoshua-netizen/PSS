@@ -54,11 +54,17 @@ Mostly Las Vegas valley homeowners aged 35–65 (Las Vegas, Henderson, Summerlin
   - We **walk through every window with the client** at the end of the install.
   - We **never hand the client off to a third party for install**: "From your first call to the final install, we're family."
   - We do NOT do repairs.
+- **Holiday offer 2026** (owner, 2026-10-10; banner in content/promo.ts, page /holiday):
+  - Exact terms: "10% off 3 or more custom shades or blinds." Motorized counts. Shutters are excluded.
+  - "Book by Nov 15" means the **consult is booked** by Nov 15. The visit can be later.
+  - Nov 16 – Dec 24 there is no discount: "Give your home a fresh look before the family arrives."
+  - Never promise install before Christmas. Give the lead times, and offer free temporary shades if the date lands after.
 - Reviews from before PSS opened are labeled as past work (FTC). Never present them as PSS reviews.
 
 ## Things we can't say
 - Headcount promises: "two people", "same two faces". Say "From your first call to the final install, we're family" and "we never hand you off to a third party for install" (owner, 2026-10-09: it must stay true as we grow).
 - "Quote before we leave", "quote on the spot" or any promise of when the quote arrives (owner, 2026-10-08: not always possible).
+- "10% off 3+ shades" without "or blinds", any 10% after Nov 15, "installed by Christmas", or "in time for the holidays" as a promise.
 - "#1", "best in Las Vegas", "lowest price", or any claim we can't prove.
 - Anything about Lutron or Norman until those accounts are open.
 - Hunter Douglas: the owner confirmed (2026-10-03) PSS carries Hunter Douglas, so the brand name is OK in ad text. Watch for Google trademark limits.

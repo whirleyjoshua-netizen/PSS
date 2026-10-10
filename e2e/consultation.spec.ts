@@ -160,6 +160,22 @@ test("a visitor can book from the photo hero on a category page", async ({ page 
   expect(posted).toMatchObject({ source: "booking", treatments: ["Shades"] });
 });
 
+// Date-dependent: /holiday carries the 10% note only while the offer runs (through Nov 15, 2026; content/promo.ts).
+test("the holiday page files a holiday lead that names the offer", async ({ page }) => {
+  let submitted: Record<string, unknown> | null = null;
+  await page.route("**/api/consultation", async (route) => {
+    submitted = route.request().postDataJSON();
+    await route.fulfill({ status: 201, json: { ok: true } });
+  });
+  await page.goto("/holiday");
+  await page.getByLabel("Name", { exact: true }).fill("Dana Reyes");
+  await page.getByLabel("Phone", { exact: true }).fill("7025550134");
+  await page.getByLabel("Email", { exact: true }).fill("dana@example.com");
+  await page.locator("section#book").getByRole("button", { name: /invite us over/i }).click();
+  await expect(page).toHaveURL(/\/thank-you$/);
+  expect(submitted).toMatchObject({ source: "holiday", notes: expect.stringMatching(/10%/) });
+});
+
 test.describe("on a 390×844 phone", () => {
   test.use({ viewport: { width: 390, height: 844 } });
 
@@ -167,6 +183,7 @@ test.describe("on a 390×844 phone", () => {
     ...categories.map((c) => `/${c.slug}`),
     ...products.map((p) => `/${p.category}/${p.slug}`),
     "/consultation",
+    "/holiday",
     ...Object.keys(LANDING_VARIANTS).map((slug) => `/consultation/${slug}`),
   ];
   for (const path of paths) {

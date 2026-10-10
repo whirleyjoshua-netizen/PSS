@@ -13,7 +13,7 @@ describe("lead sources", () => {
     expect(consultationSchema.safeParse({ ...base, source: "popup" }).success).toBe(false);
   });
 
-  it("lists exactly the three public forms", () => {
-    expect(LEAD_SOURCES).toEqual(["hero", "contact", "booking"]);
+  it("lists exactly the four public forms (the holiday page joined 2026-10-10)", () => {
+    expect(LEAD_SOURCES).toEqual(["hero", "contact", "booking", "holiday"]);
   });
 });
