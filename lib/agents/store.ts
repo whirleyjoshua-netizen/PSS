@@ -97,6 +97,16 @@ export async function getItem(id: string): Promise<AgentItem | null> {
 export async function markRead(id: string): Promise<void> {
   await db()`update agent_items set status = 'read', updated_at = now() where id = ${id} and status = 'unread'`;
 }
+/** The owner's note on a report, sent or changed. An answered report counts as read. delivered_at = null re-delivers
+ * the latest note on the agent's next pull. */
+export async function noteOnReport(id: string, input: { note: string; by: string }): Promise<boolean> {
+  if (!isUuid(id)) return false;
+  const rows = await db()`
+    update agent_items set status = 'answered', owner_note = ${input.note}, decided_by = ${input.by}, decided_at = now(),
+      delivered_at = null, updated_at = now()
+    where id = ${id} and kind = 'report' returning id`;
+  return rows.length > 0;
+}
 export async function saveEmailEdits(id: string, edits: { to: string; subject: string; body: string }): Promise<boolean> {
   const rows = await db()`
     update agent_items set final_to = ${edits.to}, final_subject = ${edits.subject}, final_body = ${edits.body}, updated_at = now()
@@ -201,10 +211,11 @@ export async function pullReplies(slug: string): Promise<ReplyOut[]> {
   }));
 }
 export type RecentReply = { id: string; itemId: string; agentSlug: string; itemTitle: string; from: string; receivedAt: Date; subject: string | null; bodyText: string; seen: boolean };
-export async function listRecentReplies(limit: number): Promise<RecentReply[]> {
+/** One agent's replies, newest first. */
+export async function listRecentReplies(slug: string, limit: number): Promise<RecentReply[]> {
   const rows = await db()`
     select r.id, r.item_id, i.agent_slug, i.title, r.from_address, r.received_at, r.subject, r.body_text, r.seen_at
-    from agent_replies r join agent_items i on i.id = r.item_id order by r.received_at desc limit ${limit}`;
+    from agent_replies r join agent_items i on i.id = r.item_id where i.agent_slug = ${slug} order by r.received_at desc limit ${limit}`;
   return rows.map((r) => ({
     id: r.id as string, itemId: r.item_id as string, agentSlug: r.agent_slug as string, itemTitle: r.title as string,
     from: r.from_address as string, receivedAt: new Date(r.received_at as string), subject: (r.subject as string | null) ?? null,

@@ -4,7 +4,7 @@ const requireAdmin = vi.fn();
 vi.mock("@/lib/admin/session", () => ({ requireAdmin }));
 const store = {
   claimForSend: vi.fn(), saveEmailEdits: vi.fn(), decideItem: vi.fn(), getItem: vi.fn(), getAgent: vi.fn(),
-  getAgentSettings: vi.fn(), isSuppressed: vi.fn(), sentTodayCount: vi.fn(), markFailed: vi.fn(),
+  getAgentSettings: vi.fn(), isSuppressed: vi.fn(), sentTodayCount: vi.fn(), markFailed: vi.fn(), noteOnReport: vi.fn(),
 };
 vi.mock("@/lib/agents/store", () => store);
 const mail = { sendApproved: vi.fn(), pollReplies: vi.fn() };
@@ -162,12 +162,13 @@ describe("malformed ids", () => {
       () => actions.saveEdits(BAD, {}, edited),
       () => actions.declineItem(BAD, {}, form({ note: "x" })),
       () => actions.decide(BAD, {}, form({ choice: "approved", note: "x" })),
+      () => actions.respondToReport(BAD, {}, form({ note: "x" })),
     ];
     for (const call of calls) {
       expect(await call()).toEqual({ error: "That item no longer exists." });
     }
     expect(requireAdmin).toHaveBeenCalledTimes(calls.length);
-    for (const fn of [store.saveEmailEdits, store.claimForSend, store.decideItem, store.markFailed, store.getItem, mail.sendApproved]) {
+    for (const fn of [store.saveEmailEdits, store.claimForSend, store.decideItem, store.markFailed, store.getItem, store.noteOnReport, mail.sendApproved]) {
       expect(fn).not.toHaveBeenCalled();
     }
   });
@@ -217,5 +218,41 @@ describe("refreshReplies", () => {
     expect(log).toHaveBeenCalledWith("Agent reply refresh failed", error);
     expect(revalidatePath).toHaveBeenCalledWith("/admin/agents");
     log.mockRestore();
+  });
+});
+
+describe("respondToReport", () => {
+  const report = { id: ID, kind: "report", status: "read", agentSlug: "tara" };
+  beforeEach(() => {
+    store.noteOnReport.mockResolvedValue(true);
+    store.getItem.mockResolvedValue(report);
+    store.getAgent.mockResolvedValue({ slug: "tara", name: "Tara" });
+  });
+  it("checks the admin first", async () => {
+    requireAdmin.mockRejectedValue(new Error("NEXT_REDIRECT"));
+    await expect(actions.respondToReport(ID, {}, form({ note: "x" }))).rejects.toThrow("NEXT_REDIRECT");
+    expect(store.noteOnReport).not.toHaveBeenCalled();
+  });
+  it("needs a note", async () => {
+    expect(await actions.respondToReport(ID, {}, form({ note: "   " }))).toEqual({ error: "Write a note first." });
+    expect(await actions.respondToReport(ID, {}, form({}))).toEqual({ error: "Write a note first." });
+    expect(store.noteOnReport).not.toHaveBeenCalled();
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+  it("saves the trimmed note (at most 2,000 characters) as the signed-in owner, refreshes, and names the agent", async () => {
+    expect(await actions.respondToReport(ID, {}, form({ note: "  More on Henderson  " }))).toEqual({ ok: "Sent to Tara. They'll read it on their next run." });
+    expect(store.noteOnReport).toHaveBeenCalledWith(ID, { note: "More on Henderson", by: "owner@example.com" });
+    expect(revalidatePath).toHaveBeenCalledWith("/admin/agents");
+    await actions.respondToReport(ID, {}, form({ note: "x".repeat(2500) }));
+    expect(store.noteOnReport.mock.calls[1][1].note).toHaveLength(2000);
+  });
+  it("says so when the report is gone, and refreshes nothing", async () => {
+    store.noteOnReport.mockResolvedValue(false);
+    expect(await actions.respondToReport(ID, {}, form({ note: "x" }))).toEqual({ error: "That report no longer exists." });
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+  it("falls back to a generic message when the agent can't be named", async () => {
+    store.getAgent.mockResolvedValue(null);
+    expect(await actions.respondToReport(ID, {}, form({ note: "x" }))).toEqual({ ok: "Saved. The agent reads it on its next run." });
   });
 });

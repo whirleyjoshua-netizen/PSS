@@ -60,9 +60,10 @@ create index if not exists agent_items_open_idx on agent_items (status) where st
 -- No query filters on conversation_id (replies are matched in memory), so this index only cost writes.
 drop index if exists agent_items_conversation_idx;
 
+-- An answered report carries the owner's note (owner_note) for the agent, and counts as read.
 alter table agent_items drop constraint if exists agent_items_kind_status_check;
 alter table agent_items add constraint agent_items_kind_status_check check (
-  (kind = 'report'   and status in ('unread', 'read')) or
+  (kind = 'report'   and status in ('unread', 'read', 'answered')) or
   (kind = 'email'    and status in ('pending', 'approved', 'sent', 'failed', 'declined')) or
   (kind = 'decision' and status in ('pending', 'approved', 'declined', 'answered'))
 );

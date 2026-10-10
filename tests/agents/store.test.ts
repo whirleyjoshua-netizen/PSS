@@ -201,3 +201,29 @@ describe("listRepliesForItem", () => {
     expect(sql).not.toHaveBeenCalled();
   });
 });
+
+describe("noteOnReport", () => {
+  it("answers a report with the owner's note in one statement, and resets delivery so the agent hears it", async () => {
+    sql.mockResolvedValue([{ id: ID }]);
+    expect(await store.noteOnReport(ID, { note: "More on Henderson", by: "o@x.co" })).toBe(true);
+    const q = text(sql.mock.calls[0]);
+    expect(q).toMatch(/^ ?update agent_items set status = 'answered', owner_note = \?, decided_by = \?, decided_at = now\(\), delivered_at = null, updated_at = now\(\) where id = \? and kind = 'report' returning id/);
+    expect(values(sql.mock.calls[0])).toEqual(["More on Henderson", "o@x.co", ID]);
+  });
+  it("answers false when no report matched, and never queries for a malformed id", async () => {
+    sql.mockResolvedValue([]);
+    expect(await store.noteOnReport(ID, { note: "x", by: "o@x.co" })).toBe(false);
+    sql.mockClear();
+    expect(await store.noteOnReport("nope", { note: "x", by: "o@x.co" })).toBe(false);
+    expect(sql).not.toHaveBeenCalled();
+  });
+});
+
+describe("listRecentReplies", () => {
+  it("reads one agent's replies, newest first, limited", async () => {
+    await store.listRecentReplies("tobi", 10);
+    const q = text(sql.mock.calls[0]);
+    expect(q).toContain("from agent_replies r join agent_items i on i.id = r.item_id where i.agent_slug = ? order by r.received_at desc limit ?");
+    expect(values(sql.mock.calls[0])).toEqual(["tobi", 10]);
+  });
+});

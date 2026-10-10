@@ -10,7 +10,7 @@ import {
   composeEmailBody, defaultSignature, emailEditSchema, emailFooter, retryAvailableAt, sameText, sendBlocker, STUCK_MINUTES,
 } from "@/lib/agents/rules";
 import {
-  claimForSend, decideItem, getAgent, getAgentSettings, getItem, isSuppressed, markFailed, saveEmailEdits, sentTodayCount,
+  claimForSend, decideItem, getAgent, getAgentSettings, getItem, isSuppressed, markFailed, noteOnReport, saveEmailEdits, sentTodayCount,
 } from "@/lib/agents/store";
 import { pollReplies, sendApproved } from "@/lib/agents/mail";
 
@@ -20,7 +20,6 @@ export type CardState = { error?: string; ok?: string };
 const NO_ITEM: CardState = { error: "That item no longer exists." };
 const refresh = () => {
   revalidatePath("/admin/agents");
-  revalidatePath("/admin/agents/[slug]", "page");
   // The admin nav shows the needs-you count.
   revalidatePath("/admin", "layout");
 };
@@ -109,6 +108,19 @@ export async function decide(id: string, _prev: CardState, form: FormData): Prom
   if (!(await decideItem(id, { status: picked.data, note: text, by: admin.email }))) return { error: "Already decided." };
   refresh();
   return { ok: "Saved." };
+}
+
+/** The owner's note on a report. It can be sent again to change it, and the agent gets the latest on its next run. */
+export async function respondToReport(id: string, _prev: CardState, form: FormData): Promise<CardState> {
+  const admin = await requireAdmin();
+  if (!isUuid(id)) return NO_ITEM;
+  const text = note(form);
+  if (!text) return { error: "Write a note first." };
+  if (!(await noteOnReport(id, { note: text, by: admin.email }))) return { error: "That report no longer exists." };
+  refresh();
+  const item = await getItem(id);
+  const agent = item ? await getAgent(item.agentSlug) : null;
+  return { ok: agent ? `Sent to ${agent.name}. They'll read it on their next run.` : "Saved. The agent reads it on its next run." };
 }
 
 export async function refreshReplies(): Promise<void> {

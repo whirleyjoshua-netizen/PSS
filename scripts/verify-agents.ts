@@ -14,7 +14,8 @@
  *      winner, pull-once for items and replies, the 2-minute poll claim (forced, and handed back), suppressions, cards
  *      and digest facts; and the send records: a retry learns its earlier attempt, a failed email can be declined,
  *      a send recorded without Sent Items ids gets them later, an email stuck mid-send shows in Needs you, and
- *      migration 044's indexes (agent_replies.item_id indexed, the unused conversation index dropped).
+ *      migration 044's indexes (agent_replies.item_id indexed, the unused conversation index dropped); and the owner's
+ *      note on a report: answered, delivered once, a changed note delivered again, locked against a push.
  *   5. runs lib/agents/stats.ts businessCounts (7 and 28 days), read-only: the nine keys, numbers only.
  * It deletes its rows (agents named verify-*, cascading to their items and replies, and the a@b.co suppression),
  * and restores agent_settings.last_reply_poll_at, so repeated runs leave nothing behind.
@@ -126,7 +127,8 @@ test("agents: store SQL on a real database", async () => {
   const replies = await store.pullReplies(SLUG);
   check(replies.length === 1 && replies[0].from === "pat@example.com" && replies[0].external_id === "mail-1", "pullReplies returns this agent's reply", JSON.stringify(replies));
   check((await store.pullReplies(SLUG)).length === 0, "pullReplies returns it only once", "");
-  check((await store.listRecentReplies(50)).some((r) => r.itemId === id && !r.seen), "listRecentReplies shows it unseen", "");
+  check((await store.listRecentReplies(SLUG, 50)).some((r) => r.itemId === id && !r.seen), "listRecentReplies shows it unseen", "");
+  check((await store.listRecentReplies("tara", 50)).every((r) => r.agentSlug === "tara"), "listRecentReplies(slug) gives only that agent's replies", "");
 
   savedPoll = (await sql`select last_reply_poll_at::text as v from agent_settings`)[0].v;
   await sql`update agent_settings set last_reply_poll_at = null`;
@@ -216,6 +218,29 @@ test("agents: send records on a real database", async () => {
 
   const indexes = (await sql`select indexname from pg_indexes where tablename in ('agent_items', 'agent_replies')`).map((r) => r.indexname as string);
   check(indexes.includes("agent_replies_item_id_idx") && !indexes.includes("agent_items_conversation_idx"), "migration 044: agent_replies has its item_id index, and the unused conversation index is gone", JSON.stringify(indexes));
+});
+test("agents: the owner's note on a report", async () => {
+  const store = await import("@/lib/agents/store");
+  await store.upsertItem(SLUG, { kind: "report", external_id: "rep-1", title: "Daily", report_type: "daily", body_md: "# Hi" });
+  const [{ id }] = await sql`select id from agent_items where agent_slug = ${SLUG} and external_id = 'rep-1'`;
+  await store.markRead(id);
+  check((await store.pullUpdates(SLUG)).every((i) => i.id !== id), "a read report with no note is never pulled", "");
+  check(await store.noteOnReport(id, { note: "More on Henderson", by: "o@x.co" }), "noteOnReport saves a note on a report", "");
+  const answered = await store.getItem(id);
+  check(answered?.status === "answered" && answered.ownerNote === "More on Henderson" && answered.decidedBy === "o@x.co" && answered.decidedAt instanceof Date,
+    "the report is answered, with the note, who and when", JSON.stringify({ status: answered?.status, note: answered?.ownerNote, by: answered?.decidedBy }));
+  const first = await store.pullUpdates(SLUG);
+  check(first.length === 1 && first[0].id === id && first[0].status === "answered" && first[0].ownerNote === "More on Henderson", "pullUpdates delivers the note", JSON.stringify(first.map((i) => [i.externalId, i.status, i.ownerNote])));
+  check((await store.pullUpdates(SLUG)).length === 0, "pullUpdates delivers it only once", "");
+  check(await store.noteOnReport(id, { note: "Actually, Summerlin", by: "o@x.co" }), "a second note replaces the first", "");
+  const second = await store.pullUpdates(SLUG);
+  check(second.length === 1 && second[0].ownerNote === "Actually, Summerlin", "the changed note is delivered again", JSON.stringify(second.map((i) => i.ownerNote)));
+  check((await store.upsertItem(SLUG, { kind: "report", external_id: "rep-1", title: "Rewrite", report_type: "daily" })) === "locked", "an answered report is locked against a push", "");
+  check((await store.listAgentCards()).find((c) => c.slug === SLUG)?.unreadReports === 0, "an answered report doesn't count as unread", "");
+  const [{ id: decId }] = await sql`select id from agent_items where agent_slug = ${SLUG} and kind = 'decision' limit 1`;
+  check(!(await store.noteOnReport(decId, { note: "x", by: "o@x.co" })), "noteOnReport refuses anything but a report", "");
+  const raw = await throwsWith(() => sql`insert into agent_items (agent_slug, external_id, kind, title, report_type, status) values (${SLUG}, 'rep-raw', 'report', 't', 'daily', 'answered')`);
+  check(raw === null, "migration 044 lets a report be answered", String(raw));
 });
 test("agents: business counts on a real database", async () => {
   const { businessCounts } = await import("@/lib/agents/stats");
