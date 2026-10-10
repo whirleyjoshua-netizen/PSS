@@ -65,23 +65,31 @@ export const OPT_OUT_LINE = `If you'd rather not hear from us, just reply "no th
 const OPT_OUT = /\b(no thanks|unsubscribe|remove me|stop emailing|stop contacting|stop sending)\b/i;
 const QUOTE_START = /^(-----Original Message-----|On .+ wrote:$|From: )/;
 
+/** A signature starts at a line that is just "--" or "-- ". */
+const SIGNATURE_START = /^-- ?$/;
+const SENT_FROM = /^\s*sent from my\b/i;
+const MAX_STOP_WORDS = 4;
+
 /** The reply's own words: every email we send ends with OPT_OUT_LINE ("reply \"no thanks\""), and most mail
  * clients quote the original in a reply, so quoted text and our footer are removed before matching. Otherwise
- * almost every reply would read as an opt-out. */
+ * almost every reply would read as an opt-out. A signature block and "Sent from my iPhone" lines go too. */
 function ownWords(text: string): string {
   const own: string[] = [];
   for (const line of text.split(OPT_OUT_LINE).join("").split(/\r?\n/)) {
-    if (QUOTE_START.test(line.trim())) break;
-    if (/^\s*>/.test(line)) continue;
+    if (QUOTE_START.test(line.trim()) || SIGNATURE_START.test(line)) break;
+    if (/^\s*>/.test(line) || SENT_FROM.test(line)) continue;
     own.push(line);
   }
   return own.join("\n");
 }
 
-/** True when the reply asks us to stop. A bare "stop" counts only when it is the whole reply. */
+/** True when the reply asks us to stop. A short reply (4 words or fewer) containing the word "stop" counts:
+ * over-suppressing costs less than emailing someone who said stop, and the owner can remove an entry. */
 export function isOptOut(text: string): boolean {
   const own = ownWords(text);
-  return OPT_OUT.test(own) || own.trim().replace(/[.!?,;:\s]+$/, "").toLowerCase() === "stop";
+  if (OPT_OUT.test(own)) return true;
+  const words = own.trim().split(/\s+/).filter(Boolean);
+  return words.length <= MAX_STOP_WORDS && /\bstop\b/i.test(own);
 }
 
 export const defaultSignature = (): string =>
@@ -89,6 +97,11 @@ export const defaultSignature = (): string =>
 
 export const composeEmailBody = (body: string, signature: string, mailingAddress: string): string =>
   `${body.trim()}\n\n--\n${signature.trim()}\n${mailingAddress.trim()}\n\n${OPT_OUT_LINE}`;
+/** Exactly what composeEmailBody adds after the body: shown under every email card, and checked again at send. */
+export const emailFooter = (signature: string, mailingAddress: string): string =>
+  composeEmailBody("", signature, mailingAddress).trimStart();
+/** The same text, however the browser posted its line breaks. */
+export const sameText = (a: string, b: string): boolean => a.replace(/\r\n?/g, "\n").trim() === b.replace(/\r\n?/g, "\n").trim();
 
 export function sendBlocker(input: {
   outlookConfigured: boolean; mailingAddress: string | null; suppressed: boolean; sentToday: number; cap: number;

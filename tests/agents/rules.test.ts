@@ -57,7 +57,8 @@ describe("email body", () => {
       "No thanks.\n\nOn Mon PSS wrote:\n> " + OPT_OUT_LINE,
     ]) expect(isOptOut(t)).toBe(true);
     for (const t of [
-      "Thanks so much!", "nonstop schedule", "let's not stopgap", "I'll stop by Tuesday",
+      // A bare "stop" counts in a reply of 4 words or fewer, so a longer sentence is needed for "stop by".
+      "Thanks so much!", "nonstop schedule", "let's not stopgap", "I'll stop by on Tuesday afternoon",
       "Sounds great, let's talk\n\n-----Original Message-----\nHi Pat\n\n--\nPSS\n\n" + OPT_OUT_LINE,
       "Yes please\n\nOn Mon, Oct 12, 2026 at 9:00 AM PSS wrote:\n> Hi\n> " + OPT_OUT_LINE,
       "Interested!\n> " + OPT_OUT_LINE,
@@ -68,6 +69,17 @@ describe("email body", () => {
       "Yes please\n\nOn Mon PSS wrote:\nIf you'd rather not hear from us, just reply\n\"no thanks\".",
       "Yes please\n\nFrom: PSS <support@example.com>\nIf you'd rather not hear from us, just reply\n\"no thanks\".",
     ]) expect(isOptOut(t)).toBe(false);
+  });
+  it("reads a short \"stop\" past phone footers and signatures, but not a longer sentence", () => {
+    for (const t of ["STOP\n\nSent from my iPhone", "Please stop.", "Stop!!\n--\nJane", "stop\r\n-- \r\nJane Smith\r\nAcme"]) {
+      expect(isOptOut(t), JSON.stringify(t)).toBe(true);
+    }
+    for (const t of [
+      "I can't stop thinking about your shades, call me",
+      // The signature is cut before matching, so a "stop" in it never counts.
+      "Call me Tuesday\n-- \nJane Smith\nStop by our booth",
+      "Sounds good\n\nSent from my iPhone",
+    ]) expect(isOptOut(t), JSON.stringify(t)).toBe(false);
   });
 });
 
