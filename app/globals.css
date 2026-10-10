@@ -155,6 +155,29 @@ h1, h2, h3, h4 {
   animation-play-state: paused;
 }
 
+/*
+ * Hero snow (components/home/HeroSnow.tsx, HeroGarland.tsx). Each flake's track is the hero's full height, so
+ * translateY(100%) carries it from the top edge to the bottom; the negative delays start it mid-fall.
+ */
+@keyframes snow-fall {
+  from { transform: translateY(-5%); }
+  to { transform: translateY(100%); }
+}
+
+@keyframes snow-sway {
+  from { transform: translateX(calc(var(--sway) * -1)); }
+  to { transform: translateX(var(--sway)); }
+}
+
+@keyframes twinkle {
+  from { opacity: 1; }
+  to { opacity: 0.35; }
+}
+
+.hero-snow-fall { animation: snow-fall var(--fall) linear var(--delay) infinite; }
+.hero-snow-flake { animation: snow-sway calc(var(--fall) / 4) ease-in-out var(--delay) infinite alternate; }
+.garland-light { animation: twinkle 2.4s ease-in-out var(--delay) infinite alternate; }
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -169,6 +192,17 @@ h1, h2, h3, h4 {
   .animate-drift,
   .animate-drift-reverse,
   .animate-slow-zoom {
+    animation: none !important;
+  }
+
+  /* A still snowfall: each flake rests where it was given, and the lights stay lit. */
+  .hero-snow-fall {
+    animation: none !important;
+    transform: translateY(var(--rest));
+  }
+
+  .hero-snow-flake,
+  .garland-light {
     animation: none !important;
   }
 

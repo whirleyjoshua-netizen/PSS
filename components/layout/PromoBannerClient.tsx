@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Container } from "@/components/ui/Container";
+import { Snowflake } from "@/components/ui/Snowflake";
 import { LeadTimesMenu } from "./LeadTimesMenu";
 import { trackPromoClick } from "@/lib/analytics/events";
 import { promoStorageKey, type Promo } from "@/lib/promo";
@@ -41,7 +42,8 @@ export function PromoBannerClient({ promo }: { promo: Promo }) {
       <Container>
         <div className="relative flex min-h-11 items-center gap-2 pt-1.5 pb-3">
           <div className="flex min-w-0 flex-1 items-center justify-center gap-3">
-            <Snowflake />
+            {/* Hidden on phones, where the message needs the width. */}
+            <Snowflake className="hidden size-4 sm:block" />
             <Link
               href={promo.href}
               onClick={() => trackPromoClick(promo.id, pathname)}
@@ -54,7 +56,7 @@ export function PromoBannerClient({ promo }: { promo: Promo }) {
                 {promo.message} <span className="font-semibold underline underline-offset-2">{promo.cta}</span>
               </span>
             </Link>
-            <Snowflake />
+            <Snowflake className="hidden size-4 sm:block" />
           </div>
           <LeadTimesMenu promo={promo} pathname={pathname} />
           <button
@@ -68,17 +70,5 @@ export function PromoBannerClient({ promo }: { promo: Promo }) {
         </div>
       </Container>
     </aside>
-  );
-}
-
-/** Decoration only; hidden on phones, where the message needs the width. */
-function Snowflake() {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 20 20" className="hidden size-4 shrink-0 sm:block">
-      <g stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" fill="none">
-        <path d="M10 1v18M2.2 5.5l15.6 9M2.2 14.5l15.6-9" />
-        <path d="M7.5 2.8 10 5l2.5-2.2M7.5 17.2 10 15l2.5 2.2" />
-      </g>
-    </svg>
   );
 }

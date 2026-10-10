@@ -1,4 +1,4 @@
-import type { Promo } from "@/lib/promo";
+import type { Promo, Season } from "@/lib/promo";
 
 /**
  * The strips above the header, in order. Their windows must not overlap: each hides itself outside its own window,
@@ -38,3 +38,6 @@ export const holidayPromo: Promo = {
 };
 
 export const promos: Promo[] = [holidayOffer, holidayPromo];
+
+/** The homepage hero's snow and garland (owner, 2026-10-09): the whole season, first strip's start to last strip's end. */
+export const holidayDecor: Season = { startsAt: holidayOffer.startsAt, endsAt: holidayPromo.endsAt };
