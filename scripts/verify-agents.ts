@@ -235,7 +235,7 @@ test("agents: the owner's note on a report", async () => {
   check(await store.noteOnReport(id, { note: "Actually, Summerlin", by: "o@x.co" }), "a second note replaces the first", "");
   const second = await store.pullUpdates(SLUG);
   check(second.length === 1 && second[0].ownerNote === "Actually, Summerlin", "the changed note is delivered again", JSON.stringify(second.map((i) => i.ownerNote)));
-  check((await store.upsertItem(SLUG, { kind: "report", external_id: "rep-1", title: "Rewrite", report_type: "daily" })) === "locked", "an answered report is locked against a push", "");
+  check((await store.upsertItem(SLUG, { kind: "report", external_id: "rep-1", title: "Rewrite", report_type: "daily", body_md: "# Rewrite" })) === "locked", "an answered report is locked against a push", "");
   check((await store.listAgentCards()).find((c) => c.slug === SLUG)?.unreadReports === 0, "an answered report doesn't count as unread", "");
   const [{ id: decId }] = await sql`select id from agent_items where agent_slug = ${SLUG} and kind = 'decision' limit 1`;
   check(!(await store.noteOnReport(decId, { note: "x", by: "o@x.co" })), "noteOnReport refuses anything but a report", "");

@@ -1,36 +1,27 @@
 import Link from "next/link";
 import { after } from "next/server";
 import { requireAdmin } from "@/lib/admin/session";
-import { formatWhen } from "@/lib/admin/time";
+import { isUuid } from "@/lib/admin/ids";
 import { pollReplies } from "@/lib/agents/mail";
-import { getAgentSettings, listAgentCards, listNeedsYou, listRecentReplies, markRepliesSeen } from "@/lib/agents/store";
-import { defaultSignature, emailFooter, retryAvailableAt, type AgentItem } from "@/lib/agents/rules";
-import { Markdown } from "@/components/admin/Markdown";
-import { EmailCard } from "./EmailCard";
-import { DecisionCard } from "./DecisionCard";
-import { AgentCards } from "./AgentCards";
-import { RecentReplies } from "./RecentReplies";
+import {
+  getAgentSettings, getItem, listAgentCards, listItems, listNeedsYou, listRecentReplies, listRepliesForItem, markRead,
+  markRepliesSeen,
+} from "@/lib/agents/store";
+import { defaultSignature, emailFooter, REPORT_TYPES } from "@/lib/agents/rules";
+import { AgentColumn } from "./AgentColumn";
+import { AgentList } from "./AgentList";
+import { ReadingPane } from "./ReadingPane";
+import { agentsHref } from "./links";
 
 export const dynamic = "force-dynamic";
 
-/** An email claimed for sending STUCK_MINUTES or more ago and still unsettled: nothing to approve, so no buttons.
- * The reply poll settles it from Outlook (found = sent, missing = failed and retryable). */
-function UnknownStatusCard({ item, agentName }: { item: AgentItem; agentName: string }) {
-  return (
-    <article className="flex flex-col gap-2 border border-rule bg-ivory p-4" aria-label={`Email from ${agentName}: ${item.title}`}>
-      <p className="text-xs uppercase tracking-wide text-ink-soft">{agentName} · email · status unknown</p>
-      <h3 className="font-semibold">{item.title}</h3>
-      <p role="alert" className="text-sm text-red-700">Status unknown: check Sent Items in Outlook.</p>
-      <p className="text-sm text-ink-soft">
-        Sending to {item.finalTo} started {formatWhen(item.decidedAt ?? item.updatedAt)} and never finished. The app checks Outlook again on its own.{" "}
-        <Link href={`/admin/agents/${item.agentSlug}/${item.id}`} className="underline underline-offset-4">See the email</Link>
-      </p>
-    </article>
-  );
-}
+type Search = { agent?: string | string[]; item?: string | string[]; type?: string | string[] };
+const one = (v: string | string[] | undefined) => (typeof v === "string" ? v : undefined);
+const LIMIT = 30;
 
-/** One place for every agent: what needs the owner first, then each agent, then replies. */
-export default async function AgentsPage() {
+/** Every agent on one page: the agent list, the selected agent's items, and the selected item in a reading pane.
+ * All of it is URL state (?agent, ?item, ?type), so a link or bookmark opens exactly this view. */
+export default async function AgentsPage({ searchParams }: { searchParams: Promise<Search> }) {
   await requireAdmin();
   // After the response, so the page isn't slowed. Claim-gated: at most once per 2 minutes.
   after(async () => {
@@ -40,43 +31,83 @@ export default async function AgentsPage() {
       console.error("Agent reply poll on page load failed", error);
     }
   });
-  const [needs, agents, replies, settings] = await Promise.all([
-    listNeedsYou(), listAgentCards(), listRecentReplies(10), getAgentSettings(),
+  const search = await searchParams;
+  const itemId = one(search.item);
+  // Only a known type reaches the query; anything else shows everything.
+  const picked = REPORT_TYPES.find((t) => t === one(search.type));
+  const [agents, needs, settings, requested] = await Promise.all([
+    listAgentCards(), listNeedsYou(), getAgentSettings(), itemId && isUuid(itemId) ? getItem(itemId) : Promise.resolve(null),
+  ]);
+
+  // The asked-for agent, else the first (by name) with something waiting on the owner, else the first.
+  const agent = agents.find((a) => a.slug === one(search.agent)) ?? agents.find((a) => a.pending > 0) ?? agents[0];
+  const header = (
+    <div className="flex items-baseline justify-between">
+      <h1 className="text-2xl font-semibold">Agents</h1>
+      <Link href="/admin/settings#agents-heading" className="text-sm underline underline-offset-4">Agent settings</Link>
+    </div>
+  );
+  if (!agent) {
+    return (
+      <div className="flex flex-col gap-6">
+        {header}
+        <p className="text-sm text-ink-soft">No agents yet. Add one in Settings → Agents.</p>
+      </div>
+    );
+  }
+
+  // An item from another agent is ignored, so the reading pane only ever shows one of the selected agent's items.
+  let item = requested && requested.agentSlug === agent.slug ? requested : null;
+  if (item?.kind === "report") {
+    // Opening a report marks it read. Before the lists load, so they show it read.
+    await markRead(item.id);
+    if (item.status === "unread") {
+      item = { ...item, status: "read" };
+      agent.unreadReports = Math.max(0, agent.unreadReports - 1);
+    }
+  }
+  const [all, typed, replies, itemReplies] = await Promise.all([
+    listItems(agent.slug),
+    picked ? listItems(agent.slug, picked) : Promise.resolve(null),
+    listRecentReplies(agent.slug, 10),
+    item?.kind === "email" && item.status === "sent" ? listRepliesForItem(item.id) : Promise.resolve([]),
   ]);
   // Read above, so this render still shows them as "new"; the next one won't.
   await markRepliesSeen();
+
   const now = new Date();
-  const names = new Map(agents.map((a) => [a.slug, a.name]));
-  // Exactly the footer the send adds. The card posts it back, and the send refuses if it changed since.
+  const waiting = needs.filter((i) => i.agentSlug === agent.slug);
+  const waitingIds = new Set(waiting.map((i) => i.id));
+  const reports = (typed ?? all).filter((i) => i.kind === "report").slice(0, LIMIT);
+  // Decided emails and decisions. An email mid-send ("Sending…") is here too, until it is sent or needs the owner.
+  const done = all
+    .filter((i) => i.kind !== "report" && !waitingIds.has(i.id) && i.status !== "pending" && i.status !== "failed")
+    .slice(0, LIMIT);
+  // Exactly the footer the send adds. The email form posts it back, and the send refuses if it changed since.
   const footer = settings.mailingAddress ? emailFooter(settings.signature ?? defaultSignature(), settings.mailingAddress) : null;
+
   return (
-    <div className="flex max-w-3xl flex-col gap-6">
-      <div className="flex items-baseline justify-between">
-        <h1 className="text-2xl font-semibold">Agents</h1>
-        <Link href="/admin/settings#agents-heading" className="text-sm underline underline-offset-4">Agent settings</Link>
+    <div className="flex flex-col gap-6">
+      {header}
+      <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[10rem_minmax(18rem,26rem)_minmax(0,1fr)] lg:items-start">
+        {/* On a phone an open item takes the whole screen, with a link back above it. */}
+        <div className={item ? "hidden lg:block" : ""}>
+          <AgentList agents={agents} selected={agent.slug} />
+        </div>
+        <div className={`min-w-0 ${item ? "hidden lg:block" : ""}`}>
+          <AgentColumn agent={agent} waiting={waiting} reports={reports} done={done} replies={replies} picked={picked} selectedId={item?.id ?? null} now={now} />
+        </div>
+        <div className={`min-w-0 lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem)] lg:overflow-y-auto ${item ? "" : "hidden lg:block"}`}>
+          {item ? (
+            <div className="flex flex-col gap-4">
+              <Link href={agentsHref({ agent: agent.slug, type: picked })} className="text-sm underline underline-offset-4 lg:hidden">← {agent.name}</Link>
+              <ReadingPane item={item} agentName={agent.name} footer={footer} replies={itemReplies} now={now} />
+            </div>
+          ) : (
+            <p className="border border-dashed border-rule p-6 text-sm text-ink-soft">Pick an item to read it here.</p>
+          )}
+        </div>
       </div>
-      <section aria-labelledby="needs-heading" className="flex flex-col gap-3">
-        <h2 id="needs-heading" className="text-lg font-semibold">Needs you {needs.length > 0 && `(${needs.length})`}</h2>
-        {needs.length === 0 ? <p className="text-sm text-ink-soft">Nothing waiting on you.</p> : needs.map((item) =>
-          item.kind === "email" && item.status === "approved"
-            ? <UnknownStatusCard key={item.id} item={item} agentName={names.get(item.agentSlug) ?? item.agentSlug} />
-            : item.kind === "email"
-            ? <EmailCard key={item.id} item={item} agentName={names.get(item.agentSlug) ?? item.agentSlug} footer={footer} retryAt={retryAvailableAt(item, now)} />
-            : (
-              <DecisionCard key={item.id} item={item} agentName={names.get(item.agentSlug) ?? item.agentSlug}>
-                {item.bodyMd ? <Markdown source={item.bodyMd} /> : null}
-              </DecisionCard>
-            ),
-        )}
-      </section>
-      <section aria-labelledby="agents-list-heading" className="flex flex-col gap-3">
-        <h2 id="agents-list-heading" className="text-lg font-semibold">Your agents</h2>
-        <AgentCards agents={agents} />
-      </section>
-      <section aria-labelledby="replies-heading" className="flex flex-col gap-3">
-        <h2 id="replies-heading" className="text-lg font-semibold">Recent replies</h2>
-        <RecentReplies replies={replies} />
-      </section>
     </div>
   );
 }
