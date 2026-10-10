@@ -203,6 +203,8 @@ test("agents: send records on a real database", async () => {
   check(pending === 3, "listAgentCards counts it (with d1, pending, and mail-2b, failed)", JSON.stringify(pending));
   check((await store.stuckApproved(15)).some((r) => r.id === m4), "stuckApproved(15) lists it", "");
   check(typeof (await store.needsYouCount()) === "number" && (await store.digestFacts(null)).pending >= 2, "needsYouCount and digestFacts run with the stuck condition", "");
+  const runs = (await store.digestFacts(null)).agentRuns;
+  check(Array.isArray(runs) && runs.every((r) => typeof r.agentName === "string"), "digestFacts lists agent runs", JSON.stringify(runs.map((r) => r.agentName)));
 
   const indexes = (await sql`select indexname from pg_indexes where tablename in ('agent_items', 'agent_replies')`).map((r) => r.indexname as string);
   check(indexes.includes("agent_replies_item_id_idx") && !indexes.includes("agent_items_conversation_idx"), "migration 044: agent_replies has its item_id index, and the unused conversation index is gone", JSON.stringify(indexes));

@@ -302,19 +302,23 @@ export async function listAgentCards(): Promise<AgentCard[]> {
 export type DigestFacts = {
   newReports: { agentSlug: string; agentName: string; title: string }[]; pending: number; newReplies: number;
   failedRuns: { agentName: string; note: string | null }[];
+  /** Every agent with a key (one without a key can't run), for the "hasn't run" line. */
+  agentRuns: { agentName: string; lastRunAt: Date | null }[];
 };
 export async function digestFacts(since: Date | null): Promise<DigestFacts> {
   const from = (since ?? new Date(0)).toISOString();
-  const [reports, pending, replies, failed] = await Promise.all([
+  const [reports, pending, replies, failed, runs] = await Promise.all([
     db()`select i.agent_slug, a.name, i.title from agent_items i join agents a on a.slug = i.agent_slug
          where i.kind = 'report' and i.created_at > ${from} order by a.name, i.created_at`,
     db().query(`select count(*)::int as n from agent_items where ${NEEDS_YOU}`),
     db()`select count(*)::int as n from agent_replies where created_at > ${from}`,
     db()`select name, last_run_note from agents where last_run_status = 'failed' and last_run_at > ${from}`,
+    db()`select name, last_run_at from agents where key_hash is not null order by name`,
   ]);
   return {
     newReports: reports.map((r) => ({ agentSlug: r.agent_slug as string, agentName: r.name as string, title: r.title as string })),
     pending: Number(pending[0]?.n ?? 0), newReplies: Number(replies[0]?.n ?? 0),
     failedRuns: failed.map((r) => ({ agentName: r.name as string, note: (r.last_run_note as string | null) ?? null })),
+    agentRuns: runs.map((r) => ({ agentName: r.name as string, lastRunAt: date(r.last_run_at) })),
   };
 }
