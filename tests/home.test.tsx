@@ -78,7 +78,7 @@ describe("Home", () => {
 
   it("closes with Invite us over and the coffee line", () => {
     render(<Home />);
-    expect(screen.getByRole("heading", { level: 2, name: /^invite us over$/i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2, name: /^invite us over\.$/i })).toBeInTheDocument();
     expect(screen.getByText(/you bring the coffee/i)).toBeInTheDocument();
   });
 

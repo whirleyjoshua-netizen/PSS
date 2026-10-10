@@ -47,9 +47,9 @@ export const serviceRequestSchema = z
   .object({
     windowId: z.string().optional(), // a measurement id, when picked from the list
     windowText: z.string().max(WINDOW_TEXT_MAX).optional(), // "somewhere else"
-    issue: z.enum(ISSUES.map((i) => i.value) as [string, ...string[]], { error: "Tell us what is happening" }),
+    issue: z.enum(ISSUES.map((i) => i.value) as [string, ...string[]], { error: "Tell us what is happening." }),
     details: z.string().max(DETAILS_MAX).optional(),
   })
-  .refine((v) => v.windowId || v.windowText?.trim(), { error: "Tell us which window", path: ["windowText"] });
+  .refine((v) => v.windowId || v.windowText?.trim(), { error: "Tell us which window.", path: ["windowText"] });
 
 export type ServiceRequestInput = z.output<typeof serviceRequestSchema>;

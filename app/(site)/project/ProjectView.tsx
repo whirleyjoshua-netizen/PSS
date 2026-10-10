@@ -368,7 +368,7 @@ export async function ProjectView({
 
       {code ? (
         <section className="flex flex-col gap-3 border border-rule bg-sand/50 p-6" aria-labelledby="refer-heading">
-          <h2 id="refer-heading" className={heading}>Refer a friend</h2>
+          <h2 id="refer-heading" className={heading}>Refer a friend.</h2>
           <p>Know someone who needs new blinds? Share your link. When they buy, you get $100.</p>
           <p className="break-all font-semibold">{referralUrl(code)}</p>
           <CopyLinkButton link={referralUrl(code)} />

@@ -33,7 +33,7 @@ export function Questionnaire({ initial, windowRange }: { initial: Questionnaire
 
   return (
     <section aria-labelledby="questionnaire-heading" className="border border-rule bg-sand/40 p-6 sm:p-8">
-      <h2 id="questionnaire-heading" className="font-display text-2xl font-light text-charcoal">Help us come prepared</h2>
+      <h2 id="questionnaire-heading" className="font-display text-2xl font-light text-charcoal">Help us come prepared.</h2>
       <p className="mt-1 text-sm text-ink-soft">Optional · about 2 minutes</p>
 
       <form key={values ? JSON.stringify(values) : "initial"} action={action} className="mt-6 flex flex-col gap-6">

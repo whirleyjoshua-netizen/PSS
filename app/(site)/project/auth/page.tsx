@@ -16,7 +16,7 @@ export default async function CustomerAuthPage({
 
   return (
     <div className="mx-auto flex max-w-sm flex-col gap-6 py-6">
-      <h1 className="font-display text-3xl font-light">Sign in to your project page</h1>
+      <h1 className="font-display text-3xl font-light">Sign in to your project page.</h1>
       <form action={completeCustomerSignIn} className="flex flex-col gap-4">
         <input type="hidden" name="token" value={token} />
         <Button type="submit" variant="solid">Sign in</Button>

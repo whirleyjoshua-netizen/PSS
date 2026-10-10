@@ -14,7 +14,7 @@ describe.each(cities.map((city) => [city.slug, city] as const))("/service-area/%
     expect(container.querySelector('input[name="city"]')).toHaveValue(city.name);
     expect(container.querySelector('input[name="treatments"]')).toBeNull();
     expect(
-      screen.getByRole("heading", { level: 2, name: `Book a free consultation in ${city.name}` }),
+      screen.getByRole("heading", { level: 2, name: `Book a free consultation in ${city.name}.` }),
     ).toBeInTheDocument();
     expect(screen.getByRole("img", { name: consultationPhoto.alt })).toBeInTheDocument();
   });

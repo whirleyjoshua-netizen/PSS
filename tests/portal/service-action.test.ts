@@ -62,14 +62,14 @@ describe("requestServiceAction", () => {
   it("asks for a window when neither the picker nor the box was answered", async () => {
     const state = await submit(form({ windowText: "" }));
     expect(state.status).toBe("invalid");
-    expect(state.errors?.windowText).toBe("Tell us which window");
+    expect(state.errors?.windowText).toBe("Tell us which window.");
     expect(requestService).not.toHaveBeenCalled();
   });
 
   it("asks what is happening when nothing was chosen", async () => {
     const state = await submit(form({ issue: "" }));
     expect(state.status).toBe("invalid");
-    expect(state.errors?.issue).toBe("Tell us what is happening");
+    expect(state.errors?.issue).toBe("Tell us what is happening.");
   });
 
   it("hands back everything they typed so a no-JS post loses nothing", async () => {
@@ -108,7 +108,7 @@ describe("requestServiceAction", () => {
     requestService.mockResolvedValue({ status: "unknown-window" });
     const state = await submit(form({ details: "Cord is jammed." }));
     expect(state.status).toBe("invalid");
-    expect(state.errors?.windowText).toBe("Tell us which window");
+    expect(state.errors?.windowText).toBe("Tell us which window.");
     expect(state.values).toMatchObject({ details: "Cord is jammed." });
     expect(redirect).not.toHaveBeenCalled();
   });

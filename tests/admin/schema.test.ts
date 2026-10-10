@@ -59,7 +59,7 @@ describe("detailsSchema address", () => {
   it("requires a served city", () => {
     const result = detailsSchema.safeParse({ address: "12 Sample St", city: "" });
     expect(result.success).toBe(false);
-    expect(result.error?.issues[0].message).toBe("We currently serve the Las Vegas valley");
+    expect(result.error?.issues[0].message).toBe("We currently serve the Las Vegas valley.");
   });
 });
 
@@ -261,7 +261,7 @@ describe("designer notes and gate code", () => {
   it("caps notes at 2000 characters and the gate code at 40", () => {
     expect(designerNotesField.safeParse("x".repeat(2000)).success).toBe(true);
     expect(designerNotesField.safeParse("x".repeat(2001)).error!.issues[0].message).toBe("Keep the designer notes to 2,000 characters or fewer.");
-    expect(appointmentSchema.safeParse({ ...base, gateCode: "x".repeat(41) }).error!.issues[0].message).toBe("Keep the gate code under 40 characters");
+    expect(appointmentSchema.safeParse({ ...base, gateCode: "x".repeat(41) }).error!.issues[0].message).toBe("Keep the gate code under 40 characters.");
   });
 
   it("counts a browser's \\r\\n line break as one character, as the textarea's maxLength does", () => {

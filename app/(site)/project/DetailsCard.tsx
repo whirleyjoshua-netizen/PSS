@@ -30,7 +30,7 @@ export function DetailsCard({
     <section className="flex flex-col gap-4" aria-labelledby="details-heading">
       <h2 id="details-heading" className={term}>Project details</h2>
       <dl className="grid gap-x-8 sm:grid-cols-2">
-        <Row label="Windows">{project.windowCount ?? "We will confirm this when we measure"}</Row>
+        <Row label="Windows">{project.windowCount ?? "We will confirm this when we measure."}</Row>
         <Row label="Treatments">{treatments.length > 0 ? treatments.join(", ") : "Being chosen with you"}</Row>
         <Row label="Finish">{project.finish ? finishLabel(project.finish) : "Being chosen with you"}</Row>
         <Row label="Installation">{installLabel}</Row>

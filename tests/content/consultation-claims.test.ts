@@ -49,7 +49,7 @@ describe("no copy promises a headcount", () => {
 
   it("answers 'they disappeared' with the family business and no third-party installers", () => {
     const pain = PAINS.find((p) => /had my money/.test(p.heard))!;
-    expect(pain.answer).toBe("From your first call to the final install, we're family");
+    expect(pain.answer).toBe("From your first call to the final install, we're family.");
     expect(pain.body).toMatch(/never hand you off to a third party for install/);
   });
 });

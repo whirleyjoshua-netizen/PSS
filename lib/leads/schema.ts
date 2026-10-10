@@ -23,20 +23,20 @@ export function leadSourceLabel(source: string): string {
  * in the browser passes on the server. Validation lives in exactly one place.
  */
 export const consultationSchema = z.object({
-  name: z.string().trim().min(2, "Please enter your name").max(120),
+  name: z.string().trim().min(2, "Please enter your name.").max(120),
 
   phone: z
     .string()
     .transform((value) => value.replace(/\D/g, ""))
     // A US number pasted with its country code arrives as 11 digits.
     .transform((digits) => (digits.length === 11 && digits.startsWith("1") ? digits.slice(1) : digits))
-    .refine((digits) => digits.length === 10, "Please enter a 10-digit phone number"),
+    .refine((digits) => digits.length === 10, "Please enter a 10-digit phone number."),
 
-  email: z.string().trim().toLowerCase().email("Please enter a valid email address"),
+  email: z.string().trim().toLowerCase().email("Please enter a valid email address."),
 
   city: z
     .string()
-    .refine((value) => cities.includes(value), "We currently serve the Las Vegas valley"),
+    .refine((value) => cities.includes(value), "We currently serve the Las Vegas valley."),
 
   address: z.string().trim().max(200).optional(),
   treatments: z.array(z.string().max(40)).max(6).optional(),
