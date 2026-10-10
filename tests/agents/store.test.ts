@@ -237,3 +237,25 @@ describe("markRepliesSeen", () => {
     expect(values(sql.mock.calls[0])).toEqual(["tobi"]);
   });
 });
+
+describe("each agent's count adds up to the nav badge", () => {
+  it("counts the agent's waiting items plus its unseen replies, the same two parts needsYouCount adds", async () => {
+    sql.query.mockResolvedValueOnce([]).mockResolvedValueOnce([{
+      slug: "tobi", name: "Tobi", role: "r", key_hash: null, stats_access: false, daily_send_cap: 10, last_run_at: null,
+      last_run_status: null, last_run_note: null, pending: 2, unread_reports: 1, unseen_replies: 3,
+    }]);
+    await store.needsYouCount();
+    const [card] = await store.listAgentCards();
+    const badge = String(sql.query.mock.calls[0][0]).replace(/\s+/g, " ");
+    const cards = String(sql.query.mock.calls[1][0]).replace(/\s+/g, " ");
+    // The badge: every waiting item plus every unseen reply.
+    expect(badge).toContain("(select count(*) from agent_items where kind in ('email', 'decision')");
+    expect(badge).toContain("(select count(*) from agent_replies where seen_at is null)");
+    // Per agent: the same two parts, split by agent (every reply belongs to one agent's item).
+    expect(cards).toContain("(select count(*)::int from agent_items i where i.agent_slug = a.slug and kind in ('email', 'decision')");
+    expect(cards).toContain("(select count(*)::int from agent_replies r join agent_items i on i.id = r.item_id where i.agent_slug = a.slug and r.seen_at is null) as unseen_replies");
+    expect(cards).not.toContain("lateral");
+    expect(card).toMatchObject({ pending: 2, unseenReplies: 3, needsYou: 5, unreadReports: 1 });
+    expect(card).not.toHaveProperty("newestReport");
+  });
+});

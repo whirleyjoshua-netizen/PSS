@@ -291,28 +291,22 @@ export async function needsYouCount(): Promise<number> {
   return Number(r?.n ?? 0);
 }
 
-export type AgentCard = Agent & {
-  pending: number; unreadReports: number;
-  newestReport: { id: string; title: string; summary: string | null; status: ItemStatus; createdAt: Date } | null;
-};
+/** `needsYou` is what the agent's chip shows: its waiting items plus its unseen replies. Every reply belongs to one
+ * agent's item, so the chips add up to needsYouCount (the nav badge). */
+export type AgentCard = Agent & { pending: number; unseenReplies: number; needsYou: number; unreadReports: number };
 export async function listAgentCards(): Promise<AgentCard[]> {
   const rows = await db().query(`
     select a.*,
       (select count(*)::int from agent_items i where i.agent_slug = a.slug and ${NEEDS_YOU}) as pending,
-      (select count(*)::int from agent_items i where i.agent_slug = a.slug and i.kind = 'report' and i.status = 'unread') as unread_reports,
-      r.id as report_id, r.title as report_title, r.summary as report_summary, r.status as report_status, r.created_at as report_created_at
+      (select count(*)::int from agent_replies r join agent_items i on i.id = r.item_id where i.agent_slug = a.slug and r.seen_at is null) as unseen_replies,
+      (select count(*)::int from agent_items i where i.agent_slug = a.slug and i.kind = 'report' and i.status = 'unread') as unread_reports
     from agents a
-    left join lateral (
-      select id, title, summary, status, created_at from agent_items where agent_slug = a.slug and kind = 'report' order by created_at desc limit 1
-    ) r on true
     order by a.name`);
-  return rows.map((row) => ({
-    ...toAgent(row), pending: Number(row.pending), unreadReports: Number(row.unread_reports),
-    newestReport: row.report_id
-      ? { id: row.report_id as string, title: row.report_title as string, summary: (row.report_summary as string | null) ?? null,
-          status: row.report_status as ItemStatus, createdAt: new Date(row.report_created_at as string) }
-      : null,
-  }));
+  return rows.map((row) => {
+    const pending = Number(row.pending);
+    const unseenReplies = Number(row.unseen_replies);
+    return { ...toAgent(row), pending, unseenReplies, needsYou: pending + unseenReplies, unreadReports: Number(row.unread_reports) };
+  });
 }
 
 export type DigestFacts = {

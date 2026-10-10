@@ -18,7 +18,8 @@
  *      note on a report: answered, delivered once, a changed note delivered again, locked against a push.
  *   5. runs lib/agents/stats.ts businessCounts (7 and 28 days), read-only: the nine keys, numbers only.
  * It deletes its rows (agents named verify-*, cascading to their items and replies, and the a@b.co suppression),
- * and restores agent_settings.last_reply_poll_at, so repeated runs leave nothing behind.
+ * and restores agent_settings.last_reply_poll_at, so repeated runs leave nothing behind. It reads and writes only its
+ * own verify-* agents' items and replies, never a real agent's (the per-agent reply checks use a second verify agent).
  *
  * IT WRITES TO THE DATABASE IT IS GIVEN. It takes its connection from E2E_POSTGRES_URL alone and
  * refuses production (ep-cold-term).
@@ -47,6 +48,7 @@ process.env.DATABASE_URL = url;
 
 const sql = neon(url);
 const SLUG = `verify-${Date.now().toString(36)}`;
+const OTHER = `${SLUG}-b`;
 
 function check(condition: boolean, description: string, detail: string): void {
   if (!condition) throw new Error(`FAILED: ${description}\n  ${detail}`);
@@ -123,16 +125,26 @@ test("agents: store SQL on a real database", async () => {
   const reply = { itemId: id, internetMessageId: `<reply-${SLUG}@test>`, from: " Pat@Example.com ", receivedAt: new Date(), subject: "Re: Hello", bodyText: "Sounds good" };
   check(await store.insertReply(reply), "insertReply stores a reply", "");
   check(!(await store.insertReply(reply)), "insertReply ignores the same message twice", "");
-  check(!(await store.pullReplies("tara")).some((r) => r.external_id === "mail-1" && r.body_text === "Sounds good"), "pullReplies never gives another agent's reply", "");
+  // A second throwaway agent with its own unseen reply, so the per-agent checks never read or change a real agent's rows.
+  await sql`insert into agents (slug, name) values (${OTHER}, 'Verify other')`;
+  const [{ id: otherItem }] = await sql`insert into agent_items (agent_slug, external_id, kind, title, status) values (${OTHER}, 'other-1', 'decision', 't', 'pending') returning id`;
+  check(await store.insertReply({ itemId: otherItem, internetMessageId: `<other-${SLUG}@test>`, from: "lee@example.com", receivedAt: new Date(), subject: null, bodyText: "Other agent's reply" }), "insertReply stores the other agent's reply", "");
+  check(!(await store.pullReplies(OTHER)).some((r) => r.external_id === "mail-1" && r.body_text === "Sounds good"), "pullReplies never gives another agent's reply", "");
   const replies = await store.pullReplies(SLUG);
   check(replies.length === 1 && replies[0].from === "pat@example.com" && replies[0].external_id === "mail-1", "pullReplies returns this agent's reply", JSON.stringify(replies));
   check((await store.pullReplies(SLUG)).length === 0, "pullReplies returns it only once", "");
   check((await store.listRecentReplies(SLUG, 50)).some((r) => r.itemId === id && !r.seen), "listRecentReplies shows it unseen", "");
-  check((await store.listRecentReplies("tara", 50)).every((r) => r.agentSlug === "tara"), "listRecentReplies(slug) gives only that agent's replies", "");
-  const taraUnseen = async () => (await sql`select count(*)::int as n from agent_replies r join agent_items i on i.id = r.item_id where i.agent_slug = 'tara' and r.seen_at is null`)[0].n as number;
-  const taraBefore = await taraUnseen();
-  await store.markRepliesSeen("tara");
-  check(await taraUnseen() === 0 && (await store.listRecentReplies(SLUG, 50)).some((r) => r.itemId === id && !r.seen), "markRepliesSeen(slug) marks that agent's replies seen and leaves another agent's new", JSON.stringify({ taraBefore }));
+  check((await store.listRecentReplies(OTHER, 50)).every((r) => r.agentSlug === OTHER) && (await store.listRecentReplies(OTHER, 50)).length === 1, "listRecentReplies(slug) gives only that agent's replies", "");
+  const cardsBefore = await store.listAgentCards();
+  const sumOfChips = cardsBefore.reduce((n, c) => n + c.needsYou, 0);
+  const badge = await store.needsYouCount();
+  check(sumOfChips === badge, "every agent's chip (waiting items plus unseen replies) adds up to the nav badge", JSON.stringify({ sumOfChips, badge }));
+  const other = cardsBefore.find((c) => c.slug === OTHER);
+  check(other?.pending === 1 && other.unseenReplies === 1 && other.needsYou === 2, "listAgentCards counts an agent's unseen replies into its chip", JSON.stringify(other));
+  await store.markRepliesSeen(OTHER);
+  const otherSeen = (await store.listRecentReplies(OTHER, 50)).every((r) => r.seen);
+  check(otherSeen && (await store.listRecentReplies(SLUG, 50)).some((r) => r.itemId === id && !r.seen), "markRepliesSeen(slug) marks that agent's replies seen and leaves another agent's new", "");
+  check((await store.listAgentCards()).find((c) => c.slug === OTHER)?.needsYou === 1 && (await store.needsYouCount()) === badge - 1, "a seen reply leaves its agent's chip and the badge together", "");
   await store.markRepliesSeen(SLUG);
   check(!(await store.listRecentReplies(SLUG, 50)).some((r) => !r.seen), "markRepliesSeen(slug) marks this agent's replies seen", "");
 

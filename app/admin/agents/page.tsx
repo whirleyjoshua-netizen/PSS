@@ -7,7 +7,7 @@ import {
   getAgentSettings, getItem, listAgentCards, listItems, listNeedsYou, listRecentReplies, listRepliesForItem, markRead,
   markRepliesSeen,
 } from "@/lib/agents/store";
-import { defaultSignature, emailFooter, REPORT_TYPES } from "@/lib/agents/rules";
+import { defaultSignature, emailFooter, REPORT_TYPES, type AgentItem } from "@/lib/agents/rules";
 import { AgentColumn } from "./AgentColumn";
 import { AgentList } from "./AgentList";
 import { ReadingPane } from "./ReadingPane";
@@ -39,8 +39,9 @@ export default async function AgentsPage({ searchParams }: { searchParams: Promi
     listAgentCards(), listNeedsYou(), getAgentSettings(), itemId && isUuid(itemId) ? getItem(itemId) : Promise.resolve(null),
   ]);
 
-  // The asked-for agent, else the first (by name) with something waiting on the owner, else the first.
-  const agent = agents.find((a) => a.slug === one(search.agent)) ?? agents.find((a) => a.pending > 0) ?? agents[0];
+  // The asked-for agent, else the first (by name) with something that needs the owner (waiting items or unseen
+  // replies, the chip's count), else the first.
+  const agent = agents.find((a) => a.slug === one(search.agent)) ?? agents.find((a) => a.needsYou > 0) ?? agents[0];
   const header = (
     <div className="flex items-baseline justify-between">
       <h1 className="text-2xl font-semibold">Agents</h1>
@@ -79,9 +80,11 @@ export default async function AgentsPage({ searchParams }: { searchParams: Promi
   const waiting = needs.filter((i) => i.agentSlug === agent.slug);
   const waitingIds = new Set(waiting.map((i) => i.id));
   const reports = (typed ?? all).filter((i) => i.kind === "report").slice(0, LIMIT);
-  // Decided emails and decisions. An email mid-send ("Sending…") is here too, until it is sent or needs the owner.
+  // Decided emails and decisions, most recently decided first. An email mid-send ("Sending…") is here too, until it is sent or needs the owner.
+  const decidedAt = (i: AgentItem) => (i.decidedAt ?? i.sentAt ?? i.createdAt).getTime();
   const done = all
     .filter((i) => i.kind !== "report" && !waitingIds.has(i.id) && i.status !== "pending" && i.status !== "failed")
+    .sort((a, b) => decidedAt(b) - decidedAt(a))
     .slice(0, LIMIT);
   // Exactly the footer the send adds. The email form posts it back, and the send refuses if it changed since.
   const footer = settings.mailingAddress ? emailFooter(settings.signature ?? defaultSignature(), settings.mailingAddress) : null;

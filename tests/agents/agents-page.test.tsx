@@ -23,9 +23,11 @@ const report: AgentItem = {
   bodyMd: "## Leads\n\nTwo new", emailTo: null, emailSubject: null, emailBody: null, reason: null, status: "unread",
 };
 const doneDecision: AgentItem = { ...decision, id: DONE_ID, externalId: "d-0", title: "Pick a tagline", status: "approved", ownerNote: "Go with A", decidedAt: at };
+// needsYou is pending + unseenReplies, as listAgentCards computes it.
 const card = (over: Partial<AgentCard>): AgentCard => ({
   slug: "tara", name: "Tara", role: "Marketing", hasKey: true, statsAccess: true, dailySendCap: 10,
-  lastRunAt: at, lastRunStatus: "ok", lastRunNote: null, pending: 0, unreadReports: 0, newestReport: null, ...over,
+  lastRunAt: at, lastRunStatus: "ok", lastRunNote: null, pending: 0, unseenReplies: 0, unreadReports: 0, ...over,
+  needsYou: (over.pending ?? 0) + (over.unseenReplies ?? 0),
 });
 
 const store = {
@@ -74,9 +76,20 @@ describe("selecting an agent", () => {
     const nav = within(screen.getByRole("navigation", { name: "Agents" }));
     expect(nav.getByRole("link", { name: /^Tobi/ })).toHaveAttribute("aria-current", "page");
     expect(nav.getByRole("link", { name: /^Tobi/ })).toHaveAttribute("href", "/admin/agents?agent=tobi");
-    expect(nav.getByLabelText("2 waiting on you")).toBeInTheDocument();
+    expect(nav.getByLabelText("2 need you")).toBeInTheDocument();
     expect(nav.getByRole("link", { name: /^Tara/ })).not.toHaveAttribute("aria-current");
     expect(nav.getByRole("link", { name: "+ Add agent" })).toHaveAttribute("href", "/admin/settings#agents-heading");
+  });
+
+  it("counts unseen replies on the chip, and opens the agent with one when nothing else waits", async () => {
+    store.listAgentCards.mockResolvedValue([card({}), card({ slug: "tobi", name: "Tobi", unseenReplies: 1 })]);
+    store.listNeedsYou.mockResolvedValue([]);
+    await open();
+    expect(screen.getByRole("heading", { level: 2, name: "Tobi" })).toBeInTheDocument();
+    const nav = within(screen.getByRole("navigation", { name: "Agents" }));
+    expect(within(nav.getByRole("link", { name: /^Tobi/ })).getByLabelText("1 need you")).toBeInTheDocument();
+    expect(within(nav.getByRole("link", { name: /^Tara/ })).queryByLabelText(/need you/)).toBeNull();
+    expect(store.markRepliesSeen).toHaveBeenCalledWith("tobi");
   });
 
   it("defaults to the first agent by name when nothing waits", async () => {
@@ -121,6 +134,22 @@ describe("the agent column", () => {
     const done = within(screen.getByRole("region", { name: "Done" }));
     expect(done.getAllByRole("listitem").map((li) => li.getAttribute("aria-label"))).toEqual(["Decision: Pick a tagline"]);
     expect(done.getByText(/Decision · Approved/)).toBeInTheDocument();
+  });
+
+  it("orders Done by when each was decided or sent, newest first, not by when it was raised", async () => {
+    const day = (n: number) => new Date(at.getTime() + n * 86_400_000);
+    const rows: AgentItem[] = [
+      // listItems returns newest-created first.
+      { ...doneDecision, id: "7d6f2a5c-2a96-4e97-9e5a-5b6c7d8e9fa0", title: "Raised day 3, decided day 3", createdAt: day(3), decidedAt: day(3) },
+      { ...email, id: "8e7a3b6d-3ba7-4fa8-8f6b-6c7d8e9fa0b1", title: "Raised day 2, sent day 4", status: "sent", createdAt: day(2), decidedAt: null, sentAt: day(4) },
+      { ...doneDecision, title: "Raised day 0, decided day 5", createdAt: at, decidedAt: day(5) },
+    ];
+    store.listItems.mockResolvedValue(rows);
+    await open();
+    const done = within(screen.getByRole("region", { name: "Done" }));
+    expect(done.getAllByRole("listitem").map((li) => li.getAttribute("aria-label"))).toEqual([
+      "Decision: Raised day 0, decided day 5", "Email: Raised day 2, sent day 4", "Decision: Raised day 3, decided day 3",
+    ]);
   });
 
   it("gives a pending decision Approve, Decline (no note) and Expand", async () => {
