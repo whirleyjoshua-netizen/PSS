@@ -14,7 +14,17 @@ export type GalleryItem = Photo & { treatment: CategorySlug; caption?: string };
  * When adding: use 4:3 or 3:2 landscape, at least 1600px wide, and write alt
  * text describing the treatment and the room — it is read aloud and indexed.
  */
+/** The owner's own holiday install (owner 2026-10-10: the client is fine with it on the site). The /holiday hero. */
+export const holidayPhoto: GalleryItem = {
+  src: "/gallery/cellular-shades-holiday-great-room.webp",
+  alt: "White cellular shades lowered partway across a tall wall of windows in a great room decorated for Christmas, with a flocked tree by a stone fireplace and a dining table set in green plaid.",
+  treatment: "shades",
+  caption:
+    "Cellular shades on a two-story window wall — they soften the light for the holidays and keep the upper glass open to the trees.",
+};
+
 export const gallery: GalleryItem[] = [
+  holidayPhoto,
   {
     src: "/gallery/transitional-shades-slider-wall.webp",
     alt: "Charcoal transitional sheer shades raised across a four-panel glass slider wall in a living room, with a river and balcony seating visible beyond.",
