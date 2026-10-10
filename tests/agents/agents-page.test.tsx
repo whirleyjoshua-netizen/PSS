@@ -185,7 +185,9 @@ describe("the agent column", () => {
     expect(replies.getByText("new")).toBeInTheDocument();
     expect(replies.getByRole("link", { name: "Expand" })).toHaveAttribute("href", `/admin/agents?agent=tobi&item=${EMAIL_ID}`);
     expect(replies.getByRole("button", { name: "Check for replies" })).toBeInTheDocument();
-    expect(store.markRepliesSeen).toHaveBeenCalled();
+    // Only this agent's replies, and only after they were read for this render.
+    expect(store.markRepliesSeen).toHaveBeenCalledWith("tobi");
+    expect(store.markRepliesSeen.mock.invocationCallOrder[0]).toBeGreaterThan(store.listRecentReplies.mock.invocationCallOrder[0]);
   });
 
   it("polls for replies after the response, rate-limited (never forced), and a failed poll is only logged", async () => {

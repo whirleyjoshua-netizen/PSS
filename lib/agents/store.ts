@@ -231,8 +231,9 @@ export async function listRepliesForItem(id: string): Promise<ItemReply[]> {
     subject: (r.subject as string | null) ?? null, bodyText: r.body_text as string,
   }));
 }
-export async function markRepliesSeen(): Promise<void> {
-  await db()`update agent_replies set seen_at = now() where seen_at is null`;
+/** Only the agent the owner is looking at: another agent's replies stay "new" until its page shows them. */
+export async function markRepliesSeen(slug: string): Promise<void> {
+  await db()`update agent_replies set seen_at = now() where seen_at is null and item_id in (select id from agent_items where agent_slug = ${slug})`;
 }
 export async function sentConversations(days: number): Promise<{ id: string; conversationId: string }[]> {
   const rows = await db()`

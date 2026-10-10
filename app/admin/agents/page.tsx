@@ -72,8 +72,8 @@ export default async function AgentsPage({ searchParams }: { searchParams: Promi
     listRecentReplies(agent.slug, 10),
     item?.kind === "email" && item.status === "sent" ? listRepliesForItem(item.id) : Promise.resolve([]),
   ]);
-  // Read above, so this render still shows them as "new"; the next one won't.
-  await markRepliesSeen();
+  // Read above, so this render still shows them as "new"; the next one won't. Only this agent's: the others stay new.
+  await markRepliesSeen(agent.slug);
 
   const now = new Date();
   const waiting = needs.filter((i) => i.agentSlug === agent.slug);

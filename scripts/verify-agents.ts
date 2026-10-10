@@ -129,6 +129,12 @@ test("agents: store SQL on a real database", async () => {
   check((await store.pullReplies(SLUG)).length === 0, "pullReplies returns it only once", "");
   check((await store.listRecentReplies(SLUG, 50)).some((r) => r.itemId === id && !r.seen), "listRecentReplies shows it unseen", "");
   check((await store.listRecentReplies("tara", 50)).every((r) => r.agentSlug === "tara"), "listRecentReplies(slug) gives only that agent's replies", "");
+  const taraUnseen = async () => (await sql`select count(*)::int as n from agent_replies r join agent_items i on i.id = r.item_id where i.agent_slug = 'tara' and r.seen_at is null`)[0].n as number;
+  const taraBefore = await taraUnseen();
+  await store.markRepliesSeen("tara");
+  check(await taraUnseen() === 0 && (await store.listRecentReplies(SLUG, 50)).some((r) => r.itemId === id && !r.seen), "markRepliesSeen(slug) marks that agent's replies seen and leaves another agent's new", JSON.stringify({ taraBefore }));
+  await store.markRepliesSeen(SLUG);
+  check(!(await store.listRecentReplies(SLUG, 50)).some((r) => !r.seen), "markRepliesSeen(slug) marks this agent's replies seen", "");
 
   savedPoll = (await sql`select last_reply_poll_at::text as v from agent_settings`)[0].v;
   await sql`update agent_settings set last_reply_poll_at = null`;

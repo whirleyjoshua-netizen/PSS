@@ -227,3 +227,13 @@ describe("listRecentReplies", () => {
     expect(values(sql.mock.calls[0])).toEqual(["tobi", 10]);
   });
 });
+
+describe("markRepliesSeen", () => {
+  it("marks only one agent's unseen replies seen, in one statement", async () => {
+    await store.markRepliesSeen("tobi");
+    expect(sql).toHaveBeenCalledTimes(1);
+    const q = text(sql.mock.calls[0]);
+    expect(q).toMatch(/^ ?update agent_replies set seen_at = now\(\) where seen_at is null and item_id in \(select id from agent_items where agent_slug = \?\)/);
+    expect(values(sql.mock.calls[0])).toEqual(["tobi"]);
+  });
+});
