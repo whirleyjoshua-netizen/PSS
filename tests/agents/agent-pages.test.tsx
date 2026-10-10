@@ -93,13 +93,18 @@ describe("item page", () => {
   });
 
   it("shows To, Subject and Body for an email in every status, not only sent", async () => {
+    const minutesAgo = (m: number) => new Date(Date.now() - m * 60_000);
     const email = { ...sentEmail, status: "pending" as const, sentAt: null, sentBody: null, emailTo: "lee@acme.example", emailSubject: "Shades", emailBody: "Agent draft" };
     const cases: [AgentItem, string, string, string][] = [
       [email, "Proposed email", "lee@acme.example", "Agent draft"],
       [{ ...email, status: "declined", finalTo: "kim@acme.example", finalBody: "Owner edit" }, "Declined email", "kim@acme.example", "Owner edit"],
       [{ ...email, status: "failed", error: "Microsoft refused the email (400)", finalBody: "Owner edit" }, "Send failed", "lee@acme.example", "Owner edit"],
-      [{ ...email, status: "approved", finalTo: "lee@acme.example", finalBody: "Owner edit", sentBody: "Owner edit\n\n--\nPSS" },
+      // Claimed 16 minutes ago: past the 15-minute check, so status unknown.
+      [{ ...email, status: "approved", decidedAt: minutesAgo(16), finalTo: "lee@acme.example", finalBody: "Owner edit", sentBody: "Owner edit\n\n--\nPSS" },
         "Status unknown: check Sent Items in Outlook", "lee@acme.example", "Owner edit\n\n--\nPSS"],
+      // Claimed 14 minutes ago: still sending.
+      [{ ...email, status: "approved", decidedAt: minutesAgo(14), finalTo: "lee@acme.example", finalBody: "Owner edit", sentBody: "Owner edit\n\n--\nPSS" },
+        "Sending…", "lee@acme.example", "Owner edit\n\n--\nPSS"],
     ];
     for (const [item, heading, to, body] of cases) {
       store.getItem.mockResolvedValue(item);

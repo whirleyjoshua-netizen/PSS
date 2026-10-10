@@ -41,4 +41,15 @@ describe("EmailCard", () => {
     expect(await screen.findByText("Sent.")).toBeInTheDocument();
     expect(screen.queryByText("Edits saved.")).toBeNull();
   });
+  it("disables Retry until the wait is over, and says when it opens", () => {
+    render(<EmailCard item={{ ...item, status: "failed", error: "x" }} agentName="Tobi" footer={"--\nPSS"} retryAt={new Date("2026-10-09T17:15:00Z")} />);
+    expect(screen.getByRole("button", { name: "Retry send" })).toBeDisabled();
+    expect(screen.getByText(/Retry is available from Fri, Oct 9, 10:15 AM/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save edits" })).toBeEnabled();
+  });
+  it("offers Retry when there is no wait", () => {
+    render(<EmailCard item={{ ...item, status: "failed", error: "x" }} agentName="Tobi" footer={"--\nPSS"} />);
+    expect(screen.getByRole("button", { name: "Retry send" })).toBeEnabled();
+    expect(screen.queryByText(/Retry is available from/)).toBeNull();
+  });
 });

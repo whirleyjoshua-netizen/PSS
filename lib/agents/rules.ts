@@ -93,6 +93,22 @@ export function isOptOut(text: string): boolean {
   return words.length <= MAX_STOP_WORDS && /\bstop\b(?!\s+(by|in|over|at|past|off)\b)/i.test(own);
 }
 
+/** A send that ended without a clear answer (timeout, network error, 5xx, 429) stays 'approved' this long, then the
+ * reply poll checks Outlook: found = sent, missing = failed. A failed email can be retried only this long after its
+ * last attempt. Until then the email shows as "Sending…". */
+export const STUCK_MINUTES = 15;
+/** An approved email is "sending" for STUCK_MINUTES after its claim, then "unknown" until the reply poll settles it.
+ * The same threshold decides when it appears in Needs you. */
+export function isSendUnknown(item: Pick<AgentItem, "status" | "decidedAt" | "updatedAt">, now: Date): boolean {
+  return item.status === "approved" && now.getTime() - (item.decidedAt ?? item.updatedAt).getTime() >= STUCK_MINUTES * 60_000;
+}
+/** When a failed email may be retried, if that is still in the future at `now`. Otherwise null. */
+export function retryAvailableAt(item: Pick<AgentItem, "status" | "decidedAt" | "createdAt">, now: Date): Date | null {
+  if (item.status !== "failed") return null;
+  const at = new Date((item.decidedAt ?? item.createdAt).getTime() + STUCK_MINUTES * 60_000);
+  return at > now ? at : null;
+}
+
 export const defaultSignature = (): string =>
   [business.name, business.phone.display, business.domain.replace(/^https?:\/\//, "")].join("\n");
 

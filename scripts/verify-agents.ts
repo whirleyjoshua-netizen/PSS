@@ -159,14 +159,19 @@ test("agents: send records on a real database", async () => {
   // A send that fails, then a retry: the retry learns when the failed attempt was claimed.
   await push("mail-2");
   const m2 = await idOf("mail-2");
-  const first = await store.claimForSend(m2, "o@x.co");
+  await store.claimForSend(m2, "o@x.co");
   await store.setSendingBody(m2, "b + footer");
   await store.markFailed(m2, "Microsoft didn't answer");
   const failed = await store.getItem(m2);
   check(failed?.status === "failed" && failed.sentBody === "b + footer", "setSendingBody stores the text before the send, and markFailed fails the claimed row", JSON.stringify(failed));
+  check((await store.claimForSend(m2, "o@x.co")) === null, "a failed email can't be claimed again within 15 minutes of its last attempt", "");
+  // Pretend the last attempt was 16 minutes ago.
+  await sql`update agent_items set decided_at = decided_at - interval '16 minutes' where id = ${m2}`;
+  const lastAttempt = (await store.getItem(m2))?.decidedAt;
   const retry = await store.claimForSend(m2, "o@x.co");
-  check(retry !== null && retry.earlierAttemptAt?.getTime() === first?.item.decidedAt?.getTime(), "claiming a failed email answers when its last attempt was claimed", JSON.stringify({ retry: retry?.earlierAttemptAt, first: first?.item.decidedAt }));
+  check(retry !== null && lastAttempt instanceof Date && retry.earlierAttemptAt?.getTime() === lastAttempt.getTime(),"after 15 minutes it can, and the claim answers when the last attempt was claimed", JSON.stringify({ retry: retry?.earlierAttemptAt, lastAttempt }));
   await store.markFailed(m2, "again");
+  await sql`update agent_items set decided_at = decided_at - interval '16 minutes' where id = ${m2}`;
   const retries = await Promise.all([store.claimForSend(m2, "a@x.co"), store.claimForSend(m2, "b@x.co")]);
   check(retries.filter((c) => c !== null).length === 1, "a failed email claimed twice at once: exactly one wins", JSON.stringify(retries.map((c) => c !== null)));
   await store.markFailed(m2, "again");
@@ -186,22 +191,25 @@ test("agents: send records on a real database", async () => {
   await store.markSent(m3, { sentBody: null, graphMessageId: null, conversationId: null, internetMessageId: null });
   const sentNoIds = await store.getItem(m3);
   check(sentNoIds?.status === "sent" && sentNoIds.sentBody === "kept body" && sentNoIds.conversationId === null, "markSent with no ids is sent, and keeps the stored body", JSON.stringify(sentNoIds));
-  check((await store.sentWithoutIds(60)).some((r) => r.id === m3), "sentWithoutIds lists it", "");
+  check((await store.sentWithoutIds(60, 10)).some((r) => r.id === m3), "sentWithoutIds lists it", "");
+  check((await store.sentWithoutIds(60, 0)).length === 0, "sentWithoutIds honours its row limit", "");
   await store.markFailed(m3, "late");
   check((await store.getItem(m3))?.status === "sent", "markFailed never touches a sent email", "");
   await store.setSentIds(m3, { graphMessageId: "g-3", conversationId: `conv3-${SLUG}`, internetMessageId: `<m3-${SLUG}@test>` });
-  check((await store.getItem(m3))?.conversationId === `conv3-${SLUG}` && !(await store.sentWithoutIds(60)).some((r) => r.id === m3), "setSentIds fills them in, and it leaves the list", "");
+  check((await store.getItem(m3))?.conversationId === `conv3-${SLUG}` && !(await store.sentWithoutIds(60, 10)).some((r) => r.id === m3), "setSentIds fills them in, and it leaves the list", "");
 
   // Claimed long ago and never recorded: status unknown.
   await push("mail-4");
   const m4 = await idOf("mail-4");
   await store.claimForSend(m4, "o@x.co");
   check(!(await store.listNeedsYou()).some((i) => i.id === m4), "a send in progress is not in Needs you", "");
-  await sql`update agent_items set updated_at = now() - interval '20 minutes' where id = ${m4}`;
-  check((await store.listNeedsYou()).some((i) => i.id === m4 && i.status === "approved"), "an email stuck in approved over 5 minutes is in Needs you", "");
+  await sql`update agent_items set decided_at = now() - interval '14 minutes', updated_at = now() - interval '14 minutes' where id = ${m4}`;
+  check(!(await store.listNeedsYou()).some((i) => i.id === m4) && !(await store.stuckApproved(15, 10)).some((r) => r.id === m4), "claimed 14 minutes ago: still sending, not in Needs you, not settled yet", "");
+  await sql`update agent_items set decided_at = now() - interval '16 minutes', updated_at = now() - interval '16 minutes' where id = ${m4}`;
+  check((await store.listNeedsYou()).some((i) => i.id === m4 && i.status === "approved"), "claimed 16 minutes ago: status unknown, in Needs you", "");
   const pending = (await store.listAgentCards()).find((c) => c.slug === SLUG)?.pending;
   check(pending === 3, "listAgentCards counts it (with d1, pending, and mail-2b, failed)", JSON.stringify(pending));
-  check((await store.stuckApproved(15)).some((r) => r.id === m4), "stuckApproved(15) lists it", "");
+  check((await store.stuckApproved(15, 10)).some((r) => r.id === m4), "stuckApproved(15, 10) lists it", "");
   check(typeof (await store.needsYouCount()) === "number" && (await store.digestFacts(null)).pending >= 2, "needsYouCount and digestFacts run with the stuck condition", "");
   const runs = (await store.digestFacts(null)).agentRuns;
   check(Array.isArray(runs) && runs.every((r) => typeof r.agentName === "string"), "digestFacts lists agent runs", JSON.stringify(runs.map((r) => r.agentName)));

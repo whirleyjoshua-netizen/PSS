@@ -82,6 +82,17 @@ describe("AgentsPage", () => {
     expect(email.getByRole("textbox", { name: "Body" })).toHaveValue("Edited body");
     expect(email.getByRole("button", { name: "Retry send" })).toBeInTheDocument();
     expect(email.getByText("Outlook said no")).toBeInTheDocument();
+    // Its last attempt (at, Oct 9) is long past, so Retry is open.
+    expect(email.getByRole("button", { name: "Retry send" })).toBeEnabled();
+  });
+
+  it("holds Retry for 15 minutes after the last attempt", async () => {
+    const decidedAt = new Date(Date.now() - 5 * 60_000);
+    store.listNeedsYou.mockResolvedValue([{ ...base, status: "failed", error: "Outlook said no", decidedAt }]);
+    render(await AgentsPage());
+    const email = within(screen.getByRole("article", { name: "Email from Tobi: Intro to Acme" }));
+    expect(email.getByRole("button", { name: "Retry send" })).toBeDisabled();
+    expect(email.getByText(/Retry is available from/)).toBeInTheDocument();
   });
 
   it("shows the exact footer that gets sent once a mailing address is saved", async () => {

@@ -3,11 +3,15 @@
 import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { CONTROL, Label } from "@/components/forms/Field";
+import { formatWhen } from "@/lib/admin/time";
 import type { AgentItem } from "@/lib/agents/rules";
 import { approveAndSend, declineItem, saveEdits, type CardState } from "./actions";
 
-/** What you see in the boxes, plus the footer shown below them, is exactly what gets sent. */
-export function EmailCard({ item, agentName, footer }: { item: AgentItem; agentName: string; footer: string | null }) {
+/** What you see in the boxes, plus the footer shown below them, is exactly what gets sent.
+ * `retryAt` (set by the page while a failed email's wait isn't over) disables Retry and says when it opens. */
+export function EmailCard({ item, agentName, footer, retryAt = null }: {
+  item: AgentItem; agentName: string; footer: string | null; retryAt?: Date | null;
+}) {
   const [sendState, send, sending] = useActionState<CardState, FormData>(approveAndSend.bind(null, item.id), {});
   const [editState, save, saving] = useActionState<CardState, FormData>(saveEdits.bind(null, item.id), {});
   const [declineState, decline, declining] = useActionState<CardState, FormData>(declineItem.bind(null, item.id), {});
@@ -42,11 +46,14 @@ export function EmailCard({ item, agentName, footer }: { item: AgentItem; agentN
         {/* The send refuses unless this still matches the footer it would add. */}
         <input type="hidden" name="footer" value={footer ?? ""} />
         <div className="flex flex-wrap gap-2">
-          <Button type="submit" formAction={pressed("send", send)} disabled={busy}>
+          <Button type="submit" formAction={pressed("send", send)} disabled={busy || retryAt !== null}>
             {failed ? "Retry send" : "Approve & send"}
           </Button>
           <Button type="submit" variant="outline" formAction={pressed("save", save)} disabled={busy}>Save edits</Button>
         </div>
+        {retryAt && (
+          <p className="text-sm text-ink-soft">Retry is available from {formatWhen(retryAt)}, once the app has checked Outlook for the last attempt.</p>
+        )}
       </form>
       <form action={pressed("decline", decline)} className="flex flex-wrap items-end gap-2">
         <div className="flex min-w-48 flex-1 flex-col gap-1">

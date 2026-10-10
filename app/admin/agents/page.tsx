@@ -4,7 +4,7 @@ import { requireAdmin } from "@/lib/admin/session";
 import { formatWhen } from "@/lib/admin/time";
 import { pollReplies } from "@/lib/agents/mail";
 import { getAgentSettings, listAgentCards, listNeedsYou, listRecentReplies, markRepliesSeen } from "@/lib/agents/store";
-import { defaultSignature, emailFooter, type AgentItem } from "@/lib/agents/rules";
+import { defaultSignature, emailFooter, retryAvailableAt, type AgentItem } from "@/lib/agents/rules";
 import { Markdown } from "@/components/admin/Markdown";
 import { EmailCard } from "./EmailCard";
 import { DecisionCard } from "./DecisionCard";
@@ -13,8 +13,8 @@ import { RecentReplies } from "./RecentReplies";
 
 export const dynamic = "force-dynamic";
 
-/** An email whose send started but was never recorded: nothing to approve, so no buttons. The reply poll settles it
- * from Sent Items (found = sent, missing = failed and retryable) once it is 15 minutes old. */
+/** An email claimed for sending STUCK_MINUTES or more ago and still unsettled: nothing to approve, so no buttons.
+ * The reply poll settles it from Outlook (found = sent, missing = failed and retryable). */
 function UnknownStatusCard({ item, agentName }: { item: AgentItem; agentName: string }) {
   return (
     <article className="flex flex-col gap-2 border border-rule bg-ivory p-4" aria-label={`Email from ${agentName}: ${item.title}`}>
@@ -22,7 +22,7 @@ function UnknownStatusCard({ item, agentName }: { item: AgentItem; agentName: st
       <h3 className="font-semibold">{item.title}</h3>
       <p role="alert" className="text-sm text-red-700">Status unknown: check Sent Items in Outlook.</p>
       <p className="text-sm text-ink-soft">
-        Sending to {item.finalTo} started {formatWhen(item.updatedAt)} and never finished. The app checks Sent Items again on its own.{" "}
+        Sending to {item.finalTo} started {formatWhen(item.decidedAt ?? item.updatedAt)} and never finished. The app checks Outlook again on its own.{" "}
         <Link href={`/admin/agents/${item.agentSlug}/${item.id}`} className="underline underline-offset-4">See the email</Link>
       </p>
     </article>
@@ -45,6 +45,7 @@ export default async function AgentsPage() {
   ]);
   // Read above, so this render still shows them as "new"; the next one won't.
   await markRepliesSeen();
+  const now = new Date();
   const names = new Map(agents.map((a) => [a.slug, a.name]));
   // Exactly the footer the send adds. The card posts it back, and the send refuses if it changed since.
   const footer = settings.mailingAddress ? emailFooter(settings.signature ?? defaultSignature(), settings.mailingAddress) : null;
@@ -60,7 +61,7 @@ export default async function AgentsPage() {
           item.kind === "email" && item.status === "approved"
             ? <UnknownStatusCard key={item.id} item={item} agentName={names.get(item.agentSlug) ?? item.agentSlug} />
             : item.kind === "email"
-            ? <EmailCard key={item.id} item={item} agentName={names.get(item.agentSlug) ?? item.agentSlug} footer={footer} />
+            ? <EmailCard key={item.id} item={item} agentName={names.get(item.agentSlug) ?? item.agentSlug} footer={footer} retryAt={retryAvailableAt(item, now)} />
             : (
               <DecisionCard key={item.id} item={item} agentName={names.get(item.agentSlug) ?? item.agentSlug}>
                 {item.bodyMd ? <Markdown source={item.bodyMd} /> : null}

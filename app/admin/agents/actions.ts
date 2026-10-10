@@ -5,8 +5,10 @@ import { z } from "zod";
 import { requireAdmin } from "@/lib/admin/session";
 import { isUuid } from "@/lib/admin/ids";
 import { calendarEnabled } from "@/lib/calendar/config";
-import { lasVegasDate } from "@/lib/admin/time";
-import { composeEmailBody, defaultSignature, emailEditSchema, emailFooter, sameText, sendBlocker } from "@/lib/agents/rules";
+import { formatWhen, lasVegasDate } from "@/lib/admin/time";
+import {
+  composeEmailBody, defaultSignature, emailEditSchema, emailFooter, retryAvailableAt, sameText, sendBlocker, STUCK_MINUTES,
+} from "@/lib/agents/rules";
 import {
   claimForSend, decideItem, getAgent, getAgentSettings, getItem, isSuppressed, markFailed, saveEmailEdits, sentTodayCount,
 } from "@/lib/agents/store";
@@ -43,6 +45,11 @@ export async function approveAndSend(id: string, _prev: CardState, form: FormDat
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const item = await getItem(id);
   if (!item || item.kind !== "email") return { error: "That email no longer exists." };
+  // An earlier attempt may still land in Outlook, so a retry waits until it can be looked up (claimForSend enforces it too).
+  const retryAt = retryAvailableAt(item, new Date());
+  if (retryAt) {
+    return { error: `Retry is available from ${formatWhen(retryAt)}, ${STUCK_MINUTES} minutes after the last attempt, so the app can check Outlook for it first.` };
+  }
   // A "no thanks" that arrived since the last poll must block this send. Claim-gated: at most once per 2 minutes.
   try {
     await pollReplies();
@@ -75,11 +82,11 @@ export async function approveAndSend(id: string, _prev: CardState, form: FormDat
     return { error: changed };
   }
   const sentBody = composeEmailBody(claimed.finalBody ?? "", settings.signature ?? defaultSignature(), settings.mailingAddress ?? "");
-  const result = await sendApproved(claimed, sentBody, claim.earlierAttemptAt);
+  const result = await sendApproved(claimed, sentBody, claim.earlierAttemptAt !== null);
   refresh();
   // A failure here may be "sent, but saving that failed": shown unchanged so the owner doesn't send it again.
   if (!result.ok) return { error: result.error };
-  return { ok: result.alreadySent ? "It was already in Sent Items, so it wasn't sent again. Marked sent." : "Sent." };
+  return { ok: result.alreadySent ? "It was already in Outlook, so it wasn't sent again. Marked sent." : "Sent." };
 }
 
 export async function declineItem(id: string, _prev: CardState, form: FormData): Promise<CardState> {

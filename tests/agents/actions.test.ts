@@ -54,14 +54,29 @@ describe("approveAndSend", () => {
     expect(sentBody).toContain("PO Box 1, Las Vegas NV 89101");
     expect(sentBody.endsWith(`If you'd rather not hear from us, just reply "no thanks".`)).toBe(true);
     expect(sentBody).toBe(`Hi Pat, edited\n\n${FOOTER}`);
-    expect(mail.sendApproved.mock.calls[0][2]).toBeNull();
+    expect(mail.sendApproved.mock.calls[0][2]).toBe(false);
   });
-  it("passes a retry's earlier attempt time to the sender, which checks Sent Items first", async () => {
+  it("tells the sender a retry is a retry, so it looks for the earlier attempt first", async () => {
     const earlier = new Date("2026-10-09T17:00:00Z");
     store.claimForSend.mockResolvedValue({ item: { ...pending, status: "approved", finalTo: "pat@example.com", finalSubject: "Hello there", finalBody: "Hi Pat, edited" }, earlierAttemptAt: earlier });
     mail.sendApproved.mockResolvedValue({ ok: true, alreadySent: true });
-    expect(await actions.approveAndSend(ID, {}, edited)).toEqual({ ok: "It was already in Sent Items, so it wasn't sent again. Marked sent." });
-    expect(mail.sendApproved.mock.calls[0][2]).toBe(earlier);
+    expect(await actions.approveAndSend(ID, {}, edited)).toEqual({ ok: "It was already in Outlook, so it wasn't sent again. Marked sent." });
+    expect(mail.sendApproved.mock.calls[0][2]).toBe(true);
+  });
+  it("refuses a retry within 15 minutes of the last attempt, saying when it opens, and sends nothing", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-09T17:10:00Z"));
+    try {
+      store.getItem.mockResolvedValue({ ...pending, status: "failed", decidedAt: new Date("2026-10-09T17:00:00Z"), createdAt: new Date("2026-10-09T16:00:00Z") });
+      const result = await actions.approveAndSend(ID, {}, edited);
+      expect(result.error).toMatch(/^Retry is available from Fri, Oct 9, 10:15 AM, 15 minutes after the last attempt/);
+      expect(store.claimForSend).not.toHaveBeenCalled();
+      expect(mail.sendApproved).not.toHaveBeenCalled();
+      vi.setSystemTime(new Date("2026-10-09T17:15:00Z"));
+      expect(await actions.approveAndSend(ID, {}, edited)).toEqual({ ok: "Sent." });
+    } finally {
+      vi.useRealTimers();
+    }
   });
   it("polls for replies first, so a \"no thanks\" that just arrived blocks the send", async () => {
     let suppressed = false;

@@ -1,7 +1,7 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { isUuid } from "@/lib/admin/ids";
-import { normalizeAddress, type Agent, type AgentItem, type ItemStatus, type PushItem } from "./rules";
+import { normalizeAddress, STUCK_MINUTES, type Agent, type AgentItem, type ItemStatus, type PushItem } from "./rules";
 
 /** Rows for migration 044. Unit tests pin this SQL's text. scripts/verify-agents.ts runs it on a real database. */
 
@@ -73,11 +73,11 @@ export async function upsertItem(slug: string, item: PushItem): Promise<"created
   return rows[0].created ? "created" : "updated";
 }
 
-/** What needs the owner: pending or failed emails and decisions, and emails whose send started over 5 minutes ago and
- * was never recorded ("status unknown"). The same condition is written out in needsYouCount, listAgentCards and
- * digestFacts, which use tagged templates. */
+/** What needs the owner: pending or failed emails and decisions, and emails claimed for sending STUCK_MINUTES or more
+ * ago and still not settled ("status unknown"). Younger ones are "Sending…" and wait for the reply poll's check.
+ * Shared by listNeedsYou, needsYouCount, listAgentCards and digestFacts. */
 const NEEDS_YOU = `kind in ('email', 'decision') and (status in ('pending', 'failed')
-  or (kind = 'email' and status = 'approved' and updated_at < now() - interval '5 minutes'))`;
+  or (kind = 'email' and status = 'approved' and coalesce(decided_at, updated_at) <= now() - interval '${STUCK_MINUTES} minutes'))`;
 export async function listNeedsYou(): Promise<AgentItem[]> {
   const rows = await db().query(`select ${ITEM_COLUMNS} from agent_items where ${NEEDS_YOU} order by created_at`);
   return rows.map(toItem);
@@ -113,13 +113,15 @@ export async function decideItem(id: string, input: { status: "approved" | "decl
 }
 /** A claimed email, and when an earlier attempt to send it started (null for a first send). */
 export type Claim = { item: AgentItem; earlierAttemptAt: Date | null };
-/** One statement: the row lock means two clicks can't both claim it. A failed row's decided_at is when its last attempt
- * was claimed, which tells the sender how far back to look in Sent Items before trying again. */
+/** One statement: the row lock means two clicks can't both claim it. A failed row can be claimed again only
+ * STUCK_MINUTES after its last attempt was claimed (decided_at), so a copy Exchange saves late is found first. */
 export async function claimForSend(id: string, by: string): Promise<Claim | null> {
   const rows = await db()`
     with prev as (
       select id, status, decided_at, created_at from agent_items
-      where id = ${id} and kind = 'email' and status in ('pending', 'failed') for update
+      where id = ${id} and kind = 'email' and (status = 'pending'
+        or (status = 'failed' and coalesce(decided_at, created_at) <= now() - make_interval(mins => ${STUCK_MINUTES})))
+      for update
     )
     update agent_items i set status = 'approved', final_to = coalesce(final_to, email_to),
       final_subject = coalesce(final_subject, email_subject), final_body = coalesce(final_body, email_body),
@@ -151,18 +153,20 @@ export async function setSentIds(id: string, ids: SentIds): Promise<void> {
       internet_message_id = ${ids.internetMessageId}, updated_at = now()
     where id = ${id} and status = 'sent' and conversation_id is null`;
 }
-/** Sent emails whose Sent Items copy hasn't been found yet (so replies can't be matched to them). */
-export async function sentWithoutIds(days: number): Promise<{ id: string; sentAt: Date }[]> {
+/** Sent emails whose copy hasn't been found yet (so replies can't be matched to them), oldest first. */
+export async function sentWithoutIds(days: number, limit: number): Promise<{ id: string; sentAt: Date }[]> {
   const rows = await db()`
     select id, sent_at from agent_items
-    where kind = 'email' and status = 'sent' and conversation_id is null and sent_at > now() - make_interval(days => ${days})`;
+    where kind = 'email' and status = 'sent' and conversation_id is null and sent_at > now() - make_interval(days => ${days})
+    order by sent_at limit ${limit}`;
   return rows.map((r) => ({ id: r.id as string, sentAt: new Date(r.sent_at as string) }));
 }
-/** Emails claimed for sending more than `minutes` ago and never recorded as sent or failed. */
-export async function stuckApproved(minutes: number): Promise<{ id: string; claimedAt: Date }[]> {
+/** Emails claimed for sending `minutes` or more ago and never recorded as sent or failed, oldest first. */
+export async function stuckApproved(minutes: number, limit: number): Promise<{ id: string; claimedAt: Date }[]> {
   const rows = await db()`
     select id, coalesce(decided_at, updated_at) as claimed_at from agent_items
-    where kind = 'email' and status = 'approved' and updated_at < now() - make_interval(mins => ${minutes})`;
+    where kind = 'email' and status = 'approved' and coalesce(decided_at, updated_at) <= now() - make_interval(mins => ${minutes})
+    order by claimed_at limit ${limit}`;
   return rows.map((r) => ({ id: r.id as string, claimedAt: new Date(r.claimed_at as string) }));
 }
 export async function sentTodayCount(slug: string, laDate: string): Promise<number> {
