@@ -17,6 +17,7 @@ import { FormMessage, Honeypot, TextField } from "./Field";
  * sends), so a booking from /shutters/plantation-shutters arrives as "Shutters".
  * `introOnPhone={false}` hides the intro under the heading below sm, where TreatmentHero needs
  * the room to keep Invite Us Over above a 390×844 fold.
+ * `notes` rides along as the lead's notes (the holiday page names its offer there).
  */
 export function HeroForm({
   className,
@@ -25,6 +26,7 @@ export function HeroForm({
   city = business.serviceArea[0],
   treatment,
   introOnPhone = true,
+  notes,
 }: {
   className?: string;
   idPrefix?: string;
@@ -32,6 +34,7 @@ export function HeroForm({
   city?: ServiceCity;
   treatment?: string;
   introOnPhone?: boolean;
+  notes?: string;
 }) {
   const { state, error, submit } = useConsultationForm(source);
 
@@ -49,6 +52,7 @@ export function HeroForm({
         <Honeypot />
         <input type="hidden" name="city" value={city} readOnly />
         {treatment ? <input type="hidden" name="treatments" value={treatment} readOnly /> : null}
+        {notes ? <input type="hidden" name="notes" value={notes} readOnly /> : null}
 
         <TextField id={`${idPrefix}-name`} name="name" label="Name" autoComplete="name" required />
         <TextField

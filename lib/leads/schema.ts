@@ -7,7 +7,7 @@ const cities: readonly string[] = business.serviceArea;
 export const WINDOW_COUNTS = ["1-5", "6-10", "11-20", "20+"] as const;
 
 /** Every public form that creates a lead. The lead email and the admin show which one. */
-export const LEAD_SOURCES = ["hero", "contact", "booking"] as const;
+export const LEAD_SOURCES = ["hero", "contact", "booking", "holiday"] as const;
 export type LeadSource = (typeof LEAD_SOURCES)[number];
 
 /** A lead that came through a Google Ads lead form (app/api/ads/lead-form), not a site form. */
