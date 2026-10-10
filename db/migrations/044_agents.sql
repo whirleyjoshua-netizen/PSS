@@ -57,7 +57,8 @@ create table if not exists agent_items (
 create unique index if not exists agent_items_agent_external_idx on agent_items (agent_slug, external_id);
 create index if not exists agent_items_agent_created_idx on agent_items (agent_slug, created_at desc);
 create index if not exists agent_items_open_idx on agent_items (status) where status in ('pending', 'failed', 'unread');
-create index if not exists agent_items_conversation_idx on agent_items (conversation_id) where conversation_id is not null;
+-- No query filters on conversation_id (replies are matched in memory), so this index only cost writes.
+drop index if exists agent_items_conversation_idx;
 
 alter table agent_items drop constraint if exists agent_items_kind_status_check;
 alter table agent_items add constraint agent_items_kind_status_check check (
@@ -93,6 +94,8 @@ create table if not exists agent_replies (
   created_at          timestamptz not null default now()
 );
 create unique index if not exists agent_replies_message_idx on agent_replies (internet_message_id);
+-- The foreign key behind the reply joins and the cascade delete from agent_items.
+create index if not exists agent_replies_item_id_idx on agent_replies (item_id);
 alter table agent_replies drop constraint if exists agent_replies_body_size_check;
 alter table agent_replies add constraint agent_replies_body_size_check check (octet_length(body_text) <= 51200);
 
@@ -121,5 +124,6 @@ alter table agent_settings add constraint agent_settings_single_row check (id);
 insert into agent_settings (id) values (true) on conflict do nothing;
 
 -- The two agents that exist today. Keys are created in Settings, never here.
+-- Re-applying this file re-creates tara or tobi if either was deleted. Handle that if agents can ever be deleted.
 insert into agents (slug, name, role, stats_access) values ('tara', 'Tara', 'Marketing strategist', true) on conflict do nothing;
 insert into agents (slug, name, role, stats_access) values ('tobi', 'Tobi', 'B2B commercial outreach', false) on conflict do nothing;
