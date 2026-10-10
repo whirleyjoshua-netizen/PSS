@@ -30,9 +30,13 @@ function kindLabel(item: AgentItem, now: Date): string {
   return "Email";
 }
 
-/** The card's first lines: the summary, or else the start of the body (the email as it stands, with the owner's edits). */
-const excerpt = (item: AgentItem) =>
-  item.summary ?? (item.kind === "email" ? (item.finalBody ?? item.emailBody) : item.bodyMd);
+/** The card's first lines: the summary, or else the start of the body (the email as it stands, with the owner's edits),
+ * with Markdown's emphasis and heading marks dropped and blank lines closed up. */
+function excerpt(item: AgentItem): string | null {
+  if (item.summary) return item.summary;
+  const body = item.kind === "email" ? (item.finalBody ?? item.emailBody) : item.bodyMd?.replace(/[*#`>]+/g, "");
+  return body ? body.replace(/\n\s*\n/g, "\n").trim() : null;
+}
 
 const frame = (selected: boolean) =>
   `flex flex-col gap-2 border bg-ivory p-4 ${selected ? "border-champagne ring-2 ring-champagne/60" : "border-rule"}`;

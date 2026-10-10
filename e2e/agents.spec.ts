@@ -61,12 +61,20 @@ test("a pushed report, email and decision reach the dashboard, and the owner's d
   expect((await push.json()).results.map((r: { result: string }) => r.result)).toEqual(["created", "created", "created"]);
 
   await signInAs(page, OWNER);
-  await page.goto("/admin/agents");
+  await page.goto(`/admin/agents?agent=${SLUG}`);
   await expect(page.getByRole("heading", { name: "Agents", exact: true })).toBeVisible();
   // The nav may render twice (desktop + drawer), and its name carries the needs-you count.
   await expect(page.getByRole("navigation").getByRole("link", { name: /^Agents/ }).first()).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Agents" }).getByRole("link", { name: /^E2E Agent/ })).toHaveAttribute("aria-current", "page");
+  await expect(page.getByRole("heading", { name: "E2E Agent", level: 2 })).toBeVisible();
 
-  const email = page.getByRole("article", { name: /E2E intro/ });
+  // The email card sends nothing itself: Review & send opens the whole email in the reading pane.
+  const emailCard = page.getByRole("article", { name: "Email: E2E intro" });
+  await expect(emailCard.getByRole("button", { name: /send/i })).toHaveCount(0);
+  await emailCard.getByRole("link", { name: "Review & send" }).click();
+  await expect(page).toHaveURL(/[?&]item=[0-9a-f-]{36}/);
+  await expect(emailCard).toHaveAttribute("aria-current", "true");
+  const email = page.getByRole("article", { name: "Email from E2E Agent: E2E intro" });
   await expect(email.getByLabel("To", { exact: true })).toHaveValue("pat@example.com");
   await expect(email.getByLabel("Subject")).toHaveValue("Hello");
   await expect(email.getByLabel("Body")).toHaveValue("Hi Pat");
@@ -79,29 +87,51 @@ test("a pushed report, email and decision reach the dashboard, and the owner's d
   const e1 = await sql()`select status, final_to, sent_at from agent_items where agent_slug = ${SLUG} and external_id = 'e1'`;
   expect(e1[0]).toMatchObject({ status: "pending", final_to: null, sent_at: null });
 
-  const decision = page.getByRole("article", { name: /E2E pick a tagline/ });
-  await expect(decision.getByText("Option A or B?")).toBeVisible();
-  await decision.getByLabel(/Note/).fill("Go with A");
-  await decision.getByRole("button", { name: "Approve", exact: true }).click();
-  // Once decided it no longer needs the owner, so the card leaves the list.
-  await expect(decision).toHaveCount(0);
+  // A decision opens in the pane, where My response takes a note.
+  const decisionCard = page.getByRole("article", { name: "Decision: E2E pick a tagline" });
+  await decisionCard.getByRole("link", { name: "Expand" }).click();
+  await expect(page.getByRole("heading", { name: "E2E pick a tagline", level: 2 })).toBeVisible();
+  await expect(page.getByRole("article", { name: "E2E pick a tagline", exact: true }).getByText("Option A or B?")).toBeVisible();
+  const response = page.getByRole("region", { name: "My response" });
+  await response.getByLabel(/Note to E2E Agent/).fill("Go with A");
+  await response.getByRole("button", { name: "Approve", exact: true }).click();
+  // Once decided it no longer waits on the owner: the card moves to Done, and the pane shows the outcome.
+  await expect(decisionCard).toHaveCount(0);
+  await expect(page.getByRole("region", { name: "Done" }).getByRole("listitem", { name: "Decision: E2E pick a tagline" })).toBeVisible();
+  await expect(response.getByText("Your note: Go with A")).toBeVisible();
   const d1 = await sql()`select status, owner_note, decided_by from agent_items where agent_slug = ${SLUG} and external_id = 'd1'`;
   expect(d1[0]).toMatchObject({ status: "approved", owner_note: "Go with A", decided_by: OWNER });
   // The email is still waiting.
-  await expect(email).toBeVisible();
+  await expect(emailCard).toBeVisible();
 
-  await page.getByRole("link", { name: "E2E Agent", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "E2E Agent", level: 1 })).toBeVisible();
-  await page.getByRole("link", { name: /E2E daily brief/ }).click();
-  await expect(page.getByRole("heading", { name: "E2E daily brief", level: 1 })).toBeVisible();
+  // A report opens in the pane and is marked read.
+  await page.getByRole("article", { name: "Daily report: E2E daily brief" }).getByRole("link", { name: "Expand" }).click();
+  await expect(page.getByRole("heading", { name: "E2E daily brief", level: 2 })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Hello" })).toBeVisible();
   await expect(page.getByRole("table")).toBeVisible();
-  // Opening the report marks it read.
   await expect.poll(async () => (await sql()`select status from agent_items where agent_slug = ${SLUG} and external_id = 'r1'`)[0].status).toBe("read");
+  // My response on a report: a note the agent reads on its next run.
+  await response.getByLabel("Note to E2E Agent").fill("More on Henderson");
+  await response.getByRole("button", { name: "Send to E2E Agent" }).click();
+  await expect(response.getByRole("status")).toContainText("Sent to E2E Agent. They'll read it on their next run.");
+  await expect(response.getByText(/Your note: More on Henderson \(sent /)).toBeVisible();
+  // The box keeps the note just sent, ready to change.
+  await expect(response.getByLabel("Note to E2E Agent")).toHaveValue("More on Henderson");
+  const r1 = await sql()`select id, status, owner_note from agent_items where agent_slug = ${SLUG} and external_id = 'r1'`;
+  expect(r1[0]).toMatchObject({ status: "answered", owner_note: "More on Henderson" });
+
+  // Old links still work: the item page redirects into the reading pane.
+  await page.goto(`/admin/agents/${SLUG}/${r1[0].id}`);
+  await expect(page).toHaveURL((url) => url.pathname === "/admin/agents" && url.search === `?agent=${SLUG}&item=${r1[0].id}`);
+  await expect(page.getByRole("heading", { name: "E2E daily brief", level: 2 })).toBeVisible();
 
   const pull = await (await request.get("/api/agents/sync", { headers: auth })).json();
   expect(pull.agent).toBe(SLUG);
-  expect(pull.updates).toEqual([expect.objectContaining({ external_id: "d1", kind: "decision", status: "approved", owner_note: "Go with A" })]);
+  expect(pull.updates).toHaveLength(2);
+  expect(pull.updates).toEqual(expect.arrayContaining([
+    expect.objectContaining({ external_id: "d1", kind: "decision", status: "approved", owner_note: "Go with A" }),
+    expect.objectContaining({ external_id: "r1", kind: "report", status: "answered", owner_note: "More on Henderson" }),
+  ]));
   expect(pull.stats).toBeNull();
   expect(pull.replies).toEqual([]);
   // Delivered once: the next pull has nothing new.

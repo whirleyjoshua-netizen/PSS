@@ -129,6 +129,8 @@ describe("the agent column", () => {
     expect(d.getByRole("button", { name: "Approve" })).toHaveAttribute("value", "approved");
     expect(d.getByRole("button", { name: "Decline" })).toHaveAttribute("value", "declined");
     expect(d.queryByRole("textbox")).toBeNull();
+    // The card's excerpt is plain text: Markdown's marks are dropped.
+    expect(d.getByText("Spend $25/day more")).toBeInTheDocument();
     expect(d.getByRole("link", { name: "Expand" })).toHaveAttribute("href", `/admin/agents?agent=tobi&item=${DECISION_ID}`);
   });
 

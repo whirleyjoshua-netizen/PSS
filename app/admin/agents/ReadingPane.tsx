@@ -51,7 +51,9 @@ export function ReadingPane({ item, agentName, footer, replies, now }: {
         {item.bodyMd && <Markdown source={item.bodyMd} />}
         <Response>
           <YourNote item={item} sent />
-          <ReportNoteForm key={`${item.id}-${item.ownerNote ?? ""}`} item={item} agentName={agentName} />
+          {/* Keyed by the item only: a new key on save would remount the form and lose its "Sent" message. After a save,
+             React resets the form to its default, which is then the note just sent. */}
+          <ReportNoteForm key={item.id} item={item} agentName={agentName} />
         </Response>
       </article>
     );
