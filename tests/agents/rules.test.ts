@@ -81,6 +81,12 @@ describe("email body", () => {
       "Sounds good\n\nSent from my iPhone",
     ]) expect(isOptOut(t), JSON.stringify(t)).toBe(false);
   });
+  it("a short \"stop by / in / over / at / past / off\" is a visit, not an opt-out", () => {
+    for (const t of ["I'll stop by Tuesday", "Can stop in Monday", "stop over at 3", "Stop at 2pm?", "will stop past later", "Stop off Friday"]) {
+      expect(isOptOut(t), JSON.stringify(t)).toBe(false);
+    }
+    for (const t of ["STOP", "Please stop.", "Stop!!", "stop it"]) expect(isOptOut(t), JSON.stringify(t)).toBe(true);
+  });
 });
 
 describe("sendBlocker", () => {

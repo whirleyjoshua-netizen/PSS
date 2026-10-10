@@ -89,7 +89,8 @@ export function isOptOut(text: string): boolean {
   const own = ownWords(text);
   if (OPT_OUT.test(own)) return true;
   const words = own.trim().split(/\s+/).filter(Boolean);
-  return words.length <= MAX_STOP_WORDS && /\bstop\b/i.test(own);
+  // "stop by", "stop in", "stop over"... mean a visit, not "stop emailing".
+  return words.length <= MAX_STOP_WORDS && /\bstop\b(?!\s+(by|in|over|at|past|off)\b)/i.test(own);
 }
 
 export const defaultSignature = (): string =>
