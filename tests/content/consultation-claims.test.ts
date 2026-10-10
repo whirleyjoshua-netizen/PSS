@@ -70,3 +70,19 @@ describe("Shade’ is written with the mark", () => {
     expect(offenders).toEqual([]);
   });
 });
+
+/** Owner 2026-10-10: the 10% covers shades or blinds; copy that says only "shades" under-sells it. */
+describe("the holiday 10% names shades or blinds", () => {
+  it("never says '10% off 3 or more custom shades' without 'or blinds'", async () => {
+    const { readFileSync, readdirSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const files = (dir: string): string[] =>
+      readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+        e.isDirectory() ? files(join(dir, e.name)) : /\.tsx?$/.test(e.name) ? [join(dir, e.name)] : [],
+      );
+    const offenders = ["app", "components", "content", "lib"]
+      .flatMap(files)
+      .filter((f) => /10% off 3 or more custom shades(?! or blinds)/i.test(readFileSync(f, "utf8")));
+    expect(offenders).toEqual([]);
+  });
+});

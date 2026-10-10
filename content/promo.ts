@@ -6,14 +6,18 @@ import type { Promo, Season } from "@/lib/promo";
  * text and dates and give it a new `id` (that re-shows it to people who closed the last one).
  */
 
-/** Owner, 2026-10-09: 10% off 3+ custom shades, booked by Nov 15, so the order can still be installed before Dec 24. */
+/**
+ * Owner, 2026-10-09: 10% off 3+ custom shades, booked by Nov 15, so the order can still be installed before Dec 24.
+ * Owner, 2026-10-10: blinds count too (motorized included, shutters excluded), and "book" means the consult is booked
+ * by Nov 15. Both strips link to /holiday, which follows these same dates (content/holiday.ts).
+ */
 export const holidayOffer: Promo = {
   id: "holiday-10-off-2026",
-  message: "Holiday special: 10% off 3 or more custom shades. Book by Nov 15.",
+  message: "Holiday special: 10% off 3 or more custom shades or blinds. Book by Nov 15.",
   shortMessage: "10% off 3+ shades",
   cta: "Free in-home consult →",
   shortCta: "Book by Nov 15 →",
-  href: "/contact",
+  href: "/holiday",
   startsAt: "2026-10-09T00:00:00-07:00",
   // The end of Nov 15 in Las Vegas (PST).
   endsAt: "2026-11-16T00:00:00-08:00",
@@ -30,7 +34,7 @@ export const holidayPromo: Promo = {
   shortMessage: "Holiday-ready?",
   cta: "Free in-home consult →",
   shortCta: "Free consult →",
-  href: "/contact",
+  href: "/holiday",
   startsAt: holidayOffer.endsAt,
   // The end of Dec 24 in Las Vegas (PST).
   endsAt: "2026-12-25T00:00:00-08:00",

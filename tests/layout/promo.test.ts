@@ -36,8 +36,8 @@ describe("the holiday promo", () => {
     expect(new Date(holidayPromo.endsAt).toISOString()).toBe("2026-12-25T08:00:00.000Z");
   });
 
-  it("sends visitors to the consultation form", () => {
-    expect(holidayPromo.href).toBe("/contact");
+  it("sends visitors to the holiday landing page", () => {
+    expect(holidayPromo.href).toBe("/holiday");
   });
 });
 
@@ -49,10 +49,10 @@ describe("the 10% offer", () => {
     expect(isPromoLive(holidayPromo, new Date("2026-11-16T08:00:00Z"))).toBe(true);
   });
 
-  it("is live today and states the terms: 10%, 3 or more shades, by Nov 15", () => {
+  it("is live today and states the owner's terms: 10%, 3 or more shades or blinds, by Nov 15", () => {
     expect(isPromoLive(holidayOffer, new Date("2026-10-09T19:00:00Z"))).toBe(true);
-    expect(holidayOffer.message).toMatch(/10% off 3 or more custom shades\. Book by Nov 15\./);
-    expect(holidayOffer.href).toBe("/contact");
+    expect(holidayOffer.message).toMatch(/10% off 3 or more custom shades or blinds\. Book by Nov 15\./);
+    expect(holidayOffer.href).toBe("/holiday");
   });
 
   it("no two strips are ever live at once", () => {
