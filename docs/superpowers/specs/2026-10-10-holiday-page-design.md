@@ -6,7 +6,8 @@ not used. The raw photo is `~/Desktop/IMG_2082.JPG`, the owner's own install (ow
 ## Owner decisions
 
 - Ad type: Google **Search (text)** only. No Display, social, or print sizes for now.
-- Photo: our own install, so it may also join the gallery.
+- Photo: our own install, so it may also join the gallery. The owner confirmed (2026-10-10) that the client is fine with it on the site and in the gallery.
+- Motorized shades count toward the 10% (owner, 2026-10-10).
 - The 10% offer covers **3 or more custom shades or blinds on one order. Shutters are excluded.**
 - "Book by Nov 15" means **the consult is booked by Nov 15**. The visit itself may be later.
 - Approach 1: a new noindex `/holiday` page (not a `/consultation` variant, not an indexed page).
@@ -46,7 +47,7 @@ Noindex and not in the sitemap, like `/consultation`. It reuses `ConsultationLan
    - "Will it be installed by Christmas?" Shades and blinds take 3–5 weeks from your consult, shutters 6–10. The sooner we come out, the better your chances. Your lead time is in writing on your quote, and if it lands after the holidays we put up temporary shades for free.
      - The weeks come from `lead-times.ts`.
      - It never promises a date. This matches the banner's "may be after Christmas" line.
-   - "What counts toward the 10%?" Three or more custom shades or blinds on one order, with your consult booked by Nov 15. Shutters aren't included.
+   - "What counts toward the 10%?" Three or more custom shades or blinds on one order, motorized included, with your consult booked by Nov 15. Shutters aren't included.
      - This question is shown only while the offer is live.
 6. A closing box with the title "Ready for the holidays?" and a link to `#book`.
 
@@ -64,14 +65,13 @@ Noindex and not in the sitemap, like `/consultation`. It reuses `ConsultationLan
   - Both promos change `href` to `/holiday`.
 - Gallery: add the photo to `content/gallery.ts`. It is real work, with alt text describing the room.
   - It becomes 1800px WebP at quality 78, under `public/gallery/`.
-  - Owner rule (2026-10-01): photos must not show too much of a client's home. This one shows a room and the deck through the glass, with no faces, house number or street. The owner confirms when reviewing the build.
 - Brand voice: add the holiday offer and its wording rules to `docs/marketing/brand-voice.md`.
 
 ## The Google holiday ad (not changed in Ads until the owner approves and pays)
 
 Each ad group gets one holiday RSA with its final URL set to `/holiday`. Every line was counted against the limits (headline ≤30, description ≤90).
 
-### Shades, Solar Shades, Blinds and Window Treatments
+### Shades, Solar Shades, Motorized, Blinds and Window Treatments
 
 Holiday headlines:
 - Holiday Special: 10% Off (24)
@@ -98,10 +98,6 @@ Headlines:
 
 Description:
 - Shutters take 6–10 weeks, written on your quote. Book early for your best holiday shot. (87)
-
-### Motorized
-
-- Same pattern as Shutters. It gets no 10% line unless the owner says motorized shades count. They are shades, so the plan asks the owner.
 
 ### Ending on time
 
