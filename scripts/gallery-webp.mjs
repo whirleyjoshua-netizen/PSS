@@ -15,6 +15,7 @@ const PHOTOS = {
   "IMG_0454.jpeg": "cellular-shades-kitchen-door",
   "IMG_1827.jpeg": "cellular-shades-entry-sidelights",
   "IMG_2033.jpeg": "cellular-shades-fireplace-wall",
+  "IMG_2082.JPG": "cellular-shades-holiday-great-room",
   "IMG_2309.jpeg": "plantation-shutters-bedroom",
   "IMG_2312.jpeg": "shades-open-living-room",
   "IMG_2324.jpeg": "cellular-shades-top-down-bedroom",

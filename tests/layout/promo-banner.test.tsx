@@ -24,10 +24,10 @@ afterEach(() => {
 });
 
 describe("PromoBannerClient", () => {
-  it("links the holiday message to the consultation form", () => {
+  it("links the holiday message to the holiday landing page", () => {
     render(<PromoBannerClient promo={holidayPromo} />);
     const link = screen.getByRole("link", { name: /holidays are coming/i });
-    expect(link.getAttribute("href")).toBe("/contact");
+    expect(link.getAttribute("href")).toBe("/holiday");
   });
 
   it("carries the promo id the early script hides by", () => {
@@ -168,6 +168,6 @@ describe("the lead-times dropdown", () => {
   it("offers the consult from the panel", async () => {
     await open();
     const link = screen.getByRole("link", { name: /book your free consult/i });
-    expect(link.getAttribute("href")).toBe("/contact");
+    expect(link.getAttribute("href")).toBe("/holiday");
   });
 });

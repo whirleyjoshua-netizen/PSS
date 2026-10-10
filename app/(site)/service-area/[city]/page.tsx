@@ -113,7 +113,7 @@ export default async function CityPage({
       <BookingBlock
         photo={consultationPhoto}
         city={found.name as ServiceCity}
-        heading={`Book a free consultation in ${found.name}`}
+        heading={`Book a free consultation in ${found.name}.`}
       />
 
       <ConsultationCta

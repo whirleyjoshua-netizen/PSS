@@ -421,7 +421,7 @@ describe("updateAppointmentNotes", () => {
 
   it("refuses over-long notes or gate code, echoing what was typed and saving nothing", async () => {
     const state = await actions.updateAppointmentNotes(APPT, JOB, {}, notes({ gateCode: "x".repeat(41) }));
-    expect(state.error).toBe("Keep the gate code under 40 characters");
+    expect(state.error).toBe("Keep the gate code under 40 characters.");
     expect(state.values).toMatchObject({ designerNotes: "Side gate sticks", gateCode: "x".repeat(41) });
     expect(appointments.setAppointmentNotes).not.toHaveBeenCalled();
     expect(syncJobCalendar).not.toHaveBeenCalled();

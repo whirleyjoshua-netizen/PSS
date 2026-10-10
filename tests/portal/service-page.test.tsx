@@ -46,7 +46,7 @@ beforeEach(() => {
 describe("/project/[jobId]/service", () => {
   it("opens for the customer's own installed job", async () => {
     render(await open());
-    expect(screen.getByRole("heading", { name: "Request a service" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Request a service." })).toBeInTheDocument();
   });
 
   /** A job that is not theirs looks exactly like one that is not there. */

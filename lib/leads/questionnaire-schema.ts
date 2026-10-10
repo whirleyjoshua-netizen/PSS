@@ -4,7 +4,7 @@ import { TREATMENT_TYPE_KEYS, type TreatmentType } from "./treatment-types";
 import { WINDOW_EXACT_MAX } from "./window-count";
 
 const blank = (value: unknown) => (typeof value === "string" && value.trim() === "" ? undefined : value);
-const WINDOWS = "Pick how many windows";
+const WINDOWS = "Pick how many windows.";
 
 /** Shared with the call screen and Job details, so every place stores the same values. */
 export const windowCountExactField = z
@@ -12,12 +12,12 @@ export const windowCountExactField = z
   .transform((value) => value ?? null);
 
 export const treatmentTypesField = z
-  .array(z.enum(TREATMENT_TYPE_KEYS, { error: "Pick from the listed treatments" }))
+  .array(z.enum(TREATMENT_TYPE_KEYS, { error: "Pick from the listed treatments." }))
   .default([])
   .transform((keys): TreatmentType[] => [...new Set(keys)]);
 
 export const gateCodeField = z
-  .preprocess(blank, z.string().trim().max(40, "Keep the gate code under 40 characters").optional())
+  .preprocess(blank, z.string().trim().max(40, "Keep the gate code under 40 characters.").optional())
   .transform((value) => value ?? null);
 
 export const questionnaireSchema = z.object({
@@ -25,10 +25,10 @@ export const questionnaireSchema = z.object({
   treatmentTypes: treatmentTypesField,
   motorized: z.boolean().default(false),
   address: z
-    .preprocess(blank, z.string().trim().max(200, "Keep the address under 200 characters").optional())
+    .preprocess(blank, z.string().trim().max(200, "Keep the address under 200 characters.").optional())
     .transform((value) => value ?? null),
   finish: z
-    .preprocess(blank, z.enum(FINISHES, { error: "Pick a finish" }).optional())
+    .preprocess(blank, z.enum(FINISHES, { error: "Pick a finish." }).optional())
     .transform((value): Finish | null => value ?? null),
 });
 

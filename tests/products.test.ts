@@ -122,7 +122,7 @@ describe("redesign wording (spec 2026-10-01 §5)", () => {
     outdoor: {
       highlights: [["Heat blocking", "thermometer"], ["Whole walls", "window"], ["Energy savings", "leaf"], ["UV protection", "shield"]],
       eyebrow: "Shade before the glass",
-      heading: "Stop the Sun Before It Gets In",
+      heading: "Stop the Sun Before It Gets In.",
       caption: ["West and south walls", "Up to 90% of the sun's heat turned away."],
     },
     motorization: {

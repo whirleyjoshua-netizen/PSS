@@ -277,7 +277,7 @@ describe("giveAccess", () => {
 
   it("rejects an invalid address, keeping what was typed", async () => {
     const result = await giveAccess({}, accessForm("not-an-email"));
-    expect(result).toEqual({ error: "Please enter a valid email address", email: "not-an-email" });
+    expect(result).toEqual({ error: "Please enter a valid email address.", email: "not-an-email" });
     expect(addAdmin).not.toHaveBeenCalled();
   });
 

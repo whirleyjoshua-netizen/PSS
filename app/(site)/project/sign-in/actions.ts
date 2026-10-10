@@ -5,7 +5,7 @@ import { requestCustomerSignIn } from "@/lib/portal/login";
 
 export type CustomerSignInState = { status: "idle" | "sent" | "error"; message?: string };
 
-const email = z.string().trim().max(254).email("Enter a valid email address");
+const email = z.string().trim().max(254).email("Enter a valid email address.");
 
 /** Always "sent" for a well-formed email, whether or not it belongs to a customer. */
 export async function requestCustomerSignInAction(

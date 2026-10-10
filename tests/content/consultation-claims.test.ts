@@ -49,7 +49,7 @@ describe("no copy promises a headcount", () => {
 
   it("answers 'they disappeared' with the family business and no third-party installers", () => {
     const pain = PAINS.find((p) => /had my money/.test(p.heard))!;
-    expect(pain.answer).toBe("From your first call to the final install, we're family");
+    expect(pain.answer).toBe("From your first call to the final install, we're family.");
     expect(pain.body).toMatch(/never hand you off to a third party for install/);
   });
 });
@@ -67,6 +67,22 @@ describe("Shade’ is written with the mark", () => {
       .flatMap(files)
       .filter((f) => !f.endsWith(join("content", "reviews.ts")))
       .filter((f) => /\b(Josh (and|or) Shade|Shade (and|or) Josh|Shade (designs|found|smiling|personally))\b(?!’)|Shade's|About Shade"/.test(readFileSync(f, "utf8")));
+    expect(offenders).toEqual([]);
+  });
+});
+
+/** Owner 2026-10-10: the 10% covers shades or blinds; copy that says only "shades" under-sells it. */
+describe("the holiday 10% names shades or blinds", () => {
+  it("never says '10% off 3 or more custom shades' without 'or blinds'", async () => {
+    const { readFileSync, readdirSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const files = (dir: string): string[] =>
+      readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+        e.isDirectory() ? files(join(dir, e.name)) : /\.tsx?$/.test(e.name) ? [join(dir, e.name)] : [],
+      );
+    const offenders = ["app", "components", "content", "lib"]
+      .flatMap(files)
+      .filter((f) => /10% off 3 or more custom shades(?! or blinds)/i.test(readFileSync(f, "utf8")));
     expect(offenders).toEqual([]);
   });
 });

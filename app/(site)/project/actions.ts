@@ -126,7 +126,7 @@ async function fileServiceRequest(
   // A window that is not one of this job's, with nothing typed instead: the page was stale or
   // the id was tampered with. Asking again keeps every other answer they gave.
   if (result.status === "unknown-window") {
-    return { status: "invalid", errors: { windowText: "Tell us which window" }, values };
+    return { status: "invalid", errors: { windowText: "Tell us which window." }, values };
   }
   if (result.status !== "created") return { status: "not-found" };
 

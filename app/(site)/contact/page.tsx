@@ -19,7 +19,7 @@ export default function ContactPage() {
     <>
       <PageHero
         eyebrow="Free in-home consultation"
-        title="Let's look at your windows together"
+        title="Let's look at your windows together."
         lead="Tell us a little about the project and we will get you on the schedule. There is no charge and no obligation."
         trail={[{ name: "Contact", url: "/contact" }]}
       />

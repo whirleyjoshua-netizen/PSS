@@ -48,19 +48,19 @@ export const PAINS: Pain[] = [
   },
   {
     heard: "“The crew left a mess.”",
-    answer: "We leave it cleaner",
+    answer: "We leave it cleaner.",
     body: "We protect your floors, clean up and vacuum before we go, and haul your old blinds away for free.",
   },
   {
     heard: "“Once they had my money, they disappeared.”",
-    answer: "From your first call to the final install, we're family",
+    answer: "From your first call to the final install, we're family.",
     body: "We are a Las Vegas family business, and we never hand you off to a third party for install. We walk through every window with you before we go, and we stand behind the job.",
   },
 ];
 
 export const STEPS = [
-  { title: "Invite us over", body: "We bring samples to your home, so you see every color and fabric in your own light." },
-  { title: "Josh measures", body: "Every window, by the owner, backed by our measurement guarantee." },
+  { title: "Invite us over.", body: "We bring samples to your home, so you see every color and fabric in your own light." },
+  { title: "Josh measures.", body: "Every window, by the owner, backed by our measurement guarantee." },
   { title: "Your written quote", body: `With your lead time on it: ${LEAD_TIME_LINE}.` },
   { title: "Install day", body: "We install, walk through every window with you, clean up, and haul your old blinds away free." },
 ];

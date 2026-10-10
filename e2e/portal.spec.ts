@@ -179,7 +179,7 @@ test("opening a customer link alone does not use it", async ({ page }) => {
   await sql()`insert into customer_login_tokens (token_hash, email, expires_at)
     values (${hash(token)}, ${CUSTOMER}, now() + interval '15 minutes')`;
   await page.goto(`/project/auth?token=${token}`);
-  await expect(page.getByRole("heading", { name: "Sign in to your project page" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Sign in to your project page." })).toBeVisible();
   const rows = await sql()`select used_at from customer_login_tokens where token_hash = ${hash(token)}`;
   expect(rows[0].used_at).toBeNull();
 });

@@ -23,12 +23,12 @@ describe("questionnaireSchema", () => {
   it("accepts 1 to 31 windows only", () => {
     expect(questionnaireSchema.parse({ ...empty, windowCountExact: "31" }).windowCountExact).toBe(31);
     for (const bad of ["0", "32", "2.5", "lots"]) {
-      expect(questionnaireSchema.safeParse({ ...empty, windowCountExact: bad }).error!.issues[0].message).toBe("Pick how many windows");
+      expect(questionnaireSchema.safeParse({ ...empty, windowCountExact: bad }).error!.issues[0].message).toBe("Pick how many windows.");
     }
   });
   it("rejects unknown treatment types and finishes", () => {
-    expect(questionnaireSchema.safeParse({ ...empty, treatmentTypes: ["curtains"] }).error!.issues[0].message).toBe("Pick from the listed treatments");
-    expect(questionnaireSchema.safeParse({ ...empty, finish: "premium" }).error!.issues[0].message).toBe("Pick a finish");
+    expect(questionnaireSchema.safeParse({ ...empty, treatmentTypes: ["curtains"] }).error!.issues[0].message).toBe("Pick from the listed treatments.");
+    expect(questionnaireSchema.safeParse({ ...empty, finish: "premium" }).error!.issues[0].message).toBe("Pick a finish.");
   });
   it("drops a gate code and limits the address to 200", () => {
     // Owner 2026-10-01: the questionnaire no longer takes a gate code; one sent anyway is dropped.

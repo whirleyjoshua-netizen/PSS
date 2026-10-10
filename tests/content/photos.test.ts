@@ -60,4 +60,11 @@ describe("photos in the content model", () => {
     expect(gallery.some((item) => item.src === "/gallery/shades-open-living-room.webp")).toBe(false);
     expect(onDisk("/gallery/shades-open-living-room.webp")).toBe(false);
   });
+
+  it("puts the owner's holiday install in the gallery and uses it as the holiday photo (owner 2026-10-10)", async () => {
+    const { holidayPhoto } = await import("@/content/gallery");
+    expect(holidayPhoto.src).toBe("/gallery/cellular-shades-holiday-great-room.webp");
+    expect(gallery).toContainEqual(holidayPhoto);
+    expect(onDisk(holidayPhoto.src)).toBe(true);
+  });
 });

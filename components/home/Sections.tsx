@@ -91,11 +91,11 @@ export function CategoryGrid() {
 
 const PILLARS = [
   {
-    title: "We come to you, at no charge",
+    title: "We come to you, at no charge.",
     body: "Fabric and finish look completely different in your own light than they do on a showroom wall or a screen. We bring the samples to your windows, measure every opening ourselves, and send you a written quote.",
   },
   {
-    title: "From your first call to the final install, we're family",
+    title: "From your first call to the final install, we're family.",
     body: "We are a family business, and we never hand you off to a third party for install. There is no salesperson working a commission target.",
   },
   {
@@ -208,7 +208,7 @@ export function FamilySection() {
         <div className="flex flex-col gap-5">
           <Eyebrow>Who you&rsquo;ll be working with</Eyebrow>
           <h2 className="text-3xl font-light tracking-tight text-charcoal md:text-4xl">
-            When you invite us in, you&rsquo;re inviting in family
+            When you invite us in, you&rsquo;re inviting in family.
           </h2>
           <p className="text-ink-soft">
             We&rsquo;re a family-run business here in the Las Vegas valley. When we
@@ -268,7 +268,7 @@ export function ClosingCta() {
       <div className="flex flex-col items-start gap-6 md:flex-row md:items-center md:justify-between">
         <div className="flex flex-col gap-3">
           <h2 className="max-w-xl text-3xl font-light tracking-tight text-ivory md:text-4xl">
-            Invite us over
+            Invite us over.
           </h2>
           <p className="max-w-xl text-sand/75">
             We&rsquo;ll bring the samples. You bring the coffee.

@@ -191,7 +191,7 @@ export const categories: Category[] = [
     ],
     story: {
       eyebrow: "Shade before the glass",
-      heading: "Stop the Sun Before It Gets In",
+      heading: "Stop the Sun Before It Gets In.",
       caption: { eyebrow: "West and south walls", line: "Up to 90% of the sun's heat turned away." },
     },
     seo: {

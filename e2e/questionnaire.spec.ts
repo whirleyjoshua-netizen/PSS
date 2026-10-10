@@ -37,7 +37,7 @@ test("a new lead answers the questionnaire and the owner sees it", async ({ page
   await page.getByRole("button", { name: /invite us over/i }).click();
   await expect(page).toHaveURL(/\/thank-you$/);
 
-  const card = page.getByRole("region", { name: "Help us come prepared" });
+  const card = page.getByRole("region", { name: "Help us come prepared." });
   await expect(card.getByText("You said 6-10 earlier.")).toBeVisible();
   await expect(card.getByLabel("Street address")).toHaveValue("12 Sample St");
   await card.getByLabel("How many windows?").selectOption("12");
@@ -61,7 +61,7 @@ test("a new lead answers the questionnaire and the owner sees it", async ({ page
   const other = await stranger.newPage();
   await other.goto("/thank-you");
   await expect(other.getByRole("heading", { level: 1 })).toContainText(/thank you/i);
-  await expect(other.getByRole("region", { name: "Help us come prepared" })).toHaveCount(0);
+  await expect(other.getByRole("region", { name: "Help us come prepared." })).toHaveCount(0);
   await stranger.close();
 
   await signIn(page);

@@ -50,7 +50,7 @@ export default async function ServiceRequestPage({
 
   return (
     <div className="mx-auto flex max-w-xl flex-col gap-6 py-6">
-      <h1 className="font-display text-3xl font-light">Request a service</h1>
+      <h1 className="font-display text-3xl font-light">Request a service.</h1>
       <p className="text-ink-soft">
         {fromAcknowledgement
           ? "We are sorry it is not right. Tell us which window and what is happening, and we will come back out. You do not need to know what the part is called."

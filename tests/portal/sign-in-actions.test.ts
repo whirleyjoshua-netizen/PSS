@@ -26,7 +26,7 @@ beforeEach(() => {
 describe("requestCustomerSignInAction", () => {
   it("rejects a malformed email without doing anything", async () => {
     expect(await requestCustomerSignInAction({ status: "idle" }, form({ email: "nope" })))
-      .toEqual({ status: "error", message: "Enter a valid email address" });
+      .toEqual({ status: "error", message: "Enter a valid email address." });
     expect(login.requestCustomerSignIn).not.toHaveBeenCalled();
   });
 

@@ -24,7 +24,7 @@ export const metadata: Metadata = {
 
 const STEPS = [
   {
-    title: "We call you",
+    title: "We call you.",
     body: "Expect a call within 3 business days to find a time that works for you.",
   },
   {
@@ -60,7 +60,7 @@ export default async function ThankYouPage() {
     <>
       <PageHero
         eyebrow="Request received"
-        title="Thank you, your request is in"
+        title="Thank you. Your request is in."
         lead="We have your details, and a copy of this is on its way to your inbox. Here is what happens next."
         trail={[{ name: "Thank you", url: "/thank-you" }]}
       />

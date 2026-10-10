@@ -51,7 +51,7 @@ export default function AccessibilityPage() {
 
           <section className="flex flex-col gap-3">
             <h2 className="font-display text-lg font-light tracking-tight text-charcoal">
-              Tell us if something is wrong
+              Tell us if something is wrong.
             </h2>
             <p>
               Accessibility is not something you finish. If you run into

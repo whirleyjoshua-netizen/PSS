@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { isPromoLive, promoHideScript, promoStorageKey, type Promo } from "@/lib/promo";
-import { holidayOffer, holidayPromo, promos } from "@/content/promo";
+import { isPromoLive, promoHideScript, promoStorageKey, seasonHideScript, type Promo } from "@/lib/promo";
+import { holidayDecor, holidayOffer, holidayPromo, promos } from "@/content/promo";
 
 const promo: Promo = {
   id: "test-promo",
@@ -36,8 +36,8 @@ describe("the holiday promo", () => {
     expect(new Date(holidayPromo.endsAt).toISOString()).toBe("2026-12-25T08:00:00.000Z");
   });
 
-  it("sends visitors to the consultation form", () => {
-    expect(holidayPromo.href).toBe("/contact");
+  it("sends visitors to the holiday landing page", () => {
+    expect(holidayPromo.href).toBe("/holiday");
   });
 });
 
@@ -49,10 +49,10 @@ describe("the 10% offer", () => {
     expect(isPromoLive(holidayPromo, new Date("2026-11-16T08:00:00Z"))).toBe(true);
   });
 
-  it("is live today and states the terms: 10%, 3 or more shades, by Nov 15", () => {
+  it("is live today and states the owner's terms: 10%, 3 or more shades or blinds, by Nov 15", () => {
     expect(isPromoLive(holidayOffer, new Date("2026-10-09T19:00:00Z"))).toBe(true);
-    expect(holidayOffer.message).toMatch(/10% off 3 or more custom shades\. Book by Nov 15\./);
-    expect(holidayOffer.href).toBe("/contact");
+    expect(holidayOffer.message).toMatch(/10% off 3 or more custom shades or blinds\. Book by Nov 15\./);
+    expect(holidayOffer.href).toBe("/holiday");
   });
 
   it("no two strips are ever live at once", () => {
@@ -127,5 +127,52 @@ describe("promoHideScript", () => {
 
   it("cannot be broken out of by the promo's own text", () => {
     expect(promoHideScript({ ...promo, id: "</script><script>alert(1)" })).not.toContain("</script>");
+  });
+});
+
+describe("the hero's holiday season", () => {
+  it("runs from the first strip's start to the last strip's end, the close of Dec 24 in Las Vegas", () => {
+    expect(holidayDecor.startsAt).toBe(holidayOffer.startsAt);
+    expect(new Date(holidayDecor.endsAt).toISOString()).toBe("2026-12-25T08:00:00.000Z");
+    expect(isPromoLive(holidayDecor, new Date("2026-12-25T07:59:59Z"))).toBe(true);
+    expect(isPromoLive(holidayDecor, new Date("2026-12-25T08:00:00Z"))).toBe(false);
+  });
+});
+
+describe("seasonHideScript", () => {
+  const season = { startsAt: "2026-10-01T00:00:00-07:00", endsAt: "2026-12-25T00:00:00-08:00" };
+  const run = (now: string, selector = "[data-holiday-decor]") => {
+    const realNow = Date.now;
+    Date.now = () => new Date(now).getTime();
+    try {
+      new Function(seasonHideScript(season, selector))();
+    } finally {
+      Date.now = realNow;
+    }
+  };
+  const hidden = () =>
+    Array.from(document.head.querySelectorAll("style")).some((style) => style.textContent?.includes("[data-holiday-decor]"));
+
+  beforeEach(() => {
+    document.head.innerHTML = "";
+  });
+
+  it("leaves the decor up inside the season", () => {
+    run("2026-12-24T12:00:00Z");
+    expect(hidden()).toBe(false);
+  });
+
+  it("takes the decor down after the season, even on a page built before it ended", () => {
+    run("2026-12-25T08:00:00Z");
+    expect(hidden()).toBe(true);
+  });
+
+  it("keeps the decor down before the season", () => {
+    run("2026-09-30T12:00:00Z");
+    expect(hidden()).toBe(true);
+  });
+
+  it("cannot be broken out of by its selector", () => {
+    expect(seasonHideScript(season, "</script><script>alert(1)")).not.toContain("</script>");
   });
 });

@@ -18,7 +18,7 @@ export default function AboutPage() {
     <>
       <PageHero
         eyebrow="Who we are"
-        title="Meet the family"
+        title="Meet the family."
         trail={[{ name: "About", url: "/about" }]}
       />
 

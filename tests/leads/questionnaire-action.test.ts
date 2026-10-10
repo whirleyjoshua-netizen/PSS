@@ -82,7 +82,7 @@ describe("submitQuestionnaire", () => {
   });
   it("keeps what was typed when validation fails", async () => {
     const state = await submitQuestionnaire({}, form([["address", "x".repeat(201)], ["treatmentTypes", "shutters"]]));
-    expect(state.error).toBe("Keep the address under 200 characters");
+    expect(state.error).toBe("Keep the address under 200 characters.");
     expect(state.values).toMatchObject({ address: "x".repeat(201), treatmentTypes: "shutters" });
     expect(saveQuestionnaire).not.toHaveBeenCalled();
   });
