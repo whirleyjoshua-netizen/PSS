@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { AddedAdmin } from "@/lib/admin/admin-access";
 import type { PasskeyDevice } from "@/lib/admin/passkeys";
@@ -72,6 +72,9 @@ vi.mock("@/app/admin/settings/agent-actions", () => ({
 
 const { default: SettingsPage } = await import("@/app/admin/settings/page");
 
+/** The page as `/admin/settings?tab=…` renders it; no tab is the bare `/admin/settings`. */
+const openTab = (tab?: string | string[]) => SettingsPage({ searchParams: Promise.resolve(tab === undefined ? {} : { tab }) });
+
 beforeEach(() => {
   requireAdmin.mockClear();
   calendarEnabled.mockReset();
@@ -87,21 +90,21 @@ describe("settings page", () => {
     const shade = { id: "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c", name: "Shade Momodu", role: "designer" };
     listTeam.mockResolvedValue([shade]);
     getDefaultAssignee.mockResolvedValueOnce(shade.id);
-    render(await SettingsPage());
+    render(await openTab("team"));
     expect(screen.getByLabelText("Default for new leads")).toHaveValue(shade.id);
   });
 
   it("checks the session first", async () => {
     calendarEnabled.mockReturnValue(false);
     getSyncState.mockResolvedValue({ subscriptionId: null, expiresAt: null, lastError: null, lastErrorAt: null });
-    render(await SettingsPage());
+    render(await openTab("team"));
     expect(requireAdmin).toHaveBeenCalled();
   });
 
   it("shows not connected when the feature is off", async () => {
     calendarEnabled.mockReturnValue(false);
     getSyncState.mockResolvedValue({ subscriptionId: null, expiresAt: null, lastError: null, lastErrorAt: null });
-    render(await SettingsPage());
+    render(await openTab("scheduling"));
     expect(
       screen.getByText("Not connected. Follow docs/outlook-setup.md to connect the shared PSS Jobs calendar."),
     ).toBeInTheDocument();
@@ -115,7 +118,7 @@ describe("settings page", () => {
       lastError: "Graph returned 401",
       lastErrorAt: new Date("2026-09-14T15:00:00Z"),
     });
-    render(await SettingsPage());
+    render(await openTab("scheduling"));
     const message = screen.getByText(/Connected, but the last sync failed on/);
     expect(message).toHaveTextContent("Graph returned 401");
     expect(message).toHaveClass("text-overdue");
@@ -124,7 +127,7 @@ describe("settings page", () => {
   it("shows the last sync error without a time when none was recorded", async () => {
     calendarEnabled.mockReturnValue(true);
     getSyncState.mockResolvedValue({ subscriptionId: "sub1", expiresAt: null, lastError: "Graph returned 401", lastErrorAt: null });
-    render(await SettingsPage());
+    render(await openTab("scheduling"));
     const message = screen.getByText("Connected, but the last sync failed: Graph returned 401");
     expect(message).toHaveClass("text-overdue");
   });
@@ -137,14 +140,14 @@ describe("settings page", () => {
       lastError: null,
       lastErrorAt: null,
     });
-    render(await SettingsPage());
+    render(await openTab("scheduling"));
     expect(screen.getByText(/Connected\. Updates from Outlook are on until/)).toBeInTheDocument();
   });
 
   it("shows a waiting message when connected but not yet subscribed", async () => {
     calendarEnabled.mockReturnValue(true);
     getSyncState.mockResolvedValue({ subscriptionId: null, expiresAt: null, lastError: null, lastErrorAt: null });
-    render(await SettingsPage());
+    render(await openTab("scheduling"));
     expect(
       screen.getByText("Connected. Waiting for the first daily check to switch on updates from Outlook."),
     ).toBeInTheDocument();
@@ -154,7 +157,7 @@ describe("settings page", () => {
     calendarEnabled.mockReturnValue(true);
     getSyncState.mockRejectedValue(new Error('relation "calendar_sync_state" does not exist'));
     vi.spyOn(console, "error").mockImplementation(() => {});
-    render(await SettingsPage());
+    render(await openTab("scheduling"));
     expect(
       screen.getByText("Connected, but the calendar status couldn't be read. Has migration 007 been applied?"),
     ).toBeInTheDocument();
@@ -164,7 +167,7 @@ describe("settings page", () => {
 describe("team section", () => {
   it("says no one is added yet", async () => {
     calendarEnabled.mockReturnValue(false);
-    render(await SettingsPage());
+    render(await openTab("team"));
     const team = screen.getByRole("region", { name: "Team" });
     expect(team).toHaveTextContent("No one added yet.");
     expect(screen.getByLabelText("Name")).toBeInTheDocument();
@@ -178,7 +181,7 @@ describe("team section", () => {
       { id: "a", name: "Joshua", role: "installer" },
       { id: "b", name: "Shade", role: "designer" },
     ]);
-    render(await SettingsPage());
+    render(await openTab("team"));
     const team = screen.getByRole("region", { name: "Team" });
     expect(team).toHaveTextContent("Joshua — Installer");
     expect(team).toHaveTextContent("Shade — Designer");
@@ -194,7 +197,7 @@ describe("admin access section", () => {
     listAddedAdmins.mockResolvedValueOnce([
       { email: "alia@example.com", addedBy: "owner@example.com", addedAt: new Date("2026-09-28T18:00:00Z") },
     ]);
-    render(await SettingsPage());
+    render(await openTab("team"));
     const region = screen.getByRole("region", { name: "Admin access" });
     expect(region).toHaveTextContent(/owner@example\.com[\s\S]*alia@example\.com/);
   });
@@ -206,7 +209,7 @@ describe("Face ID section", () => {
     listPasskeys.mockResolvedValueOnce([
       { id: "cred-1", label: "iPhone", createdAt: new Date("2026-10-01T18:00:00Z"), lastUsedAt: null },
     ]);
-    render(await SettingsPage());
+    render(await openTab("device"));
     expect(listPasskeys).toHaveBeenCalledWith("owner@example.com");
     expect(screen.getByRole("heading", { name: "Face ID sign-in" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Remove iPhone added Thu, Oct 1, 2026" })).toBeInTheDocument();
@@ -216,7 +219,7 @@ describe("Face ID section", () => {
 describe("routes section", () => {
   it("shows the saved working day", async () => {
     calendarEnabled.mockReturnValue(false);
-    render(await SettingsPage());
+    render(await openTab("scheduling"));
     expect(screen.getByRole("heading", { name: "Routes" })).toBeInTheDocument();
     expect(screen.getByLabelText("Day starts")).toHaveValue("08:00");
     expect(screen.getByLabelText("Day ends")).toHaveValue("17:00");
@@ -229,7 +232,7 @@ describe("routes section", () => {
     vi.stubEnv("GOOGLE_GEOCODING_KEY", "");
     routePlanningConfigured.mockReturnValueOnce(true);
     try {
-      const { container } = render(await SettingsPage());
+      const { container } = render(await openTab("scheduling"));
       const routes = screen.getByRole("region", { name: "Routes" });
       expect(routes).toHaveTextContent("Route planning is connected.");
       expect(routes).toHaveTextContent("Map is connected.");
@@ -245,7 +248,7 @@ describe("routes section", () => {
 describe("installation rates section", () => {
   it("renders the installation rates section", async () => {
     calendarEnabled.mockReturnValue(false);
-    render(await SettingsPage());
+    render(await openTab("pricing"));
     expect(screen.getByRole("region", { name: "Installation rates" })).toBeInTheDocument();
   });
 });
@@ -258,42 +261,36 @@ describe("Direct Connect sections", () => {
     dcStore.getDcSettings.mockResolvedValueOnce({
       termsPathname: "settings/contract-terms/a.pdf", termsUpdatedAt: new Date("2026-09-20T18:00:00Z"), lastPolledAt: null,
     });
-    render(await SettingsPage());
+    render(await openTab("pricing"));
     expect(screen.getByLabelText("Duette % of MSRP")).toHaveValue("60");
     expect(screen.getByLabelText("Pirouette % of MSRP")).toHaveValue("");
     expect(screen.getByRole("region", { name: "Contract terms" })).toHaveTextContent("Using the uploaded PDF until you create terms on the Documents page.");
     const headings = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
-    const at = (name: string) => headings.indexOf(name);
-    expect(at("Installation rates")).toBeGreaterThanOrEqual(0);
-    expect(at("Markup by product line")).toBe(at("Installation rates") + 1);
-    expect(at("Contract terms")).toBe(at("Markup by product line") + 1);
-    expect(at("Google Ads")).toBe(headings.length - 1);
+    expect(headings).toEqual(["Installation rates", "Markup by product line", "Contract terms"]);
   });
 
   it("says contracts can't be sent until terms are added", async () => {
     calendarEnabled.mockReturnValue(false);
-    render(await SettingsPage());
+    render(await openTab("pricing"));
     expect(screen.getByText("No contract terms yet. Contracts can't be sent until you add them on the Documents page.")).toBeInTheDocument();
   });
 
   it("says contracts use the terms template once one exists", async () => {
     calendarEnabled.mockReturnValue(false);
     liveTemplateOfKind.mockResolvedValueOnce({ updatedAt: new Date("2026-09-28T18:00:00Z") });
-    render(await SettingsPage());
+    render(await openTab("pricing"));
     expect(liveTemplateOfKind).toHaveBeenCalledWith("terms");
     expect(screen.getByRole("region", { name: "Contract terms" })).toHaveTextContent("Contracts print the terms from the Documents page");
   });
 });
 
 describe("agents section", () => {
-  it("shows the agents after admin access, with the saved mailing address", async () => {
+  it("shows the agents on the Marketing tab, with the saved mailing address", async () => {
     calendarEnabled.mockReturnValue(false);
     agentStore.getAgentSettings.mockResolvedValueOnce({ mailingAddress: "PO Box 1", signature: null, lastDigestAt: null });
-    render(await SettingsPage());
-    const agents = screen.getByRole("region", { name: "Agents" });
+    render(await openTab("marketing"));
+    expect(screen.getByRole("region", { name: "Agents" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Agents" })).toHaveAttribute("id", "agents-heading");
-    const access = screen.getByRole("region", { name: "Admin access" });
-    expect(access.compareDocumentPosition(agents) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.getByLabelText("Mailing address")).toHaveValue("PO Box 1");
   });
 
@@ -304,10 +301,68 @@ describe("agents section", () => {
     agentStore.listAgentCards.mockRejectedValueOnce(missing);
     agentStore.getAgentSettings.mockRejectedValueOnce(missing);
     agentStore.listSuppressions.mockRejectedValueOnce(missing);
-    render(await SettingsPage());
+    render(await openTab("marketing"));
     expect(screen.getByRole("heading", { name: "Settings" })).toBeInTheDocument();
     expect(screen.getByText("No agents yet.")).toBeInTheDocument();
     expect(screen.getByLabelText("Mailing address")).toHaveValue("");
     error.mockRestore();
+  });
+});
+
+describe("settings tabs", () => {
+  const SECTIONS = {
+    team: ["Team", "Admin access", "New leads"],
+    pricing: ["Installation rates", "Markup by product line", "Contract terms"],
+    scheduling: ["Routes", "Outlook calendar"],
+    marketing: ["Agents", "Google Ads"],
+    device: ["Face ID sign-in", "Install on your phone"],
+  } as const;
+  const sectionHeadings = () => screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
+
+  it.each(Object.entries(SECTIONS))("the %s tab shows its own sections and no others", async (tab, sections) => {
+    calendarEnabled.mockReturnValue(false);
+    render(await openTab(tab));
+    expect(sectionHeadings()).toEqual(sections);
+  });
+
+  it("opens on Team when no tab is chosen, or the tab is unknown", async () => {
+    calendarEnabled.mockReturnValue(false);
+    for (const tab of [undefined, "nonsense", ["pricing", "team"]] as const) {
+      const { unmount } = render(await openTab(tab as string | string[] | undefined));
+      const expected = Array.isArray(tab) ? SECTIONS.pricing : SECTIONS.team;
+      expect(sectionHeadings()).toEqual(expected);
+      unmount();
+    }
+  });
+
+  it("links every tab, marking the open one", async () => {
+    calendarEnabled.mockReturnValue(false);
+    render(await openTab("scheduling"));
+    const nav = screen.getByRole("navigation", { name: "Settings sections" });
+    const links = within(nav).getAllByRole("link");
+    expect(links.map((l) => [l.textContent, l.getAttribute("href")])).toEqual([
+      ["Team", "/admin/settings"],
+      ["Pricing", "/admin/settings?tab=pricing"],
+      ["Scheduling", "/admin/settings?tab=scheduling"],
+      ["Marketing", "/admin/settings?tab=marketing"],
+      ["This device", "/admin/settings?tab=device"],
+    ]);
+    expect(within(nav).getByRole("link", { name: "Scheduling" })).toHaveAttribute("aria-current", "page");
+    expect(links.filter((l) => l.hasAttribute("aria-current"))).toHaveLength(1);
+  });
+
+  it("reads only what the open tab shows", async () => {
+    calendarEnabled.mockReturnValue(true);
+    listTeam.mockClear();
+    getSyncState.mockClear().mockResolvedValue({ subscriptionId: null, expiresAt: null, lastError: null, lastErrorAt: null });
+    dcStore.listMarkupRules.mockClear();
+    agentStore.listAgentCards.mockClear();
+    listPasskeys.mockClear();
+    render(await openTab("pricing"));
+    expect(dcStore.listMarkupRules).toHaveBeenCalled();
+    expect(listTeam).not.toHaveBeenCalled();
+    expect(getSyncState).not.toHaveBeenCalled();
+    expect(agentStore.listAgentCards).not.toHaveBeenCalled();
+    expect(listPasskeys).not.toHaveBeenCalled();
   });
 });

@@ -24,7 +24,7 @@ export function AgentList({ agents, selected }: { agents: AgentCard[]; selected:
           </Link>
         );
       })}
-      <Link href="/admin/settings#agents-heading" className="flex items-center rounded-full border border-dashed border-rule px-3 py-2 text-sm text-ink-soft lg:rounded-none">
+      <Link href="/admin/settings?tab=marketing#agents-heading" className="flex items-center rounded-full border border-dashed border-rule px-3 py-2 text-sm text-ink-soft lg:rounded-none">
         + Add agent
       </Link>
     </nav>

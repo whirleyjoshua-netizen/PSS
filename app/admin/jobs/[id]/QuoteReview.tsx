@@ -19,7 +19,7 @@ const STATUS: Record<StoredVersion["status"], string> = {
 };
 const EMAIL_FAILED = "Quote sent, but the email to the client failed — send them their project page link yourself.";
 const CONTRACT_EMAIL_FAILED = "Contract sent, but the email to the client failed — send them their project page link yourself.";
-const MARKUP_SETTINGS = "/admin/settings#markup-heading";
+const MARKUP_SETTINGS = "/admin/settings?tab=pricing#markup-heading";
 const cell = "border-b border-rule px-2 py-2 align-top";
 const num = `${cell} text-right tabular-nums`;
 

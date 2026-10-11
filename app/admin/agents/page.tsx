@@ -45,7 +45,7 @@ export default async function AgentsPage({ searchParams }: { searchParams: Promi
   const header = (
     <div className="flex items-baseline justify-between">
       <h1 className="text-2xl font-semibold">Agents</h1>
-      <Link href="/admin/settings#agents-heading" className="text-sm underline underline-offset-4">Agent settings</Link>
+      <Link href="/admin/settings?tab=marketing#agents-heading" className="text-sm underline underline-offset-4">Agent settings</Link>
     </div>
   );
   if (!agent) {

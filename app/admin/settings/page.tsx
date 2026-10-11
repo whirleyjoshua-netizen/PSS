@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { requireAdmin } from "@/lib/admin/session";
 import { calendarEnabled } from "@/lib/calendar/config";
 import { getSyncState } from "@/lib/calendar/store";
@@ -23,16 +24,72 @@ import { TermsSection } from "./TermsSection";
 import { liveTemplateOfKind } from "@/lib/docs/templates";
 import { getAgentSettings, listAgentCards, listSuppressions } from "@/lib/agents/store";
 import { AgentsSection } from "./AgentsSection";
+import { SettingsTabs } from "./SettingsTabs";
+import { parseSettingsTab, type SettingsTab } from "./tabs";
 
-/** The team list, plus account and client-portal options as later portal steps land. */
-export default async function SettingsPage() {
+/**
+ * Settings, one tab at a time (`?tab=`, Team by default). Each tab reads only what it shows, so a
+ * failing read on one tab never stops another from opening.
+ */
+export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ tab?: string | string[] }> }) {
   const admin = await requireAdmin();
-  const enabled = calendarEnabled();
-  // Read both together, so neither rejection is left unhandled while the other is awaited.
-  const [team, rates, installSettings, calendar, routeSettings, defaultAssignee, addedAdmins, rules, collections, dcSettings, termsTemplate, faceIdDevices, agents, agentSettings, suppressions] = await Promise.all([
-    listTeam(),
+  const tab = parseSettingsTab((await searchParams).tab);
+  const content = await TAB_CONTENT[tab](admin.email);
+
+  return (
+    <div className="flex max-w-xl flex-col gap-4">
+      <h1 className="text-2xl font-semibold">Settings</h1>
+      <SettingsTabs active={tab} />
+      {content}
+    </div>
+  );
+}
+
+const TAB_CONTENT: Record<SettingsTab, (email: string) => Promise<ReactNode>> = {
+  team: teamTab,
+  pricing: pricingTab,
+  scheduling: schedulingTab,
+  marketing: marketingTab,
+  device: deviceTab,
+};
+
+async function teamTab(email: string) {
+  // Read together, so neither rejection is left unhandled while another is awaited.
+  const [team, addedAdmins, defaultAssignee] = await Promise.all([listTeam(), listAddedAdmins(), getDefaultAssignee()]);
+  return (
+    <>
+      <TeamSection team={team} />
+      <AdminAccessSection owners={parseAllowlist(process.env.ADMIN_EMAILS)} added={addedAdmins} me={email} />
+      <LeadDefaultsSection team={team} defaultAssignee={defaultAssignee} />
+    </>
+  );
+}
+
+async function pricingTab() {
+  const [rates, installSettings, rules, collections, dcSettings, termsTemplate] = await Promise.all([
     listInstallRates(),
     getInstallSettings(),
+    listMarkupRules(),
+    listSeenCollections(),
+    getDcSettings(),
+    liveTemplateOfKind("terms"),
+  ]);
+  return (
+    <>
+      <InstallRatesSection rates={rates} settings={installSettings} />
+      <MarkupSection collections={collections} rules={rules} />
+      <TermsSection
+        template={termsTemplate ? { updatedAt: termsTemplate.updatedAt } : null}
+        legacyUpload={dcSettings.termsPathname !== null}
+      />
+    </>
+  );
+}
+
+async function schedulingTab() {
+  const enabled = calendarEnabled();
+  const [routeSettings, calendar] = await Promise.all([
+    getRouteSettings(),
     enabled
       ? getSyncState().then(
           (state) => ({ state, unreadable: false }),
@@ -43,27 +100,6 @@ export default async function SettingsPage() {
           },
         )
       : Promise.resolve({ state: null, unreadable: false }),
-    getRouteSettings(),
-    getDefaultAssignee(),
-    listAddedAdmins(),
-    listMarkupRules(),
-    listSeenCollections(),
-    getDcSettings(),
-    liveTemplateOfKind("terms"),
-    listPasskeys(admin.email),
-    // Each falls back, so Settings still loads before migration 044 (the agents tables) is applied.
-    listAgentCards().catch((error: unknown) => {
-      console.error("Could not read the agents", error);
-      return [];
-    }),
-    getAgentSettings().catch((error: unknown) => {
-      console.error("Could not read the agent settings", error);
-      return { mailingAddress: null, signature: null };
-    }),
-    listSuppressions().catch((error: unknown) => {
-      console.error("Could not read the do-not-contact list", error);
-      return [];
-    }),
   ]);
   const routeSetup = {
     map: Boolean(process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY && process.env.NEXT_PUBLIC_GOOGLE_MAP_ID),
@@ -72,23 +108,9 @@ export default async function SettingsPage() {
   };
   const { state, unreadable } = calendar;
   const { expiresAt, lastError, lastErrorAt } = state ?? { expiresAt: null, lastError: null, lastErrorAt: null };
-
   return (
-    <div className="flex max-w-xl flex-col gap-4">
-      <h1 className="text-2xl font-semibold">Settings</h1>
-      <InstallSection />
-      <TeamSection team={team} />
-      <AdminAccessSection owners={parseAllowlist(process.env.ADMIN_EMAILS)} added={addedAdmins} me={admin.email} />
-      <AgentsSection agents={agents} settings={agentSettings} suppressions={suppressions} />
-      <FaceIdSection devices={faceIdDevices} />
-      <LeadDefaultsSection team={team} defaultAssignee={defaultAssignee} />
+    <>
       <RoutesSection settings={routeSettings} setup={routeSetup} />
-      <InstallRatesSection rates={rates} settings={installSettings} />
-      <MarkupSection collections={collections} rules={rules} />
-      <TermsSection
-        template={termsTemplate ? { updatedAt: termsTemplate.updatedAt } : null}
-        legacyUpload={dcSettings.termsPathname !== null}
-      />
       <section aria-labelledby="outlook-heading" className="flex flex-col gap-2">
         <h2 id="outlook-heading" className="text-lg font-semibold">
           Outlook calendar
@@ -115,6 +137,29 @@ export default async function SettingsPage() {
           </p>
         )}
       </section>
+    </>
+  );
+}
+
+async function marketingTab() {
+  // Each falls back, so Settings still loads before migration 044 (the agents tables) is applied.
+  const [agents, agentSettings, suppressions] = await Promise.all([
+    listAgentCards().catch((error: unknown) => {
+      console.error("Could not read the agents", error);
+      return [];
+    }),
+    getAgentSettings().catch((error: unknown) => {
+      console.error("Could not read the agent settings", error);
+      return { mailingAddress: null, signature: null };
+    }),
+    listSuppressions().catch((error: unknown) => {
+      console.error("Could not read the do-not-contact list", error);
+      return [];
+    }),
+  ]);
+  return (
+    <>
+      <AgentsSection agents={agents} settings={agentSettings} suppressions={suppressions} />
       <section aria-labelledby="ads-heading" className="flex flex-col gap-2">
         <h2 id="ads-heading" className="text-lg font-semibold">
           Google Ads
@@ -128,6 +173,16 @@ export default async function SettingsPage() {
           Download conversions file
         </a>
       </section>
-    </div>
+    </>
+  );
+}
+
+async function deviceTab(email: string) {
+  const devices = await listPasskeys(email);
+  return (
+    <>
+      <FaceIdSection devices={devices} />
+      <InstallSection />
+    </>
   );
 }

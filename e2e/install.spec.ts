@@ -54,7 +54,7 @@ test("rates set in Settings price a job, and the snapshot survives a rate change
     returning id`;
   await signIn(page);
 
-  await page.goto("/admin/settings");
+  await page.goto("/admin/settings?tab=pricing");
   await page.getByLabel("Roller shades priced by").selectOption("window");
   await page.getByLabel("Roller shades rate").fill("25");
   await page.getByLabel("Minimum job cost").fill("150");
@@ -74,7 +74,7 @@ test("rates set in Settings price a job, and the snapshot survives a rate change
   await expect(savedPrices(page).getByRole("listitem").first()).toContainText("$250");
 
   // Raising the rate must not rewrite what was already quoted.
-  await page.goto("/admin/settings");
+  await page.goto("/admin/settings?tab=pricing");
   await page.getByLabel("Roller shades rate").fill("40");
   await page.getByRole("button", { name: "Save rates" }).click();
   await expect(page.getByRole("status")).toHaveText("Saved.");
@@ -103,7 +103,7 @@ test("a charged measuring fee goes on top of the minimum, is saved as shown, and
     returning id`;
   await signIn(page);
 
-  await page.goto("/admin/settings");
+  await page.goto("/admin/settings?tab=pricing");
   await page.getByLabel("Roller shades priced by").selectOption("window");
   await page.getByLabel("Roller shades rate").fill("25");
   await page.getByLabel("Minimum job cost").fill("150");
@@ -134,7 +134,7 @@ test("a charged measuring fee goes on top of the minimum, is saved as shown, and
   expect(stored).toEqual({ subtotal_cents: 5000, measure_cents: 7500, total_cents: 22_500 });
 
   // Raising the fee must not rewrite the saved price — and must reach new work.
-  await page.goto("/admin/settings");
+  await page.goto("/admin/settings?tab=pricing");
   await page.getByLabel("Measurement fee").fill("90");
   await page.getByRole("button", { name: "Save rates" }).click();
   await expect(page.getByRole("status")).toHaveText("Saved.");
@@ -161,7 +161,7 @@ test("takedown and app set-up are priced, count toward the minimum, and every st
     returning id`;
   await signIn(page);
 
-  await page.goto("/admin/settings");
+  await page.goto("/admin/settings?tab=pricing");
   await page.getByLabel("Roller shades priced by").selectOption("window");
   await page.getByLabel("Roller shades rate").fill("25");
   await page.getByLabel("Minimum job cost").fill("150");

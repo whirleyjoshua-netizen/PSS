@@ -78,7 +78,7 @@ describe("selecting an agent", () => {
     expect(nav.getByRole("link", { name: /^Tobi/ })).toHaveAttribute("href", "/admin/agents?agent=tobi");
     expect(nav.getByLabelText("2 need you")).toBeInTheDocument();
     expect(nav.getByRole("link", { name: /^Tara/ })).not.toHaveAttribute("aria-current");
-    expect(nav.getByRole("link", { name: "+ Add agent" })).toHaveAttribute("href", "/admin/settings#agents-heading");
+    expect(nav.getByRole("link", { name: "+ Add agent" })).toHaveAttribute("href", "/admin/settings?tab=marketing#agents-heading");
   });
 
   it("counts unseen replies on the chip, and opens the agent with one when nothing else waits", async () => {

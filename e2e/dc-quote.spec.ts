@@ -314,7 +314,7 @@ test("an imported quote shows its four lines and can't be sent until markups, an
 
 test("markups set in Settings and a final install price give the total computed from the fixture", async ({ page }) => {
   await signInOwner(page);
-  await page.goto("/admin/settings");
+  await page.goto("/admin/settings?tab=pricing");
   const markup = page.getByRole("region", { name: "Markup by product line" });
   for (const [collection, pct] of Object.entries(MARKUPS)) {
     const row = markup.locator("form").filter({ has: page.getByLabel(`${collection} % of MSRP`, { exact: true }) });

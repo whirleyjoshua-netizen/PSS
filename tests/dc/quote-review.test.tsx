@@ -234,7 +234,7 @@ describe("QuoteReview % of MSRP", () => {
     const lines = [...r.priced.lines];
     lines[2] = { position: 3, pct: null, source: "missing", sellUnitCents: null, sellExtendedCents: null, marginCents: null };
     render(<QuoteReview jobId={J} review={{ ...r, rules: { Duette: 60, Silhouette: 57.5 }, priced: { ...r.priced, lines, productsCents: null, clientTotalCents: null, marginCents: null } }} />);
-    expect(within(row(/Accessory/)).getByRole("link", { name: "Set a markup in Settings" })).toHaveAttribute("href", "/admin/settings#markup-heading");
+    expect(within(row(/Accessory/)).getByRole("link", { name: "Set a markup in Settings" })).toHaveAttribute("href", "/admin/settings?tab=pricing#markup-heading");
     expect(screen.getByLabelText("Line 3 % of MSRP")).toHaveValue("");
     expect(total("Client total")).toHaveTextContent("—");
   });
