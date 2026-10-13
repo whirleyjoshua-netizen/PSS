@@ -67,3 +67,19 @@ describe("isAfterDay", () => {
     expect(isAfterDay(todayInLasVegas(new Date("2026-12-25T20:00:00Z")), "2026-12-24")).toBe(true);
   });
 });
+
+describe("every lead-time sentence says when the weeks start", () => {
+  it("in the consultation cards, steps and answers, the holiday copy and the FAQ", async () => {
+    const { PAINS, STEPS, FAQ } = await import("@/content/consultation");
+    const { FAQ_GROUPS } = await import("@/content/faq");
+    const copy = [
+      ...PAINS.map((p) => p.body),
+      ...STEPS.map((s) => s.body),
+      ...FAQ.map((f) => f.a),
+      ...FAQ_GROUPS.flatMap((g) => g.items.map((i) => i.a)),
+    ];
+    const withWeeks = copy.filter((line) => /\d+–\d+ weeks/.test(line));
+    expect(withWeeks.length).toBeGreaterThanOrEqual(4);
+    for (const line of withWeeks) expect(line, line).toMatch(/from the day you order|from order/);
+  });
+});

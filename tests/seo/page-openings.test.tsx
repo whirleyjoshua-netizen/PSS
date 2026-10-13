@@ -73,7 +73,7 @@ describe.each(cities.map((c) => [c.slug, c] as const))("/service-area/%s", (slug
       expect(screen.getByText(product.why)).toBeInTheDocument();
     }
     const text = container.textContent ?? "";
-    expect(text).toContain(LEAD_TIME_LINE);
+    expect(text).toContain(`${LEAD_TIME_LINE}, counted from the day you order`);
     expect(text).toContain(WARRANTY_LINE);
     expect(text).toContain(WARRANTY.fineprint);
     expect(text).toMatch(/measurement guarantee/);

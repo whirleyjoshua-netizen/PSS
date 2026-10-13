@@ -22,6 +22,9 @@ const weeks = (label: string) => {
 /** "3–5 weeks for blinds and shades, 6–10 weeks for shutters", read from content/lead-times.ts. */
 export const LEAD_TIME_LINE = `${weeks("Blinds")} for blinds and shades, ${weeks("Shutters")} for shutters`;
 
+/** Where the weeks start (owner 2026-10-13: the order, not the consult). Every lead-time sentence says it. */
+export const LEAD_TIME_START = "counted from the day you order";
+
 export type Pain = {
   /** The complaint, in the words customers use in reviews. */
   heard: string;
@@ -34,7 +37,7 @@ export const PAINS: Pain[] = [
   {
     heard: "“It took forever.”",
     answer: "Your lead time, in writing",
-    body: `Your quote says when to expect your install: ${LEAD_TIME_LINE}. Need privacy while you wait? We put up temporary shades, free.`,
+    body: `Your quote says when to expect your install: ${LEAD_TIME_LINE}, ${LEAD_TIME_START}. Need privacy while you wait? We put up temporary shades, free.`,
   },
   {
     heard: "“They measured wrong.”",
@@ -68,14 +71,14 @@ export const HOME_OBJECTIONS: Pain[] = PAINS.slice(0, 4);
 export const STEPS = [
   { title: "Invite us over.", body: "We bring samples to your home, so you see every color and fabric in your own light." },
   { title: "Josh measures.", body: "Every window, by the owner, backed by our measurement guarantee." },
-  { title: "Your written quote", body: `With your lead time on it: ${LEAD_TIME_LINE}.` },
+  { title: "Your written quote", body: `With your lead time on it: ${LEAD_TIME_LINE}, ${LEAD_TIME_START}.` },
   { title: "Install day", body: "We install, walk through every window with you, clean up, and haul your old blinds away free." },
 ];
 
 export const FAQ = [
   {
     q: "How long until my install?",
-    a: `${LEAD_TIME_LINE[0]!.toUpperCase()}${LEAD_TIME_LINE.slice(1)}, counted from the day you order. It is written on your quote, and we put up temporary shades for free while you wait.`,
+    a: `${LEAD_TIME_LINE[0]!.toUpperCase()}${LEAD_TIME_LINE.slice(1)}, ${LEAD_TIME_START}. It is written on your quote, and we put up temporary shades for free while you wait.`,
   },
   {
     q: "What if something doesn't fit?",

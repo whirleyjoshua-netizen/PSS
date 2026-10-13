@@ -1,5 +1,5 @@
 import { business } from "@/content/business";
-import { LEAD_TIME_LINE } from "@/content/consultation";
+import { LEAD_TIME_LINE, LEAD_TIME_START } from "@/content/consultation";
 import { guides } from "@/content/guides";
 import { WARRANTY } from "@/content/warranty";
 import { cityPath } from "@/lib/content/cities";
@@ -109,7 +109,7 @@ export const FAQ_GROUPS: FaqGroup[] = [
       },
       {
         q: "How long does it take to receive and install custom shades?",
-        a: `${capitalized(LEAD_TIME_LINE)}, counted from the day you order. Your lead time is written on your quote, so you know before you say yes. Need privacy sooner? We put up temporary shades for free while you wait. On install day we install, walk through every window with you, clean up, and haul your old blinds away free.`,
+        a: `${capitalized(LEAD_TIME_LINE)}, ${LEAD_TIME_START}. Your lead time is written on your quote, so you know before you say yes. Need privacy sooner? We put up temporary shades for free while you wait. On install day we install, walk through every window with you, clean up, and haul your old blinds away free.`,
         links: [{ label: "Invite us over", href: "/contact" }],
       },
       {
