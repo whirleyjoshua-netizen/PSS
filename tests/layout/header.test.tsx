@@ -116,6 +116,17 @@ describe("Footer", () => {
     }
   });
 
+  it("groups every column's links under its visible label, the family and reviews links included", () => {
+    render(<Footer />);
+    for (const label of ["Products", "Service Area", "Get in Touch"]) {
+      const nav = screen.getByRole("navigation", { name: label });
+      expect(nav.getAttribute("aria-labelledby")).toBe(within(nav).getByText(label).id);
+    }
+    const touch = screen.getByRole("navigation", { name: "Get in Touch" });
+    expect(within(touch).getByRole("link", { name: "Our family" })).toHaveAttribute("href", "/about");
+    expect(within(touch).getByRole("link", { name: "Reviews" })).toHaveAttribute("href", "/reviews");
+  });
+
   it("links the legal pages", () => {
     render(<Footer />);
     expect(screen.getByRole("link", { name: /privacy/i }).getAttribute("href")).toBe("/privacy");

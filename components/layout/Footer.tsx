@@ -8,7 +8,9 @@ import { cityPath } from "@/lib/content/cities";
 /**
  * Column labels, not headings: the footer repeats on every page, and three h2s
  * there made each page's outline end in "Products / Service Area / Get in Touch".
- * Same styling as the old h2s, so nothing moves visually.
+ * Same styling as the old h2s, so nothing moves visually. Each column is a nav
+ * named by its visible label (aria-labelledby), so a screen reader announces the
+ * same group name a sighted visitor reads.
  */
 const LABEL = "font-display text-xs font-medium uppercase tracking-[0.2em] text-champagne";
 
@@ -28,8 +30,8 @@ export function Footer() {
             </p>
           </div>
 
-          <nav aria-label="Products" className="flex flex-col gap-4">
-            <p className={LABEL}>Products</p>
+          <nav aria-labelledby="footer-products" className="flex flex-col gap-4">
+            <p id="footer-products" className={LABEL}>Products</p>
             <ul className="flex flex-col gap-2 text-sm">
               {categories.map((category) => (
                 <li key={category.slug}>
@@ -49,8 +51,8 @@ export function Footer() {
             </ul>
           </nav>
 
-          <nav aria-label="Service area" className="flex flex-col gap-4">
-            <p className={LABEL}>Service Area</p>
+          <nav aria-labelledby="footer-service-area" className="flex flex-col gap-4">
+            <p id="footer-service-area" className={LABEL}>Service Area</p>
             <ul className="flex flex-col gap-2 text-sm">
               {business.serviceArea.map((city) => (
                 <li key={city}>
@@ -65,8 +67,8 @@ export function Footer() {
             </ul>
           </nav>
 
-          <div className="flex flex-col gap-4">
-            <p className={LABEL}>Get in Touch</p>
+          <nav aria-labelledby="footer-get-in-touch" className="flex flex-col gap-4">
+            <p id="footer-get-in-touch" className={LABEL}>Get in Touch</p>
             <ul className="flex flex-col gap-2 text-sm text-sand/80">
               <li>
                 <Link href="/about" className="transition-colors hover:text-ivory">
@@ -96,7 +98,7 @@ export function Footer() {
             >
               Invite Us Over
             </Link>
-          </div>
+          </nav>
         </div>
 
         <div className="flex flex-col gap-4 border-t border-ivory/15 py-8 text-xs text-sand/60 sm:flex-row sm:items-center sm:justify-between">
