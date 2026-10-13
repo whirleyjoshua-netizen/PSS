@@ -5,6 +5,13 @@ import { business } from "@/content/business";
 import { categories } from "@/content/products";
 import { cityPath } from "@/lib/content/cities";
 
+/**
+ * Column labels, not headings: the footer repeats on every page, and three h2s
+ * there made each page's outline end in "Products / Service Area / Get in Touch".
+ * Same styling as the old h2s, so nothing moves visually.
+ */
+const LABEL = "font-display text-xs font-medium uppercase tracking-[0.2em] text-champagne";
+
 export function Footer() {
   const year = new Date().getFullYear();
 
@@ -22,9 +29,7 @@ export function Footer() {
           </div>
 
           <nav aria-label="Products" className="flex flex-col gap-4">
-            <h2 className="font-display text-xs font-medium uppercase tracking-[0.2em] text-champagne">
-              Products
-            </h2>
+            <p className={LABEL}>Products</p>
             <ul className="flex flex-col gap-2 text-sm">
               {categories.map((category) => (
                 <li key={category.slug}>
@@ -37,17 +42,15 @@ export function Footer() {
                 </li>
               ))}
               <li>
-                <Link href="/guides" className="text-sand/80 transition-colors hover:text-ivory">
-                  Repair &amp; care guides
+                <Link href="/faq" className="text-sand/80 transition-colors hover:text-ivory">
+                  Questions &amp; care
                 </Link>
               </li>
             </ul>
           </nav>
 
           <nav aria-label="Service area" className="flex flex-col gap-4">
-            <h2 className="font-display text-xs font-medium uppercase tracking-[0.2em] text-champagne">
-              Service Area
-            </h2>
+            <p className={LABEL}>Service Area</p>
             <ul className="flex flex-col gap-2 text-sm">
               {business.serviceArea.map((city) => (
                 <li key={city}>
@@ -63,10 +66,18 @@ export function Footer() {
           </nav>
 
           <div className="flex flex-col gap-4">
-            <h2 className="font-display text-xs font-medium uppercase tracking-[0.2em] text-champagne">
-              Get in Touch
-            </h2>
+            <p className={LABEL}>Get in Touch</p>
             <ul className="flex flex-col gap-2 text-sm text-sand/80">
+              <li>
+                <Link href="/about" className="transition-colors hover:text-ivory">
+                  Our family
+                </Link>
+              </li>
+              <li>
+                <Link href="/reviews" className="transition-colors hover:text-ivory">
+                  Reviews
+                </Link>
+              </li>
               <li>
                 <a href={business.phone.href} className="transition-colors hover:text-ivory">
                   {business.phone.display}
@@ -83,7 +94,7 @@ export function Footer() {
               href="/contact"
               className="mt-2 inline-flex min-h-11 w-fit items-center bg-champagne px-5 py-2.5 font-display text-xs font-medium uppercase tracking-[0.14em] text-charcoal transition-colors hover:bg-ivory"
             >
-              Free Consultation
+              Invite Us Over
             </Link>
           </div>
         </div>

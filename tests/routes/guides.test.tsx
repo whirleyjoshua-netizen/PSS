@@ -3,7 +3,6 @@ import { describe, it, expect } from "vitest";
 import GuidePage, { generateMetadata, generateStaticParams } from "@/app/(site)/guides/[slug]/page";
 import { guides, minutesLabel } from "@/content/guides";
 import GuidesIndexPage from "@/app/(site)/guides/page";
-import { Footer } from "@/components/layout/Footer";
 
 const renderGuide = async (slug: string) => render(await GuidePage({ params: Promise.resolve({ slug }) }));
 
@@ -78,12 +77,5 @@ describe("guides index", () => {
       expect(hrefs, name).toEqual(guides.filter((g) => g.category === category).map((g) => `/guides/${g.slug}`).sort());
     }
     for (const guide of guides) expect(screen.getAllByText(minutesLabel(guide.minutes)).length).toBeGreaterThan(0);
-  });
-});
-
-describe("footer", () => {
-  it("links to the guides", () => {
-    render(<Footer />);
-    expect(screen.getByRole("link", { name: "Repair & care guides" })).toHaveAttribute("href", "/guides");
   });
 });

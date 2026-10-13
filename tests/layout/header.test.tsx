@@ -25,10 +25,37 @@ describe("Header", () => {
     expect(call.getAttribute("href")).toBe(business.phone.href);
   });
 
-  it("drives visitors to the consultation form", () => {
+  it("drives visitors to the consultation form with the site's form label", () => {
     render(<Header />);
-    const cta = screen.getAllByRole("link", { name: /consultation/i })[0];
+    const cta = screen.getAllByRole("link", { name: "Invite Us Over" })[0];
     expect(cta.getAttribute("href")).toBe("/contact");
+    expect(screen.queryByRole("link", { name: /free consultation/i })).toBeNull();
+  });
+
+  it("puts About, Reviews, Gallery and FAQ in an About dropdown on the desktop nav", () => {
+    render(<Header />);
+    const nav = screen.getByRole("navigation", { name: /main/i });
+    const about = within(nav).getByRole("link", { name: "About" });
+    expect(about).toHaveAttribute("href", "/about");
+    // The submenu is in the DOM (CSS reveals it on hover and focus-within), named for screen readers.
+    const submenu = within(nav).getByRole("list", { name: "About" });
+    const links = within(submenu).getAllByRole("link").map((a) => [a.textContent, a.getAttribute("href")]);
+    expect(links).toEqual([
+      ["Our family", "/about"],
+      ["Reviews", "/reviews"],
+      ["Gallery", "/gallery"],
+      ["FAQ", "/faq"],
+    ]);
+  });
+
+  it("lists About, Reviews, Gallery and FAQ in the mobile menu, with the form label on its button", async () => {
+    const user = userEvent.setup();
+    render(<Header />);
+    await user.click(screen.getByRole("button", { name: /menu/i }));
+    const menu = screen.getByRole("navigation", { name: /mobile/i });
+    for (const [name, href] of [["About", "/about"], ["Reviews", "/reviews"], ["Gallery", "/gallery"], ["FAQ", "/faq"], ["Invite Us Over", "/contact"]]) {
+      expect(within(menu).getByRole("link", { name }), name).toHaveAttribute("href", href);
+    }
   });
 
   it("labels the mobile menu button for screen readers", () => {
@@ -71,6 +98,22 @@ describe("Footer", () => {
     render(<Footer />);
     expect(screen.getByText(business.phone.display)).toBeInTheDocument();
     expect(screen.getByText(business.email)).toBeInTheDocument();
+  });
+
+  it("links the family, reviews and questions pages, not the retired guides index", () => {
+    render(<Footer />);
+    expect(screen.getByRole("link", { name: "Our family" })).toHaveAttribute("href", "/about");
+    expect(screen.getByRole("link", { name: "Reviews" })).toHaveAttribute("href", "/reviews");
+    expect(screen.getByRole("link", { name: "Questions & care" })).toHaveAttribute("href", "/faq");
+    expect(document.querySelector('footer a[href="/guides"]')).toBeNull();
+  });
+
+  it("labels its columns without headings, so they don't crowd every page's outline", () => {
+    const { container } = render(<Footer />);
+    expect(container.querySelectorAll("h1, h2, h3, h4, h5, h6")).toHaveLength(0);
+    for (const label of ["Products", "Service Area", "Get in Touch"]) {
+      expect(screen.getByText(label).tagName, label).toBe("P");
+    }
   });
 
   it("links the legal pages", () => {

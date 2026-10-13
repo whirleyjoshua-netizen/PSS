@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Logo } from "@/components/brand/Logo";
 import { Container } from "@/components/ui/Container";
 import { MobileMenu } from "./MobileMenu";
+import { ABOUT_LINKS } from "./nav-links";
 import { business } from "@/content/business";
 import { categories } from "@/content/products";
 import { getProductsIn } from "@/lib/content/products";
@@ -17,7 +18,13 @@ import { getProductsIn } from "@/lib/content/products";
  * 2. Only the mobile menu is a client component. Making the whole header
  *    client-side meant hydrating seventy-odd links on every page load, which
  *    dominated total blocking time.
+ *
+ * Six top-level items plus Call and the CTA must fit at 1024px, so the items
+ * use tighter padding until xl. Tighten spacing before dropping an item.
  */
+const TOP_LINK =
+  "block whitespace-nowrap px-2 py-2 font-display text-sm uppercase tracking-[0.1em] text-charcoal transition-colors hover:text-champagne-ink xl:px-3 xl:tracking-[0.12em]";
+
 export function Header() {
   return (
     <header className="sticky top-0 z-50 border-b border-rule bg-ivory/95 backdrop-blur">
@@ -31,14 +38,14 @@ export function Header() {
           </Link>
 
           <nav aria-label="Main" className="hidden lg:block">
-            <ul className="flex items-center gap-1">
+            <ul className="flex items-center xl:gap-1">
               {categories.map((category) => {
                 const children = getProductsIn(category.slug);
                 return (
                   <li key={category.slug} className="group relative">
                     <Link
                       href={`/${category.slug}`}
-                      className="block whitespace-nowrap px-3 py-2 font-display text-sm uppercase tracking-[0.12em] text-charcoal transition-colors hover:text-champagne-ink"
+                      className={TOP_LINK}
                     >
                       {category.navLabel}
                     </Link>
@@ -62,6 +69,27 @@ export function Header() {
                   </li>
                 );
               })}
+
+              <li className="group relative">
+                <Link href="/about" className={TOP_LINK}>
+                  About
+                </Link>
+                {/* Right-aligned: it is the last item, so a left-aligned panel would run off narrow screens. */}
+                <div className="invisible absolute right-0 top-full z-10 w-48 border border-rule bg-ivory py-2 opacity-0 shadow-lg transition-[opacity,visibility] duration-150 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100">
+                  <ul aria-label="About">
+                    {ABOUT_LINKS.map((link) => (
+                      <li key={link.href}>
+                        <Link
+                          href={link.href}
+                          className="block px-4 py-2 text-sm text-ink-soft transition-colors hover:bg-sand hover:text-charcoal"
+                        >
+                          {link.label}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </li>
             </ul>
           </nav>
 
@@ -76,7 +104,7 @@ export function Header() {
               href="/contact"
               className="inline-flex min-h-11 items-center whitespace-nowrap bg-champagne px-5 py-2.5 font-display text-xs font-medium uppercase tracking-[0.14em] text-charcoal transition-colors hover:bg-charcoal hover:text-ivory"
             >
-              Free Consultation
+              Invite Us Over
             </Link>
           </div>
 

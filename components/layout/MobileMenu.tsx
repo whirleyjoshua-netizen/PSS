@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Container } from "@/components/ui/Container";
 import { categories } from "@/content/products";
 import { getProductsIn } from "@/lib/content/products";
+import { ABOUT_LINKS } from "./nav-links";
 
 /**
  * The only interactive part of the header, and therefore the only part that
@@ -111,31 +112,24 @@ export function MobileMenu() {
                 );
               })}
 
-              <li className="pt-2">
-                <Link
-                  href="/gallery"
-                  onClick={close}
-                  className="font-display text-lg uppercase tracking-[0.12em] text-charcoal"
-                >
-                  Gallery
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="/about"
-                  onClick={close}
-                  className="font-display text-lg uppercase tracking-[0.12em] text-charcoal"
-                >
-                  About
-                </Link>
-              </li>
+              {ABOUT_LINKS.map((link, index) => (
+                <li key={link.href} className={index === 0 ? "pt-2" : undefined}>
+                  <Link
+                    href={link.href}
+                    onClick={close}
+                    className="font-display text-lg uppercase tracking-[0.12em] text-charcoal"
+                  >
+                    {link.mobileLabel}
+                  </Link>
+                </li>
+              ))}
               <li className="pt-2">
                 <Link
                   href="/contact"
                   onClick={close}
                   className="inline-flex min-h-11 w-full items-center justify-center bg-champagne px-5 py-3 font-display text-sm font-medium uppercase tracking-[0.14em] text-charcoal"
                 >
-                  Free Consultation
+                  Invite Us Over
                 </Link>
               </li>
             </ul>
