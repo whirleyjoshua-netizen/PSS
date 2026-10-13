@@ -88,9 +88,18 @@ describe.each(cities.map((c) => [c.slug, c] as const))("/service-area/%s", (slug
     expect(added).toBeGreaterThanOrEqual(150);
   });
 
-  it("ends its headline with a period", async () => {
+  it("keeps its noun-phrase headline bare", async () => {
     render(await CityPage({ params: Promise.resolve({ city: slug }) }));
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(`Window treatments in ${city.name}, NV.`);
+    expect(screen.getByRole("heading", { level: 1, name: `Window treatments in ${city.name}, NV` })).toBeInTheDocument();
+  });
+
+  it("shows the same trail it publishes, Home then the city, with no crumb linking to itself", async () => {
+    render(await CityPage({ params: Promise.resolve({ city: slug }) }));
+    const nav = screen.getByRole("navigation", { name: "Breadcrumb" });
+    const items = Array.from(nav.querySelectorAll("li")).map((li) => li.textContent?.replace("/", "").trim());
+    expect(items).toEqual(["Home", city.name]);
+    const links = Array.from(nav.querySelectorAll("a")).map((a) => a.getAttribute("href"));
+    expect(links).toEqual(["/"]);
   });
 
   it("publishes a BreadcrumbList, Home then the city", async () => {

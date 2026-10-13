@@ -46,18 +46,16 @@ export default async function CityPage({
   if (!found) notFound();
 
   const path = `/service-area/${found.slug}`;
+  // There is no service-area index page, so the trail, seen and structured, is Home > City.
+  const trail = [{ name: found.name, url: path }];
 
   return (
     <>
-      {/* There is no service-area index page, so the structured trail is Home > City. */}
-      <JsonLd schema={breadcrumbSchema([{ name: found.name, url: path }])} />
+      <JsonLd schema={breadcrumbSchema(trail)} />
       <PageHero
         eyebrow="Service area"
-        title={`Window treatments in ${found.name}, NV.`}
-        trail={[
-          { name: "Service Area", url: `/service-area/${found.slug}` },
-          { name: found.name, url: `/service-area/${found.slug}` },
-        ]}
+        title={`Window treatments in ${found.name}, NV`}
+        trail={trail}
       />
 
       <Section tone="ivory">
