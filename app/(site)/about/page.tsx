@@ -1,16 +1,19 @@
 import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/seo/metadata";
+import { consultationPhoto } from "@/content/gallery";
 import Image from "next/image";
 import { Section } from "@/components/ui/Section";
 import { PageHero, ConsultationCta } from "@/components/product/ProductParts";
 import { ReviewSpotlight } from "@/components/reviews/ReviewSpotlight";
 import { pastReviews } from "@/content/reviews";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Meet the Family | Premier Shade Solutions",
   description:
     "Premier Shade Solutions is a family-run window treatment company in the Las Vegas valley. Shade’ designs, Josh installs, and we handle every job ourselves.",
-  alternates: { canonical: "/about" },
-};
+  path: "/about",
+  photo: consultationPhoto,
+});
 
 /** The only page the children appear on (family brand spec §1). */
 export default function AboutPage() {

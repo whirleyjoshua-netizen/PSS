@@ -1,14 +1,17 @@
 import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/seo/metadata";
+import { consultationPhoto } from "@/content/gallery";
 import { Section } from "@/components/ui/Section";
 import { PageHero } from "@/components/product/ProductParts";
 import { business } from "@/content/business";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Privacy Policy | Premier Shade Solutions",
   description:
     "How Premier Shade Solutions collects, uses, and protects the information you submit through this website, in plain language. Free in-home consultation.",
-  alternates: { canonical: "/privacy" },
-};
+  path: "/privacy",
+  photo: consultationPhoto,
+});
 
 export default function PrivacyPage() {
   return (

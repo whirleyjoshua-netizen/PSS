@@ -3,6 +3,7 @@ import { Jost, Source_Serif_4 } from "next/font/google";
 import { SiteAnalytics } from "@/components/analytics/SiteAnalytics";
 import "./globals.css";
 import { business } from "@/content/business";
+import { SITE_DESCRIPTION, SITE_TITLE } from "@/lib/seo/site";
 
 const jost = Jost({
   variable: "--font-jost",
@@ -21,18 +22,18 @@ const sourceSerif = Source_Serif_4({
 export const metadata: Metadata = {
   metadataBase: new URL(business.domain),
   title: {
-    default: "Blinds, Shades, Shutters Las Vegas | Premier Shade Solutions",
+    default: SITE_TITLE,
     template: "%s",
   },
-  description:
-    "Custom blinds, shades, shutters, and motorized window treatments for Las Vegas, Henderson, Summerlin, and North Las Vegas. Free in-home consultation.",
+  description: SITE_DESCRIPTION,
   applicationName: business.name,
   authors: [{ name: business.name }],
+  // No url: a page that inherits this would claim the homepage's address. Indexable pages set their own
+  // openGraph (lib/seo/metadata.ts, or the homepage's in app/(site)/page.tsx).
   openGraph: {
     siteName: business.name,
     locale: "en_US",
     type: "website",
-    url: business.domain,
   },
   robots: { index: true, follow: true },
 };

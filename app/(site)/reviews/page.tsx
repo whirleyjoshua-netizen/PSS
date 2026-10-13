@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/seo/metadata";
 import { Section } from "@/components/ui/Section";
 import { PageHero } from "@/components/product/ProductParts";
 import { BookingBlock } from "@/components/booking/BookingBlock";
@@ -6,12 +7,13 @@ import { consultationPhoto } from "@/content/gallery";
 import { ReviewWall } from "@/components/reviews/ReviewWall";
 import { pastReviews, pastWork } from "@/content/reviews";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Client Reviews | Premier Shade Solutions",
   description:
     "What clients said about Josh's installations and design consultations with Shade’, from our years with Custom Decorators before Premier Shade Solutions.",
-  alternates: { canonical: "/reviews" },
-};
+  path: "/reviews",
+  photo: consultationPhoto,
+});
 
 export default function ReviewsPage() {
   return (

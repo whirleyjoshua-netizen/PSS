@@ -30,9 +30,10 @@ const routes = async (): Promise<Route[]> => [
   ),
 ];
 
-const firstImage = (images: unknown): { url: string; alt?: string } | undefined => {
+type Image = { url: string; alt?: string; width?: number; height?: number };
+const firstImage = (images: unknown): Image | undefined => {
   const list = Array.isArray(images) ? images : images ? [images] : [];
-  return list[0] as { url: string; alt?: string } | undefined;
+  return list[0] as Image | undefined;
 };
 
 /**
@@ -46,12 +47,15 @@ describe("every category, product and city page shares with a picture", () => {
     expect(all).toHaveLength(5 + 12 + 4);
   });
 
-  it.each(all)("%s has an og image that exists, a large Twitter card, and the site name", async (route, load) => {
+  it.each(all)("%s has a sized JPEG og image that exists, a large Twitter card, and the site name", async (route, load) => {
     const metadata = await load();
     const og = metadata.openGraph as Record<string, unknown>;
     const image = firstImage(og.images);
 
-    expect(image?.url, route).toMatch(/^\/.+\.(webp|png|jpe?g)$/);
+    // JPEG, not the page's WebP: some share previews skip WebP (tests/seo/og-images.test.ts checks the files).
+    expect(image?.url, route).toMatch(/^\/og\/.+\.jpg$/);
+    expect(image?.width).toBeGreaterThan(0);
+    expect(image?.height).toBeGreaterThan(0);
     expect(existsSync(path.join(process.cwd(), "public", image!.url))).toBe(true);
     expect(image?.alt?.length).toBeGreaterThan(10);
     expect(og.url).toBe(route);
