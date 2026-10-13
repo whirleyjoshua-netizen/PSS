@@ -1,11 +1,13 @@
 import { business } from "@/content/business";
 import { LEAD_TIME_LINE, LEAD_TIME_START } from "@/content/consultation";
 import { guides } from "@/content/guides";
+import { MOTORIZED_EXTRA_WEEKS } from "@/content/lead-times";
+import { SERVICE_VISIT_DOLLARS } from "@/lib/docs/starter-terms";
 import { WARRANTY } from "@/content/warranty";
 import { cityPath } from "@/lib/content/cities";
 
 /**
- * The /faq page, "Questions and answers." (owner + consultant, 2026-10-13).
+ * The /faq page, "Questions and answers" (owner + consultant, 2026-10-13).
  *
  * The consultant's 24 questions and grouping, answered with what is true of this business. Every fact here
  * comes from a file the rest of the site already reads, so the FAQ can never promise more than the product
@@ -14,7 +16,8 @@ import { cityPath } from "@/lib/content/cities";
  *                            the quote, temporary shades, takedown priced per window, free haul-away
  *   content/lead-times.ts    the weeks (through LEAD_TIME_LINE), counted from the day you order
  *   content/warranty.ts      the only warranty wording allowed
- *   lib/docs/starter-terms.ts §13  $175 service visit after year one
+ *   lib/docs/starter-terms.ts §6 the new price before anything is ordered; §8 the motorized week (through
+ *                            MOTORIZED_EXTRA_WEEKS); §13 the service visit after year one (SERVICE_VISIT_DOLLARS)
  *   content/products.ts      every product claim (UV, openness, cells, battery tubes, 70–90%)
  *   content/cities.ts        the local detail
  *   content/guides.ts        the two repair guides
@@ -91,8 +94,8 @@ export const FAQ_GROUPS: FaqGroup[] = [
     items: [
       {
         q: "How much do custom window treatments cost?",
-        a: "It depends on your windows, so we don't publish a price list. What moves the price: how many windows, how big they are, the product and fabric you choose, how it operates (cordless, chain or motorized) and any extras. Taking your old blinds down is one of those extras, priced per window on your quote; hauling them away is free. Your quote is free, exact and in writing, so you see every line before you say yes.",
-        links: [{ label: "Invite us over", href: "/contact" }],
+        a: "It depends on your windows, so we don't publish a price list. What moves the price: how many windows, how big they are, the product and fabric you choose, how it operates (cordless, chain or motorized) and any extras. Taking your old blinds down is one of those extras, priced per window on your quote; hauling them away is free. Your quote is free and in writing, so you see every line before you say yes. If the final measure changes a size, the mounting or the product, you hear the new price first, and nothing is ordered until you approve it.",
+        links: [{ label: "Invite Us Over", href: "/contact" }],
       },
       {
         q: "Are custom window treatments worth it?",
@@ -109,8 +112,8 @@ export const FAQ_GROUPS: FaqGroup[] = [
       },
       {
         q: "How long does it take to receive and install custom shades?",
-        a: `${capitalized(LEAD_TIME_LINE)}, ${LEAD_TIME_START}. Your lead time is written on your quote, so you know before you say yes. Need privacy sooner? We put up temporary shades for free while you wait. On install day we install, walk through every window with you, clean up, and haul your old blinds away free.`,
-        links: [{ label: "Invite us over", href: "/contact" }],
+        a: `${capitalized(LEAD_TIME_LINE)}, ${LEAD_TIME_START}. Motorized products take about ${MOTORIZED_EXTRA_WEEKS === 1 ? "a week" : `${MOTORIZED_EXTRA_WEEKS} weeks`} longer. Your lead time is written on your quote, so you know before you say yes. Need privacy sooner? We put up temporary shades for free while you wait. On install day we install, walk through every window with you, clean up, and haul your old blinds away free.`,
+        links: [{ label: "Invite Us Over", href: "/contact" }],
       },
       {
         q: "Can you install window treatments in an existing home?",
@@ -211,7 +214,7 @@ export const FAQ_GROUPS: FaqGroup[] = [
       },
       {
         q: "Do custom window treatments come with a warranty?",
-        a: `Yes, and on three things. ${WARRANTY.product} ${WARRANTY.motor} ${WARRANTY.install} ${WARRANTY.fineprint} After that first year, a service visit is $175 plus any parts, and we quote it before doing any work.`,
+        a: `Yes, and on three things. ${WARRANTY.product} ${WARRANTY.motor} ${WARRANTY.install} ${WARRANTY.fineprint} After that first year, a service visit is $${SERVICE_VISIT_DOLLARS}. Parts the manufacturer's warranty covers are free, so you pay only for our labor; any other parts are extra, and we quote the cost before doing any work.`,
       },
     ],
   },
@@ -221,9 +224,9 @@ export const FAQ_GROUPS: FaqGroup[] = [
     items: [
       {
         q: "Do you offer consultations for custom window treatments?",
-        a: "Yes, free and with no obligation. We come to your home. Shade’ brings the samples, so you see every color and fabric in your own light, and Josh measures every window himself. You get a written quote with your lead time on it. There is no call center and no sales rep to chase: you text the owners, Shade’ and Josh, directly.",
+        a: "Yes, free and with no obligation. We come to your home and bring samples, so you see every color and fabric in your own light, and Josh measures every window himself. You get a written quote with your lead time on it. There is no call center and no sales rep to chase: you text the owners, Shade’ and Josh, directly.",
         links: [
-          { label: "Invite us over", href: "/contact" },
+          { label: "Invite Us Over", href: "/contact" },
           { label: "Meet the family", href: "/about" },
         ],
       },
@@ -243,8 +246,8 @@ export const FAQ_GROUPS: FaqGroup[] = [
       },
       {
         q: "How do I get started with Premier Shade Solutions?",
-        a: "Invite us over. Fill in the short form or give us a call, and we will set a time to come to you. Shade’ brings samples and helps you choose, and Josh measures every window. You get a written quote with your lead time on it. On install day we install, walk through every window with you, clean up, and haul your old blinds away free.",
-        links: [{ label: "Invite us over", href: "/contact" }],
+        a: "Invite us over. Fill in the short form or give us a call, and we will set a time to come to you. We bring samples and help you choose, and Josh measures every window. You get a written quote with your lead time on it. On install day we install, walk through every window with you, clean up, and haul your old blinds away free.",
+        links: [{ label: "Invite Us Over", href: "/contact" }],
       },
     ],
   },

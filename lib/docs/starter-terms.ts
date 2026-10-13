@@ -6,6 +6,9 @@
  */
 export const STARTER_TERMS_NAME = "Contract terms";
 
+/** §13's service-visit price, in dollars. The FAQ's warranty answer quotes it from here. */
+export const SERVICE_VISIT_DOLLARS = 175;
+
 export const STARTER_TERMS = `**DRAFT: have a Nevada attorney review these terms before use, then delete this line.**
 
 ## 1. Our Agreement
@@ -88,7 +91,7 @@ The official Hunter Douglas warranty for your product is what governs, and we're
 
 ## 13. Service Calls
 
-After your first year, or for products we did not install, service visits are **$175 per visit** plus any parts. We'll quote the cost before doing any work.
+After your first year, or for products we did not install, service visits are **$${SERVICE_VISIT_DOLLARS} per visit** plus any parts. We'll quote the cost before doing any work.
 
 Parts covered by the manufacturer's warranty are free, but our labor to install them after the first year is billed as a service visit.
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { leadTimes } from "@/content/lead-times";
+import { MOTORIZED_EXTRA_WEEKS, leadTimes } from "@/content/lead-times";
 import { PRODUCTION_ESTIMATE } from "@/content/business";
 import { formatShortDate, installWindow, isAfterDay, leadTimeSummary, todayInLasVegas } from "@/lib/lead-times";
 import { STARTER_TERMS } from "@/lib/docs/starter-terms";
@@ -13,6 +13,11 @@ describe("lead times", () => {
     ]);
     expect(STARTER_TERMS).toContain("Shades and blinds: about **3–5 weeks**");
     expect(STARTER_TERMS).toContain("Shutters: about **6–10 weeks**");
+  });
+
+  it("add the contract's motorized week", () => {
+    expect(MOTORIZED_EXTRA_WEEKS).toBe(1);
+    expect(STARTER_TERMS).toContain(`Motorized products: add about **${MOTORIZED_EXTRA_WEEKS} week**`);
   });
 
   it("feed the customer's project page, so the site never contradicts the contract", () => {

@@ -10,6 +10,7 @@ import { guides } from "@/content/guides";
 import { categories, products } from "@/content/products";
 import { cities } from "@/content/cities";
 import { business } from "@/content/business";
+import { STARTER_TERMS } from "@/lib/docs/starter-terms";
 
 const words = (text: string) => text.trim().split(/\s+/).length;
 
@@ -46,6 +47,39 @@ describe("FAQ content", () => {
     expect(lead.a).toContain("counted from the day you order");
     const warranty = FAQ_ITEMS.find((item) => /warranty/.test(item.q))!;
     for (const line of Object.values(WARRANTY)) expect(warranty.a).toContain(line);
+  });
+
+  it("quotes the service-visit price the contract charges, and that warranty parts are free (starter terms §13)", () => {
+    const warranty = FAQ_ITEMS.find((item) => /warranty/.test(item.q))!;
+    const contract = STARTER_TERMS.match(/service visits are \*\*\$(\d+) per visit\*\*/)![1];
+    expect(warranty.a.match(/a service visit is \$(\d+)/)![1]).toBe(contract);
+    expect(STARTER_TERMS).toContain("Parts covered by the manufacturer's warranty are free");
+    expect(warranty.a).toContain("Parts the manufacturer's warranty covers are free, so you pay only for our labor");
+    expect(warranty.a).not.toMatch(/plus any parts/);
+  });
+
+  it("adds the motorized week from the contract (starter terms §8)", () => {
+    const lead = FAQ_ITEMS.find((item) => /How long does it take/.test(item.q))!;
+    expect(STARTER_TERMS).toContain("Motorized products: add about **1 week**");
+    expect(lead.a).toContain("Motorized products take about a week longer.");
+  });
+
+  it("never calls the quote exact; a changed final measure is re-priced before ordering (starter terms §6)", () => {
+    const cost = FAQ_ITEMS.find((item) => /How much/.test(item.q))!;
+    expect(cost.a).not.toMatch(/exact/i);
+    expect(cost.a).toContain("Your quote is free and in writing");
+    expect(cost.a).toContain("you hear the new price first, and nothing is ordered until you approve it.");
+    expect(STARTER_TERMS).toContain("we'll tell you the new price first. Nothing is ordered until you approve it.");
+  });
+
+  it("says we bring samples, without naming who, and labels booking links like the buttons", () => {
+    for (const item of FAQ_ITEMS) {
+      expect(item.a, item.q).not.toMatch(/Shade’ brings/);
+      for (const link of item.links ?? []) expect(link.label, item.q).not.toBe("Invite us over");
+    }
+    const booking = FAQ_ITEMS.flatMap((item) => item.links ?? []).filter((link) => link.href === "/contact");
+    expect(booking.length).toBeGreaterThanOrEqual(4);
+    for (const link of booking) expect(link.label).toBe("Invite Us Over");
   });
 
   it("names every service-area city and links its page", () => {

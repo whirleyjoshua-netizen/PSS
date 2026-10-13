@@ -10,3 +10,6 @@ export const leadTimes: LeadTime[] = [
   { label: "Shades", minWeeks: 3, maxWeeks: 5 },
   { label: "Shutters", minWeeks: 6, maxWeeks: 10 },
 ];
+
+/** Motorized products take about this many weeks more (§8 of the starter terms; tests/content/lead-times.test.ts). */
+export const MOTORIZED_EXTRA_WEEKS = 1;
