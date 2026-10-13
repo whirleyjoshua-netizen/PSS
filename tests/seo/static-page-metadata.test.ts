@@ -18,7 +18,7 @@ import { cities } from "@/content/cities";
 /** SEO audit 2026-10-13. */
 describe("site-wide titles", () => {
   it("keeps the homepage title short (was 71) and gives it a canonical", () => {
-    expect((root.title as { default: string }).default.length).toBeLessThanOrEqual(61);
+    expect((root.title as { default: string }).default.length).toBeLessThanOrEqual(60);
     expect(home.alternates?.canonical).toBe("/");
   });
 

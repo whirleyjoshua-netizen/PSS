@@ -469,7 +469,7 @@ export const products: Product[] = [
     image: altaPhotos.bandedLivingRoom,
     storyPhoto: altaPhotos.bandedBedroom,
     seo: {
-      title: "Transitional Zebra Shades Las Vegas | Premier Shade Solutions",
+      title: "Zebra Shades in Las Vegas, NV | Premier Shade Solutions",
       description:
         "Dual-layer transitional zebra shades for Las Vegas homes. Sheer and privacy in a single shade. Free in-home consultation and install.",
     },
