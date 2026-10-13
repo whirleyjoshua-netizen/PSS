@@ -19,22 +19,24 @@ import { getProductsIn } from "@/lib/content/products";
  *    client-side meant hydrating seventy-odd links on every page load, which
  *    dominated total blocking time.
  *
- * Six top-level items plus Call and the CTA must fit at 1024px, so the items
- * use tighter padding until xl. Tighten spacing before dropping an item.
+ * Six top-level items plus Call and the CTA must fit at 1024px (measured: they
+ * overflowed by ~150px), so between lg and xl the logo is smaller, gaps and
+ * tracking are tighter and the phone link shows just the number. Tighten
+ * spacing before dropping an item.
  */
 const TOP_LINK =
-  "block whitespace-nowrap px-2 py-2 font-display text-sm uppercase tracking-[0.1em] text-charcoal transition-colors hover:text-champagne-ink xl:px-3 xl:tracking-[0.12em]";
+  "block whitespace-nowrap px-1.5 py-2 font-display text-sm uppercase tracking-[0.06em] text-charcoal transition-colors hover:text-champagne-ink xl:px-3 xl:tracking-[0.12em]";
 
 export function Header() {
   return (
     <header className="sticky top-0 z-50 border-b border-rule bg-ivory/95 backdrop-blur">
       <Container>
-        <div className="flex items-center justify-between gap-6 py-4">
+        <div className="flex items-center justify-between gap-6 py-4 lg:gap-3 xl:gap-6">
           {/* No aria-label here: the Logo's own role="img" names this link. An
               aria-label that does not contain the link's visible text is a
               label/name mismatch for voice-control users. */}
           <Link href="/" className="shrink-0">
-            <Logo variant="lockup" className="text-[26px] md:text-[30px]" />
+            <Logo variant="lockup" className="text-[26px] md:text-[30px] lg:text-[22px] xl:text-[30px]" />
           </Link>
 
           <nav aria-label="Main" className="hidden lg:block">
@@ -93,16 +95,18 @@ export function Header() {
             </ul>
           </nav>
 
-          <div className="hidden items-center gap-3 md:flex">
+          <div className="hidden items-center gap-3 md:flex lg:gap-2 xl:gap-3">
             <a
               href={business.phone.href}
               className="whitespace-nowrap font-display text-sm uppercase tracking-[0.12em] text-charcoal transition-colors hover:text-champagne-ink"
             >
-              Call {business.phone.display}
+              {/* "Call" is visually dropped only between lg and xl, where the full row is tightest; the link keeps it in its name. */}
+              <span className="lg:max-xl:sr-only">Call </span>
+              {business.phone.display}
             </a>
             <Link
               href="/contact"
-              className="inline-flex min-h-11 items-center whitespace-nowrap bg-champagne px-5 py-2.5 font-display text-xs font-medium uppercase tracking-[0.14em] text-charcoal transition-colors hover:bg-charcoal hover:text-ivory"
+              className="inline-flex min-h-11 items-center whitespace-nowrap bg-champagne px-5 py-2.5 lg:max-xl:px-4 font-display text-xs font-medium uppercase tracking-[0.14em] text-charcoal transition-colors hover:bg-charcoal hover:text-ivory"
             >
               Invite Us Over
             </Link>
