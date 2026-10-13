@@ -192,17 +192,28 @@ test.describe("on a 390×844 phone", () => {
       const button = page.locator("section#book").getByRole("button", { name: /invite us over/i });
       await expect(button).toBeInViewport({ ratio: 1 });
 
-      // In the viewport is not enough: the phone booking bar (MobileBookBar) is fixed over the bottom of it.
-      const box = (await button.boundingBox())!;
-      const bar = await page.getByRole("navigation", { name: "Book a consultation" }).boundingBox();
-      if (bar) expect(box.y + box.height, "button bottom vs the bar's top edge").toBeLessThanOrEqual(bar.y);
+      // In the viewport is not enough: the phone booking bar (MobileBookBar) is fixed over the bottom of the screen,
+      // where this button sits on most pages. Polled, because the bar decides once the page has hydrated.
+      // A CSS locator, not getByRole: while the bar is stepped aside it is out of the accessibility tree.
+      const bar = page.locator('nav[aria-label="Book a consultation"]');
+      await expect
+        .poll(async () => {
+          const box = (await button.boundingBox())!;
+          const barBox = await bar.boundingBox(); // null while the bar is hidden
+          return barBox === null || box.y + box.height <= barBox.y;
+        }, { message: "the button ends above the bar's top edge, or the bar is out of the way" })
+        .toBe(true);
       // And nothing else sits on top of it: a tap at its centre reaches the button.
-      const onTop = await button.evaluate((el) => {
-        const rect = el.getBoundingClientRect();
-        const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
-        return hit !== null && (hit === el || el.contains(hit));
-      });
-      expect(onTop, "the element at the button's centre is the button").toBe(true);
+      await expect
+        .poll(() =>
+          button.evaluate((el) => {
+            const rect = el.getBoundingClientRect();
+            const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+            return hit !== null && (hit === el || el.contains(hit));
+          }),
+          { message: "the element at the button's centre is the button" },
+        )
+        .toBe(true);
     });
   }
 });

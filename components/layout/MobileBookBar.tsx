@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { business } from "@/content/business";
@@ -38,8 +39,38 @@ const FIRST_FIELD =
 /** The bar's height, safe area included: --book-bar-height in app/globals.css, shared by the bar, its spacer and scroll-padding. */
 export const BAR_HEIGHT = "h-(--book-bar-height)";
 
+/** The page's own booking button: the bar steps aside while it is on screen, so it never covers it. */
+const FORM_BUTTON = "#book button[type=submit]";
+
+/**
+ * Whether the bar should show: not while the page's own booking button (FORM_BUTTON) is on screen. On a phone the
+ * hero form's button sits in the bar's band on most pages, and two Invite Us Over buttons one over the other is
+ * the bar covering the real one. Hidden until the first check (null), so it never flashes over that button on load;
+ * where IntersectionObserver is missing it simply shows.
+ */
+function useBarShown(pathname: string): boolean {
+  // `at` is the page the reading belongs to, so a new page starts hidden until it is measured.
+  const [reading, setReading] = useState<{ at: string; formButtonOnScreen: boolean } | null>(null);
+
+  useEffect(() => {
+    const button = document.querySelector(FORM_BUTTON);
+    if (!button || typeof IntersectionObserver === "undefined") {
+      const frame = requestAnimationFrame(() => setReading({ at: pathname, formButtonOnScreen: false }));
+      return () => cancelAnimationFrame(frame);
+    }
+    const observer = new IntersectionObserver(([entry]) =>
+      setReading({ at: pathname, formButtonOnScreen: entry!.isIntersecting }),
+    );
+    observer.observe(button);
+    return () => observer.disconnect();
+  }, [pathname]);
+
+  return reading !== null && reading.at === pathname && !reading.formButtonOnScreen;
+}
+
 export function MobileBookBar() {
   const pathname = usePathname();
+  const shown = useBarShown(pathname);
   if (!showsBookBar(pathname)) return null;
   return (
     <>
@@ -47,7 +78,8 @@ export function MobileBookBar() {
       <div data-book-bar-spacer aria-hidden="true" className={`${BAR_HEIGHT} md:hidden`} />
       <nav
         aria-label="Book a consultation"
-        className={`fixed inset-x-0 bottom-0 z-40 grid ${BAR_HEIGHT} grid-cols-2 gap-2 border-t border-rule bg-ivory/95 px-4 pt-[calc(0.5rem-1px)] pb-[calc(0.5rem+env(safe-area-inset-bottom))] shadow-[0_-8px_24px_-12px_rgb(0_0_0/0.25)] backdrop-blur md:hidden`}
+        className={`fixed inset-x-0 bottom-0 z-40 grid ${BAR_HEIGHT} grid-cols-2 gap-2 border-t border-rule bg-ivory/95 px-4 pt-[calc(0.5rem-1px)] pb-[calc(0.5rem+env(safe-area-inset-bottom))] shadow-[0_-8px_24px_-12px_rgb(0_0_0/0.25)] backdrop-blur transition-[translate,visibility] duration-200 md:hidden ${shown ? "" : "invisible translate-y-full"}`}
+        data-shown={shown}
       >
         <a href={business.phone.href} className={`${BUTTON} border border-charcoal text-charcoal hover:bg-charcoal hover:text-ivory`}>
           Call

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
@@ -162,6 +162,58 @@ describe("the bar", () => {
     call.addEventListener("click", (event) => event.preventDefault());
     await userEvent.click(call);
     expect(sendGAEvent).toHaveBeenCalledWith("event", "phone_click", { page: "/shades" });
+  });
+});
+
+describe("stepping aside for the page's own booking button", () => {
+  type Callback = (entries: { isIntersecting: boolean }[]) => void;
+  let observed: Element[] = [];
+  let report: Callback = () => {};
+
+  beforeEach(() => {
+    observed = [];
+    vi.stubGlobal(
+      "IntersectionObserver",
+      class {
+        constructor(callback: Callback) {
+          report = callback;
+        }
+        observe(element: Element) {
+          observed.push(element);
+        }
+        disconnect() {}
+      },
+    );
+    return () => vi.unstubAllGlobals();
+  });
+
+  const page = (
+    <section id="book">
+      <button type="submit">Invite Us Over</button>
+    </section>
+  );
+
+  it("starts hidden, so it never flashes over the form's button on load", () => {
+    at("/shades", page);
+    expect(bar()!.className).toMatch(/\binvisible\b/);
+    expect(bar()!).toHaveAttribute("data-shown", "false");
+  });
+
+  it("watches the form's submit button, hides while it is on screen and shows once it scrolls away", () => {
+    at("/shades", page);
+    expect(observed).toEqual([document.querySelector("#book button[type=submit]")]);
+    act(() => report([{ isIntersecting: true }]));
+    expect(bar()!).toHaveAttribute("data-shown", "false");
+    expect(bar()!.className).toMatch(/\btranslate-y-full\b/);
+    act(() => report([{ isIntersecting: false }]));
+    expect(bar()!).toHaveAttribute("data-shown", "true");
+    expect(bar()!.className).not.toMatch(/\binvisible\b/);
+  });
+
+  it("shows on a page with no booking form of its own", async () => {
+    at("/about");
+    await waitFor(() => expect(bar()!).toHaveAttribute("data-shown", "true"));
+    expect(observed).toEqual([]);
   });
 });
 
