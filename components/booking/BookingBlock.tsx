@@ -20,6 +20,7 @@ export function BookingBlock({
   heading,
   treatment,
   showReview = true,
+  line,
 }: {
   photo: Photo;
   city?: ServiceCity;
@@ -28,6 +29,8 @@ export function BookingBlock({
   treatment?: string;
   /** False on /reviews, which already shows every review; the quote would link the page to itself. */
   showReview?: boolean;
+  /** The page's own line under the promise badges; the family line when unset. */
+  line?: string;
 }) {
   return (
     <Section tone="sand" id="book" padding="tight-top" className="scroll-mt-20 overflow-hidden">
@@ -64,7 +67,7 @@ export function BookingBlock({
             ) : null}
           </div>
 
-          <PromiseRow className="lg:pr-24" />
+          <PromiseRow className="lg:pr-24" line={line} />
         </div>
       </div>
     </Section>

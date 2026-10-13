@@ -80,7 +80,7 @@ export default async function ProductPage({
         treatment={parent.name}
       />
       <Section tone="sand" className="!py-10">
-        <PromiseRow centered />
+        <PromiseRow centered line={found.opening} />
       </Section>
       <IconRow items={parent.highlights} />
       <StorySection

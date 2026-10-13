@@ -6,6 +6,8 @@ import { PageHero, ConsultationCta } from "@/components/product/ProductParts";
 import { BookingBlock } from "@/components/booking/BookingBlock";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { consultationPhoto } from "@/content/gallery";
+import { LEAD_TIME_LINE } from "@/content/consultation";
+import { WARRANTY_LINE } from "@/content/warranty";
 import { breadcrumbSchema } from "@/lib/seo/schema";
 import type { ServiceCity } from "@/content/business";
 import { allCityPaths, getCity } from "@/lib/content/cities";
@@ -51,7 +53,7 @@ export default async function CityPage({
       <JsonLd schema={breadcrumbSchema([{ name: found.name, url: path }])} />
       <PageHero
         eyebrow="Service area"
-        title={`Window Treatments in ${found.name}, NV`}
+        title={`Window treatments in ${found.name}, NV.`}
         trail={[
           { name: "Service Area", url: `/service-area/${found.slug}` },
           { name: found.name, url: `/service-area/${found.slug}` },
@@ -95,31 +97,51 @@ export default async function CityPage({
       </Section>
 
       <Section tone="sand">
-        <h2 className="font-display text-xs font-medium uppercase tracking-[0.22em] text-champagne-ink">
-          Popular in {found.name}
+        <h2 className="text-3xl font-light tracking-tight text-charcoal">
+          What we install most in {found.name}.
         </h2>
-        <ul className="mt-8 flex flex-wrap gap-3">
+        <ul className="mt-8 grid gap-6 md:grid-cols-3">
           {found.popularProducts.map((product) => (
-            <li key={product.href}>
+            <li key={product.href} className="flex flex-col gap-2 border border-rule bg-ivory p-6">
               <Link
                 href={product.href}
-                className="inline-flex min-h-11 items-center border border-rule bg-ivory px-5 py-2.5 text-sm text-charcoal transition-colors hover:border-champagne-ink"
+                className="font-display text-sm font-medium uppercase tracking-[0.14em] text-charcoal underline-offset-4 hover:underline"
               >
                 {product.name}
               </Link>
+              <p className="text-sm leading-relaxed text-ink-soft">{product.why}</p>
             </li>
           ))}
         </ul>
+      </Section>
+
+      <Section tone="ivory">
+        <h2 className="text-3xl font-light tracking-tight text-charcoal">
+          How a {found.name} project works.
+        </h2>
+        <div className="mt-6 flex max-w-[72ch] flex-col gap-4 text-lg leading-relaxed text-ink-soft">
+          <p>
+            We bring samples to your home in {found.name}, so you see every color and fabric in your own
+            light. Josh measures every window himself, backed by our measurement guarantee: if a
+            measurement is off, we remake it and install it again, free.
+          </p>
+          <p>
+            Your written quote gives your lead time ({LEAD_TIME_LINE}), and we put up temporary
+            shades for free while you wait. On install day we protect your floors, clean up before we
+            go, and haul your old blinds away for free. {WARRANTY_LINE}
+          </p>
+        </div>
       </Section>
 
       <BookingBlock
         photo={consultationPhoto}
         city={found.name as ServiceCity}
         heading={`Book a free consultation in ${found.name}.`}
+        line={found.opening}
       />
 
       <ConsultationCta
-        title={`Serving ${found.name} and the rest of the valley`}
+        title={`Serving ${found.name} and the rest of the valley.`}
         body="If you are nearby but not listed, call anyway — we will tell you honestly whether we can get to you."
         href="#book"
       />

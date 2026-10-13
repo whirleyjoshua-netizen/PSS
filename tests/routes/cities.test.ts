@@ -45,6 +45,7 @@ describe("city content", () => {
       expect(city.seo.title.length).toBeLessThanOrEqual(60);
       expect(city.seo.description.length).toBeLessThanOrEqual(160);
       expect(city.seo.description).toContain(city.name);
+      expect(city.seo.title.endsWith("| Premier Shade Solutions")).toBe(true);
     }
   });
 

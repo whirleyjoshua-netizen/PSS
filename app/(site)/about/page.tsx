@@ -8,7 +8,7 @@ import { pastReviews } from "@/content/reviews";
 export const metadata: Metadata = {
   title: "Meet the Family | Premier Shade Solutions",
   description:
-    "Premier Shade Solutions is a family-run window treatment company serving the Las Vegas valley. Shade’ designs, Josh installs, and we handle every job ourselves.",
+    "Premier Shade Solutions is a family-run window treatment company in the Las Vegas valley. Shade’ designs, Josh installs, and we handle every job ourselves.",
   alternates: { canonical: "/about" },
 };
 

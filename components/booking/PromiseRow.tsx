@@ -9,8 +9,20 @@ export const PROMISES = ["Free consultation", "Family-run", "No obligation"];
 /** Joins class names, skipping empty ones, so the uncentred row renders the same class strings BookingBlock always had. */
 const classes = (...names: (string | false | undefined)[]) => names.filter(Boolean).join(" ");
 
-/** The three promise badges and the family line, shared by BookingBlock and TreatmentHero's pages. */
-export function PromiseRow({ className, centered = false }: { className?: string; centered?: boolean }) {
+/**
+ * The three promise badges and a line under them, shared by BookingBlock and TreatmentHero's pages.
+ * The line is the family line unless the page has its own: product and city pages pass their
+ * `opening`, so they no longer all open with the same paragraph (SEO audit 2026-10-13).
+ */
+export function PromiseRow({
+  className,
+  centered = false,
+  line = FAMILY_LINE,
+}: {
+  className?: string;
+  centered?: boolean;
+  line?: string;
+}) {
   return (
     <Reveal className={classes("flex flex-col gap-5", centered && "items-center", className)}>
       <ul aria-label="What you get" className={classes("flex flex-wrap gap-2", centered && "justify-center")}>
@@ -26,7 +38,7 @@ export function PromiseRow({ className, centered = false }: { className?: string
           </li>
         ))}
       </ul>
-      <p className={classes("text-lg leading-relaxed text-charcoal", centered && "max-w-3xl text-center")}>{FAMILY_LINE}</p>
+      <p className={classes("text-lg leading-relaxed text-charcoal", centered && "max-w-3xl text-center")}>{line}</p>
     </Reveal>
   );
 }
