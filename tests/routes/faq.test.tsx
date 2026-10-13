@@ -99,7 +99,7 @@ describe("FAQ page", () => {
   it("is one H1, an H2 per group and an H3 per question", () => {
     const { container } = render(<FaqPage />);
     expect(container.querySelectorAll("h1")).toHaveLength(1);
-    expect(screen.getByRole("heading", { level: 1, name: "Questions and answers." })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Questions and answers" })).toBeInTheDocument();
     for (const group of FAQ_GROUPS) {
       const h2 = screen.getByRole("heading", { level: 2, name: group.title });
       const section = h2.closest("section")!;
@@ -111,9 +111,22 @@ describe("FAQ page", () => {
     for (const item of FAQ_ITEMS) expect(screen.getByText(item.a)).toBeInTheDocument();
   });
 
+  it("keeps its noun-phrase headings bare, like the six group headings", () => {
+    render(<FaqPage />);
+    for (const heading of screen.getAllByRole("heading").filter((h) => ["H1", "H2"].includes(h.tagName))) {
+      expect(heading.textContent, heading.textContent ?? "").not.toMatch(/\.$/);
+    }
+  });
+
+  it("names itself Questions & care in its visible breadcrumb, as the guides and the footer do", () => {
+    render(<FaqPage />);
+    const crumbs = screen.getByRole("navigation", { name: "Breadcrumb" });
+    expect(within(crumbs).getByText("Questions & care")).toHaveAttribute("aria-current", "page");
+  });
+
   it("lists every repair guide under Care and repair, at #care", () => {
     render(<FaqPage />);
-    const care = screen.getByRole("heading", { level: 2, name: "Care and repair." }).closest("section")!;
+    const care = screen.getByRole("heading", { level: 2, name: "Care and repair" }).closest("section")!;
     expect(care.id).toBe("care");
     for (const guide of guides) {
       expect(within(care).getByRole("link", { name: new RegExp(guide.title.replace(/[?]/g, "\\?")) })).toHaveAttribute(
@@ -136,7 +149,7 @@ describe("FAQ page", () => {
     const crumbs = ld.find((s) => s["@type"] === "BreadcrumbList").itemListElement;
     expect(crumbs.map((c: { name: string; item: string }) => [c.name, c.item])).toEqual([
       ["Home", business.domain],
-      ["FAQ", `${business.domain}/faq`],
+      ["Questions & care", `${business.domain}/faq`],
     ]);
   });
 });
@@ -159,7 +172,7 @@ describe("FAQPage schema", () => {
 describe("FAQ metadata", () => {
   it("has a title that fits a results page and a description that ends on the offer", () => {
     expect(metadata.title).toBe("Window Treatment FAQs | Premier Shade Solutions Las Vegas");
-    expect(String(metadata.title).length).toBeLessThanOrEqual(65);
+    expect(String(metadata.title).length).toBeLessThanOrEqual(60);
     const description = String(metadata.description);
     expect(description.length).toBeGreaterThanOrEqual(130);
     expect(description.length).toBeLessThanOrEqual(160);

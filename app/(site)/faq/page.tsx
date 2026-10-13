@@ -24,7 +24,8 @@ export const metadata: Metadata = {
   twitter: { card: "summary_large_image" },
 };
 
-const trail = [{ name: "FAQ", url: "/faq" }];
+// The same name the guide breadcrumbs and the footer use for this page.
+const trail = [{ name: "Questions & care", url: "/faq" }];
 
 export default function FaqPage() {
   return (
@@ -33,7 +34,7 @@ export default function FaqPage() {
       <JsonLd schema={breadcrumbSchema(trail)} />
       <PageHero
         eyebrow="Questions & care"
-        title="Questions and answers."
+        title="Questions and answers"
         lead="Straight answers about blinds, shades, shutters and motorization in the Las Vegas valley, from the family who measures and installs them. Don't see yours? Ask us at your free consultation."
         trail={trail}
       />
@@ -90,7 +91,7 @@ export default function FaqPage() {
       </Section>
 
       <Section tone="ivory" id="care" className="scroll-mt-20 border-t border-rule" containerWidth="prose">
-        <h2 className="text-3xl font-light tracking-tight text-charcoal">Care and repair.</h2>
+        <h2 className="text-3xl font-light tracking-tight text-charcoal">Care and repair</h2>
         <p className="mt-3 text-lg text-ink-soft">
           Step-by-step fixes with diagrams, from the installers who put them up across the Las Vegas valley.
         </p>
