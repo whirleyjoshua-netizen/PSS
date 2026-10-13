@@ -10,6 +10,7 @@ import ContactPage from "@/app/(site)/contact/page";
 import AboutPage from "@/app/(site)/about/page";
 import GalleryPage from "@/app/(site)/gallery/page";
 import ReviewsPage from "@/app/(site)/reviews/page";
+import FaqPage from "@/app/(site)/faq/page";
 import { categories, products } from "@/content/products";
 import { cities } from "@/content/cities";
 import { guides } from "@/content/guides";
@@ -18,7 +19,7 @@ import { guides } from "@/content/guides";
 const EXEMPT = ["/privacy", "/accessibility"];
 
 /** Guides are illustrated with SVG diagrams instead of photos (spec 2026-10-03 repair guides). */
-const ILLUSTRATED = ["/guides", ...guides.map((g) => `/guides/${g.slug}`)];
+const ILLUSTRATED = [...guides.map((g) => `/guides/${g.slug}`)];
 
 const PAGES: [string, () => ReactElement | Promise<ReactElement>][] = [
   ["/", () => <Home />],
@@ -29,6 +30,7 @@ const PAGES: [string, () => ReactElement | Promise<ReactElement>][] = [
   ["/about", () => <AboutPage />],
   ["/gallery", () => <GalleryPage />],
   ["/reviews", () => <ReviewsPage />],
+  ["/faq", () => <FaqPage />],
 ];
 
 describe("every page has at least one photo", () => {

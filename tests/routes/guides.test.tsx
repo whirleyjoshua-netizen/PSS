@@ -2,7 +2,7 @@ import { render, screen, within } from "@testing-library/react";
 import { describe, it, expect } from "vitest";
 import GuidePage, { generateMetadata, generateStaticParams } from "@/app/(site)/guides/[slug]/page";
 import { guides, minutesLabel } from "@/content/guides";
-import GuidesIndexPage from "@/app/(site)/guides/page";
+import { existsSync } from "node:fs";
 
 const renderGuide = async (slug: string) => render(await GuidePage({ params: Promise.resolve({ slug }) }));
 
@@ -58,24 +58,24 @@ describe("guide page", () => {
     expect(meta.description).toBe(guide.seo.description);
     expect(meta.alternates?.canonical).toBe(`/guides/${guide.slug}`);
   });
-});
 
-describe("guides index", () => {
-  it("lists every guide under its category", () => {
-    const { container } = render(<GuidesIndexPage />);
-    expect(screen.getByRole("heading", { level: 1, name: "Repair & care guides" })).toBeInTheDocument();
-    for (const guide of guides) {
-      expect(container.querySelector(`a[href="/guides/${guide.slug}"]`)).not.toBeNull();
-    }
-    const groups = [
-      { name: "Shades", category: "shades" },
-      { name: "Blinds", category: "blinds" },
-    ];
-    for (const { name, category } of groups) {
-      const section = screen.getByRole("heading", { level: 2, name }).closest("section")!;
-      const hrefs = within(section).getAllByRole("link").map((a) => a.getAttribute("href")).sort();
-      expect(hrefs, name).toEqual(guides.filter((g) => g.category === category).map((g) => `/guides/${g.slug}`).sort());
-    }
-    for (const guide of guides) expect(screen.getAllByText(minutesLabel(guide.minutes)).length).toBeGreaterThan(0);
+  it("keeps the share image and a large card", async () => {
+    const meta = await generateMetadata({ params: Promise.resolve({ slug: guides[0].slug }) });
+    // A page-level openGraph drops the layout's image; Next fills it back from the segment's
+    // opengraph-image file only while `images` is unset.
+    expect(meta.openGraph).toMatchObject({ type: "article", url: `/guides/${guides[0].slug}` });
+    expect(meta.openGraph).not.toHaveProperty("images");
+    expect(existsSync("app/(site)/guides/[slug]/opengraph-image.tsx")).toBe(true);
+    expect(meta.twitter).toMatchObject({ card: "summary_large_image" });
+  });
+
+  it("leads its breadcrumb back to Questions & care, not the retired guides index", async () => {
+    const { container } = await renderGuide(guides[0].slug);
+    const crumbs = screen.getByRole("navigation", { name: "Breadcrumb" });
+    expect(within(crumbs).getByRole("link", { name: "Questions & care" })).toHaveAttribute("href", "/faq");
+    expect(container.querySelector('a[href="/guides"]')).toBeNull();
+    const ld = [...container.querySelectorAll('script[type="application/ld+json"]')].map((s) => JSON.parse(s.textContent ?? ""));
+    const trail = ld.find((s) => s["@type"] === "BreadcrumbList").itemListElement.map((c: { name: string }) => c.name);
+    expect(trail).toEqual(["Home", "Questions & care", guides[0].crumb]);
   });
 });

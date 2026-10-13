@@ -7,19 +7,33 @@ describe("sitemap", () => {
     const urls = (await sitemap()).map((entry) => entry.url);
 
     // 1 home + 5 hubs + 12 products + 4 cities
-    // + gallery, reviews, about, contact, privacy, accessibility
-    // + the guides index and 2 guides
+    // + gallery, reviews, about, contact, privacy, accessibility, faq
+    // + 2 guides (the guides index now redirects to /faq#care)
     expect(urls).toHaveLength(31);
     expect(new Set(urls).size).toBe(31);
   });
 
-  it("lists the guides index and every guide, dated by the guide", async () => {
+  it("lists the FAQ, dated by its content, and not the retired guides index", async () => {
+    const { FAQ_UPDATED } = await import("@/content/faq");
+    const entries = await sitemap();
+    const faq = entries.find((e) => e.url === `${business.domain}/faq`);
+    expect(faq?.priority).toBe(0.8);
+    expect(faq?.lastModified).toEqual(new Date(FAQ_UPDATED));
+    expect(entries.some((e) => e.url === `${business.domain}/guides`)).toBe(false);
+  });
+
+  it("claims a last-modified date only where the content model records one", async () => {
+    const { guides } = await import("@/content/guides");
+    const dated = new Set([`${business.domain}/faq`, ...guides.map((g) => `${business.domain}/guides/${g.slug}`)]);
+    for (const entry of await sitemap()) {
+      if (dated.has(entry.url)) expect(entry.lastModified, entry.url).toBeInstanceOf(Date);
+      else expect(entry.lastModified, entry.url).toBeUndefined();
+    }
+  });
+
+  it("lists every guide, dated by the guide", async () => {
     const { guides } = await import("@/content/guides");
     const entries = await sitemap();
-    const index = entries.find((e) => e.url === `${business.domain}/guides`);
-    expect(index).toBeDefined();
-    const newest = guides.map((g) => g.updated).sort().at(-1)!;
-    expect(index!.lastModified).toEqual(new Date(newest));
     for (const guide of guides) {
       const entry = entries.find((e) => e.url === `${business.domain}/guides/${guide.slug}`);
       expect(entry, guide.slug).toBeDefined();
