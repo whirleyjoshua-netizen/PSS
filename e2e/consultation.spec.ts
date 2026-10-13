@@ -187,9 +187,22 @@ test.describe("on a 390×844 phone", () => {
     ...Object.keys(LANDING_VARIANTS).map((slug) => `/consultation/${slug}`),
   ];
   for (const path of paths) {
-    test(`${path} shows Invite Us Over without scrolling`, async ({ page }) => {
+    test(`${path} shows Invite Us Over without scrolling, clear of the pinned booking bar`, async ({ page }) => {
       await page.goto(path);
-      await expect(page.locator("section#book").getByRole("button", { name: /invite us over/i })).toBeInViewport({ ratio: 1 });
+      const button = page.locator("section#book").getByRole("button", { name: /invite us over/i });
+      await expect(button).toBeInViewport({ ratio: 1 });
+
+      // In the viewport is not enough: the phone booking bar (MobileBookBar) is fixed over the bottom of it.
+      const box = (await button.boundingBox())!;
+      const bar = await page.getByRole("navigation", { name: "Book a consultation" }).boundingBox();
+      if (bar) expect(box.y + box.height, "button bottom vs the bar's top edge").toBeLessThanOrEqual(bar.y);
+      // And nothing else sits on top of it: a tap at its centre reaches the button.
+      const onTop = await button.evaluate((el) => {
+        const rect = el.getBoundingClientRect();
+        const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+        return hit !== null && (hit === el || el.contains(hit));
+      });
+      expect(onTop, "the element at the button's centre is the button").toBe(true);
     });
   }
 });

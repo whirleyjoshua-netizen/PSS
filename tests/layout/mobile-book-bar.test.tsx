@@ -10,7 +10,9 @@ vi.mock("next/navigation", () => ({
 const { sendGAEvent } = vi.hoisted(() => ({ sendGAEvent: vi.fn() }));
 vi.mock("@next/third-parties/google", () => ({ sendGAEvent }));
 
-import { MobileBookBar, showsBookBar } from "@/components/layout/MobileBookBar";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { BAR_HEIGHT, MobileBookBar, showsBookBar } from "@/components/layout/MobileBookBar";
 import { PhoneClickTracking } from "@/components/analytics/PhoneClickTracking";
 import { SiteChrome } from "@/components/layout/SiteChrome";
 import { business } from "@/content/business";
@@ -88,12 +90,63 @@ describe("the bar", () => {
     expect(window.location.hash).toBe("#book");
   });
 
+  it("moves focus to the form's first field without a second, jumping scroll", () => {
+    at(
+      "/shades",
+      <section id="book">
+        <input type="hidden" name="source" />
+        <input aria-label="Name" />
+        <input aria-label="Phone" />
+      </section>,
+    );
+    const form = document.getElementById("book")!;
+    form.scrollIntoView = vi.fn();
+    const name = screen.getByLabelText("Name");
+    const focus = vi.spyOn(name, "focus");
+    fireEvent.click(screen.getByRole("link", { name: "Invite Us Over" }));
+    expect(focus).toHaveBeenCalledWith({ preventScroll: true });
+    expect(document.activeElement).toBe(name);
+  });
+
+  it.each([
+    ["Cmd", { metaKey: true }],
+    ["Ctrl", { ctrlKey: true }],
+    ["Shift", { shiftKey: true }],
+    ["Alt", { altKey: true }],
+    ["middle-button", { button: 1 }],
+  ])("leaves a %s click to the browser, so a new tab still opens /contact", (_name, init) => {
+    at("/shades", <section id="book" />);
+    const form = document.getElementById("book")!;
+    const scrollIntoView = vi.fn();
+    form.scrollIntoView = scrollIntoView;
+    const link = screen.getByRole("link", { name: "Invite Us Over" });
+    expect(fireEvent.click(link, init)).toBe(true); // not prevented
+    expect(scrollIntoView).not.toHaveBeenCalled();
+  });
+
   it("holds open a phone-height space after the footer, so the bar never covers the last of the page", () => {
     const { container } = at("/");
     const spacer = container.querySelector("[data-book-bar-spacer]")!;
     expect(spacer.getAttribute("aria-hidden")).toBe("true");
     expect(spacer.className).toMatch(/\bmd:hidden\b/);
     expect(spacer.compareDocumentPosition(bar()!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // The spacer is exactly the bar's height: both take it from one CSS variable.
+    expect(BAR_HEIGHT).toBe("h-(--book-bar-height)");
+    expect(spacer.className.split(/\s+/)).toContain(BAR_HEIGHT);
+    expect(bar()!.className.split(/\s+/)).toContain(BAR_HEIGHT);
+  });
+
+  it("is 4rem plus the safe area, and phones keep focused fields above it with scroll-padding", () => {
+    const css = readFileSync(path.join(process.cwd(), "app/globals.css"), "utf8");
+    expect(css).toContain("--book-bar-height: calc(4rem + env(safe-area-inset-bottom));");
+    expect(css).toMatch(/@media \(width < 48rem\) \{\s*html \{\s*scroll-padding-bottom: var\(--book-bar-height\);/);
+    // 4rem = the 1px rule and top padding (0.5rem together) + 3rem buttons + 0.5rem bottom padding.
+    at("/");
+    const nav = bar()!;
+    expect(nav.className).toContain("pt-[calc(0.5rem-1px)]");
+    expect(nav.className).toContain("pb-[calc(0.5rem+env(safe-area-inset-bottom))]");
+    expect(nav.className).toMatch(/\bborder-t\b/);
+    for (const link of nav.querySelectorAll("a")) expect(link.className).toMatch(/\bmin-h-12\b/);
   });
 
   it("counts a tap on Call as a phone click, through the site's one document listener", async () => {
