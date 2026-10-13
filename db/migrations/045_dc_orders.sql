@@ -41,3 +41,6 @@ create table if not exists dc_orders (
 );
 
 create index if not exists dc_orders_lead_idx on dc_orders (lead_id);
+
+-- HD's order PDF is filed as doc_type 'hd_order': it shows dealer cost, so it is never shared, like a Dealer Copy.
+-- The type and the never-shared rule are defined in 016, 021 and 024, which carry the full list.

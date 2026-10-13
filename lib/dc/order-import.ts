@@ -30,30 +30,31 @@ export async function importOrderConfirmation(input: { internetMessageId: string
 
   const parsed = parseOrderConfirmation(input.html);
   if (!parsed.ok) {
-    await recordOutcome({ ...base, outcome: parsed.outcome, leadId: null, dcQuoteNo: null, detail: parsed.detail });
+    await recordOutcome({ ...base, outcome: parsed.outcome, leadId: null, dcQuoteNo: null, detail: parsed.detail, poReference: parsed.poReference ?? null });
     await tell(orderRefusalEmail({ outcome: parsed.outcome, orderNo: parsed.orderNo ?? null, detail: parsed.detail }));
     return { outcome: parsed.outcome, leadId: null, detail: parsed.detail };
   }
   const order = parsed.order;
   const job = await jobFor(order.poReference, order.projectNo, order.option);
   if (!job) {
-    await recordOutcome({ ...base, outcome: "no-match", leadId: null, dcQuoteNo: null, detail: order.poReference });
+    await recordOutcome({ ...base, outcome: "no-match", leadId: null, dcQuoteNo: null, detail: order.poReference, poReference: order.poReference });
     await tell(orderRefusalEmail({ outcome: "no-match", orderNo: order.orderNo, detail: order.poReference }));
     return { outcome: "no-match", leadId: null, detail: order.poReference };
   }
   if (await orderRecorded(order.orderNo)) {
     // The same order again (HD re-sent it, or it was copied to another folder): nothing to change, nothing to say.
-    await recordOutcome({ ...base, outcome: "unchanged", leadId: job.id, dcQuoteNo: null, detail: `HD order ${order.orderNo}` });
+    await recordOutcome({ ...base, outcome: "unchanged", leadId: job.id, dcQuoteNo: null, detail: `HD order ${order.orderNo}`, poReference: order.poReference });
     return { outcome: "unchanged", leadId: job.id, detail: null };
   }
 
   const file = input.pdf
     ? await createFile({
       leadId: job.id, kind: "document", name: `HD ORDER ${order.orderNo}.pdf`, contentType: "application/pdf",
-      body: new Blob([new Uint8Array(input.pdf.bytes)], { type: "application/pdf" }), actor: IMPORT_ACTOR, docType: "po",
+      body: new Blob([new Uint8Array(input.pdf.bytes)], { type: "application/pdf" }), actor: IMPORT_ACTOR, docType: "hd_order",
     })
     : null;
-  if (input.pdf && !file) return { outcome: "no-match", leadId: null, detail: "job disappeared" };
+  // The job was deleted between the match and the upload. Fail the run so the next one sees no job and says so.
+  if (input.pdf && !file) throw new Error(`Job for ${order.poReference} disappeared while recording HD order ${order.orderNo}`);
 
   let recorded: Awaited<ReturnType<typeof recordOrder>>;
   try {

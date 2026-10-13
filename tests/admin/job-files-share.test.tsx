@@ -241,3 +241,14 @@ describe("JobFiles on a Dealer Copy", () => {
     expect(li.getByRole("button", { name: "Delete" })).toBeInTheDocument();
   });
 });
+
+describe("JobFiles on HD's order PDF", () => {
+  it("says it is internal and offers no type, share or delete control", () => {
+    render(<JobFiles jobId={JOB} measurements={[]} files={[file("hd", "document", null, "HD ORDER 14286505.pdf", "hd_order")]} />);
+    const li = within(screen.getByRole("link", { name: "HD ORDER 14286505.pdf" }).closest("li")!);
+    expect(li.getByText("HD order · internal, never shared")).toBeInTheDocument();
+    expect(li.queryByRole("combobox")).toBeNull();
+    expect(li.queryByRole("switch")).toBeNull();
+    expect(li.queryByRole("button", { name: "Delete" })).toBeNull();
+  });
+});

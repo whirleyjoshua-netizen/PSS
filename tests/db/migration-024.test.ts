@@ -12,7 +12,7 @@ describe("migration 024", () => {
   });
   it("adds dealer_copy to the doc_type check, keeping every earlier type", () => {
     const check = find("add constraint job_files_doc_type_check");
-    for (const t of ["quote", "po", "invoice", "other", "contract", "dealer_copy"]) expect(check).toContain(`'${t}'`);
+    for (const t of ["quote", "po", "invoice", "other", "contract", "dealer_copy", "hd_order"]) expect(check).toContain(`'${t}'`);
   });
   it("adds quote to the kind check, keeping every earlier kind", () => {
     const check = find("add constraint job_events_kind_check");
@@ -21,7 +21,7 @@ describe("migration 024", () => {
     }
   });
   it("makes the database refuse to share a Dealer Copy", () => {
-    expect(find("add constraint job_files_dealer_copy_never_shared")).toContain("doc_type is distinct from 'dealer_copy' or shared_at is null");
+    expect(find("add constraint job_files_dealer_copy_never_shared")).toContain("doc_type is null or doc_type not in ('dealer_copy','hd_order') or shared_at is null");
   });
   it("drops every constraint before re-adding it", () => {
     for (const name of ["job_files_doc_type_check", "job_events_kind_check", "job_files_dealer_copy_never_shared"]) {

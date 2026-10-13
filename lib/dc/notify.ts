@@ -58,12 +58,15 @@ export function importEmail(input: { outcome: ImportOutcome; dcQuoteNo: string |
  * Dealer Copies that have kept failing for over a day (spec §9: `failed` is only emailed once it
  * has failed again on later runs). One email per run, one line per message.
  */
-export function staleFailuresEmail(failures: { quoteNo: string | null; receivedAt: Date }[]): { subject: string; text: string } {
+export function staleFailuresEmail(failures: { quoteNo: string | null; receivedAt: Date; kind?: "dealer-copy" | "receipt" | "order" }[]): { subject: string; text: string } {
+  const what = (f: (typeof failures)[number]) =>
+    f.kind === "order" ? "An HD order confirmation"
+      : f.kind === "receipt" ? "A Direct Connect order receipt"
+        : `A Dealer Copy (${f.quoteNo ? `quote #${f.quoteNo}` : "quote number unknown"})`;
   return {
-    subject: "A Dealer Copy has failed to import for over a day",
-    text: failures.map((f) =>
-      `A Dealer Copy (${f.quoteNo ? `quote #${f.quoteNo}` : "quote number unknown"}) has failed to import since ${formatShortDate(f.receivedAt)}. A developer should look.`,
-    ).join("\n"),
+    subject: failures.every((f) => (f.kind ?? "dealer-copy") === "dealer-copy")
+      ? "A Dealer Copy has failed to import for over a day" : "A Direct Connect email has failed to import for over a day",
+    text: failures.map((f) => `${what(f)} has failed to import since ${formatShortDate(f.receivedAt)}. A developer should look.`).join("\n"),
   };
 }
 

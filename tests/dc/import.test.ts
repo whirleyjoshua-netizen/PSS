@@ -299,8 +299,8 @@ describe("pollMailbox", () => {
       expect(results.map((r) => r.outcome)).toEqual(["failed", "failed", "failed"]);
       expect(notify.staleFailuresEmail).toHaveBeenCalledOnce();
       expect(notify.staleFailuresEmail).toHaveBeenCalledWith([
-        { quoteNo: "22250741", receivedAt: old(1, 25).receivedAt },
-        { quoteNo: "22250742", receivedAt: old(2, 30).receivedAt },
+        { quoteNo: "22250741", receivedAt: old(1, 25).receivedAt, kind: "dealer-copy" },
+        { quoteNo: "22250742", receivedAt: old(2, 30).receivedAt, kind: "dealer-copy" },
       ]);
       expect(notify.notifyOwners).toHaveBeenCalledOnce();
       expect(notify.notifyOwners).toHaveBeenCalledWith({ subject: "stale", text: "t" });

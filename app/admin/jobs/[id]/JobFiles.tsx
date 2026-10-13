@@ -1,4 +1,5 @@
 import { removeFile } from "@/app/admin/jobs/measure-actions";
+import { isInternalDocType } from "@/lib/admin/doc-types";
 import type { JobFile } from "@/lib/admin/files";
 import type { WindowMeasurement } from "@/lib/admin/measurements";
 import { formatWhen } from "@/lib/admin/time";
@@ -23,8 +24,8 @@ function SignedLabel() {
  * so it is never shared, never relabelled, and kept while a quote version names it. The server
  * refuses all three regardless; this only stops offering them.
  */
-function DealerCopyLabel() {
-  return <span className="text-sm text-ink-soft">Dealer copy · internal, never shared</span>;
+function DealerCopyLabel({ hdOrder = false }: { hdOrder?: boolean }) {
+  return <span className="text-sm text-ink-soft">{hdOrder ? "HD order" : "Dealer copy"} · internal, never shared</span>;
 }
 
 /**
@@ -115,7 +116,7 @@ export function JobFiles({ jobId, measurements, files }: {
                     {file.sharedAt ? <> · <span className="text-xs uppercase tracking-wide text-charcoal">Shared</span></> : null}
                   </p>
                 </div>
-                {file.docType === "dealer_copy" ? <DealerCopyLabel /> : file.signed ? <SignedLabel /> : file.quoteContract ? <QuoteContractLabel /> : file.quoteFile ? <QuoteFileLabel /> : file.jobDocument ? <JobDocumentLabel /> : (
+                {isInternalDocType(file.docType) ? <DealerCopyLabel hdOrder={file.docType === "hd_order"} /> : file.signed ? <SignedLabel /> : file.quoteContract ? <QuoteContractLabel /> : file.quoteFile ? <QuoteFileLabel /> : file.jobDocument ? <JobDocumentLabel /> : (
                   <>
                     <DocTypeSelect key={file.docType ?? ""} jobId={jobId} fileId={file.id} fileName={file.name} docType={file.docType ?? null} />
                     {/* T8: a superseded or cancelled version's quote cannot be shared again (setShared refuses it). */}

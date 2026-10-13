@@ -95,14 +95,14 @@ update dc_settings set last_polled_at = now() where last_polled_at is null;
 alter table job_files drop constraint if exists job_files_doc_type_check;
 
 alter table job_files add constraint job_files_doc_type_check check (
-  doc_type is null or doc_type in ('quote','po','invoice','other','contract','dealer_copy')
+  doc_type is null or doc_type in ('quote','po','invoice','other','contract','dealer_copy','hd_order')
 );
 
--- A Dealer Copy shows dealer cost, so the database itself refuses to share one
+-- A Dealer Copy and HD's order PDF (hd_order, migration 045) show dealer cost, so the database itself refuses to share one
 alter table job_files drop constraint if exists job_files_dealer_copy_never_shared;
 
 alter table job_files add constraint job_files_dealer_copy_never_shared check (
-  doc_type is distinct from 'dealer_copy' or shared_at is null
+  doc_type is null or doc_type not in ('dealer_copy','hd_order') or shared_at is null
 );
 
 -- Every migration that defines job_events_kind_check lists the CURRENT FULL set of kinds

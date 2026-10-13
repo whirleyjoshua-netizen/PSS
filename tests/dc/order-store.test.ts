@@ -72,7 +72,7 @@ describe("receipts", () => {
     expect(text(sql.mock.calls[0])).toContain("on conflict (message_id) do nothing");
     expect(values(sql.mock.calls[0])).toEqual(["<r@x>", received, JOB, "22293638", "PSS-1042-E"]);
   });
-  it("finds unwarned receipts with no confirmation for the same job and PO", async () => {
+  it("finds unwarned receipts no HD order email for the same PO has answered", async () => {
     sql.mockResolvedValue([{ message_id: "<r@x>", lead_id: JOB, dc_quote_no: "22293638", po_reference: "PSS-1042-E", received_at: "2026-10-12T22:09:27Z" }]);
     const before = new Date("2026-10-12T23:00:00Z");
     expect(await store.staleReceipts(before)).toEqual([
@@ -80,7 +80,7 @@ describe("receipts", () => {
     ]);
     const statement = text(sql.mock.calls[0]);
     for (const part of ["m.outcome = 'receipt'", "m.warned_at is null", "m.lead_id is not null", "not exists",
-      "o.lead_id = m.lead_id and o.po_reference = m.po_reference"]) expect(statement).toContain(part);
+      "x.po_reference = m.po_reference and x.outcome <> 'receipt'"]) expect(statement).toContain(part);
     expect(values(sql.mock.calls[0])).toEqual([before]);
   });
   it("marks only receipts as warned, and does nothing for none", async () => {

@@ -33,13 +33,13 @@ beforeEach(() => {
 });
 
 describe("importOrderConfirmation", () => {
-  it("files HD's PDF as the job's PO, records the order on the PO's job and option, and tells the owners", async () => {
+  it("files HD's PDF as an internal HD order, records the order on the PO's job and option, and tells the owners", async () => {
     const result = await importOrderConfirmation(input);
     expect(result).toEqual({ outcome: "ordered", leadId: JOB.id, detail: "HD order 14286505" });
     expect(store.findJobByProjectNo).toHaveBeenCalledWith(1042);
     expect(store.quoteOptionExists).toHaveBeenCalledWith(JOB.id, "E");
     expect(files.createFile).toHaveBeenCalledWith(expect.objectContaining({
-      leadId: JOB.id, kind: "document", name: "HD ORDER 14286505.pdf", contentType: "application/pdf", docType: "po", actor: "Direct Connect",
+      leadId: JOB.id, kind: "document", name: "HD ORDER 14286505.pdf", contentType: "application/pdf", docType: "hd_order", actor: "Direct Connect",
     }));
     expect(orderStore.recordOrder).toHaveBeenCalledWith({
       messageId: "<o@x>", receivedAt: input.receivedAt, leadId: JOB.id, fileId: "f1", actor: "Direct Connect",
@@ -59,7 +59,7 @@ describe("importOrderConfirmation", () => {
     expect(result).toEqual({ outcome: "no-match", leadId: null, detail: "PSS-1042-E" });
     expect(files.createFile).not.toHaveBeenCalled();
     expect(orderStore.recordOrder).not.toHaveBeenCalled();
-    expect(store.recordOutcome).toHaveBeenCalledWith(expect.objectContaining({ outcome: "no-match", leadId: null, detail: "PSS-1042-E" }));
+    expect(store.recordOutcome).toHaveBeenCalledWith(expect.objectContaining({ outcome: "no-match", leadId: null, detail: "PSS-1042-E", poReference: "PSS-1042-E" }));
     expect(notify.orderRefusalEmail).toHaveBeenCalledWith({ outcome: "no-match", orderNo: "14286505", detail: "PSS-1042-E" });
   });
   it("RELEASE GATE: an option never added on the job matches nothing", async () => {
@@ -76,7 +76,7 @@ describe("importOrderConfirmation", () => {
     const result = await importOrderConfirmation({ ...input, html: ORDER.replace("PSS-1042-E", "Jennie") });
     expect(result.outcome).toBe("no-po");
     expect(store.findJobByProjectNo).not.toHaveBeenCalled();
-    expect(store.recordOutcome).toHaveBeenCalledWith(expect.objectContaining({ outcome: "no-po", leadId: null }));
+    expect(store.recordOutcome).toHaveBeenCalledWith(expect.objectContaining({ outcome: "no-po", leadId: null, poReference: "Jennie" }));
     expect(notify.orderRefusalEmail).toHaveBeenCalledWith({ outcome: "no-po", orderNo: "14286505", detail: 'HD order 14286505 has PO "Jennie"' });
   });
   it("an order number already recorded is 'unchanged': no file, no second order, no email", async () => {
@@ -104,6 +104,15 @@ describe("importOrderConfirmation", () => {
     files.deleteFile.mockResolvedValue(true);
     await expect(importOrderConfirmation(input)).rejects.toThrow("db down");
     expect(files.deleteFile).toHaveBeenCalledWith("f1", "Direct Connect");
+  });
+  it("a job deleted mid-import fails the run, so the next run sees no job and tells the owners", async () => {
+    files.createFile.mockResolvedValue(null);
+    await expect(importOrderConfirmation(input)).rejects.toThrow("disappeared");
+    expect(orderStore.recordOrder).not.toHaveBeenCalled();
+  });
+  it("a refused confirmation records its PO, so the receipt is not also reported as unconfirmed", async () => {
+    await importOrderConfirmation({ ...input, html: ORDER.replace(">91.38<", ">91.39<") });
+    expect(store.recordOutcome).toHaveBeenCalledWith(expect.objectContaining({ outcome: "unreadable", poReference: "PSS-1042-E" }));
   });
   it("a failing owner email does not fail the import", async () => {
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});

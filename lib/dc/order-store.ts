@@ -90,16 +90,17 @@ export async function recordReceipt(input: { messageId: string; receivedAt: Date
 export type StaleReceipt = { messageId: string; leadId: string; quoteNo: string | null; poReference: string; receivedAt: Date };
 
 /**
- * Receipts received before `before` that no HD confirmation for the same job and PO has followed, and that the
- * owners have not been told about. A confirmation counts when it arrived no more than an hour before the receipt.
+ * Receipts received before `before` that no HD order email for the same PO has followed, and that the owners have
+ * not been told about. Any HD order email counts, recorded or refused: a refusal already emailed the owners. Only
+ * order mail stores a PO here. One counts when it arrived no more than an hour before the receipt.
  */
 export async function staleReceipts(before: Date): Promise<StaleReceipt[]> {
   const rows = await db()`
     select m.message_id, m.lead_id, m.dc_quote_no, m.po_reference, m.received_at from ingested_messages m
     where m.outcome = 'receipt' and m.warned_at is null and m.lead_id is not null and m.received_at < ${before}
       and not exists (
-        select 1 from dc_orders o
-        where o.lead_id = m.lead_id and o.po_reference = m.po_reference and o.received_at >= m.received_at - interval '1 hour'
+        select 1 from ingested_messages x
+        where x.po_reference = m.po_reference and x.outcome <> 'receipt' and x.received_at >= m.received_at - interval '1 hour'
       )
     order by m.received_at`;
   return rows.map((r) => ({

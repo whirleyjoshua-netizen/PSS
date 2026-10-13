@@ -173,3 +173,11 @@ describe("staleReceiptsEmail", () => {
     expect(two.text).toContain("received an order for PSS-1043");
   });
 });
+
+describe("staleFailuresEmail for order mail", () => {
+  it("names an order or receipt for what it is, not a Dealer Copy", () => {
+    const email = staleFailuresEmail([{ quoteNo: null, receivedAt: new Date("2026-10-12T22:34:03Z"), kind: "order" }]);
+    expect(email.subject).toBe("A Direct Connect email has failed to import for over a day");
+    expect(email.text).toBe("An HD order confirmation has failed to import since Oct 12, 2026. A developer should look.");
+  });
+});

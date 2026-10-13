@@ -6,7 +6,7 @@
 alter table job_files drop constraint if exists job_files_doc_type_check;
 
 alter table job_files add constraint job_files_doc_type_check check (
-  doc_type is null or doc_type in ('quote','po','invoice','other','contract','dealer_copy')
+  doc_type is null or doc_type in ('quote','po','invoice','other','contract','dealer_copy','hd_order')
 );
 
 -- 019_service_requests.sql last defined this check. Every migration that touches it lists

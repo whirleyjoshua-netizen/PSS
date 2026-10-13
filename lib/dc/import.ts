@@ -128,7 +128,7 @@ export async function pollMailbox(now = new Date()): Promise<{ seen: number; res
   const since = new Date((lastPolledAt?.getTime() ?? now.getTime() - FIRST_RUN_LOOKBACK_MS) - OVERLAP_MS);
   const messages = await listCandidateMessages(since);
   const results: { messageId: string; outcome: ImportOutcome }[] = [];
-  const stale: { quoteNo: string | null; receivedAt: Date }[] = [];
+  const stale: { quoteNo: string | null; receivedAt: Date; kind: MailMessage["kind"] }[] = [];
   let failed = false;
   for (const message of messages) {
     try {
@@ -154,7 +154,7 @@ export async function pollMailbox(now = new Date()): Promise<{ seen: number; res
       results.push({ messageId: message.internetMessageId, outcome: "failed" });
       failed = true;
       if (now.getTime() - message.receivedAt.getTime() > STALE_FAILURE_MS) {
-        stale.push({ quoteNo: DC_SUBJECT.exec(message.subject)?.[1] ?? null, receivedAt: message.receivedAt });
+        stale.push({ quoteNo: DC_SUBJECT.exec(message.subject)?.[1] ?? null, receivedAt: message.receivedAt, kind: message.kind });
       }
     }
   }
