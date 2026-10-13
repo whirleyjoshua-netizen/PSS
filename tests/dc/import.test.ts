@@ -12,6 +12,7 @@ const notify = {
   notifyOwners: vi.fn().mockResolvedValue(undefined), importEmail: vi.fn(() => ({ subject: "s", text: "t" })),
   staleFailuresEmail: vi.fn(() => ({ subject: "stale", text: "t" })),
   staleReceiptsEmail: vi.fn(() => ({ subject: "unconfirmed", text: "t" })),
+  unknownHdEmail: vi.fn(() => ({ subject: "unknown", text: "t" })),
 };
 vi.mock("@/lib/dc/notify", () => notify);
 const mailbox = { listCandidateMessages: vi.fn(), htmlAttachments: vi.fn(), messageHtml: vi.fn(), pdfAttachments: vi.fn() };
@@ -392,6 +393,23 @@ describe("pollMailbox: orders", () => {
     expect(orderStore.markReceiptsWarned).not.toHaveBeenCalled();
     expect(store.setLastPolledAt).toHaveBeenCalledWith(NOW);
     spy.mockRestore();
+  });
+  it("tells the owners once about other HD mail, reading nothing from it", async () => {
+    const other = { ...order, id: "s1", kind: "hd-other" as const, internetMessageId: "<s@x>", subject: "Your order 14286505 has shipped" };
+    mailbox.listCandidateMessages.mockResolvedValue([other]);
+    const { results } = await pollMailbox(NOW);
+    expect(results).toEqual([{ messageId: "<s@x>", outcome: "unchanged" }]);
+    expect(store.recordOutcome).toHaveBeenCalledWith(expect.objectContaining({ messageId: "<s@x>", outcome: "unchanged", detail: "Unrecognized HD email: Your order 14286505 has shipped" }));
+    expect(notify.unknownHdEmail).toHaveBeenCalledWith(other);
+    expect(notify.notifyOwners).toHaveBeenCalledWith({ subject: "unknown", text: "t" });
+    expect(mailbox.messageHtml).not.toHaveBeenCalled();
+    expect(orders.importOrderConfirmation).not.toHaveBeenCalled();
+  });
+  it("does not tell the owners again about HD mail already recorded", async () => {
+    store.isProcessed.mockResolvedValue(true);
+    mailbox.listCandidateMessages.mockResolvedValue([{ ...order, kind: "hd-other" as const, subject: "Shipped" }]);
+    await pollMailbox(NOW);
+    expect(notify.notifyOwners).not.toHaveBeenCalled();
   });
   it("sends nothing when no receipt is stale", async () => {
     mailbox.listCandidateMessages.mockResolvedValue([]);

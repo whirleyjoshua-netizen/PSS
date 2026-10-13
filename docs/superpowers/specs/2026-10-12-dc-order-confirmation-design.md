@@ -35,6 +35,6 @@ Both carry the PO Reference (`PSS-1016-E`), so the job and the quote option are 
 
 ## Not in scope
 
-- HD's later shipping emails ("You will receive an additional email confirmation as your order is processed and shipped"). Same sender and PO key, a natural next step.
+- HD's later shipping emails ("You will receive an additional email confirmation as your order is processed and shipped"). Same sender and PO key, a natural next step. Until it is built, any other mail from `donotreply@hunterdouglas.com` is recorded unread and the owners are emailed its subject once, so the first shipping notice is not missed (added 2026-10-12). Owner's plan for it: "Shipped <date>" inside the existing In Production step (no new step), on the Order card, and a shipping email to the client saying PSS will reach out to schedule the install.
 - Checking more than once a day. The cron runs at 15:00 UTC, so an afternoon order shows the next morning.
 - Sender authentication beyond the From address, as for Dealer Copies. Both test emails passed SPF, DKIM and DMARC at Microsoft.

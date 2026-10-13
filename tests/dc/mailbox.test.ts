@@ -48,11 +48,19 @@ describe("mailKind", () => {
     expect(mailbox.mailKind("retailer@hunterdouglas.com", "Confirming Receipt of Quote #22293638 / Sidemark: Test, Client")).toBe("receipt");
     expect(mailbox.mailKind("donotreply@hunterdouglas.com", "New Order # 14286505 for Sidemark: Test, Clie")).toBe("order");
   });
-  it("ignores the right subject from the wrong sender, and other HD mail", () => {
+  it("never takes the right subject from the wrong sender as that kind", () => {
     expect(mailbox.mailKind("retailer@hunterdouglas.com", "New Order # 14286505 for Sidemark: Test")).toBeNull();
-    expect(mailbox.mailKind("donotreply@hunterdouglas.com", "Confirming Receipt of Quote #1 / Sidemark: Test")).toBeNull();
+    // The receipt's subject from HD's order address is not a receipt: it is other HD mail the owners hear about.
+    expect(mailbox.mailKind("donotreply@hunterdouglas.com", "Confirming Receipt of Quote #1 / Sidemark: Test")).toBe("hd-other");
     expect(mailbox.mailKind("someone@evil.com", "New Order # 1 for Sidemark: Test")).toBeNull();
-    expect(mailbox.mailKind("donotreply@hunterdouglas.com", "Your order has shipped")).toBeNull();
+  });
+});
+
+describe("mailKind for other HD mail", () => {
+  it("names any other mail from HD's order address, so the owners hear about a new kind such as shipping", () => {
+    expect(mailbox.mailKind("donotreply@hunterdouglas.com", "Your order has shipped")).toBe("hd-other");
+    expect(mailbox.mailKind("feedback@email.hunterdouglas.com", "Share your Hunter Douglas experience")).toBeNull();
+    expect(mailbox.mailKind("gina.roach@hunterdouglas.com", "Brite Pay")).toBeNull();
   });
 });
 

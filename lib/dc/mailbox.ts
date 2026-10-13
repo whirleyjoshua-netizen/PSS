@@ -2,8 +2,11 @@ import "server-only";
 import { graphJson } from "@/lib/calendar/graph";
 import { DC_SENDER, DC_SUBJECT, dcMailbox, ORDER_SENDER, ORDER_SUBJECT, RECEIPT_SUBJECT } from "./config";
 
-/** A Dealer Copy (a quote), DC's receipt for a submitted order, or HD's confirmation of that order. */
-export type MailKind = "dealer-copy" | "receipt" | "order";
+/**
+ * A Dealer Copy (a quote), DC's receipt for a submitted order, HD's confirmation of that order, or any other mail
+ * from HD's order address ("hd-other"), which the owners are told about so a new kind (shipping) can be set up.
+ */
+export type MailKind = "dealer-copy" | "receipt" | "order" | "hd-other";
 export type MailMessage = { id: string; kind: MailKind; internetMessageId: string; subject: string; from: string; receivedAt: Date };
 type GraphMessage = { id: string; internetMessageId: string; subject: string | null; receivedDateTime: string; from?: { emailAddress?: { address?: string } } };
 const MAX_BYTES = 1_000_000;
@@ -15,6 +18,7 @@ export function mailKind(from: string, subject: string): MailKind | null {
   if (from === DC_SENDER && DC_SUBJECT.test(subject)) return "dealer-copy";
   if (from === DC_SENDER && RECEIPT_SUBJECT.test(subject)) return "receipt";
   if (from === ORDER_SENDER && ORDER_SUBJECT.test(subject)) return "order";
+  if (from === ORDER_SENDER) return "hd-other";
   return null;
 }
 

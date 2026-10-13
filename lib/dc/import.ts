@@ -4,7 +4,7 @@ import { createFile, deleteFile } from "@/lib/admin/files";
 import { formatOptionNo } from "@/lib/portal/project-no";
 import { DC_SUBJECT, IMPORT_ACTOR } from "./config";
 import { htmlAttachments, listCandidateMessages, messageHtml, pdfAttachments, type MailMessage } from "./mailbox";
-import { importEmail, notifyOwners, staleFailuresEmail, staleReceiptsEmail } from "./notify";
+import { importEmail, notifyOwners, staleFailuresEmail, staleReceiptsEmail, unknownHdEmail } from "./notify";
 import { importOrderConfirmation, importOrderReceipt } from "./order-import";
 import { markReceiptsWarned, staleReceipts } from "./order-store";
 import { parseDealerCopy } from "./parse";
@@ -133,6 +133,13 @@ export async function pollMailbox(now = new Date()): Promise<{ seen: number; res
   for (const message of messages) {
     try {
       if (await isProcessed(message.internetMessageId)) continue;
+      if (message.kind === "hd-other") {
+        // Recorded first, so the owners are told once even if the email fails; nothing is read from it.
+        await recordOutcome({ messageId: message.internetMessageId, receivedAt: message.receivedAt, outcome: "unchanged", leadId: null, dcQuoteNo: null, detail: `Unrecognized HD email: ${message.subject}` });
+        await notifyOwners(unknownHdEmail(message)).catch((error) => console.error("Unknown HD email notice failed", error));
+        results.push({ messageId: message.internetMessageId, outcome: "unchanged" });
+        continue;
+      }
       if (message.kind !== "dealer-copy") {
         results.push({ messageId: message.internetMessageId, outcome: await importOrderMail(message) });
         continue;

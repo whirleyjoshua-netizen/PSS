@@ -58,7 +58,7 @@ export function importEmail(input: { outcome: ImportOutcome; dcQuoteNo: string |
  * Dealer Copies that have kept failing for over a day (spec §9: `failed` is only emailed once it
  * has failed again on later runs). One email per run, one line per message.
  */
-export function staleFailuresEmail(failures: { quoteNo: string | null; receivedAt: Date; kind?: "dealer-copy" | "receipt" | "order" }[]): { subject: string; text: string } {
+export function staleFailuresEmail(failures: { quoteNo: string | null; receivedAt: Date; kind?: "dealer-copy" | "receipt" | "order" | "hd-other" }[]): { subject: string; text: string } {
   const what = (f: (typeof failures)[number]) =>
     f.kind === "order" ? "An HD order confirmation"
       : f.kind === "receipt" ? "A Direct Connect order receipt"
@@ -118,6 +118,17 @@ export function orderRefusalEmail(input: { outcome: "no-po" | "no-match" | "unre
       return { subject: `${order} could not be read`,
         text: `${order} wasn't in the expected format (${input.detail}). ${byHand}\n\nThe email was left in support@. A developer needs to look at it.` };
   }
+}
+
+/** Mail from HD's order address the tracker does not read yet, e.g. the first shipping notice. */
+export function unknownHdEmail(input: { subject: string; receivedAt: Date }): { subject: string; text: string } {
+  return {
+    subject: `New Hunter Douglas email: ${input.subject}`,
+    text: [
+      `An email from donotreply@hunterdouglas.com arrived in support@ on ${formatShortDate(input.receivedAt)} that the tracker does not read yet: "${input.subject}".`,
+      "", "If it is about an order shipping, tell Claude so shipping updates can be set up from it. The email was left in support@.",
+    ].join("\n"),
+  };
 }
 
 /** Orders DC received over a day ago that HD has not confirmed. One email per run, one line per order. */

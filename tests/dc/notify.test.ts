@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const send = vi.fn();
 vi.mock("resend", () => ({ Resend: class { emails = { send }; } }));
 vi.mock("@/lib/leads/email", () => ({ ownerRecipients: () => ["owner@example.com"] }));
-const { importEmail, notifyOwners, orderEmail, orderRefusalEmail, staleFailuresEmail, staleReceiptsEmail } = await import("@/lib/dc/notify");
+const { importEmail, notifyOwners, orderEmail, orderRefusalEmail, staleFailuresEmail, staleReceiptsEmail, unknownHdEmail } = await import("@/lib/dc/notify");
 
 beforeEach(() => {
   send.mockReset().mockResolvedValue({ error: null });
@@ -179,5 +179,14 @@ describe("staleFailuresEmail for order mail", () => {
     const email = staleFailuresEmail([{ quoteNo: null, receivedAt: new Date("2026-10-12T22:34:03Z"), kind: "order" }]);
     expect(email.subject).toBe("A Direct Connect email has failed to import for over a day");
     expect(email.text).toBe("An HD order confirmation has failed to import since Oct 12, 2026. A developer should look.");
+  });
+});
+
+describe("unknownHdEmail", () => {
+  it("names the subject and date, and says what to do", () => {
+    const email = unknownHdEmail({ subject: "Your order has shipped", receivedAt: new Date("2026-10-20T18:00:00Z") });
+    expect(email.subject).toBe("New Hunter Douglas email: Your order has shipped");
+    expect(email.text).toContain('arrived in support@ on Oct 20, 2026 that the tracker does not read yet: "Your order has shipped".');
+    expect(email.text).toContain("tell Claude so shipping updates can be set up from it.");
   });
 });
