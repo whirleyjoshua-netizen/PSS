@@ -58,6 +58,13 @@ export const PAINS: Pain[] = [
   },
 ];
 
+/**
+ * The homepage's "What usually goes wrong" block: the first four pains, the fears people have before they book. The
+ * fifth ("we're family") is left out there because the homepage already says it in its own sections. /consultation
+ * and /holiday show all five (components/consultation/LandingSections.tsx).
+ */
+export const HOME_OBJECTIONS: Pain[] = PAINS.slice(0, 4);
+
 export const STEPS = [
   { title: "Invite us over.", body: "We bring samples to your home, so you see every color and fabric in your own light." },
   { title: "Josh measures.", body: "Every window, by the owner, backed by our measurement guarantee." },

@@ -1,6 +1,7 @@
 import { Hero } from "@/components/home/Hero";
 import {
   TrustBar,
+  Objections,
   CategoryGrid,
   WhyPremier,
   GalleryStrip,
@@ -21,6 +22,7 @@ export default function Home() {
       <WhyPremier />
       <Testimonials />
       <PastWorkReviews />
+      <Objections />
       <CategoryGrid />
       <GalleryStrip />
       <ServiceAreaBlock />
