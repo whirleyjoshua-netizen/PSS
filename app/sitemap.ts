@@ -3,16 +3,16 @@ import { business } from "@/content/business";
 import { categories, products } from "@/content/products";
 import { cities } from "@/content/cities";
 import { guides } from "@/content/guides";
-import { FAQ_UPDATED } from "@/content/faq";
 
 /**
  * Derived entirely from the content model, so a product added to
  * content/products.ts appears here automatically. Nothing is listed by hand.
  *
  * lastModified is sent only where the content model records when a page last
- * changed: each guide's `updated` and the FAQ's FAQ_UPDATED. Every other page
- * leaves it out. A fixed date (it was "2026-08-31" for every page) goes stale
- * the moment copy changes, and the build time would claim every page changed
+ * changed: each guide's `updated`. Every other page leaves it out, the FAQ
+ * included: its answers are built from other files (content/faq.ts), so a date
+ * typed into it would go stale when any of them changed. A fixed date (it was
+ * "2026-08-31" for every page) goes stale the moment copy changes, and the build time would claim every page changed
  * on every deploy. Google ignores lastmod across a site once it proves
  * inaccurate, which would also cost the real dates their weight.
  */
@@ -48,7 +48,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
       lastModified: new Date(guide.updated),
     })),
 
-    { url: url("/faq"), priority: 0.8, changeFrequency: "monthly", lastModified: new Date(FAQ_UPDATED) },
+    { url: url("/faq"), priority: 0.8, changeFrequency: "monthly" },
     { url: url("/contact"), priority: 0.9, changeFrequency: "yearly" },
     { url: url("/about"), priority: 0.7, changeFrequency: "yearly" },
     { url: url("/gallery"), priority: 0.7, changeFrequency: "monthly" },

@@ -13,18 +13,17 @@ describe("sitemap", () => {
     expect(new Set(urls).size).toBe(31);
   });
 
-  it("lists the FAQ, dated by its content, and not the retired guides index", async () => {
-    const { FAQ_UPDATED } = await import("@/content/faq");
+  it("lists the FAQ undated (its answers come from other files, so no one date is true), and not the retired guides index", async () => {
     const entries = await sitemap();
     const faq = entries.find((e) => e.url === `${business.domain}/faq`);
     expect(faq?.priority).toBe(0.8);
-    expect(faq?.lastModified).toEqual(new Date(FAQ_UPDATED));
+    expect(faq?.lastModified).toBeUndefined();
     expect(entries.some((e) => e.url === `${business.domain}/guides`)).toBe(false);
   });
 
   it("claims a last-modified date only where the content model records one", async () => {
     const { guides } = await import("@/content/guides");
-    const dated = new Set([`${business.domain}/faq`, ...guides.map((g) => `${business.domain}/guides/${g.slug}`)]);
+    const dated = new Set([...guides.map((g) => `${business.domain}/guides/${g.slug}`)]);
     for (const entry of await sitemap()) {
       if (dated.has(entry.url)) expect(entry.lastModified, entry.url).toBeInstanceOf(Date);
       else expect(entry.lastModified, entry.url).toBeUndefined();

@@ -30,9 +30,6 @@ export type FaqLink = { label: string; href: string };
 export type FaqItem = { q: string; a: string; links?: FaqLink[] };
 export type FaqGroup = { id: string; title: string; items: FaqItem[] };
 
-/** When the answers last changed. The sitemap sends it as /faq's lastModified. */
-export const FAQ_UPDATED = "2026-10-13";
-
 const capitalized = (line: string) => `${line[0]!.toUpperCase()}${line.slice(1)}`;
 
 const guideLinks: FaqLink[] = guides.map((guide) => ({ label: guide.crumb, href: `/guides/${guide.slug}` }));
