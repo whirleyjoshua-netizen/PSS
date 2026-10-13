@@ -15,7 +15,7 @@ describe("warranty", () => {
 
   it("never claims lifetime on everything", () => {
     expect(WARRANTY_LINE).toBe(
-      "Limited lifetime manufacturer warranty, 5 years on motors, and 1 year on our installation.",
+      "Limited lifetime manufacturer warranty for the original owner, 5 years on motors, and 1 year on our installation.",
     );
     for (const line of [...Object.values(WARRANTY), WARRANTY_LINE]) {
       expect(line).not.toMatch(/lifetime (warranty )?on everything/i);

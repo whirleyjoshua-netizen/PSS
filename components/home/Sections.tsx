@@ -8,7 +8,7 @@ import { categories } from "@/content/products";
 import { gallery } from "@/content/gallery";
 import { testimonials } from "@/content/testimonials";
 import { HOME_OBJECTIONS } from "@/content/consultation";
-import { WARRANTY_LINE } from "@/content/warranty";
+import { WARRANTY, WARRANTY_LINE } from "@/content/warranty";
 import { getProductsIn } from "@/lib/content/products";
 import { cityPath } from "@/lib/content/cities";
 
@@ -111,7 +111,9 @@ export function Objections() {
         ))}
       </ul>
 
-      <p className="mt-8 text-sm text-sand/75">{WARRANTY_LINE}</p>
+      <p className="mt-8 text-sm text-sand/75">
+        <span>{WARRANTY_LINE}</span> <span className="text-xs">{WARRANTY.fineprint}</span>
+      </p>
     </Section>
   );
 }

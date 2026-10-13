@@ -5,7 +5,7 @@ import CityPage from "@/app/(site)/service-area/[city]/page";
 import { FAMILY_LINE } from "@/components/booking/PromiseRow";
 import { products } from "@/content/products";
 import { cities } from "@/content/cities";
-import { WARRANTY_LINE } from "@/content/warranty";
+import { WARRANTY, WARRANTY_LINE } from "@/content/warranty";
 import { LEAD_TIME_LINE } from "@/content/consultation";
 
 /** "wood-blinds" -> "wood blinds": the keyword the page's URL already targets. */
@@ -75,6 +75,7 @@ describe.each(cities.map((c) => [c.slug, c] as const))("/service-area/%s", (slug
     const text = container.textContent ?? "";
     expect(text).toContain(LEAD_TIME_LINE);
     expect(text).toContain(WARRANTY_LINE);
+    expect(text).toContain(WARRANTY.fineprint);
     expect(text).toMatch(/measurement guarantee/);
   });
 
@@ -104,8 +105,20 @@ describe.each(cities.map((c) => [c.slug, c] as const))("/service-area/%s", (slug
 });
 
 describe("product warranties", () => {
-  it("quote the one warranty line, never the old vague claim", () => {
-    expect(products.find((p) => p.slug === "composite-shutters")!.features).toContain(WARRANTY_LINE);
+  it("never repeat the old vague claim, and no product carries its own copy of the line", () => {
     expect(JSON.stringify(products)).not.toMatch(/strong manufacturer warranties/);
+    for (const product of products) expect(product.features).not.toContain(WARRANTY_LINE);
   });
+
+  it.each(products.map((p) => [p.slug, p] as const))(
+    "%s shows the warranty line exactly once, with its fine print",
+    async (_slug, product) => {
+      const { container } = render(
+        await ProductPage({ params: Promise.resolve({ category: product.category, product: product.slug }) }),
+      );
+      const text = container.textContent ?? "";
+      expect(text.split(WARRANTY_LINE).length - 1).toBe(1);
+      expect(text).toContain(WARRANTY.fineprint);
+    },
+  );
 });

@@ -11,7 +11,6 @@
  */
 
 import { altaPhotos } from "./stock-photos";
-import { WARRANTY_LINE } from "./warranty";
 
 export const CATEGORY_SLUGS = [
   "blinds",
@@ -521,7 +520,6 @@ export const products: Product[] = [
       "Safe for bathrooms, laundry rooms, and kitchens",
       "Consistent factory paint finish that resists chipping",
       "Generally more affordable than comparable real wood",
-      WARRANTY_LINE,
     ],
     bestFor: "Most Las Vegas homes, and any window on a west or south elevation.",
     image: altaPhotos.compositeShuttersDining,

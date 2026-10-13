@@ -7,7 +7,7 @@ import { BookingBlock } from "@/components/booking/BookingBlock";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { consultationPhoto } from "@/content/gallery";
 import { LEAD_TIME_LINE } from "@/content/consultation";
-import { WARRANTY_LINE } from "@/content/warranty";
+import { WARRANTY, WARRANTY_LINE } from "@/content/warranty";
 import { breadcrumbSchema } from "@/lib/seo/schema";
 import type { ServiceCity } from "@/content/business";
 import { allCityPaths, getCity } from "@/lib/content/cities";
@@ -128,7 +128,7 @@ export default async function CityPage({
           <p>
             Your written quote gives your lead time ({LEAD_TIME_LINE}), and we put up temporary
             shades for free while you wait. On install day we protect your floors, clean up before we
-            go, and haul your old blinds away for free. {WARRANTY_LINE}
+            go, and haul your old blinds away for free. {WARRANTY_LINE} {WARRANTY.fineprint}
           </p>
         </div>
       </Section>

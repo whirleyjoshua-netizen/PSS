@@ -22,4 +22,4 @@ export const WARRANTY = {
 } as const;
 
 /** One line for tight spaces: trust strips, badges, product-page details. */
-export const WARRANTY_LINE = `Limited lifetime manufacturer warranty, ${MOTOR_WARRANTY_YEARS} years on motors, and ${INSTALL_WARRANTY_YEARS} year on our installation.`;
+export const WARRANTY_LINE = `Limited lifetime manufacturer warranty for the original owner, ${MOTOR_WARRANTY_YEARS} years on motors, and ${INSTALL_WARRANTY_YEARS} year on our installation.`;

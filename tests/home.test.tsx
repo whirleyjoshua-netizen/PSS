@@ -4,7 +4,7 @@ import Home from "@/app/(site)/page";
 import { business } from "@/content/business";
 import { categories } from "@/content/products";
 import { HOME_OBJECTIONS } from "@/content/consultation";
-import { WARRANTY_LINE } from "@/content/warranty";
+import { WARRANTY, WARRANTY_LINE } from "@/content/warranty";
 
 describe("Home", () => {
   it("has exactly one h1 and it carries the tagline", () => {
@@ -111,6 +111,7 @@ describe("Home", () => {
       expect(within(section).getByText(pain.body)).toBeInTheDocument();
     }
     expect(within(section).getByText(WARRANTY_LINE)).toBeInTheDocument();
+    expect(within(section).getByText(WARRANTY.fineprint)).toBeInTheDocument();
     expect(section.textContent).not.toMatch(/holiday|christmas|nov 15|10%/i);
   });
 
