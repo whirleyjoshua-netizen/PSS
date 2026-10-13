@@ -31,7 +31,7 @@ describe("/holiday", () => {
     atTime("2026-11-10T12:00:00-08:00");
     const Page = await page();
     const { container } = render(<Page />);
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(/Get your home ready for the\s*Holidays/);
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(/^Get your home ready for the\s*holidays\.$/);
     expect(screen.getByText("10% off 3 or more custom shades or blinds. Book your free consult by Nov 15.")).toBeInTheDocument();
     expect(screen.getByText("What counts toward the 10%?")).toBeInTheDocument();
     // Nov 10 noon to the end of Nov 15 in Las Vegas is 5.5 days: the count rounds up.

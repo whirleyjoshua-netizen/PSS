@@ -1,5 +1,14 @@
 import { describe, it, expect } from "vitest";
-import { HOLIDAY_OFFER_LINE, holidayFaq, holidayLeadTimes, holidayStage } from "@/content/holiday";
+import {
+  HOLIDAY_FORM_LINE,
+  HOLIDAY_LEAD_NOTE,
+  HOLIDAY_OFFER_LAST_DAY,
+  HOLIDAY_OFFER_LINE,
+  holidayFaq,
+  holidayLeadTimes,
+  holidayStage,
+} from "@/content/holiday";
+import { holidayOffer } from "@/content/promo";
 import { leadTimes } from "@/content/lead-times";
 
 const at = (iso: string) => new Date(iso);
@@ -36,6 +45,21 @@ describe("holiday copy", () => {
   it("says shutters aren't part of the 10% only while the offer runs", () => {
     expect(holidayLeadTimes("offer")).toMatch(/Shutters aren't part of the 10%/);
     expect(holidayLeadTimes("family")).not.toMatch(/10%/);
+  });
+  it("reads the offer's last day from its end in content/promo.ts", () => {
+    // endsAt is exclusive: the first moment of Nov 16 in Las Vegas, so the last day to book is Nov 15.
+    expect(holidayOffer.endsAt).toBe("2026-11-16T00:00:00-08:00");
+    expect(HOLIDAY_OFFER_LAST_DAY).toBe("Nov 15");
+    expect(HOLIDAY_LEAD_NOTE).toBe("Holiday special: 10% off 3+ custom shades or blinds (consult booked by Nov 15).");
+  });
+  it("gives the homepage form a one-line version of the offer", () => {
+    expect(HOLIDAY_FORM_LINE).toBe("Holiday: 10% off 3+ shades or blinds when you book by Nov 15.");
+  });
+  it("counts lead times from the day you order, not from the consult (owner 2026-10-13)", () => {
+    for (const text of [holidayLeadTimes("offer"), holidayLeadTimes("family"), holidayFaq("offer")[0]!.a]) {
+      expect(text).toMatch(/from the day you order/i);
+      expect(text).not.toMatch(/from your consult/i);
+    }
   });
   it("drops the 10% question once the offer ends", () => {
     expect(holidayFaq("offer").map((f) => f.q)).toEqual(["Will it be installed by Christmas?", "What counts toward the 10%?"]);

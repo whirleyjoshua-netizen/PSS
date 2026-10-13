@@ -17,10 +17,20 @@ export function holidayStage(now: Date): HolidayStage {
   return "over";
 }
 
-export const HOLIDAY_OFFER_LINE = "10% off 3 or more custom shades or blinds. Book your free consult by Nov 15.";
+/** The offer's last day to book in Las Vegas, e.g. "Nov 15": the day before `endsAt`, which is exclusive. */
+export const HOLIDAY_OFFER_LAST_DAY = new Date(new Date(holidayOffer.endsAt).getTime() - 1).toLocaleDateString("en-US", {
+  month: "short",
+  day: "numeric",
+  timeZone: "America/Los_Angeles",
+});
+
+export const HOLIDAY_OFFER_LINE = `10% off 3 or more custom shades or blinds. Book your free consult by ${HOLIDAY_OFFER_LAST_DAY}.`;
+
+/** The homepage hero form's one line, above Invite Us Over while the offer runs (components/home/HeroOffer.tsx). */
+export const HOLIDAY_FORM_LINE = `Holiday: 10% off 3+ shades or blinds when you book by ${HOLIDAY_OFFER_LAST_DAY}.`;
 
 /** Rides along on an offer-window lead as its notes, so Shade’ knows to take the 10% off the quote. */
-export const HOLIDAY_LEAD_NOTE = "Holiday special: 10% off 3+ custom shades or blinds (consult booked by Nov 15).";
+export const HOLIDAY_LEAD_NOTE = `Holiday special: 10% off 3+ custom shades or blinds (consult booked by ${HOLIDAY_OFFER_LAST_DAY}).`;
 
 const weeks = (label: string) => {
   const leadTime = leadTimes.find((l) => l.label === label)!;
@@ -28,18 +38,18 @@ const weeks = (label: string) => {
 };
 
 export function holidayLeadTimes(stage: "offer" | "family"): string {
-  const line = `From your consult: ${leadTimeSummary(leadTimes)}.`;
+  const line = `From the day you order: ${leadTimeSummary(leadTimes)}.`;
   return stage === "offer" ? `${line} Shutters aren't part of the 10%.` : line;
 }
 
 export function holidayFaq(stage: "offer" | "family"): { q: string; a: string }[] {
   const christmas = {
     q: "Will it be installed by Christmas?",
-    a: `Shades and blinds take ${weeks("Shades")} from your consult, and shutters ${weeks("Shutters")}. The sooner we come out, the better your chances. Your lead time is in writing on your quote, and if it lands after the holidays we put up temporary shades for free.`,
+    a: `Shades and blinds take ${weeks("Shades")} from the day you order, and shutters ${weeks("Shutters")}. The sooner we come out, the better your chances. Your lead time is in writing on your quote, and if it lands after the holidays we put up temporary shades for free.`,
   };
   const tenOff = {
     q: "What counts toward the 10%?",
-    a: "Three or more custom shades or blinds on one order, motorized included, with your consult booked by Nov 15. Shutters aren't included.",
+    a: `Three or more custom shades or blinds on one order, motorized included, with your consult booked by ${HOLIDAY_OFFER_LAST_DAY}. Shutters aren't included.`,
   };
   return stage === "offer" ? [christmas, tenOff] : [christmas];
 }
