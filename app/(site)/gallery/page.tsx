@@ -8,7 +8,7 @@ import { gallery } from "@/content/gallery";
 export const metadata: Metadata = {
   title: "Gallery | Premier Shade Solutions",
   description:
-    "Blinds, shades, and shutters we measured and installed — real jobs, photographed on site.",
+    "Blinds, shades, and shutters we measured and installed ourselves, photographed on site: real jobs, never stock photography. Free in-home consultation.",
   alternates: { canonical: "/gallery" },
 };
 

@@ -6,7 +6,7 @@ import { business } from "@/content/business";
 export const metadata: Metadata = {
   title: "Privacy Policy | Premier Shade Solutions",
   description:
-    "How Premier Shade Solutions collects, uses, and protects the information you submit through this website.",
+    "How Premier Shade Solutions collects, uses, and protects the information you submit through this website, in plain language. Free in-home consultation.",
   alternates: { canonical: "/privacy" },
 };
 

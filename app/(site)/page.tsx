@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { Hero } from "@/components/home/Hero";
 import {
   TrustBar,
@@ -11,6 +12,11 @@ import {
   ClosingCta,
 } from "@/components/home/Sections";
 import { PastWorkReviews } from "@/components/reviews/PastWorkReviews";
+
+/** Title and description come from the root layout; only the canonical is the page's own. */
+export const metadata: Metadata = {
+  alternates: { canonical: "/" },
+};
 
 /** People, then the experience, then trust, then products (family brand spec §3). */
 export default function Home() {

@@ -56,7 +56,9 @@ describe("product taxonomy", () => {
   it("gives every product SEO copy that fits and names the market", () => {
     for (const product of products) {
       expect(product.seo.title.length).toBeGreaterThan(10);
-      expect(product.seo.title.length).toBeLessThanOrEqual(60);
+      // 65, not 60: the full brand costs 23 characters (SEO audit 2026-10-13).
+      expect(product.seo.title.length).toBeLessThanOrEqual(65);
+      expect(product.seo.title.endsWith("| Premier Shade Solutions")).toBe(true);
       expect(product.seo.description.length).toBeLessThanOrEqual(160);
       expect(product.seo.description).toMatch(/Las Vegas/);
     }
@@ -65,6 +67,7 @@ describe("product taxonomy", () => {
   it("gives every category SEO copy that fits and names the market", () => {
     for (const category of categories) {
       expect(category.seo.title.length).toBeLessThanOrEqual(60);
+      expect(category.seo.title.endsWith("| Premier Shade Solutions")).toBe(true);
       expect(category.seo.description.length).toBeLessThanOrEqual(160);
       expect(category.seo.description).toMatch(/Las Vegas/);
     }

@@ -21,7 +21,8 @@ const hrefs = (container: HTMLElement) =>
 describe("SEO inventory survives the family redesign (spec §2)", () => {
   it("keeps the root title and description", () => {
     const title = rootMetadata.title as { default: string };
-    expect(title.default).toBe("Custom Blinds, Shades & Shutters in Las Vegas | Premier Shade Solutions");
+    // Shortened to fit the ~60-character results line (SEO audit 2026-10-13).
+    expect(title.default).toBe("Blinds, Shades & Shutters Las Vegas | Premier Shade Solutions");
     expect(rootMetadata.description).toBe(
       "Custom blinds, shades, shutters, and motorized window treatments for Las Vegas, Henderson, Summerlin, and North Las Vegas. Free in-home consultation.",
     );

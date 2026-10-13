@@ -9,7 +9,7 @@ import { pastReviews, pastWork } from "@/content/reviews";
 export const metadata: Metadata = {
   title: "Client Reviews | Premier Shade Solutions",
   description:
-    "What clients said about Josh's installations and the design consultations with Shade’ — surveys from our years with Custom Decorators, before Premier Shade Solutions.",
+    "What clients said about Josh's installations and design consultations with Shade’, from our years with Custom Decorators before Premier Shade Solutions.",
   alternates: { canonical: "/reviews" },
 };
 

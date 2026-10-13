@@ -13,7 +13,8 @@ import { ReviewSpotlight } from "@/components/reviews/ReviewSpotlight";
 import { uniquePhotos } from "@/lib/content/page-photos";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { consultationPhoto } from "@/content/gallery";
-import { breadcrumbSchema, productSchema } from "@/lib/seo/schema";
+import { breadcrumbSchema, serviceSchema } from "@/lib/seo/schema";
+import { pageMetadata } from "@/lib/seo/metadata";
 import {
   allProductPaths,
   getCategory,
@@ -36,17 +37,12 @@ export async function generateMetadata({
   const found = getProduct(category, product);
   if (!found) return {};
 
-  return {
-    title: found.seo.title,
-    description: found.seo.description,
-    alternates: { canonical: `/${category}/${product}` },
-    openGraph: {
-      title: found.seo.title,
-      description: found.seo.description,
-      url: `/${category}/${product}`,
-      type: "website",
-    },
-  };
+  return pageMetadata({
+    ...found.seo,
+    path: `/${category}/${product}`,
+    // The hero photo: the same choice the page makes below.
+    photo: found.image ?? consultationPhoto,
+  });
 }
 
 export default async function ProductPage({
@@ -73,7 +69,7 @@ export default async function ProductPage({
 
   return (
     <>
-      <JsonLd schema={productSchema(found)} />
+      <JsonLd schema={serviceSchema(found)} />
       <JsonLd schema={breadcrumbSchema(trail)} />
       <TreatmentHero
         photo={heroPhoto!}
@@ -84,7 +80,7 @@ export default async function ProductPage({
         treatment={parent.name}
       />
       <Section tone="sand" className="!py-10">
-        <PromiseRow centered />
+        <PromiseRow centered line={found.opening} />
       </Section>
       <IconRow items={parent.highlights} />
       <StorySection
