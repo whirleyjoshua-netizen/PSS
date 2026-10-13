@@ -9,7 +9,7 @@ import { DaysLeft } from "./DaysLeft";
 
 /**
  * The top of /holiday (owner 2026-10-10: "go all out"): evergreen night, string lights, snow, a script flourish and
- * "Holidays" in shimmering gold, the 10% gift tag, and the form wrapped like a present. It is the page's #book
+ * "holidays." in shimmering gold, the 10% gift tag, and the form wrapped like a present. It is the page's #book
  * section. Phone order is photo band, title, offer, form, with the eyebrow and lead-time note from sm up, so
  * Invite Us Over stays above a 390×844 fold (e2e/consultation.spec.ts).
  */
@@ -39,7 +39,7 @@ export function HolidayHero({ stage, photo }: { stage: "offer" | "family"; photo
               <h1 className="leading-none">
                 <span className="holiday-script block text-2xl text-champagne sm:text-5xl lg:text-6xl">Get your home ready for the</span>{" "}
                 <span className="holiday-display holiday-gold block pb-1 text-[3.25rem] font-black italic tracking-tight sm:pb-2 sm:text-8xl lg:text-[9rem]">
-                  Holidays
+                  holidays.
                 </span>
               </h1>
             ) : (

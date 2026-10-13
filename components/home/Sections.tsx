@@ -7,6 +7,8 @@ import { business } from "@/content/business";
 import { categories } from "@/content/products";
 import { gallery } from "@/content/gallery";
 import { testimonials } from "@/content/testimonials";
+import { HOME_OBJECTIONS } from "@/content/consultation";
+import { WARRANTY_LINE } from "@/content/warranty";
 import { getProductsIn } from "@/lib/content/products";
 import { cityPath } from "@/lib/content/cities";
 
@@ -50,7 +52,7 @@ export function CategoryGrid() {
     <Section tone="ivory">
       <SectionHeading
         eyebrow="What we install"
-        title="Every treatment, measured for your windows"
+        title="Every treatment, measured for your windows."
         lead="We carry the full range because the right answer depends on which way the window faces and what the room is for. The consultation is where we work that out."
       />
 
@@ -83,6 +85,33 @@ export function CategoryGrid() {
           );
         })}
       </ul>
+    </Section>
+  );
+}
+
+/* ------------------------------------------------------------- objections */
+
+/**
+ * The fears people have before they book, in their words, and what we do instead. The same cards as the ad landing
+ * pages (content/consultation.ts), so a promise can only change in one place.
+ */
+export function Objections() {
+  return (
+    // Charcoal, between the sand reviews band and the ivory product grid.
+    <Section tone="charcoal">
+      <SectionHeading eyebrow="No runaround" title="What usually goes wrong, and how we do it differently." tone="dark" />
+
+      <ul className="mt-12 grid gap-px bg-ivory/15 sm:grid-cols-2 lg:grid-cols-4">
+        {HOME_OBJECTIONS.map((pain) => (
+          <li key={pain.answer} className="flex flex-col gap-3 bg-charcoal p-6 md:p-8">
+            <p className="text-sm italic text-sand/70">{pain.heard}</p>
+            <h3 className="font-display text-xl font-light tracking-tight text-ivory">{pain.answer}</h3>
+            <p className="text-sm leading-relaxed text-sand/75">{pain.body}</p>
+          </li>
+        ))}
+      </ul>
+
+      <p className="mt-8 text-sm text-sand/75">{WARRANTY_LINE}</p>
     </Section>
   );
 }
@@ -141,7 +170,7 @@ export function GalleryStrip() {
   return (
     <Section tone="ivory">
       <div className="flex flex-wrap items-end justify-between gap-6">
-        <SectionHeading eyebrow="Our work" title="Installed by the two of us" />
+        <SectionHeading eyebrow="Our work" title="Installed by the two of us." />
         <ButtonLink href="/gallery" variant="outline">
           View the gallery
         </ButtonLink>
@@ -235,7 +264,7 @@ export function ServiceAreaBlock() {
     <Section tone="sand">
       <SectionHeading
         eyebrow="Where we work"
-        title="Serving the Las Vegas valley"
+        title="Serving the Las Vegas valley."
         lead="If you are inside the valley and not listed here, call anyway — we will tell you honestly whether we can get to you."
       />
 

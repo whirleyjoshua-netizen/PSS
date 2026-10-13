@@ -129,7 +129,8 @@ describe("the lead-times dropdown", () => {
     expect(shutters).toHaveTextContent("6–10 weeks");
     expect(shutters).toHaveTextContent("Nov 13 – Dec 11");
     expect(within(table).getByRole("row", { name: /blinds/i })).toHaveTextContent("Oct 23 – Nov 6");
-    expect(screen.getByText(/counted from your consult, when you order/i)).toBeInTheDocument();
+    expect(screen.getByText(/counted from the day you order\./i)).toBeInTheDocument();
+    expect(screen.queryByText(/from your consult/i)).toBeNull();
   });
 
   it("says when a window may run past Christmas", async () => {

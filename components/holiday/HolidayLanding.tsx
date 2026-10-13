@@ -6,7 +6,7 @@ import { Reveal } from "@/components/ui/Reveal";
 import { business } from "@/content/business";
 import { FAQ, STEPS } from "@/content/consultation";
 import { holidayPhoto } from "@/content/gallery";
-import { HOLIDAY_ICONS, holidayFaq } from "@/content/holiday";
+import { HOLIDAY_ICONS, HOLIDAY_OFFER_LAST_DAY, holidayFaq } from "@/content/holiday";
 import { Bow, Garland, Ornament, Snowfall, Sparkles, StringLights } from "./Decor";
 import { holidayFonts } from "./fonts";
 import { HolidayHero } from "./HolidayHero";
@@ -20,7 +20,7 @@ const ORNAMENT_COLORS = ["#B3262F", "#1F4D2E", "#B8913A"];
 
 /** What scrolls along the red ribbon under the hero. The offer's words never appear after Nov 15. */
 const RIBBON = {
-  offer: ["10% off 3+ custom shades or blinds", "Book your consult by Nov 15", "Motorized shades count", "Free in-home consultation", "Free temporary shades while you wait"],
+  offer: ["10% off 3+ custom shades or blinds", `Book your consult by ${HOLIDAY_OFFER_LAST_DAY}`, "Motorized shades count", "Free in-home consultation", "Free temporary shades while you wait"],
   family: ["Free in-home consultation", "Ready before the family arrives", "Free temporary shades while you wait", "Every window measured and guaranteed"],
 };
 
@@ -106,7 +106,7 @@ export function HolidayLanding({ stage }: { stage: "offer" | "family" }) {
         <Sparkles count={12} seed={5} />
         <Container className="relative">
           <p className="holiday-script text-5xl text-[#f3dc94] md:text-6xl">Ready for the</p>
-          <h2 className="holiday-display holiday-gold mx-auto -mt-1 pb-2 text-7xl font-black italic md:text-9xl">Holidays?</h2>
+          <h2 className="holiday-display holiday-gold mx-auto -mt-1 pb-2 text-7xl font-black italic md:text-9xl">holidays?</h2>
           <p className="mx-auto mt-6 max-w-xl text-lg text-holiday-snow/85">
             Samples in your own light, every window measured by the owner, and a written quote with your lead time on it.
           </p>

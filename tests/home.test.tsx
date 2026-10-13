@@ -1,8 +1,10 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { describe, it, expect } from "vitest";
 import Home from "@/app/(site)/page";
 import { business } from "@/content/business";
 import { categories } from "@/content/products";
+import { HOME_OBJECTIONS } from "@/content/consultation";
+import { WARRANTY_LINE } from "@/content/warranty";
 
 describe("Home", () => {
   it("has exactly one h1 and it carries the tagline", () => {
@@ -88,6 +90,38 @@ describe("Home", () => {
     const at = (s: string) => text.indexOf(s);
     expect(at("inviting in family")).toBeLessThan(at("What it’s like to work with us"));
     expect(at("What it’s like to work with us")).toBeLessThan(at("Here is what our clients said"));
-    expect(at("Here is what our clients said")).toBeLessThan(at("Every treatment, measured for your windows"));
+    expect(at("Here is what our clients said")).toBeLessThan(at("What usually goes wrong, and how we do it differently."));
+    expect(at("What usually goes wrong, and how we do it differently.")).toBeLessThan(at("Every treatment, measured for your windows."));
+  });
+
+  it("answers what usually goes wrong with four promises and the warranty line", () => {
+    render(<Home />);
+    const heading = screen.getByRole("heading", { level: 2, name: "What usually goes wrong, and how we do it differently." });
+    const section = heading.closest("section")!;
+    const cards = Array.from(section.querySelectorAll("h3")).map((h) => h.textContent);
+    expect(cards).toEqual(HOME_OBJECTIONS.map((pain) => pain.answer));
+    expect(cards).toEqual([
+      "Your lead time, in writing",
+      "Our measurement guarantee",
+      "Not customer service. Personal service.",
+      "We leave it cleaner.",
+    ]);
+    for (const pain of HOME_OBJECTIONS) {
+      expect(within(section).getByText(pain.heard)).toBeInTheDocument();
+      expect(within(section).getByText(pain.body)).toBeInTheDocument();
+    }
+    expect(within(section).getByText(WARRANTY_LINE)).toBeInTheDocument();
+    expect(section.textContent).not.toMatch(/holiday|christmas|nov 15|10%/i);
+  });
+
+  it("ends its sentence headlines with a period", () => {
+    render(<Home />);
+    for (const title of [
+      "Every treatment, measured for your windows.",
+      "Installed by the two of us.",
+      "Serving the Las Vegas valley.",
+    ]) {
+      expect(screen.getByRole("heading", { level: 2, name: title })).toBeInTheDocument();
+    }
   });
 });
