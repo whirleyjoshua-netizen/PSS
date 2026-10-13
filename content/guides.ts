@@ -1,7 +1,7 @@
 /**
  * Repair and care guides (spec docs/superpowers/specs/2026-10-03-repair-guides-design.md).
  *
- * Every guide page, the /guides index and the sitemap read from this file, so
+ * Every guide page, the Care and repair section of /faq and the sitemap read from this file, so
  * adding a guide is an edit here plus, if it needs a new picture, one diagram
  * component. Copy is drafted for the owner to check before it goes live: a
  * wrong repair step costs more trust than no guide.

@@ -25,6 +25,10 @@ const nextConfig: NextConfig = {
       { source: "/blinds/mini-blinds", destination: "/blinds", permanent: true },
       { source: "/outdoor/patio-shades", destination: "/outdoor", permanent: true },
       { source: "/outdoor/rolling-shutters", destination: "/outdoor", permanent: true },
+      // The repair guides folded into the FAQ (2026-10-13). The index lands on its Care and repair
+      // section; the fragment travels in the Location header and the browser scrolls to #care.
+      // An exact source: every /guides/<slug> article stays live.
+      { source: "/guides", destination: "/faq#care", permanent: true },
     ];
   },
 };
