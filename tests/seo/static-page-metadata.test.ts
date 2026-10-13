@@ -24,6 +24,7 @@ describe("site-wide titles", () => {
 
   it("gives the 404 its own title instead of the homepage's", () => {
     expect(notFound.title).toBe("Page not found | Premier Shade Solutions");
+    expect(notFound.robots).toMatchObject({ index: false });
   });
 });
 
