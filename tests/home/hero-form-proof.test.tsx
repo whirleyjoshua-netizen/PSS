@@ -36,7 +36,9 @@ describe("proof inside the hero form card", () => {
   it("states the past-work figures from content/reviews.ts, credited to Custom Decorators, under the button", () => {
     at("2026-12-26T19:00:00Z");
     render(<Hero />);
-    const line = `${pastWork.averageRating} average from ${pastWork.surveys} client surveys of Josh and Shade’s work at ${pastWork.source}.`;
+    // Owner-approved wording (2026-10-13): says the surveys pre-date this business.
+    const line = "4.9 average from 44 client surveys of Josh and Shade’s work at Custom Decorators, before Premier Shade Solutions.";
+    expect(`${pastWork.averageRating} ${pastWork.surveys} ${pastWork.source}`).toBe("4.9 44 Custom Decorators");
     const proof = within(card()).getByText(line);
     const button = within(form()).getByRole("button", { name: /invite us over/i });
     expect(button.compareDocumentPosition(proof) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
