@@ -1,13 +1,25 @@
 import "server-only";
 import { graphJson } from "@/lib/calendar/graph";
-import { DC_SENDER, DC_SUBJECT, dcMailbox } from "./config";
+import { DC_SENDER, DC_SUBJECT, dcMailbox, ORDER_SENDER, ORDER_SUBJECT, RECEIPT_SUBJECT } from "./config";
 
-export type MailMessage = { id: string; internetMessageId: string; subject: string; from: string; receivedAt: Date };
+/** A Dealer Copy (a quote), DC's receipt for a submitted order, or HD's confirmation of that order. */
+export type MailKind = "dealer-copy" | "receipt" | "order";
+export type MailMessage = { id: string; kind: MailKind; internetMessageId: string; subject: string; from: string; receivedAt: Date };
 type GraphMessage = { id: string; internetMessageId: string; subject: string | null; receivedDateTime: string; from?: { emailAddress?: { address?: string } } };
 const MAX_BYTES = 1_000_000;
+/** HD's order PDF is about 200 KB. */
+const MAX_PDF_BYTES = 5_000_000;
+
+/** Which DC or HD email this is, by sender and subject together, or null for any other mail. */
+export function mailKind(from: string, subject: string): MailKind | null {
+  if (from === DC_SENDER && DC_SUBJECT.test(subject)) return "dealer-copy";
+  if (from === DC_SENDER && RECEIPT_SUBJECT.test(subject)) return "receipt";
+  if (from === ORDER_SENDER && ORDER_SUBJECT.test(subject)) return "order";
+  return null;
+}
 
 /**
- * DC-shaped messages received since `since`. READ ONLY: this module only ever GETs. The mailbox
+ * DC- and HD-shaped messages received since `since`. READ ONLY: this module only ever GETs. The mailbox
  * is a working inbox, so nothing here moves, flags, marks read or deletes anything.
  * Keyed later on internetMessageId, which survives the owner moving the email to a folder
  * (Graph's own id does not).
@@ -25,8 +37,9 @@ export async function listCandidateMessages(since: Date): Promise<MailMessage[]>
     for (const m of page.value) {
       const from = (m.from?.emailAddress?.address ?? "").trim().toLowerCase();
       const subject = (m.subject ?? "").trim();
-      if (from !== DC_SENDER || !DC_SUBJECT.test(subject)) continue;
-      found.push({ id: m.id, internetMessageId: m.internetMessageId, subject, from, receivedAt: new Date(m.receivedDateTime) });
+      const kind = mailKind(from, subject);
+      if (!kind) continue;
+      found.push({ id: m.id, kind, internetMessageId: m.internetMessageId, subject, from, receivedAt: new Date(m.receivedDateTime) });
     }
     next = page["@odata.nextLink"] ?? null;
   }
@@ -39,11 +52,29 @@ export async function listCandidateMessages(since: Date): Promise<MailMessage[]>
  * still counts, and makes the message unreadable rather than silently disappearing.
  */
 export async function htmlAttachments(messageId: string): Promise<{ name: string; bytes: Buffer | null }[]> {
+  return fileAttachments(messageId, /\.html?$/i, MAX_BYTES);
+}
+
+/** Every .pdf file attachment, the same way: HD's order confirmation carries one. */
+export async function pdfAttachments(messageId: string): Promise<{ name: string; bytes: Buffer | null }[]> {
+  return fileAttachments(messageId, /\.pdf$/i, MAX_PDF_BYTES);
+}
+
+async function fileAttachments(messageId: string, name: RegExp, maxBytes: number): Promise<{ name: string; bytes: Buffer | null }[]> {
   const mailbox = dcMailbox();
   if (!mailbox) return [];
   const page: { value: { "@odata.type": string; name: string; size: number; contentBytes?: string }[] } =
     await graphJson(`users/${encodeURIComponent(mailbox)}/messages/${encodeURIComponent(messageId)}/attachments`);
   return page.value
-    .filter((a) => a["@odata.type"] === "#microsoft.graph.fileAttachment" && /\.html?$/i.test(a.name))
-    .map((a) => ({ name: a.name, bytes: a.size <= MAX_BYTES && a.contentBytes ? Buffer.from(a.contentBytes, "base64") : null }));
+    .filter((a) => a["@odata.type"] === "#microsoft.graph.fileAttachment" && name.test(a.name))
+    .map((a) => ({ name: a.name, bytes: a.size <= maxBytes && a.contentBytes ? Buffer.from(a.contentBytes, "base64") : null }));
+}
+
+/** The message's own body as Outlook holds it (HTML for HD's mail), or "" when it has none. */
+export async function messageHtml(messageId: string): Promise<string> {
+  const mailbox = dcMailbox();
+  if (!mailbox) return "";
+  const message: { body?: { content?: string } } =
+    await graphJson(`users/${encodeURIComponent(mailbox)}/messages/${encodeURIComponent(messageId)}?$select=body`);
+  return message.body?.content ?? "";
 }

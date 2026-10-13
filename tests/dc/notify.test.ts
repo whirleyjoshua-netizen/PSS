@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const send = vi.fn();
 vi.mock("resend", () => ({ Resend: class { emails = { send }; } }));
 vi.mock("@/lib/leads/email", () => ({ ownerRecipients: () => ["owner@example.com"] }));
-const { importEmail, notifyOwners, staleFailuresEmail } = await import("@/lib/dc/notify");
+const { importEmail, notifyOwners, orderEmail, orderRefusalEmail, staleFailuresEmail, staleReceiptsEmail } = await import("@/lib/dc/notify");
 
 beforeEach(() => {
   send.mockReset().mockResolvedValue({ error: null });
@@ -101,5 +101,75 @@ describe("notifyOwners", () => {
   it("throws when Resend rejects it", async () => {
     send.mockResolvedValue({ error: { message: "bad from" } });
     await expect(notifyOwners({ subject: "s", text: "t" })).rejects.toThrow("bad from");
+  });
+});
+
+describe("orderEmail", () => {
+  const order = {
+    orderNo: "14286505", poReference: "PSS-1042-E", projectNo: 1042, option: "E", orderDate: "2026-10-12", status: "Confirmed",
+    subtotalCents: 109113, oversizeCents: 0, handlingCents: 5500, taxCents: 9138, totalCents: 123751,
+  };
+  it("names HD's order, every figure, the matching quote and the stage move, and links to the job", () => {
+    const email = orderEmail({ order, jobId: "j1", fromStatus: "measure", toStatus: "ordered", quotedCents: 114613 });
+    expect(email.subject).toBe("PSS-1042-E ordered: HD order 14286505");
+    expect(email.text).toBe([
+      "Hunter Douglas confirmed order 14286505 for PSS-1042-E on Oct 12, 2026.",
+      "Total $1,237.51: products $1,091.13, handling $55, tax $91.38.",
+      "That matches the quoted dealer cost of $1,146.13 before tax.",
+      "",
+      "The job moved from Official measure to Ordered.",
+      "Open the job: https://admin.example.com/admin/jobs/j1",
+    ].join("\n"));
+  });
+  it("shows an oversize surcharge only when there is one", () => {
+    const email = orderEmail({ order: { ...order, oversizeCents: 9000, totalCents: 132751 }, jobId: "j1", fromStatus: "sold", toStatus: "ordered", quotedCents: null });
+    expect(email.text).toContain("handling $55, oversize $90, tax $91.38.");
+  });
+  it("flags a cost that differs from the quote, before tax", () => {
+    const email = orderEmail({ order, jobId: "j1", fromStatus: "sold", toStatus: "ordered", quotedCents: 110000 });
+    expect(email.text).toContain("That does not match the quote. Quoted dealer cost $1,100, HD charged $1,146.13 before tax.");
+  });
+  it("says when there was no quote to compare", () => {
+    expect(orderEmail({ order, jobId: "j1", fromStatus: "sold", toStatus: "ordered", quotedCents: null }).text)
+      .toContain("No quote was found for PSS-1042-E to compare the cost with.");
+  });
+  it("a job already ordered keeps its stage, and a job before Signed or Lost is flagged", () => {
+    expect(orderEmail({ order, jobId: "j1", fromStatus: "ordered", toStatus: "ordered", quotedCents: 114613 }).text)
+      .toContain("The job was already at Ordered, so its stage did not change.");
+    expect(orderEmail({ order, jobId: "j1", fromStatus: "approved", toStatus: "approved", quotedCents: 114613 }).text)
+      .toContain("The job is at Approved, so it was not moved to Ordered. Check it.");
+    expect(orderEmail({ order, jobId: "j1", fromStatus: "lost", toStatus: "lost", quotedCents: 114613 }).text)
+      .toContain("The job is at Lost, so it was not moved to Ordered. Check it.");
+  });
+});
+
+describe("orderRefusalEmail", () => {
+  it("every refusal asks the owners to move the job by hand", () => {
+    for (const outcome of ["no-po", "no-match", "unreadable"] as const) {
+      expect(orderRefusalEmail({ outcome, orderNo: "14286505", detail: "x" }).text).toContain("Move the job to Ordered by hand.");
+    }
+  });
+  it("a PO that is not a PSS number says how to fix it next time", () => {
+    const email = orderRefusalEmail({ outcome: "no-po", orderNo: "14286505", detail: 'HD order 14286505 has PO "Jennie"' });
+    expect(email.subject).toBe("HD order 14286505 could not be matched to a job");
+    expect(email.text).toContain('HD order 14286505 has PO "Jennie", which is not a PSS number.');
+    expect(email.text).toContain("put the job's number (e.g. PSS-1042) in PO Reference");
+  });
+  it("an unreadable email with no order number still says what it is", () => {
+    expect(orderRefusalEmail({ outcome: "unreadable", orderNo: null, detail: "No order number" }).subject).toBe("An HD order confirmation could not be read");
+  });
+});
+
+describe("staleReceiptsEmail", () => {
+  it("names one unconfirmed order in the subject, and lists each", () => {
+    const one = staleReceiptsEmail([{ quoteNo: "22293638", poReference: "PSS-1042-E", receivedAt: new Date("2026-10-12T22:09:27Z") }]);
+    expect(one.subject).toBe("PSS-1042-E has no order confirmation from HD");
+    expect(one.text).toContain("Direct Connect received quote 22293638 for PSS-1042-E on Oct 12, 2026, but Hunter Douglas has not sent its order confirmation.");
+    const two = staleReceiptsEmail([
+      { quoteNo: "1", poReference: "PSS-1042", receivedAt: new Date("2026-10-12T20:00:00Z") },
+      { quoteNo: null, poReference: "PSS-1043", receivedAt: new Date("2026-10-12T20:00:00Z") },
+    ]);
+    expect(two.subject).toBe("Orders with no confirmation from HD");
+    expect(two.text).toContain("received an order for PSS-1043");
   });
 });

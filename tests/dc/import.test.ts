@@ -11,10 +11,15 @@ vi.mock("@/lib/admin/files", () => files);
 const notify = {
   notifyOwners: vi.fn().mockResolvedValue(undefined), importEmail: vi.fn(() => ({ subject: "s", text: "t" })),
   staleFailuresEmail: vi.fn(() => ({ subject: "stale", text: "t" })),
+  staleReceiptsEmail: vi.fn(() => ({ subject: "unconfirmed", text: "t" })),
 };
 vi.mock("@/lib/dc/notify", () => notify);
-const mailbox = { listCandidateMessages: vi.fn(), htmlAttachments: vi.fn() };
+const mailbox = { listCandidateMessages: vi.fn(), htmlAttachments: vi.fn(), messageHtml: vi.fn(), pdfAttachments: vi.fn() };
 vi.mock("@/lib/dc/mailbox", () => mailbox);
+const orders = { importOrderConfirmation: vi.fn(), importOrderReceipt: vi.fn() };
+vi.mock("@/lib/dc/order-import", () => orders);
+const orderStore = { staleReceipts: vi.fn().mockResolvedValue([]), markReceiptsWarned: vi.fn() };
+vi.mock("@/lib/dc/order-store", () => orderStore);
 const { importDealerCopy, pollMailbox } = await import("@/lib/dc/import");
 
 const ONE = readFileSync("tests/fixtures/dc/dealer-copy-1-line.html", "utf8");
@@ -201,7 +206,7 @@ describe("importDealerCopy", () => {
 });
 
 describe("pollMailbox", () => {
-  const message = { id: "g1", internetMessageId: "<z@x>", subject: "DEALER COPY #1, PO PSS-1042", from: "retailer@hunterdouglas.com", receivedAt: new Date() };
+  const message = { id: "g1", kind: "dealer-copy" as const, internetMessageId: "<z@x>", subject: "DEALER COPY #1, PO PSS-1042", from: "retailer@hunterdouglas.com", receivedAt: new Date() };
 
   it("reads from an hour before the last poll, and advances the mark only after a clean run", async () => {
     const last = new Date("2026-09-27T19:00:00Z");
@@ -313,5 +318,85 @@ describe("pollMailbox", () => {
       await expect(pollMailbox(NOW)).resolves.toMatchObject({ results: [{ outcome: "failed" }] });
       expect(spy).toHaveBeenCalledWith("DC import failure warning email failed", expect.any(Error));
     });
+  });
+});
+
+describe("pollMailbox: orders", () => {
+  const NOW = new Date("2026-10-13T15:00:00Z");
+  const order = { id: "o1", kind: "order" as const, internetMessageId: "<o@x>", subject: "New Order # 14286505 for Sidemark: Test", from: "donotreply@hunterdouglas.com", receivedAt: new Date("2026-10-12T22:34:03Z") };
+  const receipt = { ...order, id: "r1", kind: "receipt" as const, internetMessageId: "<r@x>", subject: "Confirming Receipt of Quote #22293638 / Sidemark: Test", from: "retailer@hunterdouglas.com" };
+  beforeEach(() => {
+    store.getDcSettings.mockResolvedValue({ lastPolledAt: new Date("2026-10-12T15:00:00Z") });
+    mailbox.messageHtml.mockResolvedValue("<html>body</html>");
+    orders.importOrderConfirmation.mockReset().mockResolvedValue({ outcome: "ordered", leadId: JOB_A.id, detail: null });
+    orders.importOrderReceipt.mockReset().mockResolvedValue({ outcome: "receipt", leadId: JOB_A.id, detail: null });
+    orderStore.staleReceipts.mockReset().mockResolvedValue([]);
+    orderStore.markReceiptsWarned.mockReset();
+    notify.notifyOwners.mockReset().mockResolvedValue(undefined);
+  });
+
+  it("reads an order's body and its one PDF, never its HTML attachments", async () => {
+    mailbox.listCandidateMessages.mockResolvedValue([order]);
+    mailbox.pdfAttachments.mockResolvedValue([{ name: "PRINT.PDF", bytes: Buffer.from("%PDF") }]);
+    const { results } = await pollMailbox(NOW);
+    expect(results).toEqual([{ messageId: "<o@x>", outcome: "ordered" }]);
+    expect(mailbox.messageHtml).toHaveBeenCalledWith("o1");
+    expect(mailbox.htmlAttachments).not.toHaveBeenCalled();
+    expect(orders.importOrderConfirmation).toHaveBeenCalledWith({
+      internetMessageId: "<o@x>", receivedAt: order.receivedAt, html: "<html>body</html>", pdf: { name: "PRINT.PDF", bytes: Buffer.from("%PDF") },
+    });
+    expect(store.setLastPolledAt).toHaveBeenCalledWith(NOW);
+  });
+  it("records an order without a PDF when it has none, two, or one too big", async () => {
+    for (const pdfs of [[], [{ name: "a.pdf", bytes: Buffer.from("a") }, { name: "b.pdf", bytes: Buffer.from("b") }], [{ name: "big.pdf", bytes: null }]]) {
+      orders.importOrderConfirmation.mockClear();
+      mailbox.listCandidateMessages.mockResolvedValue([order]);
+      mailbox.pdfAttachments.mockResolvedValue(pdfs);
+      await pollMailbox(NOW);
+      expect(orders.importOrderConfirmation).toHaveBeenCalledWith(expect.objectContaining({ pdf: null }));
+    }
+  });
+  it("hands a receipt its body and fetches no attachments", async () => {
+    mailbox.listCandidateMessages.mockResolvedValue([receipt]);
+    const { results } = await pollMailbox(NOW);
+    expect(results).toEqual([{ messageId: "<r@x>", outcome: "receipt" }]);
+    expect(orders.importOrderReceipt).toHaveBeenCalledWith({ internetMessageId: "<r@x>", receivedAt: receipt.receivedAt, html: "<html>body</html>" });
+    expect(mailbox.pdfAttachments).not.toHaveBeenCalled();
+    expect(mailbox.htmlAttachments).not.toHaveBeenCalled();
+  });
+  it("a failing order fails the run and holds the mark, like a Dealer Copy", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    mailbox.listCandidateMessages.mockResolvedValue([order]);
+    mailbox.messageHtml.mockRejectedValue(new Error("Graph GET failed (503)"));
+    const { results } = await pollMailbox(NOW);
+    expect(results).toEqual([{ messageId: "<o@x>", outcome: "failed" }]);
+    expect(store.setLastPolledAt).not.toHaveBeenCalled();
+    spy.mockRestore();
+  });
+  it("warns once about receipts unconfirmed for a day, then marks them told", async () => {
+    mailbox.listCandidateMessages.mockResolvedValue([]);
+    const stale = [{ messageId: "<r@x>", leadId: JOB_A.id, quoteNo: "22293638", poReference: "PSS-1042-E", receivedAt: new Date("2026-10-12T10:00:00Z") }];
+    orderStore.staleReceipts.mockResolvedValue(stale);
+    await pollMailbox(NOW);
+    expect(orderStore.staleReceipts).toHaveBeenCalledWith(new Date("2026-10-12T15:00:00Z"));
+    expect(notify.staleReceiptsEmail).toHaveBeenCalledWith(stale);
+    expect(notify.notifyOwners).toHaveBeenCalledOnce();
+    expect(orderStore.markReceiptsWarned).toHaveBeenCalledWith(["<r@x>"]);
+  });
+  it("does not mark receipts told when the warning email fails, so the next run tries again", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    mailbox.listCandidateMessages.mockResolvedValue([]);
+    orderStore.staleReceipts.mockResolvedValue([{ messageId: "<r@x>", leadId: JOB_A.id, quoteNo: null, poReference: "PSS-1042", receivedAt: new Date() }]);
+    notify.notifyOwners.mockRejectedValue(new Error("Resend down"));
+    await pollMailbox(NOW);
+    expect(orderStore.markReceiptsWarned).not.toHaveBeenCalled();
+    expect(store.setLastPolledAt).toHaveBeenCalledWith(NOW);
+    spy.mockRestore();
+  });
+  it("sends nothing when no receipt is stale", async () => {
+    mailbox.listCandidateMessages.mockResolvedValue([]);
+    await pollMailbox(NOW);
+    expect(notify.notifyOwners).not.toHaveBeenCalled();
+    expect(orderStore.markReceiptsWarned).not.toHaveBeenCalled();
   });
 });

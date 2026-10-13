@@ -3,11 +3,14 @@ import type { Appointment } from "@/lib/admin/appointments";
 import type { AppointmentKind } from "@/lib/admin/appointment-kinds";
 import type { JobFile } from "@/lib/admin/files";
 import type { Job, JobEvent } from "@/lib/admin/jobs";
+import { formatCents } from "@/lib/admin/money";
 import type { MeasureKind } from "@/lib/admin/measure-kinds";
 import type { WindowMeasurement } from "@/lib/admin/measurements";
 import { windowCount } from "@/lib/admin/measure-units";
 import { editDetailsHref } from "@/lib/admin/next-action";
 import { STAGES } from "@/lib/admin/stages";
+import { orderBeforeTaxCents } from "@/lib/dc/order-parse";
+import type { StoredOrder } from "@/lib/dc/order-store";
 import { formatDateOnly, formatWhen } from "@/lib/admin/time";
 import { isPortalStatus } from "@/lib/portal/progress";
 import type { listReferrals } from "@/lib/referrals/db";
@@ -24,7 +27,7 @@ import { CARD, HEADING, TEXT_LINK } from "./ui";
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
-export function OverviewTab({ job, editing, now, measurements, allWindows, measureSource, files, events, referrals, referrer, appointments, defaultMinutes }: {
+export function OverviewTab({ job, editing, now, measurements, allWindows, measureSource, files, events, referrals, referrer, appointments, defaultMinutes, orders = [] }: {
   job: Job;
   editing: boolean;
   now: Date;
@@ -37,6 +40,8 @@ export function OverviewTab({ job, editing, now, measurements, allWindows, measu
   events: JobEvent[];
   referrals: Awaited<ReturnType<typeof listReferrals>>;
   referrer: Job | null;
+  /** Hunter Douglas's confirmed orders for this job, newest first. */
+  orders?: StoredOrder[];
   appointments: Appointment[];
   defaultMinutes: Record<AppointmentKind, number>;
 }) {
@@ -46,8 +51,10 @@ export function OverviewTab({ job, editing, now, measurements, allWindows, measu
   const windowPhotoIds = new Set(allWindows.map((m) => m.photoFileId).filter(Boolean));
   const photos = files.filter((file) => file.kind === "photo" && !windowPhotoIds.has(file.id)).slice(0, 6);
   const documents = files.filter((file) => file.kind === "document");
-  // The order paperwork is whichever document was attached to the job; there is one in practice.
+  // HD's confirmation when there is one. Before it, the order paperwork is whichever document was attached.
+  const order = orders[0] ?? null;
   const paperwork = documents[0] ?? null;
+  const orderCostDiffers = order !== null && order.quotedDealerTotalCents !== null && order.quotedDealerTotalCents !== orderBeforeTaxCents(order);
   const lastMeasured = measurements.reduce<Date | null>(
     (latest, m) => (!latest || m.updatedAt > latest ? m.updatedAt : latest), null,
   );
@@ -74,10 +81,22 @@ export function OverviewTab({ job, editing, now, measurements, allWindows, measu
               { label: "Add measurement", href: `/admin/jobs/${job.id}/measure` },
               ...(measurements.length ? [{ label: "View all", href: tabHref(job.id, "measurements") }] : []),
             ]} />
-          {/* Information only: the order date and its paperwork will arrive from Hunter Douglas. */}
+          {/* Information only: filled in from Hunter Douglas's order confirmation email. */}
           <StatusCard title="Order" value={job.orderedOn ? `Ordered ${formatDateOnly(job.orderedOn)}` : null}
-            empty="Not ordered" detail="Fills in automatically once Hunter Douglas is connected.">
-            {paperwork ? (
+            empty="Not ordered"
+            detail={order
+              ? `HD order ${order.hdOrderNo} for ${order.poReference}: ${formatCents(order.totalCents)} including ${formatCents(order.taxCents)} tax`
+              : "Fills in automatically when Hunter Douglas confirms the order."}>
+            {orderCostDiffers ? (
+              <p className="text-xs font-semibold">
+                Cost differs from the quote: quoted {formatCents(order.quotedDealerTotalCents)}, HD charged {formatCents(orderBeforeTaxCents(order))} before tax.
+              </p>
+            ) : null}
+            {order?.fileId ? (
+              <a href={`/admin/files/${order.fileId}`} target="_blank" rel="noreferrer" className={TEXT_LINK}>
+                HD order {order.hdOrderNo}
+              </a>
+            ) : paperwork ? (
               <a href={`/admin/files/${paperwork.id}`} target="_blank" rel="noreferrer" className={TEXT_LINK}>
                 Order paperwork
               </a>

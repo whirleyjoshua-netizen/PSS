@@ -3,8 +3,10 @@ import { createHash } from "node:crypto";
 import { createFile, deleteFile } from "@/lib/admin/files";
 import { formatOptionNo } from "@/lib/portal/project-no";
 import { DC_SUBJECT, IMPORT_ACTOR } from "./config";
-import { htmlAttachments, listCandidateMessages } from "./mailbox";
-import { importEmail, notifyOwners, staleFailuresEmail } from "./notify";
+import { htmlAttachments, listCandidateMessages, messageHtml, pdfAttachments, type MailMessage } from "./mailbox";
+import { importEmail, notifyOwners, staleFailuresEmail, staleReceiptsEmail } from "./notify";
+import { importOrderConfirmation, importOrderReceipt } from "./order-import";
+import { markReceiptsWarned, staleReceipts } from "./order-store";
 import { parseDealerCopy } from "./parse";
 import { findJobByProjectNo, getDcSettings, importVersion, isProcessed, latestSha, quoteOptionExists, recordOutcome, setLastPolledAt } from "./store";
 import type { DcQuote, ImportOutcome } from "./types";
@@ -108,6 +110,18 @@ export async function importDealerCopy(input: { internetMessageId: string; recei
   return result;
 }
 
+/** A DC receipt with no HD confirmation this long after it arrived is worth the owners' look. HD says 1-2 hours. */
+const UNCONFIRMED_RECEIPT_MS = 24 * 60 * 60 * 1000;
+
+/** An order confirmation or a receipt. The body is the email itself, and an order's PDF is filed when there is exactly one. */
+async function importOrderMail(message: MailMessage): Promise<ImportOutcome> {
+  const base = { internetMessageId: message.internetMessageId, receivedAt: message.receivedAt, html: await messageHtml(message.id) };
+  if (message.kind === "receipt") return (await importOrderReceipt(base)).outcome;
+  const pdfs = await pdfAttachments(message.id);
+  const pdf = pdfs.length === 1 && pdfs[0].bytes ? { name: pdfs[0].name, bytes: pdfs[0].bytes } : null;
+  return (await importOrderConfirmation({ ...base, pdf })).outcome;
+}
+
 /** One run over support@. The mark advances only when every message was handled. */
 export async function pollMailbox(now = new Date()): Promise<{ seen: number; results: { messageId: string; outcome: ImportOutcome }[] }> {
   const { lastPolledAt } = await getDcSettings();
@@ -119,6 +133,10 @@ export async function pollMailbox(now = new Date()): Promise<{ seen: number; res
   for (const message of messages) {
     try {
       if (await isProcessed(message.internetMessageId)) continue;
+      if (message.kind !== "dealer-copy") {
+        results.push({ messageId: message.internetMessageId, outcome: await importOrderMail(message) });
+        continue;
+      }
       const attachments = await htmlAttachments(message.id);
       // Exactly one .html attachment, and that one within the size limit, or the message is unreadable.
       const bytes = attachments.length === 1 ? attachments[0].bytes : null;
@@ -144,6 +162,19 @@ export async function pollMailbox(now = new Date()): Promise<{ seen: number; res
     // One email per run, however many are stuck. Still not recorded, so each keeps being retried.
     await notifyOwners(staleFailuresEmail(stale)).catch((error) => console.error("DC import failure warning email failed", error));
   }
+  await warnUnconfirmed(now);
   if (!failed) await setLastPolledAt(now);
   return { seen: messages.length, results };
+}
+
+/** One email per run for every receipt still unconfirmed after a day, each told once. A failed email is retried next run. */
+async function warnUnconfirmed(now: Date): Promise<void> {
+  try {
+    const stale = await staleReceipts(new Date(now.getTime() - UNCONFIRMED_RECEIPT_MS));
+    if (stale.length === 0) return;
+    await notifyOwners(staleReceiptsEmail(stale));
+    await markReceiptsWarned(stale.map((r) => r.messageId));
+  } catch (error) {
+    console.error("DC unconfirmed order warning failed", error);
+  }
 }
