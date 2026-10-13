@@ -38,7 +38,7 @@ export function Header() {
   return (
     <header className="sticky top-0 z-50 border-b border-rule bg-ivory/95 backdrop-blur">
       <Container>
-        <div className="flex items-center justify-between gap-6 py-4 lg:gap-3 xl:gap-6">
+        <div className="flex items-center justify-between gap-6 py-4 lg:gap-3 xl:gap-5">
           {/* No aria-label here: the Logo's own role="img" names this link. An
               aria-label that does not contain the link's visible text is a
               label/name mismatch for voice-control users. */}
