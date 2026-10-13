@@ -5,18 +5,34 @@ import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { business } from "@/content/business";
 import { categories } from "@/content/products";
+import { getProductsIn } from "@/lib/content/products";
 
 describe("Header", () => {
-  it("links every product category", () => {
+  it("links every product category: directly, or as the first link in its dropdown", async () => {
+    const user = userEvent.setup();
     render(<Header />);
     const nav = screen.getByRole("navigation", { name: /main/i });
 
     for (const category of categories) {
-      const links = within(nav).getAllByRole("link", {
-        name: new RegExp(`^${category.navLabel}$`, "i"),
-      });
-      expect(links.some((link) => link.getAttribute("href") === `/${category.slug}`)).toBe(true);
+      if (getProductsIn(category.slug).length === 0) {
+        expect(within(nav).getByRole("link", { name: category.navLabel })).toHaveAttribute("href", `/${category.slug}`);
+        continue;
+      }
+      const toggle = within(nav).getByRole("button", { name: category.navLabel });
+      await user.click(toggle);
+      const panel = document.getElementById(toggle.getAttribute("aria-controls")!)!;
+      const first = within(panel).getAllByRole("link")[0]!;
+      expect(first).toHaveAttribute("href", `/${category.slug}`);
+      expect(first).toHaveTextContent(`All ${category.name.toLowerCase()}`);
+      await user.click(toggle);
     }
+  });
+
+  it("never puts two links to one page side by side in the desktop nav", () => {
+    render(<Header />);
+    const nav = screen.getByRole("navigation", { name: /main/i });
+    const hrefs = Array.from(nav.querySelectorAll("a")).map((a) => a.getAttribute("href"));
+    for (let i = 1; i < hrefs.length; i++) expect(hrefs[i], `link ${i}`).not.toBe(hrefs[i - 1]);
   });
 
   it("offers a tap-to-call link built from business content", () => {
@@ -32,12 +48,13 @@ describe("Header", () => {
     expect(screen.queryByRole("link", { name: /free consultation/i })).toBeNull();
   });
 
-  it("puts About, Reviews, Gallery and FAQ in an About dropdown on the desktop nav", () => {
+  it("puts About, Reviews, Gallery and FAQ in an About dropdown on the desktop nav", async () => {
+    const user = userEvent.setup();
     render(<Header />);
     const nav = screen.getByRole("navigation", { name: /main/i });
-    const about = within(nav).getByRole("link", { name: "About" });
-    expect(about).toHaveAttribute("href", "/about");
-    // The submenu is in the DOM (CSS reveals it on hover and focus-within), named for screen readers.
+    // About is the toggle, not a link: "Our family" is the panel's link to /about.
+    expect(within(nav).queryByRole("link", { name: "About" })).toBeNull();
+    await user.click(within(nav).getByRole("button", { name: "About" }));
     const submenu = within(nav).getByRole("list", { name: "About" });
     const links = within(submenu).getAllByRole("link").map((a) => [a.textContent, a.getAttribute("href")]);
     expect(links).toEqual([
@@ -75,13 +92,20 @@ describe("Header", () => {
     expect(toggle).toHaveAttribute("aria-expanded", "false");
   });
 
-  it("exposes child products of a category to keyboard users without hover", () => {
-    render(<Header />);
-    // Submenu links must exist in the DOM, not appear only on :hover, or the
-    // 16 product pages are unreachable by keyboard and invisible to crawlers.
-    expect(
-      screen.getAllByRole("link", { name: /solar shades/i })[0].getAttribute("href"),
-    ).toBe("/shades/solar-shades");
+  it("keeps child products in the HTML for crawlers, and opens them for keyboard users without hover", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<Header />);
+    // In the markup even while closed, or the 16 product pages are invisible to crawlers.
+    expect(container.querySelector('a[href="/shades/solar-shades"]')).not.toBeNull();
+    expect(screen.queryByRole("link", { name: /solar shades/i })).toBeNull(); // closed: out of the a11y tree
+
+    const toggle = screen.getByRole("button", { name: "Shades" });
+    toggle.focus();
+    await user.keyboard("{Enter}");
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    await user.tab();
+    expect(document.activeElement).toHaveAttribute("href", "/shades");
+    expect(screen.getByRole("link", { name: /solar shades/i })).toHaveAttribute("href", "/shades/solar-shades");
   });
 });
 
