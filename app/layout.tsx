@@ -21,7 +21,7 @@ const sourceSerif = Source_Serif_4({
 export const metadata: Metadata = {
   metadataBase: new URL(business.domain),
   title: {
-    default: "Custom Blinds, Shades & Shutters in Las Vegas | Premier Shade Solutions",
+    default: "Blinds, Shades & Shutters Las Vegas | Premier Shade Solutions",
     template: "%s",
   },
   description:

@@ -5,10 +5,16 @@ import type { Guide } from "@/content/guides";
 const absolute = (path: string): string =>
   path.startsWith("http") ? path : `${business.domain}${path}`;
 
+/** One stable id for the business, so every Service on the site can point at it as its provider. */
+export const BUSINESS_ID = `${business.domain}/#business`;
+
 type LocalBusinessSchema = {
   "@context": string;
   "@type": string;
+  "@id": string;
   name: string;
+  logo: string;
+  image: string;
   description: string;
   url: string;
   telephone?: string;
@@ -24,16 +30,23 @@ type LocalBusinessSchema = {
  * HomeAndConstructionBusiness is a LocalBusiness subtype and fits this trade
  * better than the generic type.
  *
- * The postal address is omitted entirely while it is a placeholder. Publishing
- * a wrong address in structured data can attach the business to a location it
- * has never operated from, which is harder to undo than simply not claiming
- * one yet.
+ * The street address is omitted while it is a placeholder. Publishing a wrong
+ * address in structured data can attach the business to a location it has never
+ * operated from, which is harder to undo than simply not claiming one yet. The
+ * city, state and country are true either way, so they are always published.
+ *
+ * No openingHoursSpecification: the business works by appointment
+ * (business.hours), so there are no opening hours to claim. No AggregateRating
+ * or Review either: our reviews pre-date this business (content/reviews.ts).
  */
 export function localBusinessSchema(): LocalBusinessSchema {
   const schema: LocalBusinessSchema = {
     "@context": "https://schema.org",
     "@type": "HomeAndConstructionBusiness",
+    "@id": BUSINESS_ID,
     name: business.name,
+    logo: absolute("/brand/lockup-light.png"),
+    image: absolute("/brand/owners-family.webp"),
     description:
       "Custom blinds, shades, shutters, and motorized window treatments for the Las Vegas valley, measured and installed by the owners.",
     url: business.domain,
@@ -55,26 +68,33 @@ export function localBusinessSchema(): LocalBusinessSchema {
   if (profiles.length > 0) {
     schema.sameAs = profiles;
   }
-  if (!business.address.isPlaceholder) {
-    schema.address = {
-      "@type": "PostalAddress",
-      addressLocality: business.address.locality,
-      addressRegion: business.address.region,
-      addressCountry: business.address.country,
-    };
-  }
+  schema.address = {
+    "@type": "PostalAddress",
+    addressLocality: business.address.locality,
+    addressRegion: business.address.region,
+    addressCountry: business.address.country,
+  };
 
   return schema;
 }
 
-export function productSchema(product: Product) {
+/**
+ * A product page describes a service we sell and install, not a retail Product:
+ * Product markup without offers or reviews is flagged in Search Console, and we
+ * publish neither prices nor (pre-business) reviews.
+ */
+export function serviceSchema(product: Product) {
   return {
     "@context": "https://schema.org",
-    "@type": "Product",
+    "@type": "Service",
     name: product.name,
+    serviceType: product.name,
     description: product.seo.description,
-    category: product.category,
-    brand: { "@type": "Brand", name: business.name },
+    provider: { "@id": BUSINESS_ID },
+    areaServed: business.serviceArea.map((city) => ({
+      "@type": "City",
+      name: `${city}, NV`,
+    })),
     url: absolute(`/${product.category}/${product.slug}`),
   };
 }

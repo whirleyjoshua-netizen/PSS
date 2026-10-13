@@ -93,11 +93,11 @@ test("the site publishes LocalBusiness structured data", async ({ page }) => {
   expect(parsed.some((schema) => schema["@type"] === "HomeAndConstructionBusiness")).toBe(true);
 });
 
-test("a product page publishes Product and BreadcrumbList data", async ({ page }) => {
+test("a product page publishes Service and BreadcrumbList data", async ({ page }) => {
   await page.goto("/shades/solar-shades");
   const blocks = await page.locator('script[type="application/ld+json"]').allTextContents();
   const types = blocks.map((block) => JSON.parse(block)["@type"]);
 
-  expect(types).toContain("Product");
+  expect(types).toContain("Service");
   expect(types).toContain("BreadcrumbList");
 });

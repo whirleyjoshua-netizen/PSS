@@ -4,9 +4,12 @@ import { notFound } from "next/navigation";
 import { Section } from "@/components/ui/Section";
 import { PageHero, ConsultationCta } from "@/components/product/ProductParts";
 import { BookingBlock } from "@/components/booking/BookingBlock";
+import { JsonLd } from "@/components/seo/JsonLd";
 import { consultationPhoto } from "@/content/gallery";
+import { breadcrumbSchema } from "@/lib/seo/schema";
 import type { ServiceCity } from "@/content/business";
 import { allCityPaths, getCity } from "@/lib/content/cities";
+import { pageMetadata } from "@/lib/seo/metadata";
 
 export const dynamicParams = false;
 
@@ -23,17 +26,12 @@ export async function generateMetadata({
   const found = getCity(city);
   if (!found) return {};
 
-  return {
-    title: found.seo.title,
-    description: found.seo.description,
-    alternates: { canonical: `/service-area/${found.slug}` },
-    openGraph: {
-      title: found.seo.title,
-      description: found.seo.description,
-      url: `/service-area/${found.slug}`,
-      type: "website",
-    },
-  };
+  return pageMetadata({
+    ...found.seo,
+    path: `/service-area/${found.slug}`,
+    // The page's only photo, in its booking block.
+    photo: consultationPhoto,
+  });
 }
 
 export default async function CityPage({
@@ -45,8 +43,12 @@ export default async function CityPage({
   const found = getCity(city);
   if (!found) notFound();
 
+  const path = `/service-area/${found.slug}`;
+
   return (
     <>
+      {/* There is no service-area index page, so the structured trail is Home > City. */}
+      <JsonLd schema={breadcrumbSchema([{ name: found.name, url: path }])} />
       <PageHero
         eyebrow="Service area"
         title={`Window Treatments in ${found.name}, NV`}

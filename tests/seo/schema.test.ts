@@ -1,7 +1,10 @@
+import { existsSync } from "node:fs";
+import path from "node:path";
 import { describe, it, expect } from "vitest";
 import {
   localBusinessSchema,
-  productSchema,
+  serviceSchema,
+  BUSINESS_ID,
   breadcrumbSchema,
   articleSchema,
 } from "@/lib/seo/schema";
@@ -19,19 +22,43 @@ describe("structured data", () => {
     expect(schema.url).toBe(business.domain);
   });
 
-  it("omits the postal address while it is a placeholder", () => {
-    // A wrong address in LocalBusiness schema is worse than no address —
+  it("publishes the city but never a street while the street is a placeholder", () => {
+    // A wrong street address in LocalBusiness schema is worse than none —
     // it can attach the business to a location it has never operated from.
     expect(business.address.isPlaceholder).toBe(true);
-    expect(localBusinessSchema().address).toBeUndefined();
+    expect(localBusinessSchema().address).toEqual({
+      "@type": "PostalAddress",
+      addressLocality: "Las Vegas",
+      addressRegion: "NV",
+      addressCountry: "US",
+    });
   });
 
-  it("describes a product", () => {
-    const schema = productSchema(products[0]);
+  it("gives the business a stable @id, a logo and an image that exist", () => {
+    const schema = localBusinessSchema();
+    expect(schema["@id"]).toBe("https://premiershadesolutions.com/#business");
+    for (const url of [schema.logo, schema.image]) {
+      expect(url.startsWith(business.domain)).toBe(true);
+      expect(existsSync(path.join(process.cwd(), "public", url.slice(business.domain.length)))).toBe(true);
+    }
+  });
 
-    expect(schema["@type"]).toBe("Product");
-    expect(schema.name).toBe(products[0].name);
-    expect(schema.brand).toMatchObject({ name: business.name });
+  it("claims no opening hours and no ratings or reviews", () => {
+    // Hours are by appointment; our reviews pre-date the business (content/reviews.ts).
+    expect(JSON.stringify(localBusinessSchema())).not.toMatch(/openingHours|AggregateRating|"Review"|reviewRating/);
+  });
+
+  it.each(products.map((p) => [p.slug, p] as const))("describes %s as a Service the business provides", (_slug, product) => {
+    const schema = serviceSchema(product);
+
+    expect(schema["@type"]).toBe("Service");
+    expect(schema.name).toBe(product.name);
+    expect(schema.serviceType).toBe(product.name);
+    expect(schema.description).toBe(product.seo.description);
+    expect(schema.provider).toEqual({ "@id": BUSINESS_ID });
+    expect(schema.areaServed.map((a) => a.name)).toEqual(business.serviceArea.map((c) => `${c}, NV`));
+    expect(schema.url).toBe(`${business.domain}/${product.category}/${product.slug}`);
+    expect(JSON.stringify(schema)).not.toMatch(/"Product"|offers|review/i);
   });
 
   it("builds an ordered breadcrumb trail with absolute urls", () => {

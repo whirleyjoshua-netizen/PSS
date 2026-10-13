@@ -13,6 +13,7 @@ import { uniquePhotos } from "@/lib/content/page-photos";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { consultationPhoto } from "@/content/gallery";
 import { breadcrumbSchema } from "@/lib/seo/schema";
+import { pageMetadata } from "@/lib/seo/metadata";
 import { categories } from "@/content/products";
 import { getCategory, getProductsIn } from "@/lib/content/products";
 
@@ -32,17 +33,12 @@ export async function generateMetadata({
   const found = getCategory(category);
   if (!found) return {};
 
-  return {
-    title: found.seo.title,
-    description: found.seo.description,
-    alternates: { canonical: `/${found.slug}` },
-    openGraph: {
-      title: found.seo.title,
-      description: found.seo.description,
-      url: `/${found.slug}`,
-      type: "website",
-    },
-  };
+  return pageMetadata({
+    ...found.seo,
+    path: `/${found.slug}`,
+    // The hero photo: the same choice the page makes below.
+    photo: found.bookingPhoto ?? consultationPhoto,
+  });
 }
 
 export default async function CategoryPage({
