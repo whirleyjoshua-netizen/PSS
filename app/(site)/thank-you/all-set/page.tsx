@@ -4,6 +4,7 @@ import { Section } from "@/components/ui/Section";
 import { ButtonLink } from "@/components/ui/Button";
 import { PageHero } from "@/components/product/ProductParts";
 import { business } from "@/content/business";
+import { CALLBACK_WINDOW } from "@/content/consultation";
 import { Confetti } from "./Confetti";
 
 /**
@@ -34,7 +35,7 @@ export default function AllSetPage() {
               What happens next
             </h2>
             <p className="mt-3 max-w-xl text-ink-soft">
-              We&apos;ll call within 3 business days to find a time for your visit.
+              We&apos;ll call {CALLBACK_WINDOW} to find a time for your visit.
             </p>
           </div>
 

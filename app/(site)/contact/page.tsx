@@ -7,6 +7,7 @@ import { Section } from "@/components/ui/Section";
 import { PageHero } from "@/components/product/ProductParts";
 import { ConsultationForm } from "@/components/forms/ConsultationForm";
 import { business } from "@/content/business";
+import { CALLBACK_WINDOW } from "@/content/consultation";
 import { cityPath } from "@/lib/content/cities";
 
 export const metadata: Metadata = pageMetadata({
@@ -87,7 +88,7 @@ export default function ContactPage() {
                 What to expect
               </h2>
               <ul className="mt-4 flex flex-col gap-3 text-sm leading-relaxed text-ink-soft">
-                <li>We call to schedule, usually within 3 business days.</li>
+                <li>We call to schedule {CALLBACK_WINDOW}.</li>
                 <li>We bring real samples to your windows, in your own light.</li>
                 <li>We measure each window and send you a written quote.</li>
                 <li>No deposit is required to get a quote.</li>

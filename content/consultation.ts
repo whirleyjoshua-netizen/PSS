@@ -25,6 +25,12 @@ export const LEAD_TIME_LINE = `${weeks("Blinds")} for blinds and shades, ${weeks
 /** Where the weeks start (owner 2026-10-13: the order, not the consult). Every lead-time sentence says it. */
 export const LEAD_TIME_START = "counted from the day you order";
 
+/**
+ * How soon we call after a consultation request (owner 2026-10-13: within a business day, was 3). The thank-you
+ * pages, /contact and the confirmation email all quote it. Not the contract's 3-business-day cancellation window.
+ */
+export const CALLBACK_WINDOW = "within a business day";
+
 export type Pain = {
   /** The complaint, in the words customers use in reviews. */
   heard: string;
