@@ -31,7 +31,7 @@ export const metadata: Metadata = {
   },
 };
 
-/** People, then the experience, then trust, then products (family brand spec §3). */
+/** People, then the experience, then products and our work, then trust (owner, 2026-10-13: products and gallery above the reviews). */
 export default function Home() {
   return (
     <>
@@ -39,11 +39,11 @@ export default function Home() {
       <TrustBar />
       <FamilySection />
       <WhyPremier />
+      <CategoryGrid />
+      <GalleryStrip />
       <Testimonials />
       <PastWorkReviews />
       <Objections />
-      <CategoryGrid />
-      <GalleryStrip />
       <ServiceAreaBlock />
       <ClosingCta />
     </>

@@ -84,14 +84,19 @@ describe("Home", () => {
     expect(screen.getByText(/you bring the coffee/i)).toBeInTheDocument();
   });
 
-  it("orders the sections people, experience, trust, then products", () => {
+  it("orders the sections people, experience, products and gallery, then reviews", () => {
     const { container } = render(<Home />);
     const text = container.textContent ?? "";
-    const at = (s: string) => text.indexOf(s);
+    const at = (s: string) => {
+      const i = text.indexOf(s);
+      expect(i, s).toBeGreaterThanOrEqual(0);
+      return i;
+    };
     expect(at("inviting in family")).toBeLessThan(at("What it’s like to work with us"));
-    expect(at("What it’s like to work with us")).toBeLessThan(at("Here is what our clients said"));
+    expect(at("What it’s like to work with us")).toBeLessThan(at("Every treatment, measured for your windows."));
+    expect(at("Every treatment, measured for your windows.")).toBeLessThan(at("Installed by the two of us."));
+    expect(at("Installed by the two of us.")).toBeLessThan(at("Here is what our clients said"));
     expect(at("Here is what our clients said")).toBeLessThan(at("What usually goes wrong, and how we do it differently."));
-    expect(at("What usually goes wrong, and how we do it differently.")).toBeLessThan(at("Every treatment, measured for your windows."));
   });
 
   it("answers what usually goes wrong with four promises and the warranty line", () => {
