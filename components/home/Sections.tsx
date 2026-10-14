@@ -261,33 +261,34 @@ export function FamilySection() {
 
 /* ---------------------------------------------------------- service area */
 
+/** A slim strip, not a full section (owner, 2026-10-14: the big block was unnecessary). */
 export function ServiceAreaBlock() {
   return (
-    <Section tone="sand">
-      <SectionHeading
-        eyebrow="Where we work"
-        title="Serving the Las Vegas valley."
-        lead="If you are inside the valley and not listed here, call anyway — we will tell you honestly whether we can get to you."
-      />
-
-      <ul className="mt-10 grid gap-px bg-rule sm:grid-cols-2 lg:grid-cols-4">
-        {business.serviceArea.map((city) => (
-          <li key={city} className="bg-sand">
-            <Link
-              href={cityPath(city)}
-              className="block p-6 transition-colors hover:bg-ivory"
-            >
-              <span className="font-display text-lg font-light text-charcoal">
-                {city}
-              </span>
-              <span className="mt-1 block text-xs uppercase tracking-[0.16em] text-ink-soft">
-                Nevada
-              </span>
-            </Link>
-          </li>
-        ))}
-      </ul>
-    </Section>
+    <section className="border-y border-rule bg-sand text-charcoal">
+      <Container>
+        <div className="flex flex-col gap-3 py-6 lg:flex-row lg:items-center lg:justify-between lg:gap-8">
+          <h2 className="font-display text-lg font-light tracking-tight">Serving the Las Vegas valley.</h2>
+          <ul className="flex flex-wrap items-center gap-x-5 gap-y-1 text-sm">
+            {business.serviceArea.map((city) => (
+              <li key={city}>
+                <Link
+                  href={cityPath(city)}
+                  className="inline-flex min-h-11 items-center underline-offset-4 hover:underline"
+                >
+                  {city}
+                </Link>
+              </li>
+            ))}
+          </ul>
+          <p className="text-sm text-ink-soft">
+            Not listed?{" "}
+            <a href={business.phone.href} className="inline-flex min-h-11 items-center text-charcoal underline underline-offset-4">
+              Call {business.phone.display}
+            </a>
+          </p>
+        </div>
+      </Container>
+    </section>
   );
 }
 

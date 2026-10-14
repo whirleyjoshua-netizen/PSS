@@ -5,6 +5,7 @@ import { business } from "@/content/business";
 import { categories } from "@/content/products";
 import { HOME_OBJECTIONS } from "@/content/consultation";
 import { WARRANTY, WARRANTY_LINE } from "@/content/warranty";
+import { cityPath } from "@/lib/content/cities";
 
 describe("Home", () => {
   it("has exactly one h1 and it carries the tagline", () => {
@@ -118,6 +119,18 @@ describe("Home", () => {
     expect(within(section).getByText(WARRANTY_LINE)).toBeInTheDocument();
     expect(within(section).getByText(WARRANTY.fineprint)).toBeInTheDocument();
     expect(section.textContent).not.toMatch(/holiday|christmas|nov 15|10%/i);
+  });
+
+  it("lists the service area as a slim strip of city links with a call link", () => {
+    render(<Home />);
+    const strip = screen.getByRole("heading", { level: 2, name: "Serving the Las Vegas valley." }).closest("section")!;
+    expect(strip.className).not.toMatch(/py-20/);
+    const links = within(strip).getAllByRole("link");
+    expect(links.map((a) => a.getAttribute("href"))).toEqual([
+      ...business.serviceArea.map(cityPath),
+      business.phone.href,
+    ]);
+    expect(links.map((a) => a.textContent)).toEqual([...business.serviceArea, `Call ${business.phone.display}`]);
   });
 
   it("ends its sentence headlines with a period", () => {
