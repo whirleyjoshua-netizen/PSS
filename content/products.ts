@@ -214,6 +214,8 @@ export const categories: Category[] = [
     intro: [
       "Motorization stopped being a luxury the moment it stopped requiring an electrician. Modern shades run on a rechargeable battery tube, pair to an app or a wall remote, and install in the same visit as a manual shade.",
       "It earns its keep in three places: windows nobody can reach, whole rooms that should move together, and schedules that beat the sun to the window — a shade that closes at 2pm every summer afternoon protects your floors and your thermostat whether or not anyone is home.",
+      // Alta's own BLISS page and guides (owner-approved ad facts, 2026-10-14). Voice needs the Bridge; Alta makes no quiet-motor claim for BLISS.
+      "We install Alta's BLISS® Automation 2.0 on roller, woven wood, honeycomb, sheer, banded, wood and faux wood styles. Open and close every shade from the free BLISS app on iPhone or Android, or from a remote that runs up to 10 shades. Set timers by the clock or by your local sunrise and sunset. Each motor recharges overnight with a USB-C cable and runs up to 500 trips up and down on a charge. Add the optional BLISS Bridge and your shades answer to Alexa, Google Home and Siri, and move from anywhere. No cords, so they are safer around kids and pets.",
     ],
     image: altaPhotos.honeycombSkylights,
     bookingPhoto: altaPhotos.rollerKitchenMotorized,
@@ -231,7 +233,7 @@ export const categories: Category[] = [
     seo: {
       title: "Motorized Shades in Las Vegas, NV | Premier Shade Solutions",
       description:
-        "Motorized and app-controlled blinds and shades for Las Vegas homes. Scheduled sun protection, no wiring required. Free consultation.",
+        "Alta BLISS motorized shades for Las Vegas homes. Phone app, remote and voice control, sunrise and sunset timers, no wiring. Free consultation.",
     },
   },
 ];

@@ -191,3 +191,24 @@ describe("hero and info photos (owner 2026-10-09)", () => {
   });
 });
 
+
+describe("motorization names Alta BLISS (owner-approved ad facts, 2026-10-14)", () => {
+  const motorization = categories.find((c) => c.slug === "motorization")!;
+  const copy = [...motorization.intro, motorization.seo.description].join(" ");
+
+  it("states the app, remote, timers and charging the BLISS ad promises", () => {
+    expect(copy).toMatch(/BLISS® Automation 2\.0/);
+    expect(copy).toMatch(/free BLISS app on iPhone or Android/);
+    expect(copy).toMatch(/sunrise and sunset/);
+    expect(copy).toMatch(/USB-C/);
+    expect(copy).toMatch(/up to 500 trips/);
+  });
+
+  it("says voice control needs the Bridge", () => {
+    expect(copy).toMatch(/optional BLISS Bridge and your shades answer to Alexa, Google Home and Siri/);
+  });
+
+  it("makes no claim Alta does not make for BLISS", () => {
+    expect(copy).not.toMatch(/quiet|SmartThings|hardwire/i);
+  });
+});
