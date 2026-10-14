@@ -6,7 +6,6 @@ import { PromiseBadges } from "@/components/booking/PromiseRow";
 import { altaPhotos } from "@/content/stock-photos";
 import { HOLIDAY_FORM_LINE, HOLIDAY_LEAD_NOTE } from "@/content/holiday";
 import { holidayDecor, holidayOffer } from "@/content/promo";
-import { pastWork } from "@/content/reviews";
 import { hasSeasonEnded, isPromoLive, seasonHideScript } from "@/lib/promo";
 import { Snowflake } from "@/components/ui/Snowflake";
 import { HeroSnow } from "./HeroSnow";
@@ -23,13 +22,9 @@ const cities = (names: readonly string[]) =>
 /** Under the tagline: what we sell, where, and who does the work. */
 export const HERO_SUBHEAD = `Custom blinds, shades, shutters and solar screens for ${cities(business.serviceArea)}. Shade’ designs, Josh measures and installs. No call center, no subcontractors.`;
 
-/** The past-work surveys, labelled as pre-dating Premier Shade (FTC, content/reviews.ts). */
-export const PAST_WORK_LINE = `Rated ${pastWork.averageRating} by ${pastWork.surveys} past clients, from our years installing and designing before we opened ${business.name}.`;
-
 function HeroFormProof() {
   return (
     <div className="mt-5 flex flex-col gap-4 border-t border-rule pt-5">
-      <p className="text-sm text-ink-soft">{PAST_WORK_LINE}</p>
       <PromiseBadges />
     </div>
   );

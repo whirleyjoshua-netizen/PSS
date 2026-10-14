@@ -1,13 +1,12 @@
 import { act, render, screen, within } from "@testing-library/react";
 import { renderToString } from "react-dom/server";
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { Hero, HERO_SUBHEAD, PAST_WORK_LINE } from "@/components/home/Hero";
+import { Hero, HERO_SUBHEAD } from "@/components/home/Hero";
 import { HeroOffer } from "@/components/home/HeroOffer";
 import { PROMISES } from "@/components/booking/PromiseRow";
 import { business } from "@/content/business";
 import { HOLIDAY_FORM_LINE, HOLIDAY_LEAD_NOTE } from "@/content/holiday";
 import { holidayOffer } from "@/content/promo";
-import { pastWork } from "@/content/reviews";
 
 const at = (iso: string) => vi.useFakeTimers({ toFake: ["Date"] }).setSystemTime(new Date(iso));
 const form = () => screen.getByRole("button", { name: /invite us over/i }).closest("form")!;
@@ -33,16 +32,10 @@ describe("the hero subhead", () => {
 });
 
 describe("proof inside the hero form card", () => {
-  it("states the past-work figures from content/reviews.ts under the button, as pre-dating this business", () => {
+  it("carries no past-work rating line (owner, 2026-10-13)", () => {
     at("2026-12-26T19:00:00Z");
     render(<Hero />);
-    // Owner, 2026-10-13: the old company is never named on the site.
-    const line = "Rated 4.9 by 44 past clients, from our years installing and designing before we opened Premier Shade Solutions.";
-    expect(PAST_WORK_LINE).toBe(line);
-    expect(`${pastWork.averageRating} ${pastWork.surveys}`).toBe("4.9 44");
-    const proof = within(card()).getByText(line);
-    const button = within(form()).getByRole("button", { name: /invite us over/i });
-    expect(button.compareDocumentPosition(proof) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(card().textContent).not.toMatch(/4\.9|surveys|past clients|before we opened/i);
   });
 
   it("carries the promise badges", () => {

@@ -35,8 +35,7 @@ describe("reviews are labeled as the owners' earlier work", () => {
   // These are not Premier Shade customer reviews; every surface must say so.
   it("on the homepage", () => {
     const { container } = render(<Home />);
-    // The hero form's rating line and the reviews section each say it.
-    expect(screen.getAllByText(/before we opened Premier Shade Solutions/i)).toHaveLength(2);
+    expect(screen.getByText(/before we opened Premier Shade Solutions/i)).toBeInTheDocument();
     // Owner, 2026-10-13: the old company is never named on the site.
     expect(container.textContent).not.toMatch(/custom decorators|\bCDI\b/i);
     expect(screen.getByRole("link", { name: /read every review/i })).toHaveAttribute("href", "/reviews");
