@@ -48,9 +48,9 @@ export function TrustBar() {
 /* ------------------------------------------------------------- categories */
 
 /**
- * The cover photo for each category card. Alta's catalog photos, never our gallery (owner, 2026-10-14). Outdoor
- * has none: Alta's library has no exterior screens, and an indoor shade would show the wrong product, so that card
- * is a plain panel until the owner sends one.
+ * The homepage cards and their cover photos: Alta's catalog, never our gallery (owner, 2026-10-14). Outdoor is left
+ * off (owner, 2026-10-14): Alta's library has no exterior screens, and an indoor shade would show the wrong product.
+ * The header menu still links it.
  */
 const COVER: Partial<Record<CategorySlug, Photo>> = {
   blinds: altaPhotos.fauxWoodLivingRoom,
@@ -68,25 +68,24 @@ export function CategoryGrid() {
         lead="We carry the full range because the right answer depends on which way the window faces and what the room is for. The consultation is where we work that out."
       />
 
-      {/* Tall cards side by side: a swipeable row on phones and tablets, all five in one row from lg up. */}
-      <ul className="-mx-6 mt-12 flex snap-x snap-mandatory scroll-px-6 gap-4 overflow-x-auto px-6 pb-2 sm:-mx-8 sm:scroll-px-8 sm:px-8 lg:mx-0 lg:grid lg:grid-cols-5 lg:overflow-visible lg:px-0 lg:pb-0">
+      {/* Tall cards side by side: a swipeable row on phones and tablets, all four in one row from lg up. */}
+      <ul className="-mx-6 mt-12 flex snap-x snap-mandatory scroll-px-6 gap-4 overflow-x-auto px-6 pb-2 sm:-mx-8 sm:scroll-px-8 sm:px-8 lg:mx-0 lg:grid lg:grid-cols-4 lg:overflow-visible lg:px-0 lg:pb-0">
         {categories.map((category) => {
           const cover = COVER[category.slug];
+          if (!cover) return null;
           return (
             <li key={category.slug} className="w-[70%] shrink-0 snap-start sm:w-[40%] lg:w-auto">
               <Link
                 href={`/${category.slug}`}
                 className="group relative flex aspect-3/4 flex-col justify-end overflow-hidden bg-charcoal"
               >
-                {cover ? (
-                  <Image
-                    src={cover.src}
-                    alt={cover.alt}
-                    fill
-                    sizes="(min-width: 1024px) 15rem, (min-width: 640px) 40vw, 70vw"
-                    className="object-cover transition-transform duration-500 group-hover:scale-105"
-                  />
-                ) : null}
+                <Image
+                  src={cover.src}
+                  alt={cover.alt}
+                  fill
+                  sizes="(min-width: 1024px) 18rem, (min-width: 640px) 40vw, 70vw"
+                  className="object-cover transition-transform duration-500 group-hover:scale-105"
+                />
                 <div
                   aria-hidden="true"
                   className="absolute inset-0 bg-gradient-to-t from-charcoal/90 via-charcoal/30 to-transparent"

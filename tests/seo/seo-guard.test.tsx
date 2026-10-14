@@ -31,7 +31,9 @@ describe("SEO inventory survives the family redesign (spec §2)", () => {
   it("keeps every homepage internal link", () => {
     const links = hrefs(render(<Home />).container);
     for (const path of [
-      ...categories.map((c) => `/${c.slug}`),
+      // Outdoor left the homepage grid (owner, 2026-10-14); the site header still links it on every page
+      // (tests/layout/header.test.tsx).
+      ...categories.filter((c) => c.slug !== "outdoor").map((c) => `/${c.slug}`),
       ...cities.map((c) => `/service-area/${c.slug}`),
       "/gallery",
       "/about",

@@ -16,23 +16,24 @@ describe("Home", () => {
     expect(headings[0].textContent).toContain(business.tagline);
   });
 
-  it("links all five product categories", () => {
+  it("links every product category but outdoor, which the header menu links (owner, 2026-10-14)", () => {
     const { container } = render(<Home />);
     const hrefs = Array.from(container.querySelectorAll("a")).map((a) => a.getAttribute("href"));
 
-    for (const category of categories) {
+    for (const category of categories.filter((c) => c.slug !== "outdoor")) {
       expect(hrefs).toContain(`/${category.slug}`);
     }
+    expect(hrefs).not.toContain("/outdoor");
   });
 
   it("covers the category cards with Alta catalog photos, never our gallery", () => {
     render(<Home />);
     const section = screen.getByRole("heading", { level: 2, name: "Every treatment, measured for your windows." }).closest("section")!;
     const cards = within(section).getAllByRole("listitem");
-    expect(cards).toHaveLength(categories.length);
+    // Outdoor has no Alta photo, so it is left off; every card has a cover.
+    expect(cards.map((card) => card.querySelector("h3")?.textContent)).toEqual(["Blinds", "Shades", "Shutters", "Motorization"]);
     const covers = Array.from(section.querySelectorAll("img")).map((img) => decodeURIComponent(img.getAttribute("src") ?? ""));
-    // Outdoor has no Alta photo, so four of the five cards carry one.
-    expect(covers).toHaveLength(categories.length - 1);
+    expect(covers).toHaveLength(cards.length);
     for (const src of covers) expect(src).toContain("/stock/alta/");
   });
 
