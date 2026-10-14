@@ -31,15 +31,18 @@ export const metadata: Metadata = {
   },
 };
 
-/** People, then the experience, then products and our work, then trust (owner, 2026-10-13: products and gallery above the reviews). */
+/**
+ * Products first, then the experience and the family, then our work, then trust (owner, 2026-10-13: products and
+ * gallery above the reviews; 2026-10-14: products above the family).
+ */
 export default function Home() {
   return (
     <>
       <Hero />
       <TrustBar />
-      <FamilySection />
-      <WhyPremier />
       <CategoryGrid />
+      <WhyPremier />
+      <FamilySection />
       <GalleryStrip />
       <Testimonials />
       <PastWorkReviews />

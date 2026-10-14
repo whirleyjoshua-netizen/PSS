@@ -25,6 +25,17 @@ describe("Home", () => {
     }
   });
 
+  it("covers the category cards with Alta catalog photos, never our gallery", () => {
+    render(<Home />);
+    const section = screen.getByRole("heading", { level: 2, name: "Every treatment, measured for your windows." }).closest("section")!;
+    const cards = within(section).getAllByRole("listitem");
+    expect(cards).toHaveLength(categories.length);
+    const covers = Array.from(section.querySelectorAll("img")).map((img) => decodeURIComponent(img.getAttribute("src") ?? ""));
+    // Outdoor has no Alta photo, so four of the five cards carry one.
+    expect(covers).toHaveLength(categories.length - 1);
+    for (const src of covers) expect(src).toContain("/stock/alta/");
+  });
+
   it("links every service-area city page", () => {
     const { container } = render(<Home />);
     const hrefs = Array.from(container.querySelectorAll("a")).map((a) => a.getAttribute("href"));
@@ -85,7 +96,7 @@ describe("Home", () => {
     expect(screen.getByText(/you bring the coffee/i)).toBeInTheDocument();
   });
 
-  it("orders the sections people, experience, products and gallery, then reviews", () => {
+  it("orders the sections products, experience, family and gallery, then reviews", () => {
     const { container } = render(<Home />);
     const text = container.textContent ?? "";
     const at = (s: string) => {
@@ -93,9 +104,9 @@ describe("Home", () => {
       expect(i, s).toBeGreaterThanOrEqual(0);
       return i;
     };
-    expect(at("inviting in family")).toBeLessThan(at("What it’s like to work with us"));
-    expect(at("What it’s like to work with us")).toBeLessThan(at("Every treatment, measured for your windows."));
-    expect(at("Every treatment, measured for your windows.")).toBeLessThan(at("Installed by the two of us."));
+    expect(at("Every treatment, measured for your windows.")).toBeLessThan(at("What it’s like to work with us"));
+    expect(at("What it’s like to work with us")).toBeLessThan(at("inviting in family"));
+    expect(at("inviting in family")).toBeLessThan(at("Installed by the two of us."));
     expect(at("Installed by the two of us.")).toBeLessThan(at("Here is what our clients said"));
     expect(at("Here is what our clients said")).toBeLessThan(at("What usually goes wrong, and how we do it differently."));
   });

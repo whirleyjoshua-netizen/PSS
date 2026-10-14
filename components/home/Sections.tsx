@@ -4,12 +4,12 @@ import { Container } from "@/components/ui/Container";
 import { Section, SectionHeading, Eyebrow } from "@/components/ui/Section";
 import { ButtonLink } from "@/components/ui/Button";
 import { business } from "@/content/business";
-import { categories } from "@/content/products";
+import { categories, type CategorySlug, type Photo } from "@/content/products";
+import { altaPhotos } from "@/content/stock-photos";
 import { gallery } from "@/content/gallery";
 import { testimonials } from "@/content/testimonials";
 import { HOME_OBJECTIONS } from "@/content/consultation";
 import { WARRANTY, WARRANTY_LINE } from "@/content/warranty";
-import { getProductsIn } from "@/lib/content/products";
 import { cityPath } from "@/lib/content/cities";
 
 /* ------------------------------------------------------------------ trust */
@@ -47,6 +47,18 @@ export function TrustBar() {
 
 /* ------------------------------------------------------------- categories */
 
+/**
+ * The cover photo for each category card. Alta's catalog photos, never our gallery (owner, 2026-10-14). Outdoor
+ * has none: Alta's library has no exterior screens, and an indoor shade would show the wrong product, so that card
+ * is a plain panel until the owner sends one.
+ */
+const COVER: Partial<Record<CategorySlug, Photo>> = {
+  blinds: altaPhotos.fauxWoodLivingRoom,
+  shades: altaPhotos.rollerBreakfastNook,
+  shutters: altaPhotos.shuttersKitchen,
+  motorization: altaPhotos.honeycombSkylights,
+};
+
 export function CategoryGrid() {
   return (
     <Section tone="ivory">
@@ -56,30 +68,39 @@ export function CategoryGrid() {
         lead="We carry the full range because the right answer depends on which way the window faces and what the room is for. The consultation is where we work that out."
       />
 
-      <ul className="mt-12 grid gap-px bg-rule sm:grid-cols-2 lg:grid-cols-3">
+      {/* Tall cards side by side: a swipeable row on phones and tablets, all five in one row from lg up. */}
+      <ul className="-mx-6 mt-12 flex snap-x snap-mandatory scroll-px-6 gap-4 overflow-x-auto px-6 pb-2 sm:-mx-8 sm:scroll-px-8 sm:px-8 lg:mx-0 lg:grid lg:grid-cols-5 lg:overflow-visible lg:px-0 lg:pb-0">
         {categories.map((category) => {
-          const children = getProductsIn(category.slug);
+          const cover = COVER[category.slug];
           return (
-            <li key={category.slug} className="bg-ivory">
+            <li key={category.slug} className="w-[70%] shrink-0 snap-start sm:w-[40%] lg:w-auto">
               <Link
                 href={`/${category.slug}`}
-                className="flex h-full flex-col gap-3 p-8 transition-colors hover:bg-sand/50"
+                className="group relative flex aspect-3/4 flex-col justify-end overflow-hidden bg-charcoal"
               >
-                <h3 className="font-display text-xl font-light tracking-tight text-charcoal">
-                  {category.name}
-                </h3>
-                <p className="text-sm text-ink-soft">{category.tagline}</p>
-                {children.length > 0 ? (
-                  <p className="mt-auto pt-4 text-xs text-ink-soft">
-                    {children.map((child) => child.name).join(" · ")}
-                  </p>
+                {cover ? (
+                  <Image
+                    src={cover.src}
+                    alt={cover.alt}
+                    fill
+                    sizes="(min-width: 1024px) 15rem, (min-width: 640px) 40vw, 70vw"
+                    className="object-cover transition-transform duration-500 group-hover:scale-105"
+                  />
                 ) : null}
-                <span
+                <div
                   aria-hidden="true"
-                  className="mt-auto pt-4 font-display text-xs uppercase tracking-[0.16em] text-champagne-ink"
-                >
-                  View {category.name} →
-                </span>
+                  className="absolute inset-0 bg-gradient-to-t from-charcoal/90 via-charcoal/30 to-transparent"
+                />
+                <div className="relative flex flex-col gap-2 p-5 text-ivory">
+                  <h3 className="font-display text-xl font-light tracking-tight">{category.name}</h3>
+                  <p className="text-sm text-sand/85">{category.tagline}</p>
+                  <span
+                    aria-hidden="true"
+                    className="pt-2 font-display text-xs uppercase tracking-[0.16em] text-champagne"
+                  >
+                    View {category.navLabel} →
+                  </span>
+                </div>
               </Link>
             </li>
           );
@@ -223,7 +244,8 @@ export function Testimonials() {
 
 export function FamilySection() {
   return (
-    <Section tone="ivory">
+    // Sand: it sits between the charcoal Why Premier band and the ivory gallery.
+    <Section tone="sand">
       <div className="grid items-center gap-12 lg:grid-cols-2">
         {/* Owner 2026-10-01: the three of them here; the children are never named. */}
         <div className="relative mx-auto aspect-4/3 w-full overflow-hidden bg-sand">
