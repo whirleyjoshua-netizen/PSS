@@ -129,4 +129,17 @@ describe("NavDisclosure", () => {
     expect(toggle()).toHaveAttribute("aria-expanded", "false");
     expect(panel()).not.toBeVisible();
   });
+
+  it("stays closed when the visitor comes back to the page it was pinned on", async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(<Menu />);
+    await user.click(toggle()); // pinned on "/"
+    expect(toggle()).toHaveAttribute("aria-expanded", "true");
+    pathname = "/shades/solar-shades";
+    rerender(<Menu />);
+    pathname = "/";
+    rerender(<Menu />);
+    expect(toggle()).toHaveAttribute("aria-expanded", "false");
+    expect(panel()).not.toBeVisible();
+  });
 });

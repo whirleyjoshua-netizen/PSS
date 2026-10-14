@@ -41,6 +41,9 @@ export function NavDisclosure({
     at: null,
   });
   const open = state.open && state.at === pathname;
+  // A new page clears the menu outright (adjusting state during render, not in an effect), so a menu pinned
+  // before the visitor left can't reopen when they come back to the page it was opened on.
+  if (state.at !== null && state.at !== pathname) setState({ open: false, pinned: false, at: null });
 
   const close = () => setState({ open: false, pinned: false, at: null });
 
