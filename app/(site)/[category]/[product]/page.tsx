@@ -91,7 +91,7 @@ export default async function ProductPage({
         panelLabel={found.name}
         caption={{ eyebrow: "Best for", line: found.bestFor }}
       />
-      <DetailsBand features={found.features} />
+      <DetailsBand features={found.features} warranty={parent.slug !== "outdoor"} />
       {siblings.length > 0 ? (
         <PhotoCardGrid
           heading={`Other ${parent.name}`}

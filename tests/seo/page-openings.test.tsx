@@ -119,7 +119,7 @@ describe("product warranties", () => {
     for (const product of products) expect(product.features).not.toContain(WARRANTY_LINE);
   });
 
-  it.each(products.map((p) => [p.slug, p] as const))(
+  it.each(products.filter((p) => p.category !== "outdoor").map((p) => [p.slug, p] as const))(
     "%s shows the warranty line exactly once, with its fine print",
     async (_slug, product) => {
       const { container } = render(
@@ -128,6 +128,17 @@ describe("product warranties", () => {
       const text = container.textContent ?? "";
       expect(text.split(WARRANTY_LINE).length - 1).toBe(1);
       expect(text).toContain(WARRANTY.fineprint);
+    },
+  );
+
+  // The published lifetime warranty covers blinds, shades and shutters; it must not read as a claim for exterior screens.
+  it.each(products.filter((p) => p.category === "outdoor").map((p) => [p.slug, p] as const))(
+    "%s (outdoor) carries no warranty line",
+    async (_slug, product) => {
+      const { container } = render(
+        await ProductPage({ params: Promise.resolve({ category: product.category, product: product.slug }) }),
+      );
+      expect(container.textContent).not.toContain(WARRANTY_LINE);
     },
   );
 });
