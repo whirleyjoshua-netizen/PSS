@@ -33,8 +33,16 @@ function toBookingForm(event: React.MouseEvent<HTMLAnchorElement>) {
   form.querySelector<HTMLElement>(FIRST_FIELD)?.focus({ preventScroll: true });
 }
 
-const FIRST_FIELD =
-  "input:not([type=hidden]):not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled])";
+/**
+ * The first field a person fills in. It skips the spam trap (Field.tsx's off-screen "company" input, tabIndex -1 and
+ * aria-hidden): text typed there makes /api/consultation drop the request as a bot while showing it as received.
+ */
+const FIRST_FIELD = [
+  "input:not([type=hidden]):not([disabled]):not([tabindex=\"-1\"]):not([aria-hidden=true])",
+  "select:not([disabled])",
+  "textarea:not([disabled])",
+  "button:not([disabled])",
+].join(", ");
 
 /** The bar's height, safe area included: --book-bar-height in app/globals.css, shared by the bar, its spacer and scroll-padding. */
 export const BAR_HEIGHT = "h-(--book-bar-height)";
@@ -58,8 +66,9 @@ function useBarShown(pathname: string): boolean {
       const frame = requestAnimationFrame(() => setReading({ at: pathname, formButtonOnScreen: false }));
       return () => cancelAnimationFrame(frame);
     }
-    const observer = new IntersectionObserver(([entry]) =>
-      setReading({ at: pathname, formButtonOnScreen: entry!.isIntersecting }),
+    const observer = new IntersectionObserver((entries) =>
+      // A busy main thread can batch several crossings into one callback, oldest first: the last is current.
+      setReading({ at: pathname, formButtonOnScreen: entries[entries.length - 1]!.isIntersecting }),
     );
     observer.observe(button);
     return () => observer.disconnect();

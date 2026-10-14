@@ -16,6 +16,7 @@ import { BAR_HEIGHT, MobileBookBar, showsBookBar } from "@/components/layout/Mob
 import { PhoneClickTracking } from "@/components/analytics/PhoneClickTracking";
 import { SiteChrome } from "@/components/layout/SiteChrome";
 import { business } from "@/content/business";
+import { HeroForm } from "@/components/forms/HeroForm";
 
 const at = (path: string, page?: React.ReactNode) => {
   pathname = path;
@@ -106,6 +107,19 @@ describe("the bar", () => {
     fireEvent.click(screen.getByRole("link", { name: "Invite Us Over" }));
     expect(focus).toHaveBeenCalledWith({ preventScroll: true });
     expect(document.activeElement).toBe(name);
+  });
+
+  // Text typed into the spam trap makes /api/consultation drop the request as a bot while the visitor sees it received.
+  it("lands on the real form's Name field, never its spam trap", () => {
+    at(
+      "/shades",
+      <section id="book">
+        <HeroForm />
+      </section>,
+    );
+    document.getElementById("book")!.scrollIntoView = vi.fn();
+    fireEvent.click(screen.getByRole("link", { name: "Invite Us Over" }));
+    expect(document.activeElement).toHaveAttribute("name", "name");
   });
 
   it.each([
