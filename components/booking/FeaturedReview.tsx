@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { formatReviewDate, Stars } from "@/components/reviews/ReviewCard";
 import { Reveal } from "@/components/ui/Reveal";
-import { pastReviews, pastWork } from "@/content/reviews";
+import { pastReviews } from "@/content/reviews";
 
 /** The first About-page spotlight quote; a fixed pick so the page is the same for every visitor. */
 export const FEATURED_REVIEW = pastReviews.filter((review) => review.spotlight)[0];
@@ -23,7 +23,7 @@ export function FeaturedReviewCard({ className }: { className?: string }) {
         </blockquote>
         <figcaption className="text-xs leading-relaxed text-ink-soft">
           {FEATURED_REVIEW.name} · {formatReviewDate(FEATURED_REVIEW.date)} · About {FEATURED_REVIEW.about}. From
-          our years with {pastWork.source}, before we opened Premier Shade Solutions.{" "}
+          our years in the trade, before we opened Premier Shade Solutions.{" "}
           <Link href="/reviews" className="underline underline-offset-4 hover:text-charcoal">
             Read every review
           </Link>

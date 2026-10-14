@@ -4,7 +4,8 @@
  * Josh installed and Shade designed for Custom Decorators (since bought by
  * Hunter Douglas), in Ohio and later in Las Vegas. These are reviews of the
  * two of them, not of this company, so every surface that shows them must say
- * where they came from — presenting them as Premier Shade customer reviews
+ * they pre-date Premier Shade Solutions (owner, 2026-10-13: never name the old
+ * company on the site) — presenting them as Premier Shade customer reviews
  * would misrepresent whose experience they describe (FTC 16 CFR Part 465).
  * For the same reason they never go into Review or AggregateRating structured
  * data. Reviews of Premier Shade itself belong in content/testimonials.ts.
@@ -35,7 +36,6 @@ export const ownerName = (about: PastReview["about"]) => (about === "Shade" ? "S
  * work, count here but are not quoted.
  */
 export const pastWork = {
-  source: "Custom Decorators",
   surveys: 44,
   averageRating: 4.9,
 } as const;

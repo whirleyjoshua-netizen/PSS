@@ -23,8 +23,8 @@ const cities = (names: readonly string[]) =>
 /** Under the tagline: what we sell, where, and who does the work. */
 export const HERO_SUBHEAD = `Custom blinds, shades, shutters and solar screens for ${cities(business.serviceArea)}. Shade’ designs, Josh measures and installs. No call center, no subcontractors.`;
 
-/** The past-work surveys, credited to where the work was done: these pre-date Premier Shade (FTC, content/reviews.ts). */
-const PAST_WORK_LINE = `${pastWork.averageRating} average from ${pastWork.surveys} client surveys of Josh and Shade’s work at ${pastWork.source}, before ${business.name}.`;
+/** The past-work surveys, labelled as pre-dating Premier Shade (FTC, content/reviews.ts). */
+export const PAST_WORK_LINE = `Rated ${pastWork.averageRating} by ${pastWork.surveys} past clients, from our years installing and designing before we opened ${business.name}.`;
 
 function HeroFormProof() {
   return (

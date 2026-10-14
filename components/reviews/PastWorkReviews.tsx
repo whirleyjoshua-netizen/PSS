@@ -13,7 +13,7 @@ export function PastWorkReviews() {
         <SectionHeading
           eyebrow="Before Premier Shade"
           title="You are hiring the two of us. Here is what our clients said."
-          lead={`Every review below is from our years installing and designing for ${pastWork.source}, in Ohio and here in Las Vegas, before we opened Premier Shade Solutions.`}
+          lead={`Every review below is from our years installing and designing in Ohio and here in Las Vegas, before we opened Premier Shade Solutions.`}
         />
         <dl className="flex gap-14">
           <div className="flex flex-col-reverse gap-1">

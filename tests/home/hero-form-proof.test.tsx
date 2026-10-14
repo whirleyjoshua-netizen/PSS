@@ -1,7 +1,7 @@
 import { act, render, screen, within } from "@testing-library/react";
 import { renderToString } from "react-dom/server";
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { Hero, HERO_SUBHEAD } from "@/components/home/Hero";
+import { Hero, HERO_SUBHEAD, PAST_WORK_LINE } from "@/components/home/Hero";
 import { HeroOffer } from "@/components/home/HeroOffer";
 import { PROMISES } from "@/components/booking/PromiseRow";
 import { business } from "@/content/business";
@@ -33,12 +33,13 @@ describe("the hero subhead", () => {
 });
 
 describe("proof inside the hero form card", () => {
-  it("states the past-work figures from content/reviews.ts, credited to Custom Decorators, under the button", () => {
+  it("states the past-work figures from content/reviews.ts under the button, as pre-dating this business", () => {
     at("2026-12-26T19:00:00Z");
     render(<Hero />);
-    // Owner-approved wording (2026-10-13): says the surveys pre-date this business.
-    const line = "4.9 average from 44 client surveys of Josh and Shade’s work at Custom Decorators, before Premier Shade Solutions.";
-    expect(`${pastWork.averageRating} ${pastWork.surveys} ${pastWork.source}`).toBe("4.9 44 Custom Decorators");
+    // Owner, 2026-10-13: the old company is never named on the site.
+    const line = "Rated 4.9 by 44 past clients, from our years installing and designing before we opened Premier Shade Solutions.";
+    expect(PAST_WORK_LINE).toBe(line);
+    expect(`${pastWork.averageRating} ${pastWork.surveys}`).toBe("4.9 44");
     const proof = within(card()).getByText(line);
     const button = within(form()).getByRole("button", { name: /invite us over/i });
     expect(button.compareDocumentPosition(proof) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
