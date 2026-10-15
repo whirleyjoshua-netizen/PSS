@@ -15,10 +15,11 @@ import { STARTER_TERMS } from "@/lib/docs/starter-terms";
 const words = (text: string) => text.trim().split(/\s+/).length;
 
 describe("FAQ content", () => {
-  it("keeps the consultant's 24 questions in her six groups", () => {
+  // 24 from the consultant, plus "Are you insured?" (owner, 2026-10-15).
+  it("keeps the consultant's 24 questions and the insurance one in her six groups", () => {
     expect(FAQ_GROUPS).toHaveLength(6);
-    expect(FAQ_ITEMS).toHaveLength(24);
-    expect(new Set(FAQ_ITEMS.map((item) => item.q)).size).toBe(24);
+    expect(FAQ_ITEMS).toHaveLength(25);
+    expect(new Set(FAQ_ITEMS.map((item) => item.q)).size).toBe(25);
   });
 
   it.each(FAQ_ITEMS.map((item) => [item.q, item] as const))("%s is answered in 40–120 words", (_q, item) => {
@@ -91,7 +92,8 @@ describe("FAQ content", () => {
   });
 
   it("publishes no price", () => {
-    for (const item of FAQ_ITEMS.filter((i) => !/warranty/.test(i.q))) expect(item.a, item.q).not.toMatch(/\$\d/);
+    // The warranty answer quotes the service-visit fee; the insurance answer quotes coverage limits, not prices.
+    for (const item of FAQ_ITEMS.filter((i) => !/warranty|insured/.test(i.q))) expect(item.a, item.q).not.toMatch(/\$\d/);
   });
 });
 

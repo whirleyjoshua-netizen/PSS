@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Logo } from "@/components/brand/Logo";
 import { Container } from "@/components/ui/Container";
 import { business } from "@/content/business";
+import { INSURED_FOOTER } from "@/content/insurance";
 import { categories } from "@/content/products";
 import { cityPath } from "@/lib/content/cities";
 
@@ -28,6 +29,7 @@ export function Footer() {
               Custom window treatments for the Las Vegas valley, measured and
               installed by the owners.
             </p>
+            <p className="max-w-xs text-sm text-sand/70">{INSURED_FOOTER}</p>
           </div>
 
           <nav aria-labelledby="footer-products" className="flex flex-col gap-4">

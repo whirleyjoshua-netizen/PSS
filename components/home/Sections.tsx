@@ -10,6 +10,7 @@ import { gallery } from "@/content/gallery";
 import { testimonials } from "@/content/testimonials";
 import { HOME_OBJECTIONS } from "@/content/consultation";
 import { WARRANTY, WARRANTY_LINE } from "@/content/warranty";
+import { INSURED_LINE } from "@/content/insurance";
 import { cityPath } from "@/lib/content/cities";
 
 /* ------------------------------------------------------------------ trust */
@@ -23,7 +24,8 @@ import { cityPath } from "@/lib/content/cities";
 const PROMISES = [
   { figure: "Free", label: "In-home consultation and measurement" },
   { figure: "Family-run", label: "Measured and installed by us, never subcontracted" },
-  { figure: "4", label: "Valley cities served" },
+  // Replaced "4 Valley cities served" (owner, 2026-10-15): the service area has its own strip further down.
+  { figure: "Insured", label: INSURED_LINE },
 ];
 
 export function TrustBar() {

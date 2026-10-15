@@ -3,13 +3,13 @@ import { Reveal } from "@/components/ui/Reveal";
 export const FAMILY_LINE =
   "Shade’ and Josh personally handle every step of your project, from design and measurements to ordering and installation. No call centers. No subcontractors. Just personalized, streamlined service from start to finish.";
 
-/** The badges under the photo: what the consultation is, in three words or fewer each. */
-export const PROMISES = ["Free consultation", "Family-run", "No obligation"];
+/** The badges under the photo: what the consultation is, in three words or fewer each. Insured: content/insurance.ts. */
+export const PROMISES = ["Free consultation", "Family-run", "No obligation", "Insured"];
 
 /** Joins class names, skipping empty ones, so the uncentred row renders the same class strings BookingBlock always had. */
 const classes = (...names: (string | false | undefined)[]) => names.filter(Boolean).join(" ");
 
-/** The three promise badges on their own, for the homepage hero form card. */
+/** The promise badges on their own, for the homepage hero form card. */
 export function PromiseBadges({ centered = false, className }: { centered?: boolean; className?: string }) {
   return (
     <ul aria-label="What you get" className={classes("flex flex-wrap gap-2", centered && "justify-center", className)}>
@@ -29,7 +29,7 @@ export function PromiseBadges({ centered = false, className }: { centered?: bool
 }
 
 /**
- * The three promise badges and a line under them, shared by BookingBlock and TreatmentHero's pages.
+ * The promise badges and a line under them, shared by BookingBlock and TreatmentHero's pages.
  * The line is the family line unless the page has its own: product and city pages pass their
  * `opening`, so they no longer all open with the same paragraph (SEO audit 2026-10-13).
  */

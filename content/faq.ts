@@ -4,6 +4,7 @@ import { guides } from "@/content/guides";
 import { MOTORIZED_EXTRA_WEEKS } from "@/content/lead-times";
 import { SERVICE_VISIT_DOLLARS } from "@/lib/docs/starter-terms";
 import { WARRANTY } from "@/content/warranty";
+import { INSURANCE } from "@/content/insurance";
 import { cityPath } from "@/lib/content/cities";
 
 /**
@@ -21,6 +22,7 @@ import { cityPath } from "@/lib/content/cities";
  *   content/products.ts      every product claim (UV, openness, cells, battery tubes, 70–90%)
  *   content/cities.ts        the local detail
  *   content/guides.ts        the two repair guides
+ *   content/insurance.ts     the liability limits and the insurer
  * Change an answer only when its source says the new thing first.
  *
  * Answers are plain text (they also go into the FAQPage JSON-LD), 40–120 words, and make sense on their own.
@@ -226,6 +228,12 @@ export const FAQ_GROUPS: FaqGroup[] = [
           { label: "Invite Us Over", href: "/contact" },
           { label: "Meet the family", href: "/about" },
         ],
+      },
+      {
+        // Owner, 2026-10-15. Becomes "Are you licensed and insured?" when content/insurance.ts has the licence.
+        q: "Are you insured?",
+        a: `Yes. We carry general liability insurance of $${INSURANCE.perOccurrence.toLocaleString("en-US")} per occurrence and $${INSURANCE.aggregate.toLocaleString("en-US")} in total, with ${INSURANCE.insurer} through ${INSURANCE.agency}. If your HOA, builder or property manager needs proof, ask and we will email you our certificate of insurance before we start. And because the two of us measure and install every job ourselves, there are no subcontractors in your home whose coverage you would have to check.`,
+        links: [{ label: "Invite Us Over", href: "/contact" }],
       },
       {
         q: "What areas does Premier Shade Solutions serve?",
