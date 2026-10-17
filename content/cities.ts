@@ -29,10 +29,10 @@ export const cities: City[] = [
     slug: "las-vegas",
     name: "Las Vegas",
     opening:
-      "In Las Vegas we see everything from single-pane glass in aluminum frames, where an insulating cellular shade earns its cost back in a single summer, to big new windows where the job is glare and UV.",
+      "In Las Vegas we see everything from single-pane glass in aluminum frames, where an insulating cellular shade does the most good, to big new windows where the job is glare and UV.",
     intro: [
       "Las Vegas proper is the most varied housing stock in the valley. A mid-century ranch off Maryland Parkway, a 1990s tract home in the southwest, and a new build near the 215 need three genuinely different answers, because their windows are three different sizes in three different frames.",
-      "In older parts of the city we are often working with single-pane glass in aluminum frames, where an insulating cellular shade earns its cost back in a single summer. In newer construction the glass is bigger and better, and the problem shifts from heat loss to glare and UV — which is a solar shade or a shutter conversation instead.",
+      "In older parts of the city we are often working with single-pane glass in aluminum frames, where an insulating cellular shade slows the heat coming through the glass more than anything else we sell. In newer construction the glass is bigger and better, and the problem shifts from heat loss to glare and UV — which is a solar shade or a shutter conversation instead.",
     ],
     neighborhoods: [
       "The Lakes",
@@ -45,12 +45,13 @@ export const cities: City[] = [
     climateNote:
       "Central Las Vegas mixes older single-pane windows with new large-format glass, so the right treatment varies more here than anywhere else in the valley — insulation matters in the older stock, glare and UV control in the newer.",
     popularProducts: [
-      { name: "Cellular Shades", href: "/shades/cellular-shades", why: "For single-pane glass in older aluminum frames, where the insulation earns its cost back in a single summer." },
+      { name: "Cellular Shades", href: "/shades/cellular-shades", why: "For single-pane glass in older aluminum frames, where the trapped air slows the heat coming through." },
       { name: "Solar Shades", href: "/shades/solar-shades", why: "For the bigger, newer glass, where the problem shifts from heat loss to glare and UV." },
       { name: "Plantation Shutters", href: "/shutters/plantation-shutters", why: "Also for newer glass: the louvers tilt to send low afternoon sun up toward the ceiling instead of into your eyes." },
     ],
     seo: {
-      title: "Window Treatments in Las Vegas, NV | Premier Shade Solutions",
+      // Not "Window Treatments in Las Vegas": the homepage owns that search (SEO prompt 3, 2026-10-17).
+      title: "Las Vegas Neighborhoods We Serve | Premier Shade Solutions",
       description:
         "Custom blinds, shades, and shutters in Las Vegas, NV: insulating shades for older single-pane windows, solar shades for new glass. Free in-home consultation.",
     },
@@ -59,14 +60,16 @@ export const cities: City[] = [
     slug: "henderson",
     name: "Henderson",
     opening:
-      "In Henderson the windows run tall, so more of our jobs here end up motorized than anywhere else we work, and shading the covered patio comes up constantly.",
+      "In Henderson the windows run tall, so motorization is a common conversation here, and shading the covered patio comes up constantly.",
     intro: [
       "Henderson is newer construction on the whole, and it shows up in the windows: larger openings, more sliding doors onto covered patios, and more two-story great rooms with glass that reaches well above where anyone can comfortably stand.",
-      "That combination is why more Henderson jobs end up motorized than anywhere else we work. A shade fourteen feet up gets operated exactly as often as it is easy to operate, and a hand crank is not easy. It is also why patio shading comes up constantly here — the covered patio is the point of the house, and in July it is unusable without it.",
+      "That combination is why motorization comes up so often in Henderson. A shade fourteen feet up gets operated exactly as often as it is easy to operate, and a hand crank is not easy. It is also why patio shading comes up constantly here — the covered patio is the point of the house, and in July it is unusable without it.",
     ],
     neighborhoods: [
       "Anthem",
       "Green Valley",
+      "Paradise Hills",
+      "Gibson Springs",
       "Seven Hills",
       "Inspirada",
       "MacDonald Highlands",

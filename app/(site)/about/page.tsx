@@ -36,6 +36,13 @@ export default function AboutPage() {
               it yourself, and stand behind it.
             </p>
             <p>
+              <strong className="font-medium text-charcoal">Twenty-plus years in the trade.</strong>{" "}
+              Josh has spent more than twenty years in window treatments: installing them, building
+              them, selling them and repairing them, so he knows how they fail and how to keep that
+              from happening. Today we carry Hunter Douglas, Alta and Norman, so we can put more than
+              one maker&rsquo;s answer in front of your window and tell you honestly which one fits.
+            </p>
+            <p>
               <strong className="font-medium text-charcoal">Shade’ found the design side.</strong>{" "}
               With Josh&rsquo;s encouragement she started designing, and she fell in love with it —
               not just the fabrics and the finishes, but the people: sitting down in someone&rsquo;s

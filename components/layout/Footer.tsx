@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Logo } from "@/components/brand/Logo";
+import { LogoImage } from "@/components/brand/LogoImage";
 import { Container } from "@/components/ui/Container";
 import { business } from "@/content/business";
 import { INSURED_FOOTER } from "@/content/insurance";
@@ -23,7 +23,7 @@ export function Footer() {
       <Container>
         <div className="grid gap-12 py-16 md:grid-cols-2 lg:grid-cols-4">
           <div className="flex flex-col gap-5">
-            <Logo variant="lockup" tone="dark" className="text-[26px]" />
+            <LogoImage variant="footer" className="h-auto w-[260px]" />
             <p className="max-w-xs text-sm text-sand/70">{business.tagline}</p>
             <p className="max-w-xs text-sm text-sand/70">
               Custom window treatments for the Las Vegas valley, measured and

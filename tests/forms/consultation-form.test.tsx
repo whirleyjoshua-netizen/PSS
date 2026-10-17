@@ -184,6 +184,8 @@ describe("ConsultationForm", () => {
     for (const city of business.serviceArea) {
       expect(options).toContain(city);
     }
+    expect(options).toContain("Pahrump");
+    expect(options).toContain("Mesquite");
     expect(options).not.toContain("Phoenix");
   });
 

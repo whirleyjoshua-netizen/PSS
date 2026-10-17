@@ -54,7 +54,7 @@ describe("SEO inventory survives the family redesign (spec §2)", () => {
     const schema = localBusinessSchema() as Record<string, unknown>;
     expect(schema.name).toBe(business.name);
     expect(schema.telephone).toBe(business.phone.display);
-    expect(schema.areaServed).toHaveLength(business.serviceArea.length);
+    expect(schema.areaServed).toHaveLength(business.serviceArea.length + business.travelArea.length);
     expect(schema.sameAs).toBeDefined();
     expect(schema.slogan).toBe("You let us into your home. We let you into our family.");
   });

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { ServiceCity } from "@/content/business";
+import type { LeadCity } from "@/content/business";
 import { cityForZip } from "./zip-city";
 
 /** Google sends its numeric ids (form, campaign, ...) as JSON numbers; accept either. */
@@ -39,7 +39,7 @@ export type GoogleLead = {
   phone: string;
   email: string | null;
   zip: string | null;
-  city: ServiceCity;
+  city: LeadCity;
   gclid: string | null;
   notes: string;
   isTest: boolean;

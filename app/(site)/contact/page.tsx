@@ -78,8 +78,9 @@ export default function ContactPage() {
                 ))}
               </ul>
               <p className="mt-4 text-sm text-ink-soft">
-                Nearby but not listed? Call us — we will tell you honestly
-                whether we can get to you.
+                We also travel to {business.travelArea.join(" and ")}. Nearby but
+                not listed? Call us — we will tell you honestly whether we can
+                get to you.
               </p>
             </div>
 

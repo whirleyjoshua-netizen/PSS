@@ -2,7 +2,7 @@
 
 import { useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/Button";
-import { business } from "@/content/business";
+import { business, leadCities } from "@/content/business";
 import { categories } from "@/content/products";
 import { WINDOW_COUNTS } from "@/lib/leads/schema";
 import { HEARD_VIA_OPTIONS, referralLabel } from "@/lib/leads/referral";
@@ -86,8 +86,8 @@ export function ConsultationForm() {
           id="c-city"
           name="city"
           label="City"
-          options={business.serviceArea}
-          defaultValue={business.serviceArea[0]}
+          options={leadCities}
+          defaultValue={leadCities[0]}
         />
       </div>
 

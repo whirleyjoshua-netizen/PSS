@@ -20,6 +20,14 @@ describe("cityForZip", () => {
     expect(cityForZip(zip)).toBe("Las Vegas"),
   );
 
+  it.each(["89041", "89048", "89060", "89061"])("maps Pahrump ZIP %s", (zip) =>
+    expect(cityForZip(zip)).toBe("Pahrump"),
+  );
+
+  it.each(["89024", "89027"])("maps Mesquite ZIP %s", (zip) =>
+    expect(cityForZip(zip)).toBe("Mesquite"),
+  );
+
   it.each(["89100", "89200", "90210", "89001", "12345"])("returns null for out-of-area ZIP %s", (zip) =>
     expect(cityForZip(zip)).toBeNull(),
   );
