@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Logo } from "@/components/brand/Logo";
+import { LogoImage } from "@/components/brand/LogoImage";
 import { Container } from "@/components/ui/Container";
 import { MobileMenu } from "./MobileMenu";
 import { NavDisclosure } from "./NavDisclosure";
@@ -39,11 +39,11 @@ export function Header() {
     <header className="sticky top-0 z-50 border-b border-rule bg-ivory/95 backdrop-blur">
       <Container>
         <div className="flex items-center justify-between gap-6 py-4 lg:gap-3 xl:gap-5">
-          {/* No aria-label here: the Logo's own role="img" names this link. An
+          {/* No aria-label here: the logo image's alt text names this link. An
               aria-label that does not contain the link's visible text is a
               label/name mismatch for voice-control users. */}
           <Link href="/" className="shrink-0">
-            <Logo variant="lockup" className="text-[26px] md:text-[30px] lg:text-[22px] xl:text-[30px]" />
+            <LogoImage variant="header" eager className="h-12 w-auto md:h-14 lg:h-10 xl:h-14" />
           </Link>
 
           <nav aria-label="Main" className="hidden lg:block">
