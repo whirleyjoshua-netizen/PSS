@@ -38,6 +38,10 @@ describe("consultationSchema", () => {
     expect(parsed.email).toBe("dana@example.com");
   });
 
+  it.each(["Pahrump", "Mesquite"])("accepts %s, a town we travel to", (city) => {
+    expect(consultationSchema.safeParse({ ...valid, city }).success).toBe(true);
+  });
+
   it("rejects a city outside the service area", () => {
     expect(consultationSchema.safeParse({ ...valid, city: "Phoenix" }).success).toBe(false);
   });

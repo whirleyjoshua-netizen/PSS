@@ -1,4 +1,4 @@
-import { business } from "@/content/business";
+import { business, leadCities } from "@/content/business";
 import type { Product } from "@/content/products";
 import type { Guide } from "@/content/guides";
 
@@ -50,7 +50,7 @@ export function localBusinessSchema(): LocalBusinessSchema {
     description:
       "Custom blinds, shades, shutters, and motorized window treatments for the Las Vegas valley, measured and installed by the owners.",
     url: business.domain,
-    areaServed: business.serviceArea.map((city) => ({
+    areaServed: leadCities.map((city) => ({
       "@type": "City",
       name: `${city}, NV`,
     })),
@@ -91,7 +91,7 @@ export function serviceSchema(product: Product) {
     serviceType: product.name,
     description: product.seo.description,
     provider: { "@id": BUSINESS_ID },
-    areaServed: business.serviceArea.map((city) => ({
+    areaServed: leadCities.map((city) => ({
       "@type": "City",
       name: `${city}, NV`,
     })),

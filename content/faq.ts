@@ -58,7 +58,7 @@ export const FAQ_GROUPS: FaqGroup[] = [
       },
       {
         q: "What types of window treatments does Premier Shade Solutions offer?",
-        a: "Five kinds, all custom. Blinds: vertical blinds, and wood and faux wood blinds. Shades: roller, solar, cellular, roman, woven wood and transitional. Shutters: plantation shutters in composite or real wood. Outdoor: exterior solar screens that stop the heat before it reaches the glass. And motorization, which puts blinds and shades on an app, a wall remote or a schedule. Every one is made to your measurements and installed by us.",
+        a: "Five kinds, all custom. Blinds: vertical blinds, and wood and faux wood blinds. Shades: roller, solar, cellular, roman, woven wood and transitional. Shutters: plantation shutters in composite or real wood. Outdoor: exterior solar screens that stop the heat before it reaches the glass. And motorization, which puts blinds and shades on an app, a wall remote or a schedule. We carry Hunter Douglas, Alta and Norman, so we can show you more than one maker's take on the same window. Every one is made to your measurements and installed by us.",
         links: [
           { label: "Blinds", href: "/blinds" },
           { label: "Shades", href: "/shades" },
@@ -237,7 +237,7 @@ export const FAQ_GROUPS: FaqGroup[] = [
       },
       {
         q: "What areas does Premier Shade Solutions serve?",
-        a: `The Las Vegas valley: ${cityList}. Each area has its own page with what we see there most, like Summerlin's west-facing view windows or the tall great-room glass in Henderson. If you are in the valley and your area isn't listed, call anyway, and we will tell you honestly whether we can get to you.`,
+        a: `The Las Vegas valley: ${cityList}. Each area has its own page with what we see there most, like Summerlin's west-facing view windows or the tall great-room glass in Henderson. We also travel out to ${business.travelArea.join(" and ")}. If your area isn't listed, call anyway, and we will tell you honestly whether we can get to you.`,
         links: business.serviceArea.map((city) => ({ label: city, href: cityPath(city) })),
       },
       {

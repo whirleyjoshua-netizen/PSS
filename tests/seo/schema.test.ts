@@ -9,7 +9,7 @@ import {
   articleSchema,
 } from "@/lib/seo/schema";
 import { products } from "@/content/products";
-import { business } from "@/content/business";
+import { business, leadCities } from "@/content/business";
 import { guides } from "@/content/guides";
 
 describe("structured data", () => {
@@ -18,7 +18,15 @@ describe("structured data", () => {
 
     expect(schema["@type"]).toBe("HomeAndConstructionBusiness");
     expect(schema.name).toBe("Premier Shade Solutions");
-    expect(schema.areaServed).toHaveLength(4);
+    // The four valley cities with pages, then the towns we travel to (owner, 2026-10-17).
+    expect(schema.areaServed.map((a) => a.name)).toEqual([
+      "Las Vegas, NV",
+      "Henderson, NV",
+      "Summerlin, NV",
+      "North Las Vegas, NV",
+      "Pahrump, NV",
+      "Mesquite, NV",
+    ]);
     expect(schema.url).toBe(business.domain);
   });
 
@@ -56,7 +64,7 @@ describe("structured data", () => {
     expect(schema.serviceType).toBe(product.name);
     expect(schema.description).toBe(product.seo.description);
     expect(schema.provider).toEqual({ "@id": BUSINESS_ID });
-    expect(schema.areaServed.map((a) => a.name)).toEqual(business.serviceArea.map((c) => `${c}, NV`));
+    expect(schema.areaServed.map((a) => a.name)).toEqual(leadCities.map((c) => `${c}, NV`));
     expect(schema.url).toBe(`${business.domain}/${product.category}/${product.slug}`);
     expect(JSON.stringify(schema)).not.toMatch(/"Product"|offers|review/i);
   });

@@ -304,7 +304,7 @@ export function ServiceAreaBlock() {
             ))}
           </ul>
           <p className="text-sm text-ink-soft">
-            Not listed?{" "}
+            We also travel to {business.travelArea.join(" and ")}. Not listed?{" "}
             <a href={business.phone.href} className="inline-flex min-h-11 items-center text-charcoal underline underline-offset-4">
               Call {business.phone.display}
             </a>

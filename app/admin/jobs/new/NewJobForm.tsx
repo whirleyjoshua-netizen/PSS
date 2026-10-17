@@ -3,7 +3,7 @@
 import { useActionState } from "react";
 import { Button } from "@/components/ui/Button";
 import { CONTROL, Label, SelectField, TextAreaField, TextField } from "@/components/forms/Field";
-import { business } from "@/content/business";
+import { leadCities } from "@/content/business";
 import { HAND_SOURCES } from "@/lib/admin/schema";
 import { STAGES, type WorkingStage } from "@/lib/admin/stages";
 import { addJob, type FormState } from "../actions";
@@ -28,7 +28,7 @@ export function NewJobForm({ defaultStage = "new" }: { defaultStage?: WorkingSta
       <TextField id="job-name" name="name" label="Name" required defaultValue={field(values, "name")} />
       <TextField id="job-phone" name="phone" label="Phone" type="tel" inputMode="tel" required defaultValue={field(values, "phone")} />
       <TextField id="job-email" name="email" label="Email (optional)" type="email" defaultValue={field(values, "email")} />
-      <SelectField id="job-city" name="city" label="City" options={business.serviceArea} defaultValue={field(values, "city", business.serviceArea[0])} />
+      <SelectField id="job-city" name="city" label="City" options={leadCities} defaultValue={field(values, "city", leadCities[0])} />
       <TextField id="job-address" name="address" label="Street address (optional)" defaultValue={field(values, "address")} />
       <SelectField id="job-source" name="source" label="How they reached us" options={HAND_SOURCES} defaultValue={field(values, "source", "phone")} />
       <div className="flex flex-col gap-2">
