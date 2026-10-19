@@ -1,6 +1,7 @@
 import { Header } from "@/components/layout/Header";
 import { PromoBanner } from "@/components/layout/PromoBanner";
 import { Footer } from "@/components/layout/Footer";
+import { MobileBookBar } from "@/components/layout/MobileBookBar";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { localBusinessSchema } from "@/lib/seo/schema";
 import { AttributionCapture } from "@/components/analytics/AttributionCapture";
@@ -22,6 +23,7 @@ export function SiteChrome({ children }: { children: React.ReactNode }) {
         {children}
       </main>
       <Footer />
+      <MobileBookBar />
       <JsonLd schema={localBusinessSchema()} />
       <AttributionCapture />
       <PhoneClickTracking />

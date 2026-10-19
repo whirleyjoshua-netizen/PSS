@@ -68,6 +68,16 @@
 
 html {
   scroll-behavior: smooth;
+  /* The phone booking bar (components/layout/MobileBookBar.tsx): 1px rule plus top padding (0.5rem together), 3rem buttons, 0.5rem
+     padding, then the safe area. Its spacer and the scroll-padding below read the same value. */
+  --book-bar-height: calc(4rem + env(safe-area-inset-bottom));
+}
+
+/* Below md the booking bar is pinned to the bottom, so a focused or scrolled-to field stops above it. */
+@media (width < 48rem) {
+  html {
+    scroll-padding-bottom: var(--book-bar-height);
+  }
 }
 
 body {

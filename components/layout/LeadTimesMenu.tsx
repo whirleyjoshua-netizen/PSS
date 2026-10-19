@@ -119,7 +119,7 @@ function LeadTimesPanel({
         </tbody>
       </table>
       <p className="mt-2 text-xs text-ink-soft">
-        Install dates if you book today. Counted from your consult, when you order. Estimates, not guarantees.
+        Install dates if you order today. Counted from the day you order. Estimates, not guarantees.
       </p>
       <Link
         href={promo.href}

@@ -1,14 +1,17 @@
 import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/seo/metadata";
+import { consultationPhoto } from "@/content/gallery";
 import { Section } from "@/components/ui/Section";
 import { PageHero } from "@/components/product/ProductParts";
 import { business } from "@/content/business";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Accessibility | Premier Shade Solutions",
   description:
     "Premier Shade Solutions is committed to WCAG 2.1 AA accessibility. Tell us if any part of this site is difficult to use.",
-  alternates: { canonical: "/accessibility" },
-};
+  path: "/accessibility",
+  photo: consultationPhoto,
+});
 
 export default function AccessibilityPage() {
   return (

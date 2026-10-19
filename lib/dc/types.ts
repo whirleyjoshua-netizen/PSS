@@ -47,4 +47,6 @@ export type ParseRefusal = {
 export type ParseResult = { ok: true; quote: DcQuote } | { ok: false; refusal: ParseRefusal };
 
 export type ImportOutcome =
-  | "imported" | "unchanged" | "no-po" | "no-match" | "no-costs" | "incomplete" | "unreadable" | "failed";
+  | "imported" | "unchanged" | "no-po" | "no-match" | "no-costs" | "incomplete" | "unreadable" | "failed"
+  // An HD order confirmation recorded on its job, and DC's receipt for a submitted order (migration 045).
+  | "ordered" | "receipt";

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
-import { DEALER_COPY, DOC_TYPES, docTypeLabel, isDocType, storedDocTypeLabel } from "@/lib/admin/doc-types";
+import { DEALER_COPY, HD_ORDER, DOC_TYPES, docTypeLabel, isDocType, storedDocTypeLabel } from "@/lib/admin/doc-types";
 
 describe("document types", () => {
   it("offers the five types, in order, with their labels", () => {
@@ -39,8 +39,8 @@ describe("document types", () => {
     const allowed = constraint![1].split(",").map((value) => value.trim());
     // Compared as sets: the migration lists the values in the order they were added
     // to the database, DOC_TYPES in the order an owner should see them in the menu.
-    // The database also allows the Dealer Copy, which only the import ever stores.
-    const stored = [...DOC_TYPES.map((type) => type.value), DEALER_COPY];
+    // The database also allows the Dealer Copy and HD's order PDF, which only the imports ever store.
+    const stored = [...DOC_TYPES.map((type) => type.value), DEALER_COPY, HD_ORDER];
     expect([...allowed].sort()).toEqual(stored.map((value) => `'${value}'`).sort());
   });
 
@@ -55,5 +55,15 @@ describe("document types", () => {
     const source = readFileSync("lib/admin/doc-types.ts", "utf8");
     const imports = source.match(/^\s*import .*$/gm) ?? [];
     expect(imports.join("\n")).not.toMatch(/server-only|@\/lib\/db/);
+  });
+});
+
+describe("internal document types", () => {
+  it("HD's order PDF is internal like a Dealer Copy, and the owner's labels are not", async () => {
+    const { isInternalDocType, storedDocTypeLabel } = await import("@/lib/admin/doc-types");
+    expect(isInternalDocType("dealer_copy")).toBe(true);
+    expect(isInternalDocType("hd_order")).toBe(true);
+    for (const type of ["quote", "po", "invoice", "contract", "other", null] as const) expect(isInternalDocType(type)).toBe(false);
+    expect(storedDocTypeLabel("hd_order")).toBe("HD order (internal)");
   });
 });

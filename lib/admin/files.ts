@@ -254,8 +254,8 @@ export async function readFile(file: JobFile) {
  * `not exists` clause matches nothing for a file named by any contract_signatures row, and
  * this returns false. Sharing one again is allowed; it is a no-op on a file already shared.
  *
- * A Dealer Copy (doc_type 'dealer_copy') shows dealer cost and is never matched, so sharing
- * one returns false. The database refuses it too (job_files_dealer_copy_never_shared); this
+ * A Dealer Copy (doc_type 'dealer_copy') and HD's order PDF ('hd_order') show dealer cost and are
+ * never matched, so sharing one returns false. The database refuses it too (job_files_dealer_copy_never_shared); this
  * clause only turns that check violation into a plain refusal.
  *
  * A contract a superseded quote version names cannot be shared again: the client could sign it,
@@ -276,7 +276,7 @@ export async function setShared(jobId: string, fileId: string, shared: boolean, 
       update job_files
       set shared_at = case when ${shared} then coalesce(shared_at, now()) else null end
       where id = ${fileId} and lead_id = ${jobId} and kind in ('photo','document')
-        and doc_type is distinct from 'dealer_copy'
+        and (doc_type is null or doc_type not in ('dealer_copy','hd_order'))
         and (${shared} or not exists (
           select 1 from contract_signatures s
           where s.file_id = job_files.id or s.signed_file_id = job_files.id
@@ -315,7 +315,7 @@ export async function setShared(jobId: string, fileId: string, shared: boolean, 
  * A signed contract and its stamped copy cannot be relabelled: the `not exists` clause refuses
  * them, and this returns false.
  *
- * A Dealer Copy can never be relabelled either, in both directions: the row that holds
+ * A Dealer Copy or HD order PDF can never be relabelled either, in both directions: the row that holds
  * 'dealer_copy' is never matched (relabelling it would free it to be shared), and
  * 'dealer_copy' is refused as a new label before any query, since the value arrives from a
  * form through a Server Action and its type is not enforced at runtime.
@@ -335,7 +335,7 @@ export async function setDocType(
     with changed as (
       update job_files set doc_type = ${type}
       where id = ${fileId} and lead_id = ${jobId} and kind = 'document'
-        and doc_type is distinct from 'dealer_copy'
+        and (doc_type is null or doc_type not in ('dealer_copy','hd_order'))
         and not exists (
           select 1 from contract_signatures s
           where s.file_id = job_files.id or s.signed_file_id = job_files.id

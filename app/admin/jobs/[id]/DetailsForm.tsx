@@ -3,7 +3,7 @@
 import { useActionState } from "react";
 import { Button } from "@/components/ui/Button";
 import { SelectField, TextField } from "@/components/forms/Field";
-import { business } from "@/content/business";
+import { leadCities } from "@/content/business";
 import { BUDGET_OPTIONS } from "@/lib/admin/budget";
 import type { Job } from "@/lib/admin/jobs";
 import { BRANDS } from "@/lib/admin/schema";
@@ -32,9 +32,9 @@ export function DetailsForm({ job }: { job: Job }) {
     return Array.isArray(submitted) ? submitted.includes(key) : submitted === key;
   };
   // A job's city outside today's list stays selectable, so the select never silently swaps it for another city.
-  const cityOptions: readonly string[] = (business.serviceArea as readonly string[]).includes(job.city)
-    ? business.serviceArea
-    : [job.city, ...business.serviceArea];
+  const cityOptions: readonly string[] = (leadCities as readonly string[]).includes(job.city)
+    ? leadCities
+    : [job.city, ...leadCities];
   const motorized = values ? values.motorized === "on" : Boolean(job.motorized);
 
   return (

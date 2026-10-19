@@ -59,7 +59,7 @@ describe("detailsSchema address", () => {
   it("requires a served city", () => {
     const result = detailsSchema.safeParse({ address: "12 Sample St", city: "" });
     expect(result.success).toBe(false);
-    expect(result.error?.issues[0].message).toBe("We currently serve the Las Vegas valley.");
+    expect(result.error?.issues[0].message).toBe("We serve the Las Vegas valley, Pahrump and Mesquite.");
   });
 });
 

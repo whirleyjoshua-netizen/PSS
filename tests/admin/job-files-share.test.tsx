@@ -1,3 +1,4 @@
+import type { StoredDocType } from "@/lib/admin/doc-types";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
@@ -13,7 +14,7 @@ const { JobFiles } = await import("@/app/admin/jobs/[id]/JobFiles");
 const JOB = "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c";
 const file = (
   id: string, kind: "photo" | "document", sharedAt: Date | null,
-  name = `${id}.jpg`, docType: "quote" | "po" | "invoice" | "other" | "dealer_copy" | null = null,
+  name = `${id}.jpg`, docType: StoredDocType | null = null,
 ) => ({
   id, leadId: JOB, createdAt: new Date("2026-09-13T10:00:00Z"), uploadedBy: "owner@example.com",
   kind, name, contentType: kind === "photo" ? "image/jpeg" : "application/pdf", sizeBytes: 2048,
@@ -239,5 +240,16 @@ describe("JobFiles on a Dealer Copy", () => {
     expect(li.getByRole("combobox", { name: "Document type for Plain.pdf" })).toBeInTheDocument();
     expect(li.getByRole("switch", { name: "Share Plain.pdf with customer" })).toBeInTheDocument();
     expect(li.getByRole("button", { name: "Delete" })).toBeInTheDocument();
+  });
+});
+
+describe("JobFiles on HD's order PDF", () => {
+  it("says it is internal and offers no type, share or delete control", () => {
+    render(<JobFiles jobId={JOB} measurements={[]} files={[file("hd", "document", null, "HD ORDER 14286505.pdf", "hd_order")]} />);
+    const li = within(screen.getByRole("link", { name: "HD ORDER 14286505.pdf" }).closest("li")!);
+    expect(li.getByText("HD order · internal, never shared")).toBeInTheDocument();
+    expect(li.queryByRole("combobox")).toBeNull();
+    expect(li.queryByRole("switch")).toBeNull();
+    expect(li.queryByRole("button", { name: "Delete" })).toBeNull();
   });
 });

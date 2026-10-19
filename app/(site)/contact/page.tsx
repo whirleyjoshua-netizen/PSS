@@ -1,18 +1,22 @@
 import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/seo/metadata";
+import { consultationPhoto } from "@/content/gallery";
 import Image from "next/image";
 import Link from "next/link";
 import { Section } from "@/components/ui/Section";
 import { PageHero } from "@/components/product/ProductParts";
 import { ConsultationForm } from "@/components/forms/ConsultationForm";
 import { business } from "@/content/business";
+import { CALLBACK_WINDOW } from "@/content/consultation";
 import { cityPath } from "@/lib/content/cities";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Book a Free Consultation | Premier Shade Solutions",
   description:
     "Book a free in-home window treatment consultation in Las Vegas, Henderson, Summerlin, or North Las Vegas. We measure every window and send you a written quote.",
-  alternates: { canonical: "/contact" },
-};
+  path: "/contact",
+  photo: consultationPhoto,
+});
 
 export default function ContactPage() {
   return (
@@ -74,8 +78,9 @@ export default function ContactPage() {
                 ))}
               </ul>
               <p className="mt-4 text-sm text-ink-soft">
-                Nearby but not listed? Call us — we will tell you honestly
-                whether we can get to you.
+                We also travel to {business.travelArea.join(" and ")}. Nearby but
+                not listed? Call us — we will tell you honestly whether we can
+                get to you.
               </p>
             </div>
 
@@ -84,7 +89,7 @@ export default function ContactPage() {
                 What to expect
               </h2>
               <ul className="mt-4 flex flex-col gap-3 text-sm leading-relaxed text-ink-soft">
-                <li>We call to schedule, usually within 3 business days.</li>
+                <li>We call to schedule {CALLBACK_WINDOW}.</li>
                 <li>We bring real samples to your windows, in your own light.</li>
                 <li>We measure each window and send you a written quote.</li>
                 <li>No deposit is required to get a quote.</li>

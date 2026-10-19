@@ -2,7 +2,7 @@ import { parse, type HTMLElement } from "node-html-parser";
 import { parseMoney } from "./money";
 import type { DcLine, ParseRefusal, ParseResult } from "./types";
 
-const clean = (text: string): string => text.replace(/[\s ]+/g, " ").trim();
+export const clean = (text: string): string => text.replace(/[\s ]+/g, " ").trim();
 const cells = (row: HTMLElement): HTMLElement[] =>
   row.childNodes.filter((n): n is HTMLElement => (n as HTMLElement).tagName === "TD");
 type Ids = { quoteNo?: string; poReference?: string };
@@ -10,9 +10,9 @@ const refuse = (outcome: ParseRefusal["outcome"], detail: string, ids: Ids = {})
   ({ ok: false, refusal: { outcome, detail, ...ids } });
 
 /** PSS-1042 is the job's own quote (option A). PSS-1042-B … PSS-1042-Z are its other options. A is never written. */
-const PO = /^PSS-(\d{4,})(?:-([B-Z]))?$/;
+export const PO = /^PSS-(\d{4,})(?:-([B-Z]))?$/;
 /** DC's PO Reference field holds at most 20 characters. */
-const PO_MAX = 20;
+export const PO_MAX = 20;
 const ERROR = "*** Error:";
 
 /**

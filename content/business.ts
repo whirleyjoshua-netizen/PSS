@@ -39,6 +39,12 @@ export const business = {
 
   serviceArea: ["Las Vegas", "Henderson", "Summerlin", "North Las Vegas"],
 
+  /**
+   * Outside the valley, we still travel here (owner, 2026-10-17). These have no city pages,
+   * so they are named and accepted on the lead forms but never linked.
+   */
+  travelArea: ["Pahrump", "Mesquite"],
+
   /** Published as schema.org sameAs so Google ties these profiles to the site. */
   socials: {
     googleBusinessProfile: "https://maps.google.com/?cid=17944498424867039244",
@@ -47,6 +53,10 @@ export const business = {
 
 export type Business = typeof business;
 export type ServiceCity = (typeof business.serviceArea)[number];
+export type TravelCity = (typeof business.travelArea)[number];
+/** Every city a lead can be filed under: the valley's city pages, then the towns we travel to. */
+export type LeadCity = ServiceCity | TravelCity;
+export const leadCities: readonly LeadCity[] = [...business.serviceArea, ...business.travelArea];
 
 /**
  * How long production typically takes, shown on the customer's project page while

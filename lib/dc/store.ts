@@ -39,11 +39,11 @@ export async function isProcessed(messageId: string): Promise<boolean> {
   return rows.length > 0;
 }
 
-/** Records a non-imported outcome. A second record for the same message is a no-op. */
-export async function recordOutcome(input: { messageId: string; receivedAt: Date; outcome: ImportOutcome; leadId: string | null; dcQuoteNo: string | null; detail: string | null }): Promise<void> {
+/** Records a non-imported outcome. A second record for the same message is a no-op. `poReference` is set for HD order mail (migration 045). */
+export async function recordOutcome(input: { messageId: string; receivedAt: Date; outcome: ImportOutcome; leadId: string | null; dcQuoteNo: string | null; detail: string | null; poReference?: string | null }): Promise<void> {
   await db()`
-    insert into ingested_messages (message_id, received_at, outcome, lead_id, dc_quote_no, detail)
-    values (${input.messageId}, ${input.receivedAt}, ${input.outcome}, ${input.leadId}, ${input.dcQuoteNo}, ${input.detail})
+    insert into ingested_messages (message_id, received_at, outcome, lead_id, dc_quote_no, detail, po_reference)
+    values (${input.messageId}, ${input.receivedAt}, ${input.outcome}, ${input.leadId}, ${input.dcQuoteNo}, ${input.detail}, ${input.poReference ?? null})
     on conflict (message_id) do nothing`;
 }
 

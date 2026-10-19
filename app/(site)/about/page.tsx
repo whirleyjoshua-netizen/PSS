@@ -1,16 +1,19 @@
 import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/seo/metadata";
+import { consultationPhoto } from "@/content/gallery";
 import Image from "next/image";
 import { Section } from "@/components/ui/Section";
 import { PageHero, ConsultationCta } from "@/components/product/ProductParts";
 import { ReviewSpotlight } from "@/components/reviews/ReviewSpotlight";
 import { pastReviews } from "@/content/reviews";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Meet the Family | Premier Shade Solutions",
   description:
-    "Premier Shade Solutions is a family-run window treatment company serving the Las Vegas valley. Shade’ designs, Josh installs, and we handle every job ourselves.",
-  alternates: { canonical: "/about" },
-};
+    "Premier Shade Solutions is a family-run window treatment company in the Las Vegas valley. Shade’ designs, Josh installs, and we handle every job ourselves.",
+  path: "/about",
+  photo: consultationPhoto,
+});
 
 /** The only page the children appear on (family brand spec §1). */
 export default function AboutPage() {
@@ -31,6 +34,13 @@ export default function AboutPage() {
               learning to measure, mount and finish a window before most kids had a summer job. His
               dad has since passed, and a lot of how we work comes straight from him: do it right, do
               it yourself, and stand behind it.
+            </p>
+            <p>
+              <strong className="font-medium text-charcoal">Twenty-plus years in the trade.</strong>{" "}
+              Josh has spent more than twenty years in window treatments: installing them, building
+              them, selling them and repairing them, so he knows how they fail and how to keep that
+              from happening. Today we carry Hunter Douglas, Alta and Norman, so we can put more than
+              one maker&rsquo;s answer in front of your window and tell you honestly which one fits.
             </p>
             <p>
               <strong className="font-medium text-charcoal">Shade’ found the design side.</strong>{" "}

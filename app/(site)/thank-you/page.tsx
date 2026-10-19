@@ -4,6 +4,7 @@ import { Section } from "@/components/ui/Section";
 import { ButtonLink } from "@/components/ui/Button";
 import { PageHero } from "@/components/product/ProductParts";
 import { business } from "@/content/business";
+import { CALLBACK_WINDOW } from "@/content/consultation";
 import { findQuestionnaire } from "@/lib/leads/questionnaire";
 import { QUESTIONNAIRE_COOKIE } from "@/lib/leads/questionnaire-cookie";
 import { Questionnaire } from "./Questionnaire";
@@ -25,7 +26,7 @@ export const metadata: Metadata = {
 const STEPS = [
   {
     title: "We call you.",
-    body: "Expect a call within 3 business days to find a time that works for you.",
+    body: `Expect a call ${CALLBACK_WINDOW} to find a time that works for you.`,
   },
   {
     title: "Your in-home visit",

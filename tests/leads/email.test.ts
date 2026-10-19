@@ -37,7 +37,8 @@ describe("sendCustomerConfirmation", () => {
     await sendCustomerConfirmation(input);
 
     const { text } = send.mock.calls[0][0];
-    expect(text).toMatch(/3 business days/i);
+    expect(text).toContain("We call you within a business day");
+    expect(text).not.toMatch(/3 business days/i);
     expect(text).toContain(business.phone.display);
   });
 

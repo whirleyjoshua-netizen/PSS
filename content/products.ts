@@ -69,6 +69,12 @@ export type Product = {
   name: string;
   category: CategorySlug;
   tagline: string;
+  /**
+   * The page's own opening line under the promise badges, in place of the
+   * family line every page used to repeat (SEO audit 2026-10-13). It names the
+   * product and one specific benefit, and draws only on facts in this entry.
+   */
+  opening: string;
   body: string[];
   features: string[];
   bestFor: string;
@@ -169,7 +175,7 @@ export const categories: Category[] = [
       caption: { eyebrow: "Fitted to the opening", line: "Framed, finished and built to last." },
     },
     seo: {
-      title: "Plantation Shutters in Las Vegas, NV | Premier Shade",
+      title: "Shutters in Las Vegas, NV | Premier Shade Solutions",
       description:
         "Custom composite and real wood plantation shutters for Las Vegas homes. Built to the opening, installed by the owners. Free consultation.",
     },
@@ -195,7 +201,7 @@ export const categories: Category[] = [
       caption: { eyebrow: "West and south walls", line: "Up to 90% of the sun's heat turned away." },
     },
     seo: {
-      title: "Exterior Solar Screens in Las Vegas, NV | Premier Shade",
+      title: "Outdoor Shading in Las Vegas, NV | Premier Shade Solutions",
       description:
         "Exterior solar screens for Las Vegas homes. Stop heat and glare before they reach the glass and cut cooling costs. Free in-home consultation.",
     },
@@ -208,6 +214,8 @@ export const categories: Category[] = [
     intro: [
       "Motorization stopped being a luxury the moment it stopped requiring an electrician. Modern shades run on a rechargeable battery tube, pair to an app or a wall remote, and install in the same visit as a manual shade.",
       "It earns its keep in three places: windows nobody can reach, whole rooms that should move together, and schedules that beat the sun to the window — a shade that closes at 2pm every summer afternoon protects your floors and your thermostat whether or not anyone is home.",
+      // Alta's own BLISS page and guides (owner-approved ad facts, 2026-10-14). Voice needs the Bridge; Alta makes no quiet-motor claim for BLISS.
+      "We install Alta's BLISS® Automation 2.0 on roller, woven wood, honeycomb, sheer, banded, wood and faux wood styles. Open and close every shade from the free BLISS app on iPhone or Android, or from a remote that runs up to 10 shades. Set timers by the clock or by your local sunrise and sunset. Each motor recharges overnight with a USB-C cable and runs up to 500 trips up and down on a charge. Add the optional BLISS Bridge and your shades answer to Alexa, Google Home and Siri, and move from anywhere. No cords, so they are safer around kids and pets.",
     ],
     image: altaPhotos.honeycombSkylights,
     bookingPhoto: altaPhotos.rollerKitchenMotorized,
@@ -223,9 +231,9 @@ export const categories: Category[] = [
       caption: { eyebrow: "On schedule", line: "Closes itself every summer afternoon." },
     },
     seo: {
-      title: "Motorized Shades in Las Vegas, NV | Premier Shade",
+      title: "Motorized Shades in Las Vegas, NV | Premier Shade Solutions",
       description:
-        "Motorized and app-controlled blinds and shades for Las Vegas homes. Scheduled sun protection, no wiring required. Free consultation.",
+        "Alta BLISS motorized shades for Las Vegas homes. Phone app, remote and voice control, sunrise and sunset timers, no wiring. Free consultation.",
     },
   },
 ];
@@ -237,6 +245,8 @@ export const products: Product[] = [
     name: "Vertical Blinds",
     category: "blinds",
     tagline: "Built for the wide ones.",
+    opening:
+      "Vertical blinds are our answer for sliding glass doors: the vanes stack to one side so the door still works as a door, and they tilt to block the low western sun a horizontal blind cannot reach.",
     body: [
       "Sliding glass doors and tall patio windows are the hardest openings in most Las Vegas homes, and verticals remain the most sensible answer. The vanes stack to one side so the door still works as a door, and they tilt to kill the low western sun that a horizontal blind cannot reach.",
       "Today's vertical is not the brittle plastic one you remember from a nineties apartment. Fabric-wrapped vanes, faux wood, and PVC in warm neutrals hang straight, move quietly, and look considered rather than budget.",
@@ -256,7 +266,7 @@ export const products: Product[] = [
       alt: "Floor-to-ceiling sheer vertical blinds drawn across a patio slider in a living room, with the backyard visible through the fabric vanes.",
     },
     seo: {
-      title: "Vertical Blinds in Las Vegas, NV | Premier Shade",
+      title: "Vertical Blinds in Las Vegas, NV | Premier Shade Solutions",
       description:
         "Custom vertical blinds for Las Vegas sliding doors and wide windows. Modern fabric and faux wood vanes. Free in-home consultation.",
     },
@@ -266,6 +276,8 @@ export const products: Product[] = [
     name: "Wood & Faux Wood Blinds",
     category: "blinds",
     tagline: "Warmth with a working tilt.",
+    opening:
+      "Faux wood blinds will not warp, fade or crack in direct desert sun, so we put them everywhere the sun actually hits and save real wood blinds for shaded, formal rooms.",
     body: [
       "Wood blinds bring the warmth of a shutter at a fraction of the cost, with the slat control a shutter also gives you. Real basswood is light, takes stain beautifully, and suits a room where the trim and the floor are already doing the talking.",
       "Faux wood is the more practical sibling and, in this climate, usually the smarter buy. It will not warp, fade, or crack in direct desert sun, and it goes anywhere moisture lives. Modern faux wood is embossed and color-matched well enough that most people cannot tell the difference from across the room.",
@@ -282,7 +294,7 @@ export const products: Product[] = [
     image: altaPhotos.woodBlindsCornice,
     storyPhoto: altaPhotos.fauxWoodBath,
     seo: {
-      title: "Wood & Faux Wood Blinds in Las Vegas, NV",
+      title: "Wood & Faux Wood Blinds Las Vegas | Premier Shade Solutions",
       description:
         "Custom wood and faux wood blinds for Las Vegas homes. Faux wood resists desert sun and warping. Free in-home consultation and install.",
     },
@@ -294,6 +306,8 @@ export const products: Product[] = [
     name: "Roller Shades",
     category: "shades",
     tagline: "One clean line of fabric.",
+    opening:
+      "For west-facing bedrooms we usually specify dual roller shades: a solar screen for the day and a blackout behind it on one bracket, so one window does both jobs.",
     body: [
       "A roller shade is the simplest thing we install and, increasingly, the most requested. A single panel of fabric rolls onto a tube hidden in a slim cassette, so when it is up the window is genuinely uncovered and when it is down you see fabric, not hardware.",
       "Because the fabric does all the work, the choice of fabric is the entire decision. The same shade can be a sheer that keeps a room bright while cutting glare, a room-darkening weave for a media room, or a true blackout for a bedroom where someone works nights.",
@@ -320,6 +334,8 @@ export const products: Product[] = [
     name: "Solar Shades",
     category: "shades",
     tagline: "See out. Keep the heat out.",
+    opening:
+      "Solar shades block up to 99% of UV and keep your view, and we bring a tight 3% screen and a crisp 10% screen to your windows so you can see the difference in glare before you choose.",
     body: [
       "Solar shades are a technical screen fabric rather than a decorative one. The weave blocks a measured percentage of solar energy and UV while leaving the weave open enough to see through, so you keep the view and lose the glare and the heat that comes with it.",
       "The number that matters is openness factor. A three percent screen is tight — maximum heat and UV rejection, a softer view. A ten percent screen keeps a crisp view but lets more energy through. Choosing between them depends on which direction the window faces and what is outside it, and it is exactly the decision people get wrong buying online.",
@@ -346,6 +362,8 @@ export const products: Product[] = [
     name: "Cellular Shades",
     category: "shades",
     tagline: "The insulating one.",
+    opening:
+      "Cellular shades trap a layer of still air against the glass, so on a single-pane window or an older aluminum frame they slow the afternoon heat coming in and give your air conditioning a break.",
     body: [
       "Cellular shades, sometimes called honeycomb, are built from pleated cells that trap a layer of still air against the glass. That trapped air is genuine insulation, and it is the reason this is the highest-performing energy product in the category.",
       "In a Las Vegas summer that insulation works in the direction people forget: it slows heat coming in, not just heat leaking out. On a single-pane window or an older aluminum frame, a double-cell shade makes a measurable difference in how hard the air conditioning has to work in the afternoon.",
@@ -362,7 +380,7 @@ export const products: Product[] = [
     image: altaPhotos.honeycombEntry,
     storyPhoto: altaPhotos.honeycombTopDown,
     seo: {
-      title: "Cellular Shades in Las Vegas, NV | Premier Shade",
+      title: "Cellular Shades in Las Vegas, NV | Premier Shade Solutions",
       description:
         "Insulating cellular honeycomb shades for Las Vegas homes. Cut summer heat gain and cooling costs. Top-down bottom-up options available.",
     },
@@ -372,6 +390,8 @@ export const products: Product[] = [
     name: "Roman Shades",
     category: "shades",
     tagline: "Soft folds, tailored.",
+    opening:
+      "Roman shades give you the softness of drapery in the footprint of a shade, and we help you choose a crisp flat fold or a soft hobbled fold, lined for privacy or room darkening.",
     body: [
       "Roman shades fold into horizontal pleats as they rise, giving you the softness of drapery in the footprint of a shade. They are the most tailored-looking thing in the category and the choice people make when the window treatment is meant to be part of the room's design rather than a utility.",
       "Style comes down to the fold. A flat roman reads crisp and contemporary. A hobbled roman holds soft cascading loops even when fully lowered, which suits a more traditional room. Both can be lined for privacy or interlined for genuine room darkening.",
@@ -404,6 +424,8 @@ export const products: Product[] = [
     name: "Woven Wood Shades",
     category: "shades",
     tagline: "Texture that filters the light.",
+    opening:
+      "Woven wood shades bring natural bamboo, reed and jute texture and warm, dappled light into the room, and we add a privacy or blackout liner behind the weave for bedrooms and street-facing rooms.",
     body: [
       "Woven woods are made from natural bamboo, reed, jute, and grasses, which means no two shades are identical and every one brings visible texture into the room. When light passes through the weave it picks up warmth and casts a dappled pattern that no manufactured fabric reproduces.",
       "They have become the default choice in the organic-modern and desert-contemporary interiors that suit this valley, sitting comfortably next to plaster, warm wood, and terracotta without looking themed.",
@@ -420,7 +442,7 @@ export const products: Product[] = [
     image: altaPhotos.wovenBedroom,
     storyPhoto: altaPhotos.wovenLivingRoom,
     seo: {
-      title: "Woven Wood Shades in Las Vegas, NV | Premier Shade",
+      title: "Woven Wood Shades in Las Vegas, NV | Premier Shade Solutions",
       description:
         "Natural bamboo and woven wood shades for Las Vegas homes. Warm texture with optional privacy liners. Free in-home consultation.",
     },
@@ -430,6 +452,8 @@ export const products: Product[] = [
     name: "Transitional Shades",
     category: "shades",
     tagline: "Sheer and solid, in one shade.",
+    opening:
+      "Transitional shades put sheer and solid bands on one rolling panel, so a single shade takes your room from bright at breakfast to private and glare-free by mid-afternoon.",
     body: [
       "Transitional shades — also sold as zebra or dual-layer shades — alternate sheer and opaque horizontal bands on a single rolling panel. Align the opaque bands and the shade is closed. Offset them and the sheers line up and the room fills with filtered light. You get two treatments from one shade and one bracket.",
       "That range is the appeal. A single shade takes a room from open and bright at breakfast to private and glare-free by mid-afternoon, without swapping anything or layering two products on one window.",
@@ -446,7 +470,7 @@ export const products: Product[] = [
     image: altaPhotos.bandedLivingRoom,
     storyPhoto: altaPhotos.bandedBedroom,
     seo: {
-      title: "Transitional Zebra Shades in Las Vegas, NV",
+      title: "Zebra Shades in Las Vegas, NV | Premier Shade Solutions",
       description:
         "Dual-layer transitional zebra shades for Las Vegas homes. Sheer and privacy in a single shade. Free in-home consultation and install.",
     },
@@ -458,6 +482,8 @@ export const products: Product[] = [
     name: "Plantation Shutters",
     category: "shutters",
     tagline: "The one that becomes part of the house.",
+    opening:
+      "Plantation shutters are built to the opening and framed to the wall, and for the large modern glass in most Las Vegas homes we suggest 4 1/2 inch louvers for a cleaner view when they are open.",
     body: [
       "Plantation shutters are wide-louver interior shutters fitted into the window opening and framed to the wall. Because they are built to the opening rather than hung in front of it, they read as architecture — and they are the one window treatment that reliably adds value at resale rather than depreciating.",
       "The louver size sets the character. Three-and-a-half inch louvers suit smaller windows and traditional rooms. Four-and-a-half inch louvers give a cleaner sightline and more view when open, which is what most Las Vegas homes with large modern glass should be using.",
@@ -474,7 +500,7 @@ export const products: Product[] = [
     image: altaPhotos.shuttersKitchen,
     storyPhoto: altaPhotos.shuttersFrenchDoors,
     seo: {
-      title: "Plantation Shutters in Las Vegas, NV | Premier Shade",
+      title: "Plantation Shutters in Las Vegas | Premier Shade Solutions",
       description:
         "Custom plantation shutters for Las Vegas homes. Built to the opening, framed, and installed by the owners. Free in-home consultation.",
     },
@@ -484,6 +510,8 @@ export const products: Product[] = [
     name: "Composite Shutters",
     category: "shutters",
     tagline: "Engineered for this climate.",
+    opening:
+      "Composite shutters are our default for most Las Vegas homes, because a composite louver will not warp on a west-facing window, will not yellow, and will not swell in a bathroom.",
     body: [
       "Composite shutters use an engineered wood or polymer core wrapped in a durable finish. They deliver the look of a painted wood shutter while removing the two things that kill wood in the desert: sun and moisture.",
       "A composite louver will not warp on a west-facing window, will not yellow, and will not swell in a bathroom. That makes it our default recommendation for the majority of Las Vegas homes, and the reason we specify it far more often than real wood.",
@@ -494,13 +522,12 @@ export const products: Product[] = [
       "Safe for bathrooms, laundry rooms, and kitchens",
       "Consistent factory paint finish that resists chipping",
       "Generally more affordable than comparable real wood",
-      "Backed by strong manufacturer warranties",
     ],
     bestFor: "Most Las Vegas homes, and any window on a west or south elevation.",
     image: altaPhotos.compositeShuttersDining,
     storyPhoto: altaPhotos.shuttersFrenchDoors,
     seo: {
-      title: "Composite Shutters in Las Vegas, NV | Premier Shade",
+      title: "Composite Shutters in Las Vegas | Premier Shade Solutions",
       description:
         "Durable composite plantation shutters built for the Las Vegas climate. Will not warp, fade, or yellow in desert sun. Free consultation.",
     },
@@ -510,6 +537,8 @@ export const products: Product[] = [
     name: "Real Wood Shutters",
     category: "shutters",
     tagline: "Lighter panels, real grain.",
+    opening:
+      "Real wood shutters are lighter than composite, so a wide opening can take wider panels and a cleaner sightline, with natural grain we can stain to match your floors or beams.",
     body: [
       "Real wood shutters are milled from hardwood, usually basswood, and finished in stain or paint. Wood is significantly lighter than composite, which means wider panels are possible before extra stiles are needed — so on a large opening a wood shutter can give a cleaner, more open sightline.",
       "Wood is also the only option if you want visible grain. A stained wood shutter next to wood floors or exposed beams does something no painted composite can imitate.",
@@ -529,7 +558,7 @@ export const products: Product[] = [
       alt: "White plantation shutters with open louvers over a farmhouse kitchen sink and marble countertop",
     },
     seo: {
-      title: "Real Wood Shutters in Las Vegas, NV | Premier Shade",
+      title: "Real Wood Shutters in Las Vegas | Premier Shade Solutions",
       description:
         "Custom hardwood plantation shutters for Las Vegas homes. Real grain, wider panels, stain-matched to your woodwork. Free consultation.",
     },
@@ -541,6 +570,8 @@ export const products: Product[] = [
     name: "Solar Screens",
     category: "outdoor",
     tagline: "Fixed protection, every window.",
+    opening:
+      "Solar screens mount over the outside of the window and turn away roughly 70–90% of the sun's heat before it reaches the glass, which is why we put them on the west and south sides of the house.",
     body: [
       "Solar screens are fixed exterior screens mounted over the window itself. Unlike a retractable shade, they stay in place through the season and quietly reject a large share of solar energy before it reaches the glass — commonly seventy to ninety percent depending on the mesh.",
       "They are the most cost-effective exterior product per window, which is why they are the practical choice when the goal is to treat an entire west elevation rather than a single opening. Homeowners commonly see a real reduction in a summer power bill after screening the west side of a house.",

@@ -3,7 +3,11 @@ import { describe, it, expect, vi } from "vitest";
 import GalleryPage from "@/app/(site)/gallery/page";
 
 // The empty-gallery branch only renders before any photos are published.
-vi.mock("@/content/gallery", () => ({ gallery: [] }));
+// The page also shares one gallery photo, so it falls back to the consultation photo when there are none.
+vi.mock("@/content/gallery", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/content/gallery")>()),
+  gallery: [],
+}));
 
 describe("Gallery, before any photos are published", () => {
   it("invites the visitor over with the free consultation line beside the button", () => {

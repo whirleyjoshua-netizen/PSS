@@ -1,6 +1,7 @@
 import { Resend } from "resend";
 import { adClickLabel } from "./attribution";
 import { business } from "@/content/business";
+import { CALLBACK_WINDOW } from "@/content/consultation";
 import { adminOrigin } from "@/lib/admin/origin";
 import { GOOGLE_FORM_SOURCE, formatPhone, leadSourceLabel, type ConsultationInput, type LeadSource } from "./schema";
 
@@ -95,7 +96,7 @@ export async function sendCustomerConfirmation(
     "",
     "What happens next:",
     "",
-    "1. We call you within 3 business days to find a time that works.",
+    `1. We call you ${CALLBACK_WINDOW} to find a time that works.`,
     "2. At the visit we bring real samples to your windows, measure each window, and send you a written quote. No charge, no obligation.",
     "3. If you choose to move forward, your window treatments are made to order, and we install them ourselves.",
     "",

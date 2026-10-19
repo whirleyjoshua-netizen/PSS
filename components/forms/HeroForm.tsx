@@ -18,6 +18,8 @@ import { FormMessage, Honeypot, TextField } from "./Field";
  * `introOnPhone={false}` hides the intro under the heading below sm, where TreatmentHero needs
  * the room to keep Invite Us Over above a 390×844 fold.
  * `notes` rides along as the lead's notes (the holiday page names its offer there).
+ * `beforeSubmit` sits inside the form just above the button (the homepage's holiday offer, which carries its own
+ * notes field); `footer` sits under the form, inside the card (the homepage's proof line and badges).
  */
 export function HeroForm({
   className,
@@ -27,6 +29,8 @@ export function HeroForm({
   treatment,
   introOnPhone = true,
   notes,
+  beforeSubmit,
+  footer,
 }: {
   className?: string;
   idPrefix?: string;
@@ -35,6 +39,8 @@ export function HeroForm({
   treatment?: string;
   introOnPhone?: boolean;
   notes?: string;
+  beforeSubmit?: React.ReactNode;
+  footer?: React.ReactNode;
 }) {
   const { state, error, submit } = useConsultationForm(source);
 
@@ -74,6 +80,8 @@ export function HeroForm({
           required
         />
 
+        {beforeSubmit}
+
         <FormMessage
           state={state}
           error={error}
@@ -88,6 +96,8 @@ export function HeroForm({
           </Button>
         ) : null}
       </form>
+
+      {footer}
     </div>
   );
 }

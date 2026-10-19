@@ -3,8 +3,10 @@ import { vi } from "vitest";
 
 // Components render outside a mounted App Router in tests, so useRouter would
 // throw. Files that assert on navigation mock this again with their own spy.
+// usePathname: the header's dropdowns (NavDisclosure) close when it changes.
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn(), prefetch: vi.fn() }),
+  usePathname: () => "/",
 }));
 
 // next/font/local is a build-time transform. Under vitest it is a plain module that cannot load a

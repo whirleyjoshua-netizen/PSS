@@ -41,3 +41,57 @@ describe("htmlAttachments", () => {
     ]);
   });
 });
+
+describe("mailKind", () => {
+  it("names each DC and HD email by sender and subject together", () => {
+    expect(mailbox.mailKind("retailer@hunterdouglas.com", "DEALER COPY #22293638, PO PSS-1042-E")).toBe("dealer-copy");
+    expect(mailbox.mailKind("retailer@hunterdouglas.com", "Confirming Receipt of Quote #22293638 / Sidemark: Test, Client")).toBe("receipt");
+    expect(mailbox.mailKind("donotreply@hunterdouglas.com", "New Order # 14286505 for Sidemark: Test, Clie")).toBe("order");
+  });
+  it("never takes the right subject from the wrong sender as that kind", () => {
+    expect(mailbox.mailKind("retailer@hunterdouglas.com", "New Order # 14286505 for Sidemark: Test")).toBeNull();
+    // The receipt's subject from HD's order address is not a receipt: it is other HD mail the owners hear about.
+    expect(mailbox.mailKind("donotreply@hunterdouglas.com", "Confirming Receipt of Quote #1 / Sidemark: Test")).toBe("hd-other");
+    expect(mailbox.mailKind("someone@evil.com", "New Order # 1 for Sidemark: Test")).toBeNull();
+  });
+});
+
+describe("mailKind for other HD mail", () => {
+  it("names any other mail from HD's order address, so the owners hear about a new kind such as shipping", () => {
+    expect(mailbox.mailKind("donotreply@hunterdouglas.com", "Your order has shipped")).toBe("hd-other");
+    expect(mailbox.mailKind("feedback@email.hunterdouglas.com", "Share your Hunter Douglas experience")).toBeNull();
+    expect(mailbox.mailKind("gina.roach@hunterdouglas.com", "Brite Pay")).toBeNull();
+  });
+});
+
+describe("listCandidateMessages kinds", () => {
+  it("returns order and receipt mail with its kind", async () => {
+    graphJson.mockResolvedValueOnce({ value: [
+      { id: "r", internetMessageId: "<r@x>", subject: "Confirming Receipt of Quote #22293638 / Sidemark: Test, Client", receivedDateTime: "2026-10-12T22:09:27Z", from: { emailAddress: { address: "retailer@hunterdouglas.com" } } },
+      { id: "o", internetMessageId: "<o@x>", subject: "New Order # 14286505 for Sidemark: Test, Clie", receivedDateTime: "2026-10-12T22:34:03Z", from: { emailAddress: { address: "DoNotReply@HunterDouglas.com" } } },
+    ] });
+    const found = await mailbox.listCandidateMessages(new Date("2026-10-12T00:00:00Z"));
+    expect(found.map((m) => [m.id, m.kind])).toEqual([["r", "receipt"], ["o", "order"]]);
+  });
+});
+
+describe("pdfAttachments and messageHtml", () => {
+  it("returns every .pdf file attachment, decoded, with anything over 5 MB listed but not decoded", async () => {
+    graphJson.mockResolvedValueOnce({ value: [
+      { "@odata.type": "#microsoft.graph.fileAttachment", name: "PRINT New Order # 1 for Sidemark: Test.PDF", size: 10, contentBytes: Buffer.from("%PDF").toString("base64") },
+      { "@odata.type": "#microsoft.graph.fileAttachment", name: "page.html", size: 10, contentBytes: "" },
+      { "@odata.type": "#microsoft.graph.fileAttachment", name: "huge.pdf", size: 6_000_000, contentBytes: Buffer.from("%PDF").toString("base64") },
+    ] });
+    expect(await mailbox.pdfAttachments("o")).toEqual([
+      { name: "PRINT New Order # 1 for Sidemark: Test.PDF", bytes: Buffer.from("%PDF") },
+      { name: "huge.pdf", bytes: null },
+    ]);
+  });
+  it("GETs only the message body", async () => {
+    graphJson.mockResolvedValueOnce({ body: { contentType: "html", content: "<html>order</html>" } });
+    expect(await mailbox.messageHtml("o")).toBe("<html>order</html>");
+    const [path, init] = graphJson.mock.calls[0];
+    expect(path).toBe("users/support%40premiershadesolutions.com/messages/o?$select=body");
+    expect(init?.method ?? "GET").toBe("GET");
+  });
+});

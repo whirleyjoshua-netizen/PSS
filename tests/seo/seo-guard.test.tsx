@@ -21,7 +21,8 @@ const hrefs = (container: HTMLElement) =>
 describe("SEO inventory survives the family redesign (spec §2)", () => {
   it("keeps the root title and description", () => {
     const title = rootMetadata.title as { default: string };
-    expect(title.default).toBe("Custom Blinds, Shades & Shutters in Las Vegas | Premier Shade Solutions");
+    // Shortened to fit the ~60-character results line (SEO audit 2026-10-13).
+    expect(title.default).toBe("Blinds, Shades, Shutters Las Vegas | Premier Shade Solutions");
     expect(rootMetadata.description).toBe(
       "Custom blinds, shades, shutters, and motorized window treatments for Las Vegas, Henderson, Summerlin, and North Las Vegas. Free in-home consultation.",
     );
@@ -30,7 +31,9 @@ describe("SEO inventory survives the family redesign (spec §2)", () => {
   it("keeps every homepage internal link", () => {
     const links = hrefs(render(<Home />).container);
     for (const path of [
-      ...categories.map((c) => `/${c.slug}`),
+      // Outdoor left the homepage grid (owner, 2026-10-14); the site header still links it on every page
+      // (tests/layout/header.test.tsx).
+      ...categories.filter((c) => c.slug !== "outdoor").map((c) => `/${c.slug}`),
       ...cities.map((c) => `/service-area/${c.slug}`),
       "/gallery",
       "/about",
@@ -51,7 +54,7 @@ describe("SEO inventory survives the family redesign (spec §2)", () => {
     const schema = localBusinessSchema() as Record<string, unknown>;
     expect(schema.name).toBe(business.name);
     expect(schema.telephone).toBe(business.phone.display);
-    expect(schema.areaServed).toHaveLength(business.serviceArea.length);
+    expect(schema.areaServed).toHaveLength(business.serviceArea.length + business.travelArea.length);
     expect(schema.sameAs).toBeDefined();
     expect(schema.slogan).toBe("You let us into your home. We let you into our family.");
   });

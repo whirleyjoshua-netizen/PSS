@@ -1,7 +1,9 @@
 import Link from "next/link";
-import { Logo } from "@/components/brand/Logo";
+import { LogoImage } from "@/components/brand/LogoImage";
 import { Container } from "@/components/ui/Container";
 import { MobileMenu } from "./MobileMenu";
+import { NavDisclosure } from "./NavDisclosure";
+import { ABOUT_LINKS } from "./nav-links";
 import { business } from "@/content/business";
 import { categories } from "@/content/products";
 import { getProductsIn } from "@/lib/content/products";
@@ -9,74 +11,106 @@ import { getProductsIn } from "@/lib/content/products";
 /**
  * Sticky header — a server component.
  *
- * Two deliberate choices keep this shipping almost no JavaScript:
+ * Two deliberate choices keep this shipping little JavaScript:
  *
- * 1. Submenus are always in the DOM and revealed with CSS on hover and
- *    focus-within, never conditionally rendered. That keeps all sixteen
- *    product links crawlable and reachable by keyboard.
- * 2. Only the mobile menu is a client component. Making the whole header
- *    client-side meant hydrating seventy-odd links on every page load, which
- *    dominated total blocking time.
+ * 1. Submenus are always in the HTML, never conditionally rendered, so all
+ *    sixteen product links stay crawlable. Each dropdown is a small client
+ *    disclosure (NavDisclosure): a button with aria-expanded and a panel that
+ *    is hidden while closed, opened by hover, click, Enter or Space.
+ * 2. Only the toggles are client components; the links inside them are
+ *    server-rendered children. Making the whole header client-side meant
+ *    hydrating seventy-odd links on every page load, which dominated total
+ *    blocking time.
+ *
+ * Six top-level items plus Call and the CTA must fit at 1024px (measured: they
+ * overflowed by ~150px), so between lg and xl the logo is smaller, gaps and
+ * tracking are tighter and the phone link shows just the number. Tighten
+ * spacing before dropping an item.
  */
+const TOP_LINK =
+  "block whitespace-nowrap px-1.5 py-2 font-display text-sm uppercase tracking-[0.06em] text-charcoal transition-colors hover:text-champagne-ink xl:px-3 xl:tracking-[0.12em]";
+/** A dropdown's label: a button styled exactly like a top-level link, so the row's width does not change. */
+const TOP_BUTTON = `${TOP_LINK} cursor-pointer aria-expanded:text-champagne-ink`;
+const PANEL_ITEM = "block px-4 py-2 text-sm transition-colors hover:bg-sand hover:text-charcoal";
+const PANEL_LINK = `${PANEL_ITEM} text-ink-soft`;
+
 export function Header() {
   return (
     <header className="sticky top-0 z-50 border-b border-rule bg-ivory/95 backdrop-blur">
       <Container>
-        <div className="flex items-center justify-between gap-6 py-4">
-          {/* No aria-label here: the Logo's own role="img" names this link. An
+        <div className="flex items-center justify-between gap-6 py-4 lg:gap-3 xl:gap-5">
+          {/* No aria-label here: the logo image's alt text names this link. An
               aria-label that does not contain the link's visible text is a
               label/name mismatch for voice-control users. */}
           <Link href="/" className="shrink-0">
-            <Logo variant="lockup" className="text-[26px] md:text-[30px]" />
+            <LogoImage variant="header" eager className="h-12 w-auto md:h-14 lg:h-10 xl:h-14" />
           </Link>
 
           <nav aria-label="Main" className="hidden lg:block">
-            <ul className="flex items-center gap-1">
+            <ul className="flex items-center xl:gap-1">
               {categories.map((category) => {
                 const children = getProductsIn(category.slug);
+                if (children.length === 0) {
+                  return (
+                    <li key={category.slug}>
+                      <Link href={`/${category.slug}`} className={TOP_LINK}>
+                        {category.navLabel}
+                      </Link>
+                    </li>
+                  );
+                }
                 return (
-                  <li key={category.slug} className="group relative">
-                    <Link
-                      href={`/${category.slug}`}
-                      className="block whitespace-nowrap px-3 py-2 font-display text-sm uppercase tracking-[0.12em] text-charcoal transition-colors hover:text-champagne-ink"
-                    >
-                      {category.navLabel}
-                    </Link>
-
-                    {children.length > 0 ? (
-                      <div className="invisible absolute left-0 top-full z-10 w-64 border border-rule bg-ivory py-2 opacity-0 shadow-lg transition-[opacity,visibility] duration-150 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100">
-                        <ul>
-                          {children.map((product) => (
-                            <li key={product.slug}>
-                              <Link
-                                href={`/${category.slug}/${product.slug}`}
-                                className="block px-4 py-2 text-sm text-ink-soft transition-colors hover:bg-sand hover:text-charcoal"
-                              >
-                                {product.name}
-                              </Link>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    ) : null}
-                  </li>
+                  <NavDisclosure key={category.slug} label={category.navLabel} className={TOP_BUTTON} panelClassName="left-0 w-64">
+                    <ul aria-label={category.name}>
+                      {/* The label is the toggle, so the category's own page is the panel's first link. */}
+                      <li>
+                        <Link href={`/${category.slug}`} className={`${PANEL_ITEM} font-medium text-charcoal`}>
+                          All {category.name.toLowerCase()}
+                        </Link>
+                      </li>
+                      {children.map((product) => (
+                        <li key={product.slug}>
+                          <Link href={`/${category.slug}/${product.slug}`} className={PANEL_LINK}>
+                            {product.name}
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  </NavDisclosure>
                 );
               })}
+
+              {/* Right-aligned: it is the last item, so a left-aligned panel would run off narrow screens. The
+                  label is the toggle and "Our family" (/about) the panel's first link, so About never sits beside
+                  a second link to the same page. */}
+              <NavDisclosure label="About" className={TOP_BUTTON} panelClassName="right-0 w-48">
+                <ul aria-label="About">
+                  {ABOUT_LINKS.map((link) => (
+                    <li key={link.href}>
+                      <Link href={link.href} className={PANEL_LINK}>
+                        {link.label}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </NavDisclosure>
             </ul>
           </nav>
 
-          <div className="hidden items-center gap-3 md:flex">
+          <div className="hidden items-center gap-3 md:flex lg:gap-2 xl:gap-3">
             <a
               href={business.phone.href}
               className="whitespace-nowrap font-display text-sm uppercase tracking-[0.12em] text-charcoal transition-colors hover:text-champagne-ink"
             >
-              Call {business.phone.display}
+              {/* "Call" is visually dropped only between lg and xl, where the full row is tightest; the link keeps it in its name. */}
+              <span className="lg:max-xl:sr-only">Call </span>
+              {business.phone.display}
             </a>
             <Link
               href="/contact"
-              className="inline-flex min-h-11 items-center whitespace-nowrap bg-champagne px-5 py-2.5 font-display text-xs font-medium uppercase tracking-[0.14em] text-charcoal transition-colors hover:bg-charcoal hover:text-ivory"
+              className="inline-flex min-h-11 items-center whitespace-nowrap bg-champagne px-5 py-2.5 lg:max-xl:px-4 font-display text-xs font-medium uppercase tracking-[0.14em] text-charcoal transition-colors hover:bg-charcoal hover:text-ivory"
             >
-              Free Consultation
+              Invite Us Over
             </Link>
           </div>
 

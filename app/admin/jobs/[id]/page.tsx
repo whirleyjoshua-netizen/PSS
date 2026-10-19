@@ -8,6 +8,7 @@ import { windowCount } from "@/lib/admin/measure-units";
 import { requireAdmin } from "@/lib/admin/session";
 import { listTeam } from "@/lib/admin/team";
 import { listReferrals } from "@/lib/referrals/db";
+import { listOrders } from "@/lib/dc/order-store";
 import { getRouteSettings } from "@/lib/routes/settings";
 import { ActivityTab } from "./ActivityTab";
 import { DocumentsTab, parseSentNotice } from "./DocumentsTab";
@@ -31,7 +32,7 @@ export default async function JobPage({ params, searchParams }: {
   const { id } = await params;
   const job = await getJob(id);
   if (!job) notFound();
-  const [query, events, referrals, referrer, parent, measureSet, files, team, appointments, routeSettings] = await Promise.all([
+  const [query, events, referrals, referrer, parent, measureSet, files, team, appointments, routeSettings, orders] = await Promise.all([
     searchParams,
     getEvents(id),
     listReferrals(id),
@@ -42,6 +43,7 @@ export default async function JobPage({ params, searchParams }: {
     listTeam(),
     listAppointments(id),
     getRouteSettings(),
+    listOrders(id),
   ]);
   const working = workingWindows(measureSet);
   const tab = parseJobTab(query.tab);
@@ -57,7 +59,7 @@ export default async function JobPage({ params, searchParams }: {
         <OverviewTab job={job} editing={editing} now={now} measurements={working} allWindows={measureSet.windows}
           measureSource={workingSource(measureSet)} files={files}
           events={events} referrals={referrals} referrer={referrer} appointments={appointments}
-          defaultMinutes={routeSettings.minutes} />
+          defaultMinutes={routeSettings.minutes} orders={orders} />
       ) : null}
       {tab === "measurements" ? <MeasurementsTab jobId={job.id} set={measureSet} files={files} /> : null}
       {tab === "files" ? (

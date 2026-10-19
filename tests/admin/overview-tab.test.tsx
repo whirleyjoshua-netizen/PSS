@@ -71,6 +71,38 @@ describe("OverviewTab", () => {
     expect(within(order).getByRole("link", { name: "Order paperwork" })).toHaveAttribute("href", "/admin/files/doc-1");
   });
 
+  describe("an order Hunter Douglas confirmed", () => {
+    const hd = {
+      id: "o1", leadId: ID, option: "E", poReference: "PSS-1042-E", hdOrderNo: "14286505", orderDate: "2026-09-18",
+      subtotalCents: 109113, oversizeCents: 0, handlingCents: 5500, taxCents: 9138, totalCents: 123751,
+      quotedDealerTotalCents: 114613, fileId: "pdf-1", receivedAt: now,
+    };
+    it("names HD's order and total, and links its PDF instead of any other document", () => {
+      const doc = {
+        id: "doc-1", leadId: ID, kind: "document" as const, name: "other.pdf", contentType: "application/pdf",
+        blobPathname: "doc-1", createdAt: now, sizeBytes: 100, uploadedBy: "x", sharedAt: null,
+      };
+      render(<OverviewTab {...base} files={[doc]} orders={[hd]} />);
+      const order = screen.getByRole("region", { name: "Order" });
+      expect(order).toHaveTextContent("Ordered Sep 18, 2026");
+      expect(order).toHaveTextContent("HD order 14286505 for PSS-1042-E: $1,237.51 including $91.38 tax");
+      expect(within(order).getByRole("link", { name: "HD order 14286505" })).toHaveAttribute("href", "/admin/files/pdf-1");
+      expect(within(order).queryByRole("link", { name: "Order paperwork" })).toBeNull();
+      expect(order).not.toHaveTextContent("Cost differs");
+    });
+    it("flags a cost that differs from the quote, before tax", () => {
+      render(<OverviewTab {...base} orders={[{ ...hd, quotedDealerTotalCents: 110000 }]} />);
+      expect(screen.getByRole("region", { name: "Order" }))
+        .toHaveTextContent("Cost differs from the quote: quoted $1,100, HD charged $1,146.13 before tax.");
+    });
+    it("says nothing about cost when there was no quote to compare", () => {
+      render(<OverviewTab {...base} orders={[{ ...hd, quotedDealerTotalCents: null, fileId: null }]} />);
+      const order = screen.getByRole("region", { name: "Order" });
+      expect(order).not.toHaveTextContent("Cost differs");
+      expect(within(order).queryByRole("link")).toBeNull();
+    });
+  });
+
   it("counts measured windows, not saved lines", () => {
     const line = {
       id: "w", leadId: ID, kind: "designer" as const, position: 1, room: "Den", label: null, widthEighths: 240, heightEighths: 320,

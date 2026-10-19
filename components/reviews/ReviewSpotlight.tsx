@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Section } from "@/components/ui/Section";
-import { ownerName, pastWork, type PastReview } from "@/content/reviews";
+import { ownerName, type PastReview } from "@/content/reviews";
 import { formatReviewDate } from "./ReviewCard";
 
 const INTERVAL_MS = 7000;
@@ -79,7 +79,7 @@ export function ReviewSpotlight({ reviews }: { reviews: PastReview[] }) {
         </div>
 
         <p className="text-sm leading-relaxed text-sand/75">
-          From our work with {pastWork.source}, in Ohio and Las Vegas, before Premier Shade Solutions.
+          From our earlier work in Ohio and Las Vegas, before Premier Shade Solutions.
         </p>
       </div>
     </Section>

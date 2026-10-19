@@ -36,7 +36,12 @@ export const docTypeLabel = (type: DocType): string => DOC_TYPE_LABELS[type];
  * setDocType refuses it, and the database refuses to share it (job_files_dealer_copy_never_shared).
  */
 export const DEALER_COPY = "dealer_copy" as const;
-export type StoredDocType = DocType | typeof DEALER_COPY;
+/** Set only by the HD order import (migration 045), with the same rules as DEALER_COPY: HD's PDF shows dealer cost. */
+export const HD_ORDER = "hd_order" as const;
+export type StoredDocType = DocType | typeof DEALER_COPY | typeof HD_ORDER;
+
+/** Types that show dealer cost: never offered in the menu, never relabelled, never shared. */
+export const isInternalDocType = (type: StoredDocType | null | undefined): boolean => type === DEALER_COPY || type === HD_ORDER;
 
 export const storedDocTypeLabel = (type: StoredDocType): string =>
-  type === DEALER_COPY ? "Dealer copy (internal)" : docTypeLabel(type);
+  type === DEALER_COPY ? "Dealer copy (internal)" : type === HD_ORDER ? "HD order (internal)" : docTypeLabel(type);

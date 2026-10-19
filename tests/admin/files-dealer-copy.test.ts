@@ -36,7 +36,7 @@ describe("setShared", () => {
   it("never matches a Dealer Copy, even before the database check", async () => {
     sql.mockResolvedValue([]);
     await files.setShared(JOB, FILE, true, "o@x.com");
-    expect(text(sql.mock.calls[0])).toContain("doc_type is distinct from 'dealer_copy'");
+    expect(text(sql.mock.calls[0])).toContain("(doc_type is null or doc_type not in ('dealer_copy','hd_order'))");
   });
 });
 
@@ -56,7 +56,7 @@ describe("setDocType", () => {
   it("never relabels a Dealer Copy", async () => {
     sql.mockResolvedValue([]);
     await files.setDocType(JOB, FILE, "quote", "o@x.com");
-    expect(text(sql.mock.calls[0])).toContain("doc_type is distinct from 'dealer_copy'");
+    expect(text(sql.mock.calls[0])).toContain("(doc_type is null or doc_type not in ('dealer_copy','hd_order'))");
   });
 
   it("a Dealer Copy cannot be relabelled (so it can then never be shared): the refusal is on the row being updated", async () => {
@@ -66,7 +66,7 @@ describe("setDocType", () => {
     // row's CURRENT label rather than anything else.
     const statement = text(sql.mock.calls[0]);
     const update = statement.slice(statement.indexOf("update job_files"), statement.indexOf("returning"));
-    expect(update).toContain("and doc_type is distinct from 'dealer_copy'");
+    expect(update).toContain("and (doc_type is null or doc_type not in ('dealer_copy','hd_order'))");
   });
 
   it("never relabels a contract a quote version names, whatever that version's status", async () => {

@@ -93,13 +93,14 @@ describe("BookingBlock", () => {
 });
 
 describe("BookingBlock — layered design", () => {
-  it("shows the three promises as badges", () => {
+  it("shows the four promises as badges", () => {
     render(<BookingBlock photo={consultationPhoto} />);
     const badges = screen.getByRole("list", { name: /what you get/i });
     expect(within(badges).getAllByRole("listitem").map((item) => item.textContent)).toEqual([
       "Free consultation",
       "Family-run",
       "No obligation",
+      "Insured",
     ]);
   });
 

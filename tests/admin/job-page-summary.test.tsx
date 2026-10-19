@@ -37,6 +37,7 @@ vi.mock("@/app/admin/jobs/actions", () => ({
 }));
 vi.mock("@/lib/admin/team", () => ({ listTeam: vi.fn(async () => []) }));
 vi.mock("@/lib/admin/appointments", () => ({ listAppointments: vi.fn(async () => []) }));
+vi.mock("@/lib/dc/order-store", () => ({ listOrders: vi.fn(async () => []) }));
 vi.mock("@/lib/routes/settings", () => ({
   getRouteSettings: vi.fn(async () => ({ dayStart: "09:00", dayEnd: "18:00", minutes: { consultation: 60, measure: 60, install: 240, service: 90 } })),
 }));

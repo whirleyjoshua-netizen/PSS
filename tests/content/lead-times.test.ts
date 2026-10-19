@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { leadTimes } from "@/content/lead-times";
+import { MOTORIZED_EXTRA_WEEKS, leadTimes } from "@/content/lead-times";
 import { PRODUCTION_ESTIMATE } from "@/content/business";
 import { formatShortDate, installWindow, isAfterDay, leadTimeSummary, todayInLasVegas } from "@/lib/lead-times";
 import { STARTER_TERMS } from "@/lib/docs/starter-terms";
@@ -13,6 +13,11 @@ describe("lead times", () => {
     ]);
     expect(STARTER_TERMS).toContain("Shades and blinds: about **3–5 weeks**");
     expect(STARTER_TERMS).toContain("Shutters: about **6–10 weeks**");
+  });
+
+  it("add the contract's motorized week", () => {
+    expect(MOTORIZED_EXTRA_WEEKS).toBe(1);
+    expect(STARTER_TERMS).toContain(`Motorized products: add about **${MOTORIZED_EXTRA_WEEKS} week**`);
   });
 
   it("feed the customer's project page, so the site never contradicts the contract", () => {
@@ -65,5 +70,21 @@ describe("isAfterDay", () => {
   it("is false on the day itself and true the day after", () => {
     expect(isAfterDay(todayInLasVegas(new Date("2026-12-24T20:00:00Z")), "2026-12-24")).toBe(false);
     expect(isAfterDay(todayInLasVegas(new Date("2026-12-25T20:00:00Z")), "2026-12-24")).toBe(true);
+  });
+});
+
+describe("every lead-time sentence says when the weeks start", () => {
+  it("in the consultation cards, steps and answers, the holiday copy and the FAQ", async () => {
+    const { PAINS, STEPS, FAQ } = await import("@/content/consultation");
+    const { FAQ_GROUPS } = await import("@/content/faq");
+    const copy = [
+      ...PAINS.map((p) => p.body),
+      ...STEPS.map((s) => s.body),
+      ...FAQ.map((f) => f.a),
+      ...FAQ_GROUPS.flatMap((g) => g.items.map((i) => i.a)),
+    ];
+    const withWeeks = copy.filter((line) => /\d+–\d+ weeks/.test(line));
+    expect(withWeeks.length).toBeGreaterThanOrEqual(4);
+    for (const line of withWeeks) expect(line, line).toMatch(/from the day you order|from order/);
   });
 });

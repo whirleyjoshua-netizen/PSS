@@ -1,8 +1,8 @@
 import { z } from "zod";
-import { business } from "@/content/business";
+import { leadCities } from "@/content/business";
 import { attributionSchema } from "./attribution";
 
-const cities: readonly string[] = business.serviceArea;
+const cities: readonly string[] = leadCities;
 
 export const WINDOW_COUNTS = ["1-5", "6-10", "11-20", "20+"] as const;
 
@@ -36,7 +36,7 @@ export const consultationSchema = z.object({
 
   city: z
     .string()
-    .refine((value) => cities.includes(value), "We currently serve the Las Vegas valley."),
+    .refine((value) => cities.includes(value), "We serve the Las Vegas valley, Pahrump and Mesquite."),
 
   address: z.string().trim().max(200).optional(),
   treatments: z.array(z.string().max(40)).max(6).optional(),

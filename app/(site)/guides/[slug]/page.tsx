@@ -31,7 +31,9 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
       description: guide.seo.description,
       url: `/guides/${guide.slug}`,
       type: "article",
+      // No `images`: ./opengraph-image.tsx supplies the site image, which Next adds only while this is unset.
     },
+    twitter: { card: "summary_large_image" },
   };
 }
 
@@ -41,7 +43,8 @@ export default async function GuidePage({ params }: { params: Promise<{ slug: st
   if (!guide) notFound();
 
   const trail = [
-    { name: "Guides", url: "/guides" },
+    // The guides index folded into the FAQ (2026-10-13); /guides redirects to /faq#care.
+    { name: "Questions & care", url: "/faq" },
     { name: guide.crumb, url: `/guides/${guide.slug}` },
   ];
   const category = categories.find((c) => c.slug === guide.category)!;

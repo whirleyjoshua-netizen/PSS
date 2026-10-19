@@ -1,16 +1,21 @@
 import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/seo/metadata";
 import Image from "next/image";
 import { Section } from "@/components/ui/Section";
 import { PageHero, ConsultationCta } from "@/components/product/ProductParts";
 import { ButtonLink } from "@/components/ui/Button";
-import { gallery } from "@/content/gallery";
+import { consultationPhoto, gallery, holidayPhoto } from "@/content/gallery";
 
-export const metadata: Metadata = {
+/** Shared with one of our own installs; the holiday photo is seasonal, so never that one. */
+const sharePhoto = gallery.find((item) => item !== holidayPhoto) ?? consultationPhoto;
+
+export const metadata: Metadata = pageMetadata({
   title: "Gallery | Premier Shade Solutions",
   description:
-    "Blinds, shades, and shutters we measured and installed — real jobs, photographed on site.",
-  alternates: { canonical: "/gallery" },
-};
+    "Blinds, shades, and shutters we measured and installed ourselves, photographed on site: real jobs, never stock photography. Free in-home consultation.",
+  path: "/gallery",
+  photo: sharePhoto,
+});
 
 export default function GalleryPage() {
   return (

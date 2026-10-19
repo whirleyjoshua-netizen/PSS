@@ -2,8 +2,11 @@ import "server-only";
 import { Resend } from "resend";
 import { business } from "@/content/business";
 import { adminOrigin } from "@/lib/admin/origin";
-import { formatShortDate } from "@/lib/admin/time";
+import { formatCents } from "@/lib/admin/money";
+import { stageLabel } from "@/lib/admin/stages";
+import { formatDateOnly, formatShortDate } from "@/lib/admin/time";
 import { ownerRecipients } from "@/lib/leads/email";
+import { orderBeforeTaxCents, type HdOrder } from "./order-parse";
 import type { ImportOutcome } from "./types";
 
 const HOW_TO_SEND = "In Direct Connect: Reports → Dealer Copy → Email → tick Owner and Include dealer costs → Generate.";
@@ -55,12 +58,88 @@ export function importEmail(input: { outcome: ImportOutcome; dcQuoteNo: string |
  * Dealer Copies that have kept failing for over a day (spec §9: `failed` is only emailed once it
  * has failed again on later runs). One email per run, one line per message.
  */
-export function staleFailuresEmail(failures: { quoteNo: string | null; receivedAt: Date }[]): { subject: string; text: string } {
+export function staleFailuresEmail(failures: { quoteNo: string | null; receivedAt: Date; kind?: "dealer-copy" | "receipt" | "order" | "hd-other" }[]): { subject: string; text: string } {
+  const what = (f: (typeof failures)[number]) =>
+    f.kind === "order" ? "An HD order confirmation"
+      : f.kind === "receipt" ? "A Direct Connect order receipt"
+        : `A Dealer Copy (${f.quoteNo ? `quote #${f.quoteNo}` : "quote number unknown"})`;
   return {
-    subject: "A Dealer Copy has failed to import for over a day",
-    text: failures.map((f) =>
-      `A Dealer Copy (${f.quoteNo ? `quote #${f.quoteNo}` : "quote number unknown"}) has failed to import since ${formatShortDate(f.receivedAt)}. A developer should look.`,
-    ).join("\n"),
+    subject: failures.every((f) => (f.kind ?? "dealer-copy") === "dealer-copy")
+      ? "A Dealer Copy has failed to import for over a day" : "A Direct Connect email has failed to import for over a day",
+    text: failures.map((f) => `${what(f)} has failed to import since ${formatShortDate(f.receivedAt)}. A developer should look.`).join("\n"),
+  };
+}
+
+const jobLink = (jobId: string) => `Open the job: ${adminOrigin()}/admin/jobs/${jobId}`;
+
+/**
+ * HD confirmed an order that was recorded on its job. Says where the job's stage went and whether HD's figure
+ * before tax matches the option's quoted dealer total. `quotedCents` is null when the option had no quote.
+ */
+export function orderEmail(input: { order: HdOrder; jobId: string; fromStatus: string; toStatus: string; quotedCents: number | null }): { subject: string; text: string } {
+  const o = input.order;
+  const beforeTax = orderBeforeTaxCents(o);
+  const stage = input.fromStatus !== input.toStatus
+    ? `The job moved from ${stageLabel(input.fromStatus)} to ${stageLabel(input.toStatus)}.`
+    : input.toStatus === "ordered" || input.toStatus === "installed" || input.toStatus === "completed"
+      ? `The job was already at ${stageLabel(input.toStatus)}, so its stage did not change.`
+      : `The job is at ${stageLabel(input.toStatus)}, so it was not moved to Ordered. Check it.`;
+  const cost = input.quotedCents === null
+    ? `No quote was found for ${o.poReference} to compare the cost with.`
+    : input.quotedCents === beforeTax
+      ? `That matches the quoted dealer cost of ${formatCents(input.quotedCents)} before tax.`
+      : `That does not match the quote. Quoted dealer cost ${formatCents(input.quotedCents)}, HD charged ${formatCents(beforeTax)} before tax.`;
+  return {
+    subject: `${o.poReference} ordered: HD order ${o.orderNo}`,
+    text: [
+      `Hunter Douglas confirmed order ${o.orderNo} for ${o.poReference} on ${formatDateOnly(o.orderDate)}.`,
+      `Total ${formatCents(o.totalCents)}: products ${formatCents(o.subtotalCents)}, handling ${formatCents(o.handlingCents)}` +
+        `${o.oversizeCents ? `, oversize ${formatCents(o.oversizeCents)}` : ""}, tax ${formatCents(o.taxCents)}.`,
+      cost, "", stage, jobLink(input.jobId),
+    ].join("\n"),
+  };
+}
+
+/**
+ * An HD order confirmation that could not be recorded on a job. `orderNo` is null when it could not be read.
+ * Nothing moved, so the owners move the job by hand.
+ */
+export function orderRefusalEmail(input: { outcome: "no-po" | "no-match" | "unreadable"; orderNo: string | null; detail: string }): { subject: string; text: string } {
+  const order = input.orderNo ? `HD order ${input.orderNo}` : "An HD order confirmation";
+  const byHand = "Move the job to Ordered by hand.";
+  switch (input.outcome) {
+    case "no-po":
+      return { subject: `${order} could not be matched to a job`,
+        text: `${input.detail}, which is not a PSS number. ${byHand}\n\nNext time, put the job's number (e.g. PSS-1042) in PO Reference in Direct Connect before submitting.` };
+    case "no-match":
+      return { subject: `${order} could not be matched to a job`,
+        text: `${order} names ${input.detail}, but no job or quote option has that number. ${byHand}` };
+    default:
+      return { subject: `${order} could not be read`,
+        text: `${order} wasn't in the expected format (${input.detail}). ${byHand}\n\nThe email was left in support@. A developer needs to look at it.` };
+  }
+}
+
+/** Mail from HD's order address the tracker does not read yet, e.g. the first shipping notice. */
+export function unknownHdEmail(input: { subject: string; receivedAt: Date }): { subject: string; text: string } {
+  return {
+    subject: `New Hunter Douglas email: ${input.subject}`,
+    text: [
+      `An email from donotreply@hunterdouglas.com arrived in support@ on ${formatShortDate(input.receivedAt)} that the tracker does not read yet: "${input.subject}".`,
+      "", "If it is about an order shipping, tell Claude so shipping updates can be set up from it. The email was left in support@.",
+    ].join("\n"),
+  };
+}
+
+/** Orders DC received over a day ago that HD has not confirmed. One email per run, one line per order. */
+export function staleReceiptsEmail(receipts: { quoteNo: string | null; poReference: string; receivedAt: Date }[]): { subject: string; text: string } {
+  return {
+    subject: receipts.length === 1 ? `${receipts[0].poReference} has no order confirmation from HD` : "Orders with no confirmation from HD",
+    text: [
+      ...receipts.map((r) =>
+        `Direct Connect received ${r.quoteNo ? `quote ${r.quoteNo}` : "an order"} for ${r.poReference} on ${formatShortDate(r.receivedAt)}, but Hunter Douglas has not sent its order confirmation.`),
+      "", "Check the order in Direct Connect or call HD at 844-486-8373.",
+    ].join("\n"),
   };
 }
 
