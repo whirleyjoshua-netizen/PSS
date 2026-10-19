@@ -245,7 +245,7 @@ export async function sentConversations(days: number): Promise<{ id: string; con
 export async function isSuppressed(address: string): Promise<boolean> {
   return (await db()`select 1 from email_suppressions where address = ${normalizeAddress(address)}`).length > 0;
 }
-export async function addSuppression(address: string, reason: string | null, source: "reply" | "owner"): Promise<void> {
+export async function addSuppression(address: string, reason: string | null, source: "reply" | "owner" | "link"): Promise<void> {
   await db()`insert into email_suppressions (address, reason, source) values (${normalizeAddress(address)}, ${reason}, ${source}) on conflict (address) do nothing`;
 }
 export async function removeSuppression(address: string): Promise<void> {

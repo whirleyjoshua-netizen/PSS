@@ -109,7 +109,7 @@ create table if not exists email_suppressions (
 alter table email_suppressions drop constraint if exists email_suppressions_address_check;
 alter table email_suppressions add constraint email_suppressions_address_check check (address = lower(btrim(address)) and address like '%_@_%');
 alter table email_suppressions drop constraint if exists email_suppressions_source_check;
-alter table email_suppressions add constraint email_suppressions_source_check check (source in ('reply', 'owner'));
+alter table email_suppressions add constraint email_suppressions_source_check check (source in ('reply', 'owner', 'link'));
 
 create table if not exists agent_settings (
   id                 boolean primary key default true,
