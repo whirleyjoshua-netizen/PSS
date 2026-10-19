@@ -1,9 +1,11 @@
 import { z } from "zod";
 import { business } from "@/content/business";
+import { CONTACT_NOTE_MAX } from "@/lib/admin/contact";
 import { bearerKey, hashKey } from "@/lib/agents/rules";
 import type { LeadRow } from "./store";
 
 export const LEADS_PAGE = 500;
+export const MAX_EVENTS = 100;
 export const MAX_LINKS = 1000;
 export const UNSUBSCRIBE_TOKEN = /^[A-Za-z0-9_-]{32,64}$/;
 
@@ -24,6 +26,28 @@ export const pageQuery = z.object({
 export const linksBody = z.object({
   emails: z.array(z.string().trim().toLowerCase().pipe(z.email())).max(MAX_LINKS, `At most ${MAX_LINKS} addresses at a time`),
 });
+
+/** Calls and emails Column logged against leads. `id` is Column's, so sending one twice logs it once. */
+export const eventsBody = z.object({
+  events: z.array(z.object({
+    id: z.string().regex(/^[A-Za-z0-9_-]{6,64}$/, "id must be Column's id"),
+    lead_id: z.uuid("lead_id must be a lead id"),
+    method: z.enum(["call", "email"]),
+    outcome: z.string().trim().min(1).max(60),
+    note: z.string().trim().max(2000).default(""),
+    campaign: z.string().trim().max(120).default(""),
+    by: z.string().trim().min(1).max(80),
+    at: z.iso.datetime({ offset: true }),
+  })).max(MAX_EVENTS, `At most ${MAX_EVENTS} at a time`),
+});
+export type ColumnEvent = z.infer<typeof eventsBody>["events"][number];
+
+/** The timeline line, in the job page's own "Contacted · …" form, with where it came from. */
+export function columnEventBody(e: ColumnEvent): string {
+  const note = e.note.length > CONTACT_NOTE_MAX ? `${e.note.slice(0, CONTACT_NOTE_MAX - 1)}…` : e.note;
+  const from = e.campaign ? `Column · ${e.campaign}` : "Column";
+  return `Contacted · ${e.method === "call" ? "Called" : "Email"} — ${e.outcome}${note ? ` — ${note}` : ""} (${from})`;
+}
 
 /** A lead as Column reads it. Field names are snake_case, like the agents' sync. */
 export function leadJson(lead: LeadRow, token: string | undefined) {
