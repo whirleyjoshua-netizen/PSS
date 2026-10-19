@@ -16,7 +16,14 @@ import { neon } from "@neondatabase/serverless";
 
 function loadEnv(file = ".env.local") {
   const env = {};
-  for (const line of readFileSync(file, "utf8").split(/\r?\n/)) {
+  // No .env.local (a fresh checkout) is fine when MIGRATE_DATABASE_URL is given.
+  let text = "";
+  try {
+    text = readFileSync(file, "utf8");
+  } catch (e) {
+    if (e.code !== "ENOENT") throw e;
+  }
+  for (const line of text.split(/\r?\n/)) {
     const match = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)$/i);
     if (!match) continue;
     let value = match[2].trim();
