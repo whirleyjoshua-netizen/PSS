@@ -13,7 +13,7 @@ import { getInstallSettings, listInstallRates } from "@/lib/admin/install-rates"
 import { InstallRatesSection } from "./InstallRatesSection";
 import { getDefaultAssignee } from "@/lib/admin/lead-settings";
 import { LeadDefaultsSection } from "./LeadDefaultsSection";
-import { parseAllowlist } from "@/lib/admin/allowlist";
+import { isOwner, parseAllowlist } from "@/lib/admin/allowlist";
 import { listAddedAdmins } from "@/lib/admin/admin-access";
 import { AdminAccessSection } from "./AdminAccessSection";
 import { listPasskeys } from "@/lib/admin/passkeys";
@@ -24,6 +24,9 @@ import { TermsSection } from "./TermsSection";
 import { liveTemplateOfKind } from "@/lib/docs/templates";
 import { getAgentSettings, listAgentCards, listSuppressions } from "@/lib/agents/store";
 import { AgentsSection } from "./AgentsSection";
+import { getColumnKey } from "@/lib/column/store";
+import { ColumnSection } from "./ColumnSection";
+import { business } from "@/content/business";
 import { SettingsTabs } from "./SettingsTabs";
 import { parseSettingsTab, type SettingsTab } from "./tabs";
 
@@ -141,7 +144,7 @@ async function schedulingTab() {
   );
 }
 
-async function marketingTab() {
+async function marketingTab(email: string) {
   // Each falls back, so Settings still loads before migration 044 (the agents tables) is applied.
   const [agents, agentSettings, suppressions] = await Promise.all([
     listAgentCards().catch((error: unknown) => {
@@ -157,9 +160,22 @@ async function marketingTab() {
       return [];
     }),
   ]);
+  // Before migration 045 is applied this reads as not connected.
+  const column = isOwner(email)
+    ? await getColumnKey().catch((error: unknown) => {
+        console.error("Could not read the Column connection", error);
+        return null;
+      })
+    : null;
   return (
     <>
       <AgentsSection agents={agents} settings={agentSettings} suppressions={suppressions} />
+      {isOwner(email) ? (
+        <ColumnSection
+          siteUrl={business.domain}
+          connected={column ? { createdBy: column.createdBy, since: formatWhen(column.createdAt), lastUsed: column.lastUsedAt ? formatWhen(column.lastUsedAt) : null } : null}
+        />
+      ) : null}
       <section aria-labelledby="ads-heading" className="flex flex-col gap-2">
         <h2 id="ads-heading" className="text-lg font-semibold">
           Google Ads

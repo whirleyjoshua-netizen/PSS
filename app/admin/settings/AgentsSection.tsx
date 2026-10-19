@@ -66,7 +66,7 @@ export function AgentsSection({
               <span>
                 {entry.address}
                 <span className="block text-ink-soft">
-                  {entry.reason ?? (entry.source === "reply" ? "Asked to stop" : "Added by owner")} · {formatDay(entry.createdAt)}
+                  {entry.reason ?? (entry.source === "reply" ? "Asked to stop" : entry.source === "link" ? "Unsubscribed" : "Added by owner")} · {formatDay(entry.createdAt)}
                 </span>
               </span>
               <form action={removeSuppressionAction.bind(null, entry.address)}>

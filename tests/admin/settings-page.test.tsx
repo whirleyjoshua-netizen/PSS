@@ -64,6 +64,8 @@ const agentStore = {
   listSuppressions: vi.fn(async (): Promise<unknown[]> => []),
 };
 vi.mock("@/lib/agents/store", () => agentStore);
+vi.mock("@/lib/column/store", () => ({ getColumnKey: vi.fn(async () => null) }));
+vi.mock("@/app/admin/settings/column-actions", () => ({ createColumnKeyAction: vi.fn(async () => ({})), disconnectColumnAction: vi.fn(async () => ({})) }));
 vi.mock("@/app/admin/settings/agent-actions", () => ({
   addAgentAction: vi.fn(async () => ({})), createKeyAction: vi.fn(async () => ({})),
   saveAgentSettingsAction: vi.fn(async () => ({})), addSuppressionAction: vi.fn(async () => ({})),
@@ -314,7 +316,7 @@ describe("settings tabs", () => {
     team: ["Team", "Admin access", "New leads"],
     pricing: ["Installation rates", "Markup by product line", "Contract terms"],
     scheduling: ["Routes", "Outlook calendar"],
-    marketing: ["Agents", "Google Ads"],
+    marketing: ["Agents", "Column", "Google Ads"],
     device: ["Face ID sign-in", "Install on your phone"],
   } as const;
   const sectionHeadings = () => screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
