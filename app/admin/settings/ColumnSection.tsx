@@ -7,7 +7,7 @@ import { createColumnKeyAction, disconnectColumnAction, type ColumnKeyState } fr
 
 /**
  * Connects Column, the team's work app: it reads leads' contact details and stages, and the do-not-contact
- * list. Owners only. The key is shown once here, then only its hash exists.
+ * list, and logs its calls and emails on leads' timelines. Owners only. The key is shown once here, then only its hash exists.
  */
 export function ColumnSection({ connected, siteUrl }: { connected: { createdBy: string; since: string; lastUsed: string | null } | null; siteUrl: string }) {
   const [made, create, creating] = useActionState<ColumnKeyState, FormData>(createColumnKeyAction, {});
@@ -33,7 +33,8 @@ export function ColumnSection({ connected, siteUrl }: { connected: { createdBy: 
       </h2>
       <p className="text-ink-soft">
         Lets Column read every lead&apos;s name, email, phone, address, stage and source, and the do-not-contact list, so it can
-        build call lists and skip anyone who unsubscribed. It can&apos;t change anything here.
+        build call lists and skip anyone who unsubscribed. Calls and emails logged in Column show up on the lead&apos;s
+        timeline, and a call moves a New lead to Contacted. It can&apos;t change anything else here.
       </p>
       {live ? (
         <p className="text-sm text-ink-soft">

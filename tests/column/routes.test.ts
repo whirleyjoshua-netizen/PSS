@@ -1,11 +1,13 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from "vitest";
-const store = { columnKeyMatches: vi.fn(), listLeadsPage: vi.fn(), unsubscribeTokens: vi.fn(), suppressedAddresses: vi.fn(), addressForToken: vi.fn() };
+const store = { columnKeyMatches: vi.fn(), listLeadsPage: vi.fn(), unsubscribeTokens: vi.fn(), suppressedAddresses: vi.fn(), addressForToken: vi.fn(), addColumnEvent: vi.fn() };
 vi.mock("@/lib/column/store", () => store);
 const addSuppression = vi.fn();
 vi.mock("@/lib/agents/store", () => ({ addSuppression }));
 const leads = await import("@/app/api/column/leads/route");
 const email = await import("@/app/api/column/email/route");
+const events = await import("@/app/api/column/events/route");
+const { columnEventBody } = await import("@/lib/column/rules");
 const unsubscribe = await import("@/app/api/unsubscribe/[token]/route");
 const { hashKey, newAgentKey } = await import("@/lib/agents/rules");
 
@@ -98,5 +100,38 @@ describe("POST /api/unsubscribe/[token]", () => {
     expect((await unsubscribe.POST(new Request("https://pss.test/x", { method: "POST" }), tokenParams("../x"))).status).toBe(204);
     expect(store.addressForToken).toHaveBeenCalledTimes(1);
     expect(addSuppression).not.toHaveBeenCalled();
+  });
+});
+
+describe("POST /api/column/events", () => {
+  const event = (over: Record<string, unknown> = {}) => ({
+    id: "att_123456", lead_id: ID, method: "call", outcome: "Interested", note: "Wants a quote Friday", campaign: "Fall promo", by: "Josh", at: "2026-10-19T17:00:00.000Z", ...over,
+  });
+  const post = (body: unknown, key: string | null = KEY) => events.POST(req("/api/column/events", { method: "POST", body: JSON.stringify(body) }, key));
+
+  it("refuses a wrong key before logging anything", async () => {
+    expect((await post({ events: [event()] }, newAgentKey())).status).toBe(401);
+    expect(store.addColumnEvent).not.toHaveBeenCalled();
+  });
+  it("logs each one and says which leads are gone", async () => {
+    store.addColumnEvent.mockImplementation(async (e: { id: string }) => (e.id === "att_gone01" ? "missing" : "saved"));
+    const res = await post({ events: [event(), event({ id: "att_gone01", method: "email", outcome: "Sent", note: "", campaign: "" })] });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ saved: ["att_123456"], missing: ["att_gone01"] });
+    expect(store.addColumnEvent).toHaveBeenCalledTimes(2);
+    expect(store.addColumnEvent.mock.calls[1][0]).toMatchObject({ method: "email", note: "", campaign: "" });
+  });
+  it("refuses a bad body without logging any of it", async () => {
+    for (const bad of [{}, { events: [event({ lead_id: "nope" })] }, { events: [event({ method: "text" })] }, { events: [event({ at: "yesterday" })] }, { events: [event({ id: "a b" })] }, { events: Array.from({ length: 101 }, () => event()) }]) {
+      expect((await post(bad)).status).toBe(400);
+    }
+    expect((await events.POST(req("/api/column/events", { method: "POST", body: "not json" }))).status).toBe(400);
+    expect(store.addColumnEvent).not.toHaveBeenCalled();
+  });
+  it("writes the timeline line like a contact logged on the job page", () => {
+    const parse = (over: Record<string, unknown>) => ({ ...event(), ...over }) as Parameters<typeof columnEventBody>[0];
+    expect(columnEventBody(parse({}))).toBe("Contacted · Called — Interested — Wants a quote Friday (Column · Fall promo)");
+    expect(columnEventBody(parse({ method: "email", outcome: "Sent", note: "Spring sale", campaign: "" }))).toBe("Contacted · Email — Sent — Spring sale (Column)");
+    expect(columnEventBody(parse({ note: "x".repeat(900) })).length).toBeLessThan(560);
   });
 });

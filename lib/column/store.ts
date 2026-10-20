@@ -1,10 +1,12 @@
 import { randomBytes } from "node:crypto";
 import { db } from "@/lib/db";
 import { normalizeAddress } from "@/lib/agents/rules";
+import { columnEventBody, type ColumnEvent } from "./rules";
 
 /**
  * Column (the team's work app) connects with one key, kept here as its sha256. It can read leads and the
- * do-not-contact list, and get unsubscribe links for the emails it sends. It can't change anything else.
+ * do-not-contact list, get unsubscribe links for the emails it sends, and log its calls and emails on a lead's
+ * timeline. It can't change anything else.
  */
 export type ColumnKey = { createdBy: string; createdAt: Date; lastUsedAt: Date | null };
 export type LeadRow = {
@@ -73,4 +75,31 @@ export async function unsubscribeTokens(addresses: string[]): Promise<Map<string
 export async function addressForToken(token: string): Promise<string | null> {
   const [row] = await db()`select address from email_unsubscribe_links where token = ${token}`;
   return row ? (row.address as string) : null;
+}
+
+/**
+ * Logs one of Column's calls or emails on its lead's timeline, as a contact. A call also moves a New lead to
+ * Contacted, as logging a contact on the job page does; a campaign email doesn't, so one mailing can't move
+ * every New lead at once. A repeat of the same Column id logs nothing. "missing" when the lead is gone.
+ */
+export async function addColumnEvent(e: ColumnEvent): Promise<"saved" | "missing"> {
+  const actor = `${e.by} (Column)`;
+  const at = new Date(Math.min(Date.parse(e.at), Date.now()));
+  const move = e.method === "call";
+  const [row] = await db()`
+    with logged as (
+      insert into job_events (lead_id, actor, kind, body, created_at, column_id)
+      select id, ${actor}, 'contact', ${columnEventBody(e)}, ${at}::timestamptz, ${e.id} from leads where id = ${e.lead_id}
+      on conflict (column_id) where column_id is not null do nothing
+      returning lead_id
+    ), moved as (
+      update leads set status = 'contacted', stage_changed_at = now(), updated_at = now()
+      where ${move}::boolean and id = ${e.lead_id} and status = 'new' and exists (select 1 from logged)
+      returning id
+    ), stage_logged as (
+      insert into job_events (lead_id, actor, kind, from_status, to_status)
+      select moved.id, ${actor}, 'stage', 'new', 'contacted' from moved
+    )
+    select exists (select 1 from leads where id = ${e.lead_id}) as found`;
+  return row?.found ? "saved" : "missing";
 }
