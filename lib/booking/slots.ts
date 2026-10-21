@@ -1,12 +1,12 @@
 import { fromLocalInput, lasVegasDate } from "@/lib/admin/time";
 
 /**
- * Online booking rules (owner 2026-10-20): Monday to Saturday, 8 AM to 6 PM Las Vegas time,
+ * Online booking rules (owner 2026-10-20, hours 2026-10-21): Monday to Saturday, noon to 6 PM Las Vegas time,
  * from tomorrow up to two weeks out. A consultation is 90 minutes plus 30 minutes to drive,
  * so each one needs a free two-hour block that ends by closing.
  */
 export const BOOKING = {
-  openHour: 8,
+  openHour: 12,
   closeHour: 18,
   visitMinutes: 90,
   driveMinutes: 30,

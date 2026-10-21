@@ -17,15 +17,15 @@ describe("candidateDays", () => {
     expect(days).toHaveLength(12);
   });
 
-  it("offers every hour from 8 AM to 4 PM Las Vegas time, so a 2-hour block ends by 6", () => {
+  it("offers every hour from noon to 4 PM Las Vegas time, so a 2-hour block ends by 6 (owner 2026-10-21)", () => {
     expect(slotDays([days[0]])[0].slots.map((s) => s.label)).toEqual(
-      ["8:00 AM", "9:00 AM", "10:00 AM", "11:00 AM", "12:00 PM", "1:00 PM", "2:00 PM", "3:00 PM", "4:00 PM"]);
-    expect(days[0].slots[0]).toEqual(at("2026-10-21T15:00:00Z"));
+      ["12:00 PM", "1:00 PM", "2:00 PM", "3:00 PM", "4:00 PM"]);
+    expect(days[0].slots[0]).toEqual(at("2026-10-21T19:00:00Z"));
   });
 
   it("follows the clock across the switch back to standard time", () => {
     const after = days.find((d) => d.date === "2026-11-02")!;
-    expect(after.slots[0]).toEqual(at("2026-11-02T16:00:00Z"));
+    expect(after.slots[0]).toEqual(at("2026-11-02T20:00:00Z"));
   });
 
   it("starts tomorrow even late in the evening", () => {
@@ -56,19 +56,20 @@ describe("isOpen", () => {
 describe("openDays", () => {
   it("drops taken times, and a day with none left", () => {
     const wholeDay = { start: at("2026-10-21T07:00:00Z"), end: at("2026-10-22T07:00:00Z") };
-    const morning = { start: at("2026-10-22T15:00:00Z"), end: at("2026-10-22T16:00:00Z") }; // 8 to 9 AM on the 22nd
-    const days = openDays(NOW, [wholeDay, morning]);
+    const lunch = { start: at("2026-10-22T19:00:00Z"), end: at("2026-10-22T20:00:00Z") }; // noon to 1 PM on the 22nd
+    const days = openDays(NOW, [wholeDay, lunch]);
     expect(days[0].date).toBe("2026-10-22");
-    expect(slotDays([days[0]])[0].slots[0].label).toBe("10:00 AM");
+    expect(slotDays([days[0]])[0].slots[0].label).toBe("2:00 PM");
   });
 });
 
 describe("isCandidate", () => {
   it("accepts an offered start and nothing else", () => {
-    expect(isCandidate(at("2026-10-21T17:00:00Z"), NOW)).toBe(true);
-    expect(isCandidate(at("2026-10-21T17:30:00Z"), NOW)).toBe(false); // 10:30
+    expect(isCandidate(at("2026-10-21T21:00:00Z"), NOW)).toBe(true); // 2 PM
+    expect(isCandidate(at("2026-10-21T21:30:00Z"), NOW)).toBe(false); // 2:30
+    expect(isCandidate(at("2026-10-21T18:00:00Z"), NOW)).toBe(false); // 11 AM, before noon
     expect(isCandidate(at("2026-10-20T23:00:00Z"), NOW)).toBe(false); // today
-    expect(isCandidate(at("2026-10-25T17:00:00Z"), NOW)).toBe(false); // Sunday
+    expect(isCandidate(at("2026-10-25T21:00:00Z"), NOW)).toBe(false); // Sunday
     expect(isCandidate(at("2026-10-22T00:00:00Z"), NOW)).toBe(false); // 5 PM
   });
 });
