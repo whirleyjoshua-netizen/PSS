@@ -6,6 +6,8 @@ vi.mock("next/headers", () => ({ cookies: async () => ({ get: cookieGet }) }));
 const findQuestionnaire = vi.fn();
 vi.mock("@/lib/leads/questionnaire", () => ({ findQuestionnaire }));
 vi.mock("@/app/(site)/thank-you/actions", () => ({ submitQuestionnaire: vi.fn() }));
+const findBookedVisit = vi.fn();
+vi.mock("@/lib/booking/book", () => ({ findBookedVisit }));
 
 const { default: ThankYouPage, metadata } = await import("@/app/(site)/thank-you/page");
 const { business } = await import("@/content/business");
@@ -15,6 +17,28 @@ const answers = { windowCountExact: 12, treatmentTypes: ["shutters"], motorized:
 beforeEach(() => {
   cookieGet.mockReset().mockReturnValue(undefined);
   findQuestionnaire.mockReset().mockResolvedValue(null);
+  findBookedVisit.mockReset().mockResolvedValue(null);
+});
+
+describe("/thank-you after booking a time online", () => {
+  it("says the visit is booked, when, and drops the call-back step", async () => {
+    cookieGet.mockReturnValue({ value: "the-key" });
+    findBookedVisit.mockResolvedValue(new Date("2026-10-22T17:00:00Z"));
+    render(await ThankYouPage());
+    expect(findBookedVisit).toHaveBeenCalledWith("the-key");
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Thank you. Your consultation is booked.");
+    expect(screen.getByRole("heading", { name: "You're booked." })).toBeInTheDocument();
+    expect(screen.getAllByText(/Thursday, October 22 at 10:00 AM/).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/We call you/)).toBeNull();
+  });
+
+  it("shows the call-back steps when the lookup fails", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    cookieGet.mockReturnValue({ value: "the-key" });
+    findBookedVisit.mockRejectedValue(new Error("db down"));
+    render(await ThankYouPage());
+    expect(screen.getByText("We call you.")).toBeInTheDocument();
+  });
 });
 
 describe("/thank-you", () => {

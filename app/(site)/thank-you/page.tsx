@@ -5,6 +5,8 @@ import { ButtonLink } from "@/components/ui/Button";
 import { PageHero } from "@/components/product/ProductParts";
 import { business } from "@/content/business";
 import { CALLBACK_WINDOW } from "@/content/consultation";
+import { findBookedVisit } from "@/lib/booking/book";
+import { visitLabel } from "@/lib/booking/labels";
 import { findQuestionnaire } from "@/lib/leads/questionnaire";
 import { QUESTIONNAIRE_COOKIE } from "@/lib/leads/questionnaire-cookie";
 import { Questionnaire } from "./Questionnaire";
@@ -23,11 +25,18 @@ export const metadata: Metadata = {
   robots: { index: false, follow: true },
 };
 
-const STEPS = [
-  {
-    title: "We call you.",
-    body: `Expect a call ${CALLBACK_WINDOW} to find a time that works for you.`,
-  },
+const CALL_STEP = {
+  title: "We call you.",
+  body: `Expect a call ${CALLBACK_WINDOW} to find a time that works for you.`,
+};
+
+/** A visitor who picked a time in the home form's pop-up is already booked, so nobody needs to call. */
+const bookedStep = (start: Date) => ({
+  title: "You're booked.",
+  body: `We'll see you ${visitLabel(start)}. Your confirmation is on its way to your inbox. Need to change it? Call or text us.`,
+});
+
+const LATER_STEPS = [
   {
     title: "Your in-home visit",
     body: "We bring real samples to your windows, in your own light, measure each window, and send you a written quote. No charge, no obligation.",
@@ -45,8 +54,7 @@ const PREP = [
 ];
 
 /** The visitor's questionnaire, if their cookie holds a live key. A lookup failure just hides it. */
-async function loadQuestionnaire() {
-  const key = (await cookies()).get(QUESTIONNAIRE_COOKIE)?.value;
+async function loadQuestionnaire(key: string | undefined) {
   try {
     return await findQuestionnaire(key);
   } catch (error) {
@@ -55,14 +63,28 @@ async function loadQuestionnaire() {
   }
 }
 
+/** The visit they booked online, if any. A lookup failure shows the call-back steps instead. */
+async function loadBookedVisit(key: string | undefined) {
+  try {
+    return await findBookedVisit(key);
+  } catch (error) {
+    console.error("Booked visit lookup failed", error);
+    return null;
+  }
+}
+
 export default async function ThankYouPage() {
-  const questionnaire = await loadQuestionnaire();
+  const key = (await cookies()).get(QUESTIONNAIRE_COOKIE)?.value;
+  const [questionnaire, visit] = await Promise.all([loadQuestionnaire(key), loadBookedVisit(key)]);
+  const steps = [visit ? bookedStep(visit) : CALL_STEP, ...LATER_STEPS];
   return (
     <>
       <PageHero
-        eyebrow="Request received"
-        title="Thank you. Your request is in."
-        lead="We have your details, and a copy of this is on its way to your inbox. Here is what happens next."
+        eyebrow={visit ? "Consultation booked" : "Request received"}
+        title={visit ? "Thank you. Your consultation is booked." : "Thank you. Your request is in."}
+        lead={visit
+          ? `We'll see you ${visitLabel(visit)}. Here is what happens next.`
+          : "We have your details, and a copy of this is on its way to your inbox. Here is what happens next."}
         trail={[{ name: "Thank you", url: "/thank-you" }]}
       />
 
@@ -70,7 +92,7 @@ export default async function ThankYouPage() {
         <div className="grid gap-12 lg:grid-cols-[minmax(0,1fr)_22rem] lg:gap-16">
           <div className="flex flex-col gap-12">
             <ol className="flex flex-col gap-8">
-              {STEPS.map((step, index) => (
+              {steps.map((step, index) => (
                 <li key={step.title} className="flex gap-5">
                   <span
                     aria-hidden="true"

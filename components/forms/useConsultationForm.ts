@@ -38,6 +38,7 @@ export function useConsultationForm(source: LeadSource) {
       heardVia: str(data.get("heardVia")),
       notes: str(data.get("notes")),
       referralCode: str(data.get("referralCode")),
+      slot: str(data.get("slot")),
       source,
       attribution: storedAttribution(),
       company: String(data.get("company") ?? ""),

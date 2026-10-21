@@ -14,6 +14,8 @@ export function ownerRecipients(): string[] {
 export type LeadNotificationInput = Omit<ConsultationInput, "email" | "source"> & {
   email: string | null;
   source: LeadSource | typeof GOOGLE_FORM_SOURCE;
+  /** What happened to a time picked in the home form's pop-up, as one line for the top of the email. */
+  booking?: { booked: boolean; line: string };
 };
 
 /**
@@ -36,6 +38,7 @@ export async function sendLeadNotification(
   }
 
   const lines = [
+    ...(input.booking ? [input.booking.line, ""] : []),
     `Open in tracker: ${adminOrigin()}/admin/jobs/${leadId}`,
     "",
     `Name:       ${input.name}`,
@@ -62,7 +65,9 @@ export async function sendLeadNotification(
     from: `${business.name} <${from}>`,
     to,
     replyTo: input.email ?? undefined,
-    subject: `New consultation request — ${input.name}, ${input.city}`,
+    subject: input.booking?.booked
+      ? `New consultation booked online — ${input.name}, ${input.city}`
+      : `New consultation request — ${input.name}, ${input.city}`,
     text: lines.join("\n"),
   });
 

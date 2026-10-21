@@ -52,6 +52,12 @@ export const consultationSchema = z.object({
 
   source: z.enum(LEAD_SOURCES),
 
+  /**
+   * The consultation time the visitor picked in the home form's pop-up, as an ISO instant. The
+   * server books it only if it is still open; a malformed value is dropped, never fails the lead.
+   */
+  slot: z.iso.datetime().optional().catch(undefined),
+
   /** The ad click that brought the visitor, if any. Malformed never fails the lead. */
   attribution: attributionSchema.optional().catch(undefined),
 
@@ -60,6 +66,11 @@ export const consultationSchema = z.object({
    * technology, so a human never fills it. Anything non-empty is a bot.
    */
   company: z.string().max(0, "Rejected").optional(),
+}).superRefine((value, ctx) => {
+  // A booked visit needs somewhere to go.
+  if (value.slot && !value.address) {
+    ctx.addIssue({ code: "custom", path: ["address"], message: "Please enter the street address for your visit." });
+  }
 });
 
 export type ConsultationInput = z.infer<typeof consultationSchema>;

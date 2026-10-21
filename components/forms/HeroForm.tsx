@@ -1,9 +1,11 @@
 "use client";
 
+import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { business, type ServiceCity } from "@/content/business";
 import type { LeadSource } from "@/lib/leads/schema";
 import { useConsultationForm } from "./useConsultationForm";
+import { BookingPicker, type PickedVisit } from "./BookingPicker";
 import { FormMessage, Honeypot, TextField } from "./Field";
 
 /**
@@ -20,6 +22,8 @@ import { FormMessage, Honeypot, TextField } from "./Field";
  * `notes` rides along as the lead's notes (the holiday page names its offer there).
  * `beforeSubmit` sits inside the form just above the button (the homepage's holiday offer, which carries its own
  * notes field); `footer` sits under the form, inside the card (the homepage's proof line and badges).
+ * `booking` adds "Or pick a time now" (the homepage only, owner 2026-10-20): the visitor can book
+ * an open Outlook time instead of waiting for a call. Without a pick the form works as before.
  */
 export function HeroForm({
   className,
@@ -31,6 +35,7 @@ export function HeroForm({
   notes,
   beforeSubmit,
   footer,
+  booking = false,
 }: {
   className?: string;
   idPrefix?: string;
@@ -41,8 +46,10 @@ export function HeroForm({
   notes?: string;
   beforeSubmit?: React.ReactNode;
   footer?: React.ReactNode;
+  booking?: boolean;
 }) {
   const { state, error, submit } = useConsultationForm(source);
+  const [visit, setVisit] = useState<PickedVisit | null>(null);
 
   return (
     <div className={`bg-ivory p-6 shadow-xl sm:p-8 ${className ?? ""}`}>
@@ -59,6 +66,8 @@ export function HeroForm({
         <input type="hidden" name="city" value={city} readOnly />
         {treatment ? <input type="hidden" name="treatments" value={treatment} readOnly /> : null}
         {notes ? <input type="hidden" name="notes" value={notes} readOnly /> : null}
+        {visit ? <input type="hidden" name="slot" value={visit.start} readOnly /> : null}
+        {visit ? <input type="hidden" name="address" value={visit.address} readOnly /> : null}
 
         <TextField id={`${idPrefix}-name`} name="name" label="Name" autoComplete="name" required />
         <TextField
@@ -80,6 +89,8 @@ export function HeroForm({
           required
         />
 
+        {booking && state !== "success" ? <BookingPicker picked={visit} onPick={setVisit} idPrefix={idPrefix} /> : null}
+
         {beforeSubmit}
 
         <FormMessage
@@ -87,12 +98,12 @@ export function HeroForm({
           error={error}
           phone={business.phone}
           successTitle="Request received"
-          successBody="We will reach out shortly to schedule your in-home consultation."
+          successBody={visit ? "Booking your visit now." : "We will reach out shortly to schedule your in-home consultation."}
         />
 
         {state !== "success" ? (
           <Button type="submit" disabled={state === "submitting"} className="w-full">
-            {state === "submitting" ? "Sending…" : "Invite Us Over"}
+            {state === "submitting" ? "Sending…" : visit ? "Book my visit" : "Invite Us Over"}
           </Button>
         ) : null}
       </form>

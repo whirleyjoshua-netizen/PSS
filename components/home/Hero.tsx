@@ -92,6 +92,7 @@ export function Hero() {
             <div id="book" className="scroll-mt-20">
               <HeroForm
                 className="text-charcoal"
+                booking
                 beforeSubmit={
                   offer ? <HeroOffer line={HOLIDAY_FORM_LINE} note={HOLIDAY_LEAD_NOTE} season={holidayOffer} /> : null
                 }

@@ -8,6 +8,12 @@ import { questionnaireCookie } from "@/lib/leads/questionnaire-cookie";
 import { findReferrer } from "@/lib/referrals/db";
 import { REF_COOKIE, cookieValue } from "@/lib/referrals/codes";
 import { geocodeLead } from "@/lib/routes/geocode";
+import { addNote, getJob } from "@/lib/admin/jobs";
+import { logAppointmentEmail, logAppointmentProblem } from "@/lib/admin/appointments";
+import { formatWhen } from "@/lib/admin/time";
+import { sendAppointmentConfirmation } from "@/lib/appointments/send";
+import { bookConsultation, type BookResult } from "@/lib/booking/book";
+import { syncJobCalendar } from "@/lib/calendar/sync";
 
 /**
  * The only dynamic endpoint on the site.
@@ -76,10 +82,32 @@ export async function POST(request: Request) {
     questionnaireTokenHash: hashToken(key),
   };
 
-  const [stored, emailed] = await Promise.allSettled([
-    insertLead(lead),
-    sendLeadNotification(lead, id),
-  ]);
+  // A time picked in the home form's pop-up is booked once the lead is stored, and the owner's email
+  // says how that went. Without one, the database write and the email run side by side.
+  const slot = parsed.data.slot ? new Date(parsed.data.slot) : null;
+  let booking: BookResult | null = null;
+  let stored: PromiseSettledResult<{ id: string }>;
+  let emailed: PromiseSettledResult<void>;
+  if (!slot) {
+    [stored, emailed] = await Promise.allSettled([insertLead(lead), sendLeadNotification(lead, id)]);
+  } else {
+    [stored] = await Promise.allSettled([insertLead(lead)]);
+    if (stored.status === "fulfilled") {
+      try {
+        booking = await bookConsultation(id, slot);
+      } catch (error) {
+        console.error("Online booking failed", error);
+      }
+    }
+    const booked = booking?.status === "booked";
+    const line = booked
+      ? `Booked online for ${formatWhen(slot)}. It is on the Outlook calendar.`
+      : `Picked ${formatWhen(slot)} online, but it could not be booked. Call to schedule.`;
+    [emailed] = await Promise.allSettled([sendLeadNotification({ ...lead, booking: { booked, line } }, id)]);
+    if (stored.status === "fulfilled" && !booked) {
+      await addNote(id, line, "customer").catch((error) => console.error("Missed-booking note failed", error));
+    }
+  }
 
   if (stored.status === "rejected") {
     console.error("Lead database write failed", stored.reason);
@@ -102,13 +130,30 @@ export async function POST(request: Request) {
 
   // Only once the lead is known to be captured, so nobody is thanked for a
   // request that was lost. Its failure is logged, never shown to the visitor.
-  try {
-    await sendCustomerConfirmation(parsed.data);
-  } catch (error) {
-    console.error("Customer confirmation email failed", error);
+  // A booked visit gets the same confirmation the owner's Confirm sends, instead of "we will call".
+  if (booking?.status === "booked") {
+    const appointment = booking.appointment;
+    after(() => syncJobCalendar(id, ["consultation"]));
+    try {
+      const job = await getJob(id);
+      if (!job) throw new Error("The new job could not be read back");
+      await sendAppointmentConfirmation(job, appointment);
+      await logAppointmentEmail(id, parsed.data.email, "website");
+    } catch (error) {
+      console.error("Online booking confirmation email failed", error);
+      const reason = error instanceof Error ? error.message : String(error);
+      await logAppointmentProblem(id, `Booked online, but the confirmation email was not sent to ${parsed.data.email} — ${reason}`, "website")
+        .catch((logError) => console.error("Booking email problem could not be logged", logError));
+    }
+  } else {
+    try {
+      await sendCustomerConfirmation(parsed.data);
+    } catch (error) {
+      console.error("Customer confirmation email failed", error);
+    }
   }
 
   // The questionnaire key goes only to a visitor whose lead was actually stored.
   const headers = stored.status === "fulfilled" ? { "set-cookie": questionnaireCookie(key) } : undefined;
-  return Response.json({ ok: true }, { status: 201, headers });
+  return Response.json({ ok: true, booked: booking?.status === "booked" }, { status: 201, headers });
 }
