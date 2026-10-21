@@ -22,7 +22,7 @@ import { FormMessage, Honeypot, TextField } from "./Field";
  * `notes` rides along as the lead's notes (the holiday page names its offer there).
  * `beforeSubmit` sits inside the form just above the button (the homepage's holiday offer, which carries its own
  * notes field); `footer` sits under the form, inside the card (the homepage's proof line and badges).
- * `booking` adds "Or pick a time now" (the homepage only, owner 2026-10-20): the visitor can book
+ * `booking` adds "Book an Appointment" above the fields (the homepage only, owner 2026-10-20): the visitor can book
  * an open Outlook time instead of waiting for a call. Without a pick the form works as before.
  */
 export function HeroForm({
@@ -53,7 +53,8 @@ export function HeroForm({
 
   return (
     <div className={`bg-ivory p-6 shadow-xl sm:p-8 ${className ?? ""}`}>
-      <h2 className="font-display text-xl font-light tracking-tight text-charcoal">
+      {/* The homepage (booking) gives the heading more weight (owner 2026-10-20); the other pages keep it small for the phone fold. */}
+      <h2 className={`font-display font-light tracking-tight text-charcoal ${booking ? "text-3xl sm:text-4xl" : "text-xl"}`}>
         Free in-home consultation
       </h2>
       <p className={`mt-2 text-sm text-ink-soft ${introOnPhone ? "" : "hidden sm:block"}`}>
@@ -68,6 +69,16 @@ export function HeroForm({
         {notes ? <input type="hidden" name="notes" value={notes} readOnly /> : null}
         {visit ? <input type="hidden" name="slot" value={visit.start} readOnly /> : null}
         {visit ? <input type="hidden" name="address" value={visit.address} readOnly /> : null}
+
+        {/* Owner 2026-10-20: Book an Appointment first, then "or leave your information" and the call-back form. */}
+        {booking && state !== "success" ? (
+          <>
+            <BookingPicker picked={visit} onPick={setVisit} idPrefix={idPrefix} />
+            <p className="text-center text-sm text-ink-soft">
+              {visit ? "Add your details below to finish booking." : "Or leave your information and we’ll call you to schedule."}
+            </p>
+          </>
+        ) : null}
 
         <TextField id={`${idPrefix}-name`} name="name" label="Name" autoComplete="name" required />
         <TextField
@@ -88,8 +99,6 @@ export function HeroForm({
           autoComplete="email"
           required
         />
-
-        {booking && state !== "success" ? <BookingPicker picked={visit} onPick={setVisit} idPrefix={idPrefix} /> : null}
 
         {beforeSubmit}
 

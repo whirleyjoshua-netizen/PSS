@@ -16,7 +16,7 @@ const ON = "border-charcoal bg-charcoal text-ivory";
 const OFF = "border-rule bg-ivory text-charcoal hover:border-champagne-ink";
 
 /**
- * The home form's "Pick a time" pop-up (owner 2026-10-20). It lists the open times from
+ * The home form's "Book an Appointment" pop-up (owner 2026-10-20). It lists the open times from
  * /api/booking/slots, read live from the Outlook calendar, and asks for the street address the visit
  * goes to. Choosing hands both back to the form; nothing is booked until the form is sent.
  *
@@ -94,8 +94,8 @@ export function BookingPicker({ picked, onPick, idPrefix }: {
           </div>
         </div>
       ) : (
-        <Button type="button" variant="outline" className="w-full" onClick={show}>
-          Or pick a time now
+        <Button type="button" variant="solid" className="w-full" onClick={show}>
+          Book an Appointment
         </Button>
       )}
 

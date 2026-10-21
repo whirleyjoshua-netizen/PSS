@@ -5,7 +5,8 @@ import { business } from "@/content/business";
 import { PromiseBadges } from "@/components/booking/PromiseRow";
 import { altaPhotos } from "@/content/stock-photos";
 import { HOLIDAY_FORM_LINE, HOLIDAY_LEAD_NOTE } from "@/content/holiday";
-import { holidayDecor, holidayOffer } from "@/content/promo";
+import { holidayDecor, holidayOffer, solarOffer } from "@/content/promo";
+import { SOLAR_FORM_LINE, SOLAR_LEAD_NOTE } from "@/content/solar-offer";
 import { hasSeasonEnded, isPromoLive, seasonHideScript } from "@/lib/promo";
 import { Snowflake } from "@/components/ui/Snowflake";
 import { HeroSnow } from "./HeroSnow";
@@ -94,7 +95,14 @@ export function Hero() {
                 className="text-charcoal"
                 booking
                 beforeSubmit={
-                  offer ? <HeroOffer line={HOLIDAY_FORM_LINE} note={HOLIDAY_LEAD_NOTE} season={holidayOffer} /> : null
+                  offer ? (
+                    // The 15% solar offer shares the 10%'s window (content/promo.ts), so one box and one note carry both.
+                    <HeroOffer
+                      line={isPromoLive(solarOffer, new Date()) ? [HOLIDAY_FORM_LINE, SOLAR_FORM_LINE] : HOLIDAY_FORM_LINE}
+                      note={isPromoLive(solarOffer, new Date()) ? `${HOLIDAY_LEAD_NOTE} ${SOLAR_LEAD_NOTE}` : HOLIDAY_LEAD_NOTE}
+                      season={holidayOffer}
+                    />
+                  ) : null
                 }
                 footer={<HeroFormProof />}
               />

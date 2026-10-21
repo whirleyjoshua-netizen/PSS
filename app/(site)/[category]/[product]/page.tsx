@@ -15,6 +15,10 @@ import { JsonLd } from "@/components/seo/JsonLd";
 import { consultationPhoto } from "@/content/gallery";
 import { breadcrumbSchema, serviceSchema } from "@/lib/seo/schema";
 import { pageMetadata } from "@/lib/seo/metadata";
+import { HeroOffer } from "@/components/home/HeroOffer";
+import { solarOffer } from "@/content/promo";
+import { SOLAR_LEAD_NOTE, SOLAR_PAGE_LINE } from "@/content/solar-offer";
+import { isPromoLive, seasonHideScript } from "@/lib/promo";
 import {
   allProductPaths,
   getCategory,
@@ -67,8 +71,12 @@ export default async function ProductPage({
     ...siblings.map((sibling) => sibling.image),
   ]);
 
+  // Prerendered: a page built during the solar offer carries it, and a script that hides it when the offer ends.
+  const solar = found.slug === "solar-shades" && isPromoLive(solarOffer, new Date());
+
   return (
     <>
+      {solar ? <script dangerouslySetInnerHTML={{ __html: seasonHideScript(solarOffer, "[data-holiday-offer]") }} /> : null}
       <JsonLd schema={serviceSchema(found)} />
       <JsonLd schema={breadcrumbSchema(trail)} />
       <TreatmentHero
@@ -78,6 +86,7 @@ export default async function ProductPage({
         title={`${found.name} in Las Vegas`}
         lead={found.seo.description}
         treatment={parent.name}
+        offer={solar ? <HeroOffer line={SOLAR_PAGE_LINE} note={SOLAR_LEAD_NOTE} season={solarOffer} /> : undefined}
       />
       <Section tone="sand" className="!py-10">
         <PromiseRow centered line={found.opening} />

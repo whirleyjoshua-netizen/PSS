@@ -58,7 +58,8 @@ describe("the holiday offer in the hero form", () => {
     const offer = within(form()).getByText(HOLIDAY_FORM_LINE);
     const button = within(form()).getByRole("button", { name: /invite us over/i });
     expect(offer.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(form().querySelector<HTMLInputElement>('input[name="notes"]')?.value).toBe(HOLIDAY_LEAD_NOTE);
+    // The 15% solar note rides along in the same field (tests/home/solar-offer-and-booking-layout.test.tsx).
+    expect(form().querySelector<HTMLInputElement>('input[name="notes"]')?.value.startsWith(HOLIDAY_LEAD_NOTE)).toBe(true);
     // A page built during the offer carries a script that hides the line the moment the offer ends.
     const scripts = Array.from(container.querySelectorAll("script")).map((s) => s.textContent ?? "");
     expect(scripts.some((s) => s.includes("[data-holiday-offer]") && s.includes(String(new Date(holidayOffer.endsAt).getTime())))).toBe(true);

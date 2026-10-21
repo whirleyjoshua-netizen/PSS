@@ -2,7 +2,7 @@ import { availableDays } from "@/lib/booking/book";
 import { slotDays } from "@/lib/booking/labels";
 
 /**
- * The open consultation times for the home form's "Pick a time" pop-up, labelled in Las Vegas time.
+ * The open consultation times for the home form's "Book an Appointment" pop-up, labelled in Las Vegas time.
  * When Outlook can't be read, nothing is offered: the visitor sends their details and we call.
  */
 export async function GET() {

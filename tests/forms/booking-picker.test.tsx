@@ -36,14 +36,14 @@ async function fill(user: ReturnType<typeof userEvent.setup>) {
 describe("Pick a time on the home form", () => {
   it("is only on forms that ask for it", () => {
     render(<HeroForm />);
-    expect(screen.queryByRole("button", { name: "Or pick a time now" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Book an Appointment" })).toBeNull();
   });
 
   it("books the picked time and address with the request", async () => {
     const user = userEvent.setup();
     render(<HeroForm booking />);
     await fill(user);
-    await user.click(screen.getByRole("button", { name: "Or pick a time now" }));
+    await user.click(screen.getByRole("button", { name: "Book an Appointment" }));
 
     const dialog = await screen.findByRole("dialog", { name: "Pick a time for your visit." });
     await user.click(within(dialog).getByRole("button", { name: /Thu\s*Oct 22/ }));
@@ -66,7 +66,7 @@ describe("Pick a time on the home form", () => {
   it("forgets the time on a new day, so a time from another day is never booked by mistake", async () => {
     const user = userEvent.setup();
     render(<HeroForm booking />);
-    await user.click(screen.getByRole("button", { name: "Or pick a time now" }));
+    await user.click(screen.getByRole("button", { name: "Book an Appointment" }));
     const dialog = await screen.findByRole("dialog");
     await user.click(within(dialog).getByRole("button", { name: "8:00 AM" }));
     await user.click(within(dialog).getByRole("button", { name: /Thu\s*Oct 22/ }));
@@ -79,7 +79,7 @@ describe("Pick a time on the home form", () => {
     const user = userEvent.setup();
     render(<HeroForm booking />);
     await fill(user);
-    await user.click(screen.getByRole("button", { name: "Or pick a time now" }));
+    await user.click(screen.getByRole("button", { name: "Book an Appointment" }));
     const dialog = await screen.findByRole("dialog");
     await user.click(within(dialog).getByRole("button", { name: "8:00 AM" }));
     await user.type(within(dialog).getByLabelText("Street address"), "12 Sample St{Enter}");
@@ -96,7 +96,7 @@ describe("Pick a time on the home form", () => {
     fetchMock.mockImplementation(async () => json({ ok: false }, 503));
     const user = userEvent.setup();
     render(<HeroForm booking />);
-    await user.click(screen.getByRole("button", { name: "Or pick a time now" }));
+    await user.click(screen.getByRole("button", { name: "Book an Appointment" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Online booking isn't available right now.");
   });
 });

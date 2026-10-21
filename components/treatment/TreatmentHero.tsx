@@ -25,6 +25,7 @@ export function TreatmentHero({
   title,
   lead,
   treatment,
+  offer,
 }: {
   photo: Photo;
   /** Omitted on the ad landing page, which links nowhere but the form. */
@@ -34,6 +35,8 @@ export function TreatmentHero({
   lead: string;
   /** The category name, sent as the lead's treatment (see HeroForm). */
   treatment: string;
+  /** A live offer for this page, shown above Invite Us Over; it carries its own lead note (see HeroOffer). */
+  offer?: React.ReactNode;
 }) {
   return (
     <section id="book" className="relative scroll-mt-20 overflow-hidden bg-sand">
@@ -64,6 +67,7 @@ export function TreatmentHero({
             source="booking"
             treatment={treatment}
             introOnPhone={false}
+            beforeSubmit={offer}
             className="relative z-10 lg:col-start-9 lg:col-end-13 lg:row-span-2 lg:row-start-1 lg:self-start"
           />
 

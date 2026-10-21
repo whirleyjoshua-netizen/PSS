@@ -41,6 +41,13 @@ export const holidayPromo: Promo = {
   arriveBy: { day: "2026-12-24", note: "may be after Christmas" },
 };
 
+/**
+ * Owner, 2026-10-20: 15% off interior solar shades (not the outdoor solar screens), no minimum, with the consult
+ * booked by Nov 15, the same last day as the 10%. It never stacks with the 10%: the better discount applies.
+ * It shows in the homepage hero form and on the Solar Shades page (content/solar-offer.ts), not in the strip.
+ */
+export const solarOffer: Season = { startsAt: "2026-10-20T00:00:00-07:00", endsAt: holidayOffer.endsAt };
+
 export const promos: Promo[] = [holidayOffer, holidayPromo];
 
 /** The homepage hero's snow and garland (owner, 2026-10-09): the whole season, first strip's start to last strip's end. */
