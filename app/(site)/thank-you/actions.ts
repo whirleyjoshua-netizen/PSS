@@ -10,7 +10,7 @@ import {
   isEmptyAnswers, QUESTIONNAIRE_EXPIRED, questionnaireSchema, type QuestionnaireState,
 } from "@/lib/leads/questionnaire-schema";
 
-const FIELDS = ["windowCountExact", "treatmentTypes", "motorized", "address", "finish"];
+const FIELDS = ["windowCountExact", "treatmentTypes", "motorized", "address"];
 
 function captureValues(formData: FormData): Record<string, string | string[]> {
   const values: Record<string, string | string[]> = {};
@@ -34,7 +34,6 @@ export async function submitQuestionnaire(_prev: QuestionnaireState, formData: F
     treatmentTypes: formData.getAll("treatmentTypes").map(String),
     motorized: formData.get("motorized") === "on",
     address: formData.get("address") ?? "",
-    finish: formData.get("finish") ?? "",
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message, values };
   if (isEmptyAnswers(parsed.data)) redirect("/thank-you/all-set");

@@ -19,8 +19,9 @@ describe("Questionnaire", () => {
     expect(screen.getByLabelText(/^Motorized/)).not.toBeChecked();
     // Owner 2026-10-01: the gate code is taken in the scheduler, not asked of the customer.
     expect(screen.queryByLabelText(/gate/i)).toBeNull();
-    expect(screen.getByRole("group", { name: "What kind of finish are you picturing?" })).toBeInTheDocument();
-    expect(screen.getByRole("radio", { name: /^Luxury — top-tier fabrics and premium brands/ })).not.toBeChecked();
+    // Owner 2026-10-20: the finish question is gone from the customer form.
+    expect(screen.queryByText(/kind of finish/)).toBeNull();
+    expect(screen.queryByRole("radio")).toBeNull();
     expect(document.querySelectorAll("[required]")).toHaveLength(0);
     expect(screen.queryByText(/earlier/)).toBeNull();
   });
@@ -31,13 +32,5 @@ describe("Questionnaire", () => {
     expect(screen.getByLabelText("How many windows?")).toHaveValue("31");
     expect(screen.getByLabelText("Not sure — show me all the samples")).toBeChecked();
     expect(screen.getByLabelText(/^Motorized/)).toBeChecked();
-    expect(screen.getByRole("radio", { name: "Not sure yet" })).toBeChecked();
-  });
-
-  it("has no trailing space in the not-sure-yet label", () => {
-    render(<Questionnaire initial={blank} windowRange={null} />);
-    const radio = screen.getByRole("radio", { name: "Not sure yet" });
-    expect(radio).toBeInTheDocument();
-    expect(radio.closest("label")?.textContent).toBe("Not sure yet");
   });
 });

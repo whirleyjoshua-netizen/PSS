@@ -52,14 +52,14 @@ describe("submitQuestionnaire geocoding", () => {
 });
 
 describe("submitQuestionnaire", () => {
-  it("saves the answers against the cookie's key and redirects to all-set", async () => {
+  it("saves the answers against the cookie's key and redirects to all-set, ignoring a stray finish", async () => {
     await expect(submitQuestionnaire({}, form([
       ["windowCountExact", "12"], ["treatmentTypes", "shutters"], ["treatmentTypes", "cellular_shades"], ["motorized", "on"],
       ["address", "12 Sample St"], ["finish", "luxury"],
     ]))).rejects.toThrow("NEXT_REDIRECT /thank-you/all-set");
     expect(saveQuestionnaire).toHaveBeenCalledWith("the-key", {
       windowCountExact: 12, treatmentTypes: ["shutters", "cellular_shades"], motorized: true,
-      address: "12 Sample St", finish: "luxury",
+      address: "12 Sample St", finish: null,
     });
   });
   it("ignores any key sent in the form", async () => {

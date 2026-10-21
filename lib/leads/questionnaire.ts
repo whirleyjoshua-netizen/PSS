@@ -34,7 +34,7 @@ export async function findQuestionnaire(
 
 /**
  * Saves the answers and logs one note, in one statement. Only questionnaire fields change:
- * the address only when given, the budget tier only for a real finish, and never the stage.
+ * the address and finish only when given, the budget tier only for a real finish, and never the stage.
  * Returns false when the key is wrong or expired.
  */
 /** Saves the answers against the key's lead. Returns that lead's id, or null for a wrong or expired key. */
@@ -43,7 +43,7 @@ export async function saveQuestionnaire(key: string, a: QuestionnaireAnswers): P
     with updated as (
       update leads set
         window_count_exact = ${a.windowCountExact}, treatment_types = ${a.treatmentTypes}::text[],
-        motorized = ${a.motorized}, finish = ${a.finish},
+        motorized = ${a.motorized}, finish = coalesce(${a.finish}::text, finish),
         address = coalesce(${a.address}::text, address),
         lat = case when coalesce(${a.address}::text, address) is distinct from address then null else lat end,
         lng = case when coalesce(${a.address}::text, address) is distinct from address then null else lng end,

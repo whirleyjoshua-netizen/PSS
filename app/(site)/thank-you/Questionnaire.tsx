@@ -3,7 +3,6 @@
 import { useActionState } from "react";
 import { Button } from "@/components/ui/Button";
 import { CONTROL, Label } from "@/components/forms/Field";
-import { FINISH_OPTIONS } from "@/lib/leads/finish";
 import type { QuestionnaireAnswers, QuestionnaireState } from "@/lib/leads/questionnaire-schema";
 import { TREATMENT_TYPES } from "@/lib/leads/treatment-types";
 import { WINDOW_EXACT_OPTIONS } from "@/lib/leads/window-count";
@@ -29,7 +28,6 @@ export function Questionnaire({ initial, windowRange }: { initial: Questionnaire
   };
   const types = picked("treatmentTypes", initial.treatmentTypes);
   const motorized = values ? values.motorized === "on" : initial.motorized;
-  const finish = text("finish", initial.finish ?? "");
 
   return (
     <section aria-labelledby="questionnaire-heading" className="border border-rule bg-sand/40 p-6 sm:p-8">
@@ -69,22 +67,6 @@ export function Questionnaire({ initial, windowRange }: { initial: Questionnaire
           <input id="q-address" name="address" autoComplete="street-address" maxLength={200} className={CONTROL}
             defaultValue={text("address", initial.address ?? "")} />
         </div>
-
-        <fieldset className="flex flex-col gap-3">
-          <legend className={LEGEND}>What kind of finish are you picturing?</legend>
-          <div className="grid gap-2">
-            {FINISH_OPTIONS.map((option) => (
-              <label key={option.value} htmlFor={`q-finish-${option.value}`} className={CHOICE}>
-                <input id={`q-finish-${option.value}`} type="radio" name="finish" value={option.value}
-                  defaultChecked={finish === option.value} className={BOX} />
-                <span>
-                  {option.label}
-                  {option.description ? <>{" "}<span className="text-ink-soft">— {option.description}</span></> : null}
-                </span>
-              </label>
-            ))}
-          </div>
-        </fieldset>
 
         <div className="flex flex-wrap items-center gap-4">
           <Button type="submit" disabled={pending}>{pending ? "Saving…" : "Save"}</Button>

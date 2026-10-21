@@ -46,15 +46,16 @@ test("a new lead answers the questionnaire and the owner sees it", async ({ page
   await card.getByLabel(/^Motorized/).check();
   // The gate code is taken in the scheduler, not asked of the customer (owner 2026-10-01).
   await expect(card.getByLabel(/gate/i)).toHaveCount(0);
-  await card.getByRole("radio", { name: /^Luxury/ }).check();
+  // The finish question is gone (owner 2026-10-20).
+  await expect(card.getByRole("radio")).toHaveCount(0);
   await card.getByRole("button", { name: "Save" }).click();
   await expect(page).toHaveURL(/\/thank-you\/all-set$/);
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Consider it done.");
 
-  const [lead] = await sql()`select id, status, window_count_exact, treatment_types, motorized, gate_code, finish, budget_tier
+  const [lead] = await sql()`select id, status, window_count_exact, treatment_types, motorized, gate_code, finish
     from leads where name = ${NAME}`;
   expect(lead).toMatchObject({ status: "new", window_count_exact: 12, treatment_types: ["shutters", "cellular_shades"],
-    motorized: true, gate_code: null, finish: "luxury", budget_tier: "premium" });
+    motorized: true, gate_code: null, finish: null });
 
   // Another browser has no key, so it gets the plain thank-you page.
   const stranger = await browser.newContext();
@@ -68,6 +69,6 @@ test("a new lead answers the questionnaire and the owner sees it", async ({ page
   await page.goto(`/admin/jobs/${lead.id}`);
   const project = page.getByRole("region", { name: "Project details" });
   await expect(project.locator("dt", { hasText: /^Exact windows$/ }).locator("xpath=following-sibling::dd[1]")).toHaveText("12");
-  for (const text of ["Shutters", "Cellular shades", "#4321", "Luxury → Premium"]) await expect(project).toContainText(text);
-  await expect(page.getByText("Customer added details: 12 windows · Shutters, Cellular shades · Motorized · Luxury")).toBeVisible();
+  for (const text of ["Shutters", "Cellular shades", "#4321"]) await expect(project).toContainText(text);
+  await expect(page.getByText("Customer added details: 12 windows · Shutters, Cellular shades · Motorized")).toBeVisible();
 });
