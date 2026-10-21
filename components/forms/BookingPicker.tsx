@@ -3,7 +3,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/Button";
-import type { SlotDayView } from "@/lib/booking/labels";
+import { calendarWeeks, type SlotDayView } from "@/lib/booking/labels";
 import { CONTROL, Label } from "./Field";
 
 /** A time the visitor chose, and where the visit is. The form sends both. */
@@ -78,6 +78,7 @@ export function BookingPicker({ picked, onPick, idPrefix }: {
   }
 
   const day = load.state === "ready" ? load.days.find((d) => d.date === date) ?? load.days[0] : null;
+  const calendar = calendarWeeks(load.state === "ready" ? load.days : []);
 
   return (
     <>
@@ -127,13 +128,17 @@ export function BookingPicker({ picked, onPick, idPrefix }: {
               <div className="mt-6 flex flex-col gap-5">
                 <fieldset className="min-w-0">
                   <legend className="font-display text-xs font-medium uppercase tracking-[0.16em] text-ink-soft">Day</legend>
-                  <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
-                    {load.days.map((d) => (
-                      <button key={d.date} type="button" aria-pressed={d.date === day.date}
-                        className={`${CHIP} shrink-0 ${d.date === day.date ? ON : OFF}`}
-                        onClick={() => { setDate(d.date); setStart(null); setError(null); }}>
-                        <span className="text-xs uppercase tracking-[0.12em]">{d.weekday}</span>
-                        <span>{d.day}</span>
+                  <p className="mt-2 text-sm text-charcoal">{calendar.title}</p>
+                  <div className="mt-2 grid grid-cols-6 gap-1 text-center">
+                    {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((name) => (
+                      <span key={name} aria-hidden="true" className="pb-1 text-xs uppercase tracking-[0.12em] text-ink-soft">{name}</span>
+                    ))}
+                    {calendar.weeks.flat().map((cell) => (
+                      <button key={cell.date} type="button" aria-label={cell.label} aria-pressed={cell.date === day.date}
+                        disabled={!cell.open}
+                        className={`min-h-11 border text-sm transition-colors disabled:cursor-not-allowed disabled:border-transparent disabled:text-taupe/50 ${cell.date === day.date ? ON : OFF}`}
+                        onClick={() => { setDate(cell.date); setStart(null); setError(null); }}>
+                        {cell.dayNumber}
                       </button>
                     ))}
                   </div>

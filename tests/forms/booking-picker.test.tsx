@@ -46,7 +46,7 @@ describe("Pick a time on the home form", () => {
     await user.click(screen.getByRole("button", { name: "Book an Appointment" }));
 
     const dialog = await screen.findByRole("dialog", { name: "Pick a time for your visit." });
-    await user.click(within(dialog).getByRole("button", { name: /Thu\s*Oct 22/ }));
+    await user.click(within(dialog).getByRole("button", { name: "Thursday, October 22" }));
     await user.click(within(dialog).getByRole("button", { name: "10:00 AM" }));
     await user.click(within(dialog).getByRole("button", { name: "Use this time" }));
     expect(within(dialog).getByRole("alert")).toHaveTextContent("Please enter the street address for your visit.");
@@ -69,7 +69,7 @@ describe("Pick a time on the home form", () => {
     await user.click(screen.getByRole("button", { name: "Book an Appointment" }));
     const dialog = await screen.findByRole("dialog");
     await user.click(within(dialog).getByRole("button", { name: "8:00 AM" }));
-    await user.click(within(dialog).getByRole("button", { name: /Thu\s*Oct 22/ }));
+    await user.click(within(dialog).getByRole("button", { name: "Thursday, October 22" }));
     await user.type(within(dialog).getByLabelText("Street address"), "12 Sample St");
     await user.click(within(dialog).getByRole("button", { name: "Use this time" }));
     expect(within(dialog).getByRole("alert")).toHaveTextContent("Pick a time.");
@@ -90,6 +90,17 @@ describe("Pick a time on the home form", () => {
     const sent = JSON.parse(fetchMock.mock.calls.find(([url]) => url === "/api/consultation")![1].body);
     expect(sent.slot).toBeUndefined();
     expect(sent.address).toBeUndefined();
+  });
+
+  it("shows the days as a calendar, with a day that has no times greyed out", async () => {
+    const user = userEvent.setup();
+    render(<HeroForm booking />);
+    await user.click(screen.getByRole("button", { name: "Book an Appointment" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText("October 2026")).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Wednesday, October 21" })).toBeEnabled();
+    expect(within(dialog).getByRole("button", { name: "Friday, October 23" })).toBeDisabled();
+    expect(within(dialog).queryByRole("button", { name: /Sunday/ })).toBeNull();
   });
 
   it("says when online booking is unavailable", async () => {

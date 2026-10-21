@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { candidateDays, isCandidate, isOpen, openDays } from "@/lib/booking/slots";
-import { slotDays, visitLabel } from "@/lib/booking/labels";
+import { calendarWeeks, slotDays, visitLabel } from "@/lib/booking/labels";
 
 // Tuesday 2026-10-20, 3 PM in Las Vegas (PDT, UTC-7).
 const NOW = new Date("2026-10-20T22:00:00Z");
@@ -76,5 +76,24 @@ describe("isCandidate", () => {
 describe("visitLabel", () => {
   it("names the day and time in Las Vegas", () => {
     expect(visitLabel(at("2026-10-22T17:00:00Z"))).toBe("Thursday, October 22 at 10:00 AM");
+  });
+});
+
+describe("calendarWeeks", () => {
+  it("lays the offered days out Monday to Saturday, with closed days greyed and no sideways row", () => {
+    // Tue Oct 20 at 3 PM: Wed Oct 21 to Tue Nov 3. Take Oct 24 out as fully booked.
+    const days = slotDays(candidateDays(NOW)).filter((day) => day.date !== "2026-10-24");
+    const { title, weeks } = calendarWeeks(days);
+    expect(title).toBe("October – November 2026");
+    expect(weeks).toHaveLength(3);
+    expect(weeks.every((week) => week.length === 6)).toBe(true);
+    expect(weeks[0].map((c) => c.date)).toEqual(["2026-10-19", "2026-10-20", "2026-10-21", "2026-10-22", "2026-10-23", "2026-10-24"]);
+    expect(weeks[0].map((c) => c.open)).toEqual([false, false, true, true, true, false]);
+    expect(weeks[2][0]).toMatchObject({ date: "2026-11-02", dayNumber: 2, label: "Monday, November 2", open: true });
+    expect(weeks[2].slice(2).every((c) => !c.open)).toBe(true);
+  });
+
+  it("is empty with no days", () => {
+    expect(calendarWeeks([])).toEqual({ title: "", weeks: [] });
   });
 });
