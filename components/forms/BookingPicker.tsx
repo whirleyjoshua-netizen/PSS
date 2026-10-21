@@ -125,7 +125,7 @@ export function BookingPicker({ picked, onPick, idPrefix }: {
 
             {load.state === "ready" && day ? (
               <div className="mt-6 flex flex-col gap-5">
-                <fieldset>
+                <fieldset className="min-w-0">
                   <legend className="font-display text-xs font-medium uppercase tracking-[0.16em] text-ink-soft">Day</legend>
                   <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
                     {load.days.map((d) => (
@@ -139,7 +139,7 @@ export function BookingPicker({ picked, onPick, idPrefix }: {
                   </div>
                 </fieldset>
 
-                <fieldset>
+                <fieldset className="min-w-0">
                   <legend className="font-display text-xs font-medium uppercase tracking-[0.16em] text-ink-soft">Time</legend>
                   <div className="mt-2 grid grid-cols-3 gap-2">
                     {day.slots.map((slot) => (

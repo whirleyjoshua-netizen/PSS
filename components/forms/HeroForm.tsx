@@ -55,7 +55,8 @@ export function HeroForm({
     <div className={`bg-ivory p-6 shadow-xl sm:p-8 ${className ?? ""}`}>
       {/* The homepage (booking) gives the heading more weight (owner 2026-10-20); the other pages keep it small for the phone fold. */}
       <h2 className={`font-display font-light tracking-tight text-charcoal ${booking ? "text-3xl sm:text-4xl" : "text-xl"}`}>
-        Free in-home consultation
+        {/* The big heading must never break as "Free in- / home". */}
+        <span className="whitespace-nowrap">Free in-home</span> consultation
       </h2>
       <p className={`mt-2 text-sm text-ink-soft ${introOnPhone ? "" : "hidden sm:block"}`}>
         We bring the samples, measure every window and send you a written quote. No
