@@ -45,7 +45,7 @@ export function TreatmentHero({
           src={photo.src}
           alt={photo.alt}
           fill
-          priority
+          preload
           sizes="100vw"
           className="animate-slow-zoom object-cover"
         />

@@ -17,7 +17,7 @@ export function HolidayHero({ stage, photo }: { stage: "offer" | "family"; photo
   return (
     <section id="book" className="relative isolate scroll-mt-20 overflow-hidden bg-holiday-green text-holiday-snow">
       <div className="relative aspect-[32/9] w-full overflow-hidden sm:aspect-[16/7] lg:absolute lg:inset-0 lg:aspect-auto">
-        <Image src={photo.src} alt={photo.alt} fill priority sizes="100vw" className="animate-slow-zoom object-cover" />
+        <Image src={photo.src} alt={photo.alt} fill preload sizes="100vw" className="animate-slow-zoom object-cover" />
         <div className="absolute inset-0 bg-gradient-to-t from-holiday-green via-holiday-green/20 to-transparent lg:bg-gradient-to-r lg:from-holiday-green lg:via-holiday-green/80 lg:to-holiday-green/10" aria-hidden="true" />
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_80%_20%,rgb(243_220_148/0.25),transparent_55%)]" aria-hidden="true" />
       </div>

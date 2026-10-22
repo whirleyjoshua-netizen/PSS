@@ -45,7 +45,7 @@ export function Hero() {
           src={altaPhotos.sheerShadingsLivingRoom.src}
           alt=""
           fill
-          priority
+          preload
           // Decorative full-bleed art. `fill` + sizes lets next/image serve a
           // width matched to the viewport instead of the full 1800px source.
           sizes="100vw"
