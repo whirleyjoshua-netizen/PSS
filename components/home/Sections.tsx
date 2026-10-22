@@ -66,8 +66,8 @@ export function CategoryGrid() {
     <Section tone="ivory">
       <SectionHeading
         eyebrow="What we install"
-        title="Every treatment, measured for your windows."
-        lead="We carry the full range because the right answer depends on which way the window faces and what the room is for. The consultation is where we work that out."
+        title="Custom window treatments, measured precisely."
+        lead="We carry Hunter Douglas, Alta and Norman, with a wide variety of fabrics and designs to choose from."
       />
 
       {/* Tall cards side by side: a swipeable row on phones and tablets, all four in one row from lg up. */}
