@@ -152,23 +152,34 @@ export function categoryServiceSchema(category: { slug: string; name: string; se
   };
 }
 
+/** An Article written by the business: a repair guide (/guides) or a buying guide (/learn). */
+export function articlePageSchema(page: { path: string; title: string; description: string; published: string; updated: string }) {
+  const url = absolute(page.path);
+  const organization = { "@type": "Organization", name: business.name, url: business.domain };
+  return {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    headline: page.title,
+    description: page.description,
+    url,
+    mainEntityOfPage: url,
+    datePublished: page.published,
+    dateModified: page.updated,
+    author: organization,
+    publisher: organization,
+  };
+}
+
 /**
  * A repair guide is an Article written by the business. No HowTo or FAQPage
  * markup: Google stopped showing either for ordinary sites in 2023.
  */
 export function articleSchema(guide: Guide) {
-  const url = absolute(`/guides/${guide.slug}`);
-  const organization = { "@type": "Organization", name: business.name, url: business.domain };
-  return {
-    "@context": "https://schema.org",
-    "@type": "Article",
-    headline: guide.title,
+  return articlePageSchema({
+    path: `/guides/${guide.slug}`,
+    title: guide.title,
     description: guide.seo.description,
-    url,
-    mainEntityOfPage: url,
-    datePublished: guide.published,
-    dateModified: guide.updated,
-    author: organization,
-    publisher: organization,
-  };
+    published: guide.published,
+    updated: guide.updated,
+  });
 }

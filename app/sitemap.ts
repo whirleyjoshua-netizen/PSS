@@ -3,6 +3,7 @@ import { business } from "@/content/business";
 import { categories, products } from "@/content/products";
 import { cities } from "@/content/cities";
 import { guides } from "@/content/guides";
+import { articles } from "@/content/articles";
 
 /**
  * Derived entirely from the content model, so a product added to
@@ -46,6 +47,14 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 0.6,
       changeFrequency: "monthly" as const,
       lastModified: new Date(guide.updated),
+    })),
+
+    // Buying guides; there is no /learn index, so they hang off /faq like the repair guides.
+    ...articles.map((article) => ({
+      url: url(`/learn/${article.slug}`),
+      priority: 0.7,
+      changeFrequency: "monthly" as const,
+      lastModified: new Date(article.updated),
     })),
 
     { url: url("/faq"), priority: 0.8, changeFrequency: "monthly" },

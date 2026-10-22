@@ -8,6 +8,7 @@ import { breadcrumbSchema } from "@/lib/seo/schema";
 import { consultationPhoto } from "@/content/gallery";
 import { FAQ_GROUPS } from "@/content/faq";
 import { guides, minutesLabel } from "@/content/guides";
+import { articles } from "@/content/articles";
 import { faqPageSchema } from "./schema";
 
 const title = "Window Treatment FAQs | Premier Shade Solutions Las Vegas";
@@ -50,6 +51,11 @@ export default function FaqPage() {
               </li>
             ))}
             <li>
+              <a href="#buying-guides" className="underline-offset-4 hover:text-charcoal hover:underline">
+                Buying guides
+              </a>
+            </li>
+            <li>
               <a href="#care" className="underline-offset-4 hover:text-charcoal hover:underline">
                 Care and repair
               </a>
@@ -88,6 +94,26 @@ export default function FaqPage() {
             </section>
           ))}
         </div>
+      </Section>
+
+      <Section tone="ivory" id="buying-guides" className="scroll-mt-20 border-t border-rule" containerWidth="prose">
+        <h2 className="text-3xl font-light tracking-tight text-charcoal">Buying guides</h2>
+        <p className="mt-3 text-lg text-ink-soft">
+          The questions we answer most at consultations, written out, for Las Vegas homes.
+        </p>
+        <ul className="mt-8 grid gap-4 md:grid-cols-2">
+          {articles.map((article) => (
+            <li key={article.slug}>
+              <Link
+                href={`/learn/${article.slug}`}
+                className="flex h-full flex-col gap-2 border border-rule bg-white p-5 transition-colors hover:border-champagne"
+              >
+                <span className="font-display text-lg text-charcoal">{article.title}</span>
+                <span className="text-ink-soft">{article.seo.description}</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
       </Section>
 
       <Section tone="ivory" id="care" className="scroll-mt-20 border-t border-rule" containerWidth="prose">

@@ -21,6 +21,12 @@ export type City = {
   climateNote: string;
   /** What we install most here, each with why it suits this city, drawn from this entry and content/products.ts. */
   popularProducts: { name: string; href: string; why: string }[];
+  /**
+   * Room-by-room and home-by-home detail for this city (SEO plan 2026-10-21: the city pages competitors rank with
+   * run 2,400–3,000 words). DRAFT until the owner approves it: every product claim comes from content/products.ts or
+   * content/faq.ts; claims about specific neighborhoods were cut where nobody could confirm them (owner 2026-10-22).
+   */
+  local: { heading: string; body: string }[];
   seo: { title: string; description: string };
 };
 
@@ -48,6 +54,20 @@ export const cities: City[] = [
       { name: "Cellular Shades", href: "/shades/cellular-shades", why: "For single-pane glass in older aluminum frames, where the trapped air slows the heat coming through." },
       { name: "Solar Shades", href: "/shades/solar-shades", why: "For the bigger, newer glass, where the problem shifts from heat loss to glare and UV." },
       { name: "Plantation Shutters", href: "/shutters/plantation-shutters", why: "Also for newer glass: the louvers tilt to send low afternoon sun up toward the ceiling instead of into your eyes." },
+    ],
+    local: [
+      {
+        heading: "Older homes with single-pane glass",
+        body: "Many older homes in Las Vegas still have single-pane glass in aluminum frames. Those windows let summer heat straight through. A double-cell cellular shade traps a layer of still air against the glass, and on single-pane windows it makes a measurable difference in how hard your air conditioning works in the afternoon. For street-facing bedrooms we often make it top-down bottom-up, so the top lets daylight in while the bottom half stays private.",
+      },
+      {
+        heading: "Newer homes with bigger glass",
+        body: "In newer construction the glass is bigger and the frames are better, so the job shifts from insulation to glare and UV. On west-facing windows we specify a solar shade by openness factor, window by window: a tight 3% screen turns away the most heat, a 10% screen keeps a crisper view. Patio sliders usually get vertical blinds, because the vanes stack to one side and the door still works as a door.",
+      },
+      {
+        heading: "The rooms that work hardest",
+        body: "Bedrooms want real darkness, which in Las Vegas often means a blackout roller with side channels for anyone who sleeps days. Home offices want glare off the screen without losing daylight, which is a solar shade. Kitchens and bathrooms want something that wipes clean and will not warp, which is faux wood. We walk the whole house with you at the consultation, so every room gets what it actually needs instead of one product everywhere.",
+      },
     ],
     seo: {
       // Not "Window Treatments in Las Vegas": the homepage owns that search (SEO prompt 3, 2026-10-17).
@@ -82,6 +102,20 @@ export const cities: City[] = [
       { name: "Solar Screens", href: "/outdoor/solar-screens", why: "For the bigger sliders: fixed screens turn away roughly 70–90% of the sun's heat before it reaches the glass." },
       { name: "Roller Shades", href: "/shades/roller-shades", why: "One clean line of fabric across the larger openings, with motorized operation when the window is out of reach." },
     ],
+    local: [
+      {
+        heading: "Two-story great rooms",
+        body: "Many Henderson homes have a great room with glass that runs well above where anyone can reach. A shade that high only gets used if it is easy to use, which is why so many of our Henderson jobs end up motorized. We install Alta's BLISS motorization: open and close every shade from the free app or a remote that runs up to 10 shades, and set timers by the clock or by your local sunrise and sunset. Each motor recharges with a USB-C cable, so there is no wiring and no electrician.",
+      },
+      {
+        heading: "Sliders onto the covered patio",
+        body: "Henderson homes tend to have bigger sliding doors onto covered patios, and in July the glass on those doors turns the room behind it into an oven. Exterior solar screens on the patio-facing windows turn away roughly 70–90% of the sun's heat before it reaches the glass. Inside, vertical blinds or a cellular shade on the slider keeps the door working while cutting the glare.",
+      },
+      {
+        heading: "Upgrading builder blinds",
+        body: "Many new homes in Henderson come with basic builder blinds, often 2-inch faux wood, or a blinds package chosen at the builder's design studio. They work, but they are rarely matched to the room: the same blind on a west-facing great room and a north-facing bedroom. Upgrading is usually about putting the right product on the windows that take the sun, and we quote it room by room so you can start with the ones that matter most.",
+      },
+    ],
     seo: {
       title: "Window Treatments in Henderson, NV | Premier Shade Solutions",
       description:
@@ -113,6 +147,20 @@ export const cities: City[] = [
       { name: "Roller Shades", href: "/shades/roller-shades", why: "For bedrooms we often layer a blackout behind the solar screen on a dual roller, for a genuinely dark room at night." },
       { name: "Plantation Shutters", href: "/shutters/plantation-shutters", why: "The louvers tilt to send the low afternoon sun up toward the ceiling instead of into your eyes." },
     ],
+    local: [
+      {
+        heading: "Choosing openness for the view windows",
+        body: "Summerlin homes face the Red Rock views, which means big west-facing glass taking the hardest afternoon sun in the valley. The choice that matters is the solar shade's openness factor. A 1–3% screen turns away the most heat and UV with a softer view; a 5–10% screen keeps the mountains crisp but lets more energy through. We choose it window by window at the consultation, with samples held up to your own glass at the time of day you use the room.",
+      },
+      {
+        heading: "Bedrooms that face the sunset",
+        body: "A west-facing Summerlin bedroom needs two things: a view during the day and real darkness at night. A dual roller does both on one bracket, with a solar screen in front for daytime and a blackout behind it for sleep. Where you would rather have the look of wood, plantation shutters tilt to send the low afternoon sun up toward the ceiling instead of into your eyes.",
+      },
+      {
+        heading: "Working within your village's guidelines",
+        body: "Many Summerlin villages have HOA guidelines covering what is visible from the street. Exterior products like solar screens can be seen from outside, so it is worth checking your village's guidelines before ordering anything exterior. Interior shades and shutters sit inside the glass, behind the window.",
+      },
+    ],
     seo: {
       title: "Window Treatments in Summerlin, NV | Premier Shade Solutions",
       description:
@@ -142,6 +190,20 @@ export const cities: City[] = [
       { name: "Faux Wood Blinds", href: "/blinds/wood-blinds", why: "A practical whole-home choice: faux wood will not warp, fade or crack in direct desert sun." },
       { name: "Cellular Shades", href: "/shades/cellular-shades", why: "With little mature tree cover, afternoon heat gain runs high, and the trapped air in a cellular shade slows heat coming in." },
       { name: "Solar Screens", href: "/outdoor/solar-screens", why: "For the west side of the house, where screens take a real bite out of a summer power bill." },
+    ],
+    local: [
+      {
+        heading: "Whole-home packages",
+        body: "Much of North Las Vegas is recent subdivision construction, with consistent window sizes from room to room. When the openings match, covering the whole house at once is genuinely more efficient than doing it a room at a time, and the price per window comes down. Faux wood blinds are a practical whole-home choice here: they will not warp, fade or crack in direct desert sun, and they wipe clean.",
+      },
+      {
+        heading: "Afternoon heat without the tree cover",
+        body: "Many North Las Vegas neighborhoods are new enough to have little mature tree cover, so afternoon heat gain runs higher than homeowners expect. On the west side of the house, exterior solar screens stop the sun before it reaches the glass. Inside, a cellular shade's trapped air slows the heat coming through, and a solar shade cuts the glare while keeping your view.",
+      },
+      {
+        heading: "Homes with kids and pets",
+        body: "Cords are the thing to design out in a busy family home. Roller shades come cordless or motorized, cordless lift is available on wood and faux wood blinds and on roman shades, and shutters have no cords at all. Tell us who lives in the house when we come out, and we will steer every window toward a safe option.",
+      },
     ],
     seo: {
       title: "North Las Vegas Window Treatments | Premier Shade Solutions",
