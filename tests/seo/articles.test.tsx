@@ -50,25 +50,29 @@ describe("buying guides (SEO plan drafts, 2026-10-22)", () => {
   });
 });
 
-describe("held guides (owner 2026-10-22)", () => {
-  it("keeps the brands guide off the site until the brands confirm how their names may be used", async () => {
-    const slugs = HELD_ARTICLES.map((a) => a.slug);
-    expect(slugs).toContain("hunter-douglas-alta-norman-las-vegas");
-    expect((await generateStaticParams()).map((p) => p.slug)).not.toEqual(expect.arrayContaining(slugs));
-    expect(sitemap().map((e) => e.url).some((u) => slugs.some((slug) => u.endsWith(slug)))).toBe(false);
+describe("the brands guide (owner 2026-10-22: approved to use our vendors' names)", () => {
+  it("is published, and says we carry them, never authorized dealer", async () => {
+    expect(HELD_ARTICLES).toHaveLength(0);
+    expect((await generateStaticParams()).map((p) => p.slug)).toContain("hunter-douglas-alta-norman-las-vegas");
+    expect(sitemap().some((e) => e.url.endsWith("/learn/hunter-douglas-alta-norman-las-vegas"))).toBe(true);
   });
 });
 
 describe("deeper city pages", () => {
   it("names no neighborhood or builder it could not confirm", () => {
     const text = cities.flatMap((c) => c.local.map((l) => l.body)).join(" ");
-    expect(text).not.toMatch(/Maryland Parkway|Spring Valley|Inspirada|Cadence|Aliante|Lennar|KB Home|we check it against/);
+    expect(text).not.toMatch(/Maryland Parkway|Spring Valley|Inspirada|Cadence|Aliante|Lennar|KB Home/);
   });
 
   it.each(cities.map((c) => [c.slug, c] as const))("/service-area/%s shows its three local sections", async (slug, city) => {
     render(await CityPage({ params: Promise.resolve({ city: slug }) }));
     const section = screen.getByRole("heading", { level: 2, name: `Window treatments for ${city.name} homes.` }).closest("section")!;
     expect(within(section).getAllByRole("heading", { level: 3 }).map((h) => h.textContent)).toEqual(city.local.map((l) => l.heading));
+  });
+
+  it("promises the HOA check on exterior orders (owner 2026-10-22)", () => {
+    const summerlin = cities.find((c) => c.slug === "summerlin")!;
+    expect(summerlin.local.map((l) => l.body).join(" ")).toMatch(/we check it against your village's guidelines with you/);
   });
 
   it("says something different in every city", () => {

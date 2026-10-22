@@ -64,7 +64,7 @@ export const articles: Article[] = [
       {
         heading: "Looks, the street and your HOA",
         paragraphs: [
-          "A solar screen darkens the view a little from inside and can be seen from the street, so we put them on the sides of the house that take the beating rather than the front. Because they are on the outside, it is worth checking your HOA's guidelines before ordering.",
+          "A solar screen darkens the view a little from inside and can be seen from the street, so we put them on the sides of the house that take the beating rather than the front. Because they are on the outside, we check your HOA's guidelines with you before ordering.",
           "A solar shade disappears into a slim cassette when it is up, and when it is down it looks like any other interior shade.",
         ],
       },
@@ -135,13 +135,6 @@ export const articles: Article[] = [
     ],
   },
 
-];
-
-/**
- * Held back until the owner confirms with Hunter Douglas, Alta and Norman how a retailer may use their names online
- * (owner 2026-10-22). Not routed and not in the sitemap; move it into `articles` to publish.
- */
-export const HELD_ARTICLES: Article[] = [
   {
     slug: "hunter-douglas-alta-norman-las-vegas",
     crumb: "Hunter Douglas, Alta and Norman",
@@ -190,6 +183,12 @@ export const HELD_ARTICLES: Article[] = [
     ],
   },
 ];
+
+/**
+ * Guides written but not published: not routed and not in the sitemap. Move one into `articles` to publish.
+ * (The brands guide waited here until the owner confirmed, 2026-10-22, that PSS may use its vendors' names.)
+ */
+export const HELD_ARTICLES: Article[] = [];
 
 export const articleBySlug = (slug: string): Article | undefined => articles.find((a) => a.slug === slug);
 

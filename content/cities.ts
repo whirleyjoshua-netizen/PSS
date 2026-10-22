@@ -158,7 +158,7 @@ export const cities: City[] = [
       },
       {
         heading: "Working within your village's guidelines",
-        body: "Many Summerlin villages have HOA guidelines covering what is visible from the street. Exterior products like solar screens can be seen from outside, so it is worth checking your village's guidelines before ordering anything exterior. Interior shades and shutters sit inside the glass, behind the window.",
+        body: "Many Summerlin villages have HOA guidelines covering what is visible from the street. Exterior products like solar screens can be seen from outside, so before we order anything exterior, we check it against your village's guidelines with you. Interior shades and shutters sit inside the glass, behind the window.",
       },
     ],
     seo: {
