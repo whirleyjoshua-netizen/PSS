@@ -26,9 +26,11 @@ function expectLandingBasics(container: HTMLElement) {
   const firstPain = screen.getByRole("heading", { name: PAINS[0]!.answer });
   expect(form.compareDocumentPosition(firstPain) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   for (const pain of PAINS) {
-    expect(screen.getByText(pain.heard)).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: pain.answer })).toBeInTheDocument();
   }
+  // Owner 2026-10-21: no quoted complaints, which skimmers read as reviews of us.
+  expect(screen.getByRole("heading", { level: 2, name: "What makes us different." })).toBeInTheDocument();
+  expect(container.textContent).not.toMatch(/It took forever|They measured wrong/);
   for (const step of STEPS) expect(screen.getByRole("heading", { name: step.title })).toBeInTheDocument();
   for (const { q } of FAQ) expect(screen.getByText(q)).toBeInTheDocument();
   const closing = screen.getAllByRole("link", { name: /invite us over/i });
@@ -90,12 +92,11 @@ describe("landing routes", () => {
   });
 
   it("answers each pain with the promise the owner confirmed on 2026-10-08", () => {
-    const answer = (heard: RegExp) => PAINS.find((p) => heard.test(p.heard))!.body;
-    expect(answer(/took forever/)).toMatch(/temporary shades/);
-    expect(answer(/measured wrong/)).toMatch(/Josh measures every window himself.*remake it/);
-    expect(answer(/called me back/)).toMatch(/You text the owners, Shade’ and Josh, directly/);
-    expect(PAINS.find((p) => /called me back/.test(p.heard))!.answer).toBe("Not customer service. Personal service.");
-    expect(answer(/left a mess/)).toMatch(/clean up.*haul your old blinds away for free/);
-    expect(answer(/had my money/)).toMatch(/walk through every window with you.*stand behind the job/);
+    const answer = (headline: string) => PAINS.find((p) => p.answer === headline)!.body;
+    expect(answer("Your lead time, in writing")).toMatch(/temporary shades/);
+    expect(answer("Our measurement guarantee")).toMatch(/Josh measures every window himself.*remake it/);
+    expect(answer("Not customer service. Personal service.")).toMatch(/You text the owners, Shade’ and Josh, directly/);
+    expect(answer("We leave it cleaner.")).toMatch(/clean up.*haul your old blinds away for free/);
+    expect(answer("From your first call to the final install, we're family.")).toMatch(/walk through every window with you.*stand behind the job/);
   });
 });

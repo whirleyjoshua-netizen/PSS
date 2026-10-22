@@ -31,9 +31,11 @@ export const LEAD_TIME_START = "counted from the day you order";
  */
 export const CALLBACK_WINDOW = "within a business day";
 
+/**
+ * What we do that other window companies often don't. Owner 2026-10-21, from the marketing consultant: no quoted
+ * complaints ("It took forever.") above the answers, because people skimming read them as reviews of us.
+ */
 export type Pain = {
-  /** The complaint, in the words customers use in reviews. */
-  heard: string;
   /** The headline of our answer. */
   answer: string;
   body: string;
@@ -41,34 +43,29 @@ export type Pain = {
 
 export const PAINS: Pain[] = [
   {
-    heard: "“It took forever.”",
     answer: "Your lead time, in writing",
     body: `Your quote says when to expect your install: ${LEAD_TIME_LINE}, ${LEAD_TIME_START}. Need privacy while you wait? We put up temporary shades, free.`,
   },
   {
-    heard: "“They measured wrong.”",
     answer: "Our measurement guarantee",
     body: "Josh measures every window himself, and we stand behind every number. If a measurement is off, we remake it and install it again, free.",
   },
   {
-    heard: "“Nobody called me back.”",
     answer: "Not customer service. Personal service.",
     body: "No call center and no sales rep to chase. You text the owners, Shade’ and Josh, directly, and your project page shows where your order is, any time.",
   },
   {
-    heard: "“The crew left a mess.”",
     answer: "We leave it cleaner.",
     body: "We protect your floors, clean up and vacuum before we go, and haul your old blinds away for free.",
   },
   {
-    heard: "“Once they had my money, they disappeared.”",
     answer: "From your first call to the final install, we're family.",
     body: "We are a Las Vegas family business, and we never hand you off to a third party for install. We walk through every window with you before we go, and we stand behind the job.",
   },
 ];
 
 /**
- * The homepage's "What usually goes wrong" block: the first four pains, the fears people have before they book. The
+ * The homepage's "What makes us different" block: the first four pains, the fears people have before they book. The
  * fifth ("we're family") is left out there because the homepage already says it in its own sections. /consultation
  * and /holiday show all five (components/consultation/LandingSections.tsx).
  */

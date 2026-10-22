@@ -28,7 +28,7 @@ describe("no copy promises the quote at the visit", () => {
 
 describe("temporary shades", () => {
   it("are promised free, as the owner confirmed on 2026-10-08", () => {
-    expect(PAINS.find((p) => /took forever/.test(p.heard))!.body).toMatch(/temporary shades, free/);
+    expect(PAINS.find((p) => p.answer === "Your lead time, in writing")!.body).toMatch(/temporary shades, free/);
   });
 });
 
@@ -48,7 +48,7 @@ describe("no copy promises a headcount", () => {
   });
 
   it("answers 'they disappeared' with the family business and no third-party installers", () => {
-    const pain = PAINS.find((p) => /had my money/.test(p.heard))!;
+    const pain = PAINS.find((p) => /we're family/.test(p.answer))!;
     expect(pain.answer).toBe("From your first call to the final install, we're family.");
     expect(pain.body).toMatch(/never hand you off to a third party for install/);
   });

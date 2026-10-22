@@ -110,12 +110,12 @@ describe("Home", () => {
     expect(at("What it’s like to work with us")).toBeLessThan(at("inviting in family"));
     expect(at("inviting in family")).toBeLessThan(at("Installed by the two of us."));
     expect(at("Installed by the two of us.")).toBeLessThan(at("Here is what our clients said"));
-    expect(at("Here is what our clients said")).toBeLessThan(at("What usually goes wrong, and how we do it differently."));
+    expect(at("Here is what our clients said")).toBeLessThan(at("What makes us different."));
   });
 
-  it("answers what usually goes wrong with four promises and the warranty line", () => {
+  it("says what makes us different with four promises and the warranty line, and no quoted complaints", () => {
     render(<Home />);
-    const heading = screen.getByRole("heading", { level: 2, name: "What usually goes wrong, and how we do it differently." });
+    const heading = screen.getByRole("heading", { level: 2, name: "What makes us different." });
     const section = heading.closest("section")!;
     const cards = Array.from(section.querySelectorAll("h3")).map((h) => h.textContent);
     expect(cards).toEqual(HOME_OBJECTIONS.map((pain) => pain.answer));
@@ -126,12 +126,13 @@ describe("Home", () => {
       "We leave it cleaner.",
     ]);
     for (const pain of HOME_OBJECTIONS) {
-      expect(within(section).getByText(pain.heard)).toBeInTheDocument();
       expect(within(section).getByText(pain.body)).toBeInTheDocument();
     }
     expect(within(section).getByText(WARRANTY_LINE)).toBeInTheDocument();
     expect(within(section).getByText(WARRANTY.fineprint)).toBeInTheDocument();
     expect(section.textContent).not.toMatch(/holiday|christmas|nov 15|10%/i);
+    expect(section.textContent).not.toMatch(/[“”]/);
+    expect(within(section).getByText("We go the extra mile")).toBeInTheDocument();
   });
 
   it("lists the service area as a slim strip of city links with a call link", () => {

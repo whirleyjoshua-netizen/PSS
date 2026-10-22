@@ -114,19 +114,18 @@ export function CategoryGrid() {
 /* ------------------------------------------------------------- objections */
 
 /**
- * The fears people have before they book, in their words, and what we do instead. The same cards as the ad landing
+ * What we do that others often don't (owner 2026-10-21: a headline skimmers can't take as a complaint about us). The same cards as the ad landing
  * pages (content/consultation.ts), so a promise can only change in one place.
  */
 export function Objections() {
   return (
     // Charcoal, between the sand reviews band and the ivory product grid.
     <Section tone="charcoal">
-      <SectionHeading eyebrow="No runaround" title="What usually goes wrong, and how we do it differently." tone="dark" />
+      <SectionHeading eyebrow="We go the extra mile" title="What makes us different." tone="dark" />
 
       <ul className="mt-12 grid gap-px bg-ivory/15 sm:grid-cols-2 lg:grid-cols-4">
         {HOME_OBJECTIONS.map((pain) => (
           <li key={pain.answer} className="flex flex-col gap-3 bg-charcoal p-6 md:p-8">
-            <p className="text-sm italic text-sand/70">{pain.heard}</p>
             <h3 className="font-display text-xl font-light tracking-tight text-ivory">{pain.answer}</h3>
             <p className="text-sm leading-relaxed text-sand/75">{pain.body}</p>
           </li>

@@ -4,21 +4,20 @@ import { PAINS, STEPS } from "@/content/consultation";
 
 /** Sections shared by the ad landing pages: /consultation and /holiday. */
 
-/** The five things customers say go wrong with window companies, and how we do each one. */
+/** Five things we do that other window companies often don't. */
 export function PainsSection() {
   return (
     <Section tone="ivory">
       <div className="flex flex-col gap-3">
-        <p className="font-display text-xs font-medium uppercase tracking-[0.22em] text-champagne-ink">No runaround</p>
+        <p className="font-display text-xs font-medium uppercase tracking-[0.22em] text-champagne-ink">We go the extra mile</p>
         <h2 className="heading-serif max-w-3xl text-3xl leading-tight text-charcoal md:text-5xl">
-          What usually goes wrong, and how we do it
+          What makes us different.
         </h2>
       </div>
       <ul className="mt-10 grid gap-px bg-rule md:grid-cols-2 lg:grid-cols-3">
         {PAINS.map((pain, index) => (
           <li key={pain.answer} className="bg-ivory">
             <Reveal delayMs={index * 80} className="flex h-full flex-col gap-3 p-6 md:p-8">
-              <p className="text-sm italic text-ink-soft">{pain.heard}</p>
               <h3 className="font-display text-xl font-medium text-charcoal">{pain.answer}</h3>
               <p className="leading-relaxed text-ink-soft">{pain.body}</p>
             </Reveal>
