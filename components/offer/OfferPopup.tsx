@@ -6,7 +6,7 @@ import { Button, ButtonLink } from "@/components/ui/Button";
 import { FormMessage, Honeypot, TextField } from "@/components/forms/Field";
 import { business } from "@/content/business";
 import {
-  LEAD_SENT_KEY, OFFER_DELAY_MS, OFFER_POPUP, OFFER_SCROLL_SHARE, OFFER_SEEN_KEY, liveOffers, type PopupOffer,
+  LEAD_SENT_KEY, OFFER_DELAY_MS, OFFER_POPUP, OFFER_SEEN_KEY, liveOffers, type PopupOffer,
 } from "@/content/offer-popup";
 import { offerSignupSchema } from "@/lib/leads/schema";
 import { recallAttribution } from "@/lib/leads/attribution";
@@ -43,8 +43,7 @@ function busy(): boolean {
 
 /**
  * The offer pop-up (owner 2026-10-21, from the marketing consultant): a visitor not ready to book leaves a name and
- * email to get the offer, so we can follow up. It waits for 20 seconds on the site or half a page of scrolling,
- * whichever is first, so it never covers a page on arrival from Google (which can rank such pages lower on phones).
+ * email to get the offer, so we can follow up. It shows as soon as they land (OFFER_DELAY_MS).
  * It shows once per browser, never after any form was sent, and only while an offer runs.
  */
 export function OfferPopup() {
@@ -78,16 +77,10 @@ export function OfferPopup() {
       remember(OFFER_SEEN_KEY);
       setOffers(live);
     };
-    const onScroll = () => {
-      const room = document.documentElement.scrollHeight - window.innerHeight;
-      if (room > 0 && window.scrollY / room >= OFFER_SCROLL_SHARE) show();
-    };
     const timer = window.setTimeout(show, OFFER_DELAY_MS);
-    window.addEventListener("scroll", onScroll, { passive: true });
     function cleanup() {
       window.clearTimeout(timer);
       window.clearTimeout(retry);
-      window.removeEventListener("scroll", onScroll);
     }
     return cleanup;
   }, []);

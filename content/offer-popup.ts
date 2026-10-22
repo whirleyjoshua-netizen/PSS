@@ -18,16 +18,18 @@ export const POPUP_OFFERS: readonly PopupOffer[] = [
 export const liveOffers = (now: Date): PopupOffer[] => POPUP_OFFERS.filter((offer) => isPromoLive(offer.season, now));
 
 export const OFFER_POPUP = {
-  heading: "Save on custom window treatments.",
-  intro: `Not ready to book yet? Send us your name and email and we'll email you the offer, good when you book your free consult by ${HOLIDAY_OFFER_LAST_DAY}.`,
-  button: "Email me the offer",
+  heading: "Claim your holiday offer before it's too late.",
+  intro: `Not ready to book yet? Send us your name and email and we'll email you the offer. Book your free consult by ${HOLIDAY_OFFER_LAST_DAY} to use it.`,
+  button: "Claim my offer",
   sentHeading: "Check your email.",
   sentBody: "The offer is on its way. When you're ready, book a time online or call us.",
 } as const;
 
-/** Seconds on the page, or how far down it, before the pop-up appears; whichever comes first (owner 2026-10-21). */
-export const OFFER_DELAY_MS = 20_000;
-export const OFFER_SCROLL_SHARE = 0.5;
+/**
+ * As soon as they land (owner 2026-10-21, on the consultant's advice), after a moment so the page paints first. The
+ * owner chose this knowing Google can rank a page lower on phones when a pop-up covers it on arrival from search.
+ */
+export const OFFER_DELAY_MS = 1_500;
 
 /** Set when the pop-up has shown, so it shows once per browser. A new key would show it again to everyone. */
 export const OFFER_SEEN_KEY = "pss-offer-popup-seen:fall-2026";

@@ -26,12 +26,11 @@ afterEach(() => {
 });
 
 describe("the offer pop-up (owner 2026-10-21)", () => {
-  it("waits 20 seconds, then shows both running offers and asks for a name and email", async () => {
+  it("shows as soon as they land, with both running offers, and asks for a name and email", async () => {
     render(<OfferPopup />);
-    await wait(19_000);
     expect(popup()).toBeNull();
-    await wait(1_000);
-    expect(screen.getByRole("dialog", { name: "Save on custom window treatments." })).toBeInTheDocument();
+    await wait(1_500);
+    expect(screen.getByRole("dialog", { name: "Claim your holiday offer before it's too late." })).toBeInTheDocument();
     expect(screen.getByText(HOLIDAY_FORM_LINE)).toBeInTheDocument();
     expect(screen.getByText(SOLAR_FORM_LINE)).toBeInTheDocument();
     expect(screen.getByLabelText(/^name/i)).toBeInTheDocument();
@@ -39,21 +38,9 @@ describe("the offer pop-up (owner 2026-10-21)", () => {
     expect(screen.queryByLabelText(/^phone/i)).toBeNull();
   });
 
-  it("shows sooner once they scroll half the page", async () => {
-    render(<OfferPopup />);
-    Object.defineProperty(document.documentElement, "scrollHeight", { configurable: true, value: 3000 });
-    vi.stubGlobal("innerHeight", 1000);
-    vi.stubGlobal("scrollY", 900);
-    await act(async () => { fireEvent.scroll(window); });
-    expect(popup()).toBeNull();
-    vi.stubGlobal("scrollY", 1000);
-    await act(async () => { fireEvent.scroll(window); });
-    expect(popup()).not.toBeNull();
-  });
-
   it("shows once per browser", async () => {
     const first = render(<OfferPopup />);
-    await wait(20_000);
+    await wait(1_500);
     expect(window.localStorage.getItem(OFFER_SEEN_KEY)).toBe("1");
     first.unmount();
     render(<OfferPopup />);
@@ -96,10 +83,10 @@ describe("the offer pop-up (owner 2026-10-21)", () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ ok: true }), { status: 201 }));
     vi.stubGlobal("fetch", fetchMock);
     render(<OfferPopup />);
-    await wait(20_000);
+    await wait(1_500);
     fireEvent.change(screen.getByLabelText(/^name/i), { target: { value: "Dana Reyes" } });
     fireEvent.change(screen.getByLabelText(/^email/i), { target: { value: "dana@example.com" } });
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Email me the offer" })); });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Claim my offer" })); });
     expect(fetchMock).toHaveBeenCalledWith("/api/offer", expect.objectContaining({ method: "POST" }));
     expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toMatchObject({ name: "Dana Reyes", email: "dana@example.com" });
     expect(screen.getByText("Check your email.")).toBeInTheDocument();
@@ -113,17 +100,17 @@ describe("the offer pop-up (owner 2026-10-21)", () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
     render(<OfferPopup />);
-    await wait(20_000);
+    await wait(1_500);
     fireEvent.change(screen.getByLabelText(/^name/i), { target: { value: "Dana Reyes" } });
     fireEvent.change(screen.getByLabelText(/^email/i), { target: { value: "dana" } });
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Email me the offer" })); });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Claim my offer" })); });
     expect(screen.getByRole("alert")).toHaveTextContent("Please enter a valid email address.");
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("closes with No thanks", async () => {
     render(<OfferPopup />);
-    await wait(20_000);
+    await wait(1_500);
     fireEvent.click(screen.getByRole("button", { name: "No thanks" }));
     expect(popup()).toBeNull();
   });
