@@ -66,8 +66,8 @@ export function CategoryGrid() {
     <Section tone="ivory">
       <SectionHeading
         eyebrow="What we install"
-        title="Custom window treatments, measured precisely."
-        lead="We carry Hunter Douglas, Alta and Norman, with a wide variety of fabrics and designs to choose from."
+        title="Custom blinds, shades and shutters, measured precisely."
+        lead="We serve the Las Vegas valley with Hunter Douglas, Alta and Norman blinds, shades and shutters, in a wide variety of fabrics, materials and textures."
       />
 
       {/* Tall cards side by side: a swipeable row on phones and tablets, all four in one row from lg up. */}

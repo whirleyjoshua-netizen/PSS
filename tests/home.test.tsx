@@ -29,7 +29,7 @@ describe("Home", () => {
 
   it("covers the category cards with Alta catalog photos, never our gallery", () => {
     render(<Home />);
-    const section = screen.getByRole("heading", { level: 2, name: "Custom window treatments, measured precisely." }).closest("section")!;
+    const section = screen.getByRole("heading", { level: 2, name: "Custom blinds, shades and shutters, measured precisely." }).closest("section")!;
     const cards = within(section).getAllByRole("listitem");
     // Outdoor has no Alta photo, so it is left off; every card has a cover.
     expect(cards.map((card) => card.querySelector("h3")?.textContent)).toEqual(["Blinds", "Shades", "Shutters", "Motorization"]);
@@ -106,7 +106,7 @@ describe("Home", () => {
       expect(i, s).toBeGreaterThanOrEqual(0);
       return i;
     };
-    expect(at("Custom window treatments, measured precisely.")).toBeLessThan(at("What it’s like to work with us"));
+    expect(at("Custom blinds, shades and shutters, measured precisely.")).toBeLessThan(at("What it’s like to work with us"));
     expect(at("What it’s like to work with us")).toBeLessThan(at("inviting in family"));
     expect(at("inviting in family")).toBeLessThan(at("Installed by the two of us."));
     expect(at("Installed by the two of us.")).toBeLessThan(at("Here is what our clients said"));
@@ -149,7 +149,7 @@ describe("Home", () => {
   it("ends its sentence headlines with a period", () => {
     render(<Home />);
     for (const title of [
-      "Custom window treatments, measured precisely.",
+      "Custom blinds, shades and shutters, measured precisely.",
       "Installed by the two of us.",
       "Serving the Las Vegas valley.",
     ]) {
@@ -161,7 +161,7 @@ describe("Home", () => {
 describe("What we install (owner 2026-10-21)", () => {
   it("names the brands we carry, never as an authorized dealer", () => {
     render(<CategoryGrid />);
-    expect(screen.getByText("We carry Hunter Douglas, Alta and Norman, with a wide variety of fabrics and designs to choose from.")).toBeInTheDocument();
+    expect(screen.getByText("We serve the Las Vegas valley with Hunter Douglas, Alta and Norman blinds, shades and shutters, in a wide variety of fabrics, materials and textures.")).toBeInTheDocument();
     expect(document.body.textContent).not.toMatch(/dealer/i);
   });
 });
