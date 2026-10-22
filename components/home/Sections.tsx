@@ -141,18 +141,19 @@ export function Objections() {
 
 /* ------------------------------------------------------------ why premier */
 
+/** Owner 2026-10-21: the same three promises, with the words people search for (window treatments, Las Vegas, the products). */
 const PILLARS = [
   {
-    title: "We come to you, at no charge.",
-    body: "Fabric and finish look completely different in your own light than they do on a showroom wall or a screen. We bring the samples to your windows, measure every opening ourselves, and send you a written quote.",
+    title: "Free in-home consultation.",
+    body: "We bring blind, shade and shutter samples to your home anywhere in the Las Vegas valley, so you see every fabric and finish in your own light, not on a showroom wall or a screen. We measure every window ourselves and send you a written quote.",
   },
   {
-    title: "From your first call to the final install, we're family.",
-    body: "We are a family business, and we never hand you off to a third party for install. There is no salesperson working a commission target.",
+    title: "Family-owned, from your first call to the final install.",
+    body: "Premier Shade Solutions is a Las Vegas family business. We measure and install your window treatments ourselves and never hand you off to a third party. There is no salesperson working a commission target.",
   },
   {
-    title: "Specified for this climate",
-    body: "West-facing glass in this valley destroys the wrong product. We steer you toward what survives here — composite over wood in direct sun, the right screen openness for the exposure — even when it is the less expensive option.",
+    title: "Made for the Las Vegas sun.",
+    body: "West-facing windows in desert heat ruin the wrong product. We steer you toward what lasts here: composite plantation shutters over wood in direct sun, solar shades with the right openness for the glare, and motorized shades for tall windows you can't reach. We recommend what lasts, even when it costs you less.",
   },
 ];
 
@@ -161,7 +162,7 @@ export function WhyPremier() {
     <Section tone="charcoal">
       <SectionHeading
         eyebrow="Working with us"
-        title="What it’s like to work with us"
+        title="Why Las Vegas homeowners work with us."
         tone="dark"
       />
 

@@ -106,8 +106,8 @@ describe("Home", () => {
       expect(i, s).toBeGreaterThanOrEqual(0);
       return i;
     };
-    expect(at("Custom blinds, shades and shutters, measured precisely.")).toBeLessThan(at("What it’s like to work with us"));
-    expect(at("What it’s like to work with us")).toBeLessThan(at("inviting in family"));
+    expect(at("Custom blinds, shades and shutters, measured precisely.")).toBeLessThan(at("Why Las Vegas homeowners work with us."));
+    expect(at("Why Las Vegas homeowners work with us.")).toBeLessThan(at("inviting in family"));
     expect(at("inviting in family")).toBeLessThan(at("Installed by the two of us."));
     expect(at("Installed by the two of us.")).toBeLessThan(at("Here is what our clients said"));
     expect(at("Here is what our clients said")).toBeLessThan(at("What makes us different."));
@@ -164,5 +164,15 @@ describe("What we install (owner 2026-10-21)", () => {
     render(<CategoryGrid />);
     expect(screen.getByText("We serve the Las Vegas valley with Hunter Douglas, Alta and Norman blinds, shades and shutters, in a wide variety of fabrics, materials and textures.")).toBeInTheDocument();
     expect(document.body.textContent).not.toMatch(/dealer/i);
+  });
+});
+
+describe("Why Las Vegas homeowners work with us (owner 2026-10-21)", () => {
+  it("carries the search words: Las Vegas, window treatments and the products", () => {
+    render(<Home />);
+    const section = screen.getByRole("heading", { level: 2, name: "Why Las Vegas homeowners work with us." }).closest("section")!;
+    for (const words of [/Las Vegas valley/, /window treatments/, /plantation shutters/, /solar shades/, /motorized shades/, /in-home consultation/i]) {
+      expect(section.textContent).toMatch(words);
+    }
   });
 });
