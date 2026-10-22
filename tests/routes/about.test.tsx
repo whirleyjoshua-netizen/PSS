@@ -7,7 +7,7 @@ describe("/about — Meet the family", () => {
     const { container } = render(<AboutPage />);
     expect(container.querySelectorAll("h1")).toHaveLength(1);
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Meet the family");
-    expect(metadata.title).toBe("Meet the Family | Premier Shade Solutions");
+    expect(metadata.title).toBe("Our Las Vegas Family Business | Premier Shade Solutions");
     expect(metadata.alternates?.canonical).toBe("/about");
   });
 

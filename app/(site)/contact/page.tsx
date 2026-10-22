@@ -11,7 +11,7 @@ import { CALLBACK_WINDOW } from "@/content/consultation";
 import { cityPath } from "@/lib/content/cities";
 
 export const metadata: Metadata = pageMetadata({
-  title: "Book a Free Consultation | Premier Shade Solutions",
+  title: "Free Consultation in Las Vegas | Premier Shade Solutions",
   description:
     "Book a free in-home window treatment consultation in Las Vegas, Henderson, Summerlin, or North Las Vegas. We measure every window and send you a written quote.",
   path: "/contact",

@@ -5,6 +5,8 @@ import { Section } from "@/components/ui/Section";
 import { PageHero, ConsultationCta } from "@/components/product/ProductParts";
 import { BookingBlock } from "@/components/booking/BookingBlock";
 import { JsonLd } from "@/components/seo/JsonLd";
+import { PageFaq } from "@/components/faq/PageFaq";
+import { faqsFor } from "@/content/page-faqs";
 import { consultationPhoto } from "@/content/gallery";
 import { LEAD_TIME_LINE, LEAD_TIME_START } from "@/content/consultation";
 import { WARRANTY, WARRANTY_LINE } from "@/content/warranty";
@@ -130,6 +132,8 @@ export default async function CityPage({
           </p>
         </div>
       </Section>
+
+      <PageFaq title={`Questions from ${found.name} homeowners.`} items={faqsFor(`service-area/${found.slug}`)} path={path} />
 
       <BookingBlock
         photo={consultationPhoto}

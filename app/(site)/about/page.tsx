@@ -8,7 +8,7 @@ import { ReviewSpotlight } from "@/components/reviews/ReviewSpotlight";
 import { pastReviews } from "@/content/reviews";
 
 export const metadata: Metadata = pageMetadata({
-  title: "Meet the Family | Premier Shade Solutions",
+  title: "Our Las Vegas Family Business | Premier Shade Solutions",
   description:
     "Premier Shade Solutions is a family-run window treatment company in the Las Vegas valley. Shade’ designs, Josh installs, and we handle every job ourselves.",
   path: "/about",

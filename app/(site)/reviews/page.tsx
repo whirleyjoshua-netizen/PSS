@@ -8,7 +8,7 @@ import { ReviewWall } from "@/components/reviews/ReviewWall";
 import { pastReviews } from "@/content/reviews";
 
 export const metadata: Metadata = pageMetadata({
-  title: "Client Reviews | Premier Shade Solutions",
+  title: "Las Vegas Client Reviews | Premier Shade Solutions",
   description:
     "What clients said about Josh's installations and design consultations with Shade’, from our years before Premier Shade Solutions.",
   path: "/reviews",

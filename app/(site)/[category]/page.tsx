@@ -11,8 +11,10 @@ import { Section } from "@/components/ui/Section";
 import { ReviewSpotlight } from "@/components/reviews/ReviewSpotlight";
 import { uniquePhotos } from "@/lib/content/page-photos";
 import { JsonLd } from "@/components/seo/JsonLd";
+import { PageFaq } from "@/components/faq/PageFaq";
+import { faqsFor } from "@/content/page-faqs";
 import { consultationPhoto } from "@/content/gallery";
-import { breadcrumbSchema } from "@/lib/seo/schema";
+import { breadcrumbSchema, categoryServiceSchema } from "@/lib/seo/schema";
 import { pageMetadata } from "@/lib/seo/metadata";
 import { categories } from "@/content/products";
 import { getCategory, getProductsIn } from "@/lib/content/products";
@@ -62,12 +64,13 @@ export default async function CategoryPage({
 
   return (
     <>
+      <JsonLd schema={categoryServiceSchema(found)} />
       <JsonLd schema={breadcrumbSchema(trail)} />
       <TreatmentHero
         photo={heroPhoto!}
         trail={trail}
         eyebrow={found.tagline}
-        title={`${found.name} in Las Vegas`}
+        title={`${found.heading ?? found.name} in Las Vegas`}
         lead={found.seo.description}
         treatment={found.name}
       />
@@ -95,6 +98,7 @@ export default async function CategoryPage({
           }))}
         />
       ) : null}
+      <PageFaq title={`Questions about ${(found.heading ?? found.name).toLowerCase()}.`} items={faqsFor(found.slug)} path={`/${found.slug}`} />
       <ReviewSpotlight reviews={spotlightReviewsExceptFeatured} />
       <ConsultationCta href="#book" />
     </>

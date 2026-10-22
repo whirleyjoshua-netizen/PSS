@@ -54,3 +54,16 @@ describe("descriptions the audit found short", () => {
     expect(description.endsWith("Free in-home consultation.")).toBe(true);
   });
 });
+
+/** SEO plan 2026-10-21: the pages people find us by name on also say where we are, in at most 60 characters. */
+describe.each([
+  ["/about", about],
+  ["/gallery", gallery],
+  ["/reviews", reviews],
+  ["/contact", contact],
+])("%s title", (_path, metadata) => {
+  it("names Las Vegas and fits in a search result", () => {
+    expect(metadata.title as string).toMatch(/Las Vegas/);
+    expect((metadata.title as string).length).toBeLessThanOrEqual(60);
+  });
+});

@@ -10,7 +10,7 @@ import { consultationPhoto, gallery, holidayPhoto } from "@/content/gallery";
 const sharePhoto = gallery.find((item) => item !== holidayPhoto) ?? consultationPhoto;
 
 export const metadata: Metadata = pageMetadata({
-  title: "Gallery | Premier Shade Solutions",
+  title: "Las Vegas Installation Gallery | Premier Shade Solutions",
   description:
     "Blinds, shades, and shutters we measured and installed ourselves, photographed on site: real jobs, never stock photography. Free in-home consultation.",
   path: "/gallery",

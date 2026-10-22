@@ -48,6 +48,8 @@ export type CategoryStory = {
 export type Category = {
   slug: CategorySlug;
   name: string;
+  /** The page's H1 before "in Las Vegas", when the words people search for differ from `name`. */
+  heading?: string;
   navLabel: string;
   tagline: string;
   intro: string[];
@@ -209,6 +211,8 @@ export const categories: Category[] = [
   {
     slug: "motorization",
     name: "Motorization",
+    // Owner 2026-10-21 (SEO plan): people search "motorized shades", not "motorization". Alta BLISS runs blinds too.
+    heading: "Motorized Shades and Blinds",
     navLabel: "Motorization",
     tagline: "Every shade, on schedule.",
     intro: [

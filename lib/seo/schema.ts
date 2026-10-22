@@ -116,6 +116,43 @@ export function breadcrumbSchema(trail: { name: string; url: string }[]) {
 }
 
 /**
+ * FAQPage JSON-LD for questions shown on the page (the /faq page and the product, category and city pages' own
+ * questions, components/faq/PageFaq.tsx). Google limits FAQ rich results to a few government and health sites (since
+ * 2023), so this earns no rich result; it hands search engines and AI answer engines each question with its answer.
+ */
+export function faqSchema(items: { q: string; a: string }[]) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: items.map((item) => ({
+      "@type": "Question",
+      name: item.q,
+      acceptedAnswer: { "@type": "Answer", text: item.a },
+    })),
+  };
+}
+
+/**
+ * A category page (blinds, shades, shutters, outdoor, motorization) is a service we sell and install, like a
+ * product page (serviceSchema).
+ */
+export function categoryServiceSchema(category: { slug: string; name: string; seo: { description: string } }) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "Service",
+    name: category.name,
+    serviceType: category.name,
+    description: category.seo.description,
+    provider: { "@id": BUSINESS_ID },
+    areaServed: leadCities.map((city) => ({
+      "@type": "City",
+      name: `${city}, NV`,
+    })),
+    url: absolute(`/${category.slug}`),
+  };
+}
+
+/**
  * A repair guide is an Article written by the business. No HowTo or FAQPage
  * markup: Google stopped showing either for ordinary sites in 2023.
  */

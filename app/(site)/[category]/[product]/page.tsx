@@ -12,6 +12,8 @@ import { Section } from "@/components/ui/Section";
 import { ReviewSpotlight } from "@/components/reviews/ReviewSpotlight";
 import { uniquePhotos } from "@/lib/content/page-photos";
 import { JsonLd } from "@/components/seo/JsonLd";
+import { PageFaq } from "@/components/faq/PageFaq";
+import { faqsFor } from "@/content/page-faqs";
 import { consultationPhoto } from "@/content/gallery";
 import { breadcrumbSchema, serviceSchema } from "@/lib/seo/schema";
 import { pageMetadata } from "@/lib/seo/metadata";
@@ -112,6 +114,7 @@ export default async function ProductPage({
           }))}
         />
       ) : null}
+      <PageFaq title={`Questions about ${found.name.toLowerCase()}.`} items={faqsFor(`${parent.slug}/${found.slug}`)} path={`/${parent.slug}/${found.slug}`} />
       <ReviewSpotlight reviews={spotlightReviewsExceptFeatured} />
       <ConsultationCta
         title={`Thinking about ${found.name.toLowerCase()}?`}
