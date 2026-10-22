@@ -1,4 +1,4 @@
-import { GOOGLE_FORM_SOURCE } from "./schema";
+import { GOOGLE_FORM_SOURCE, OFFER_SOURCE } from "./schema";
 
 /**
  * Google Ads offline conversion import: ties what happened to a lead after the
@@ -38,8 +38,9 @@ export function conversionsCsv(rows: ConversionRow[]): string {
   for (const row of rows) {
     const add = (name: string, at: Date, value = "") =>
       lines.push([cell(row.gclid), name, conversionTime(at), value, value ? "USD" : ""].join(","));
-    // Google counts a lead form submit as that form's conversion; uploading it again would double count.
-    if (row.source !== GOOGLE_FORM_SOURCE) add(CONVERSIONS.lead, row.createdAt);
+    // Google counts a lead form submit as that form's conversion; uploading it again would double count. An offer
+    // pop-up sign-up is a name and email, not a consultation request: it counts only once it books.
+    if (row.source !== GOOGLE_FORM_SOURCE && row.source !== OFFER_SOURCE) add(CONVERSIONS.lead, row.createdAt);
     if (row.bookedAt) add(CONVERSIONS.booked, row.bookedAt);
     // A sale with no amount entered still counts; Google then uses the action's default value.
     if (row.soldAt) add(CONVERSIONS.sale, row.soldAt, row.soldCents ? (row.soldCents / 100).toFixed(2) : "");

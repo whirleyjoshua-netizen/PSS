@@ -164,7 +164,7 @@ describe("changing jobs", () => {
 
   it("setStage, updateDetails and addNote return false for a non-uuid id without querying", async () => {
     expect(await jobs.setStage("../etc", "sold", "owner@example.com")).toBe(false);
-    expect(await jobs.updateDetails("../etc", { address: null, city: "Henderson", brands: [], orderedOn: null, budgetTier: null, windowCountExact: null, treatmentTypes: [], motorized: false }, "owner@example.com")).toEqual({ saved: false, addressChanged: false });
+    expect(await jobs.updateDetails("../etc", { address: null, city: "Henderson", phone: null, brands: [], orderedOn: null, budgetTier: null, windowCountExact: null, treatmentTypes: [], motorized: false }, "owner@example.com")).toEqual({ saved: false, addressChanged: false });
     expect(await jobs.addNote("../etc", "hi", "owner@example.com")).toBe(false);
     expect(sql).not.toHaveBeenCalled();
   });
@@ -214,7 +214,7 @@ describe("changing jobs", () => {
   it("updateDetails saves the questionnaire fields", async () => {
     sql.mockResolvedValue([{ id: ID }]);
     await jobs.updateDetails(ID, {
-      address: null, city: "Henderson", brands: [], orderedOn: null, budgetTier: null,
+      address: null, city: "Henderson", phone: null, brands: [], orderedOn: null, budgetTier: null,
       windowCountExact: 12, treatmentTypes: ["shutters"], motorized: true,
     }, "owner@example.com");
     const call = sql.mock.calls[0];
@@ -229,7 +229,7 @@ describe("changing jobs", () => {
     sql.mockResolvedValue([{ id: ID }]);
     const result = await jobs.updateDetails(
       ID,
-      { address: null, city: "Henderson", brands: ["Alta Window Fashions"], orderedOn: "2027-01-10", budgetTier: null, windowCountExact: null, treatmentTypes: [], motorized: false },
+      { address: null, city: "Henderson", phone: null, brands: ["Alta Window Fashions"], orderedOn: "2027-01-10", budgetTier: null, windowCountExact: null, treatmentTypes: [], motorized: false },
       "owner@example.com",
     );
     expect(result).toEqual({ saved: true, addressChanged: false });
@@ -243,7 +243,7 @@ describe("changing jobs", () => {
   it("updateDetails leaves the appointment dates and the stage alone", async () => {
     sql.mockResolvedValue([{ id: ID }]);
     await jobs.updateDetails(ID, {
-      address: null, city: "Henderson", brands: [], orderedOn: null, budgetTier: null,
+      address: null, city: "Henderson", phone: null, brands: [], orderedOn: null, budgetTier: null,
       windowCountExact: null, treatmentTypes: [], motorized: false,
     }, "owner@example.com");
     const statement = text(sql.mock.calls[0]).replace(/\s+/g, " ");
@@ -257,7 +257,7 @@ describe("changing jobs", () => {
     sql.mockResolvedValue([]);
     const result = await jobs.updateDetails(
       ID,
-      { address: null, city: "Henderson", brands: [], orderedOn: null, budgetTier: null, windowCountExact: null, treatmentTypes: [], motorized: false },
+      { address: null, city: "Henderson", phone: null, brands: [], orderedOn: null, budgetTier: null, windowCountExact: null, treatmentTypes: [], motorized: false },
       "owner@example.com",
     );
     expect(result).toEqual({ saved: false, addressChanged: false });
@@ -266,7 +266,7 @@ describe("changing jobs", () => {
   it("updateDetails saves the address and city, and reports whether they changed from before the update", async () => {
     sql.mockResolvedValue([{ id: ID, address_changed: true }]);
     const input = {
-      address: "12 Sample St", city: "Henderson", brands: [], orderedOn: null,
+      address: "12 Sample St", city: "Henderson", phone: null, brands: [], orderedOn: null,
       budgetTier: null, windowCountExact: null, treatmentTypes: [], motorized: false,
     };
     expect(await jobs.updateDetails(ID, input, "owner@example.com")).toEqual({ saved: true, addressChanged: true });
@@ -317,10 +317,22 @@ describe("changing jobs", () => {
     error.mockRestore();
   });
 
+  it("updateDetails adds a phone number, and a blank one keeps the number already stored", async () => {
+    sql.mockResolvedValue([{ id: ID }]);
+    await jobs.updateDetails(ID, {
+      address: null, city: "Henderson", phone: "7025550134",
+      brands: [], orderedOn: null, budgetTier: null,
+      windowCountExact: null, treatmentTypes: [], motorized: false,
+    }, "owner@example.com");
+    const call = sql.mock.calls.at(-1)!;
+    expect((call[0] as TemplateStringsArray).join("?")).toContain("phone = coalesce(?::text, phone)");
+    expect(call).toContain("7025550134");
+  });
+
   it("updateDetails saves the budget tier", async () => {
     sql.mockResolvedValue([{ id: ID }]);
     await jobs.updateDetails(ID, {
-      address: null, city: "Henderson", 
+      address: null, city: "Henderson", phone: null,
       brands: [], orderedOn: null, budgetTier: "mid",
       windowCountExact: null, treatmentTypes: [], motorized: false,
     }, "owner@example.com");

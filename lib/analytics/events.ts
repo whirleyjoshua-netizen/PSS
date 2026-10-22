@@ -7,7 +7,7 @@ import type { LeadSource } from "@/lib/leads/schema";
  * without renaming. Booked and sold jobs reach Google Ads separately, through
  * the conversions file in Settings.
  */
-export const EVENTS = { lead: "generate_lead", phone: "phone_click", promo: "promo_click", leadTimes: "lead_times_open", guideCta: "guide_cta_click" } as const;
+export const EVENTS = { lead: "generate_lead", phone: "phone_click", promo: "promo_click", leadTimes: "lead_times_open", guideCta: "guide_cta_click", offer: "offer_signup" } as const;
 
 /** Where a tap on our number is a lead already counted or an existing customer, not a new lead. */
 const NOT_A_NEW_LEAD = ["/thank-you", "/project"];
@@ -22,6 +22,12 @@ function send(name: string, params: Record<string, string>) {
 }
 
 export const trackLead = (form: LeadSource) => send(EVENTS.lead, { form });
+
+/**
+ * An offer pop-up sign-up: a name and email, not a consultation request, so it is not generate_lead and never feeds
+ * the Ads lead conversion.
+ */
+export const trackOfferSignup = () => send(EVENTS.offer, {});
 
 /** A click on the announcement strip, so we can see which promo brings consults. */
 export const trackPromoClick = (promo: string, page: string) => send(EVENTS.promo, { promo, page });

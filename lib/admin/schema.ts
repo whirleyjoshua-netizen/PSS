@@ -35,6 +35,9 @@ export const detailsSchema = z
   .object({
     address: z.preprocess(blank, site.address),
     city: site.city,
+    // An offer pop-up sign-up arrives with no phone (owner 2026-10-21): it is added here once we have it. Blank keeps
+    // the number already stored.
+    phone: z.preprocess(blank, site.phone.optional()).transform((value) => value ?? null),
     brands: z.array(z.enum(BRANDS)).default([]),
     orderedOn: day,
     budget: z.preprocess(blank, z.enum(BUDGET_TIERS, { error: "Pick a budget tier" }).optional()),

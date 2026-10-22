@@ -29,7 +29,7 @@ describe("detailsSchema", () => {
     });
     expect(parsed).toEqual({
       brands: ["Alta Window Fashions"], orderedOn: "2027-01-10",
-      address: null, city: "Henderson",
+      address: null, city: "Henderson", phone: null,
       budgetTier: null,
       windowCountExact: null, treatmentTypes: [], motorized: false,
     });
@@ -37,6 +37,12 @@ describe("detailsSchema", () => {
 
   it("rejects an unknown brand", () => {
     expect(detailsSchema.safeParse({ ...place,  brands: ["Acme"] }).success).toBe(false);
+  });
+
+  it("takes a phone number the way the website does, and a blank one as none", () => {
+    expect(detailsSchema.parse({ ...place, phone: "(702) 555-0134" }).phone).toBe("7025550134");
+    expect(detailsSchema.parse({ ...place, phone: "  " }).phone).toBeNull();
+    expect(detailsSchema.safeParse({ ...place, phone: "555" }).success).toBe(false);
   });
 
   it("has no money fields: pricing lives on the Install tab", () => {

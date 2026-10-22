@@ -6,6 +6,7 @@ import { JsonLd } from "@/components/seo/JsonLd";
 import { localBusinessSchema } from "@/lib/seo/schema";
 import { AttributionCapture } from "@/components/analytics/AttributionCapture";
 import { PhoneClickTracking } from "@/components/analytics/PhoneClickTracking";
+import { OfferPopup } from "@/components/offer/OfferPopup";
 
 /** Chrome for every public page, including the 404 page. The admin area supplies its own. */
 export function SiteChrome({ children }: { children: React.ReactNode }) {
@@ -27,6 +28,7 @@ export function SiteChrome({ children }: { children: React.ReactNode }) {
       <JsonLd schema={localBusinessSchema()} />
       <AttributionCapture />
       <PhoneClickTracking />
+      <OfferPopup />
     </>
   );
 }

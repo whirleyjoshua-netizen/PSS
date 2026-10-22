@@ -7,6 +7,7 @@ import { leadCities } from "@/content/business";
 import { BUDGET_OPTIONS } from "@/lib/admin/budget";
 import type { Job } from "@/lib/admin/jobs";
 import { BRANDS } from "@/lib/admin/schema";
+import { formatPhone } from "@/lib/leads/schema";
 import { TREATMENT_TYPES } from "@/lib/leads/treatment-types";
 import { WINDOW_EXACT_OPTIONS } from "@/lib/leads/window-count";
 import { saveDetails, type FormState } from "../actions";
@@ -49,6 +50,7 @@ export function DetailsForm({ job }: { job: Job }) {
           Money is not either: pricing lives on the Install tab. */}
       <TextField id="address" name="address" label="Address" defaultValue={field("address", job.address ?? "")} />
       <SelectField id="city" name="city" label="City" options={cityOptions} defaultValue={field("city", job.city)} />
+      <TextField id="phone" name="phone" label="Phone" type="tel" defaultValue={field("phone", job.phone ? formatPhone(job.phone) : "")} />
       <label htmlFor="orderedOn" className="flex flex-col gap-2 text-sm">
         Order date
         <input id="orderedOn" name="orderedOn" type="date" className={CONTROL} defaultValue={field("orderedOn", job.orderedOn ?? "")} />

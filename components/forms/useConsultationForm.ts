@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { consultationSchema, type LeadSource } from "@/lib/leads/schema";
 import { recallAttribution } from "@/lib/leads/attribution";
 import { trackLead } from "@/lib/analytics/events";
+import { LEAD_SENT_KEY } from "@/content/offer-popup";
 
 export type FormState = "idle" | "submitting" | "success" | "error";
 
@@ -73,6 +74,12 @@ export function useConsultationForm(source: LeadSource) {
 
       form.reset();
       trackLead(source);
+      // Someone who has asked for a consultation never gets the offer pop-up.
+      try {
+        window.localStorage.setItem(LEAD_SENT_KEY, "1");
+      } catch {
+        // Private mode: only the pop-up's memory is lost.
+      }
       // The inline success message covers the moment before navigation lands.
       setState("success");
       router.push("/thank-you");

@@ -258,7 +258,7 @@ export async function updateDetails(
     with prev as (select address, city from leads where id = ${id}),
     changed as (
       update leads set
-        address = ${input.address}, city = ${input.city},
+        address = ${input.address}, city = ${input.city}, phone = coalesce(${input.phone}::text, phone),
         lat = case when address is distinct from ${input.address}::text or city is distinct from ${input.city}::text then null else lat end,
         lng = case when address is distinct from ${input.address}::text or city is distinct from ${input.city}::text then null else lng end,
         geocode_status = case when address is distinct from ${input.address}::text or city is distinct from ${input.city}::text then null else geocode_status end,

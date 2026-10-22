@@ -36,3 +36,13 @@ describe("CustomerCard source", () => {
     expect(screen.getByText("contact")).toBeInTheDocument();
   });
 });
+
+describe("CustomerCard phone", () => {
+  // Owner 2026-10-21: an offer pop-up sign-up gives only a name and an email.
+  it("says there is no number yet instead of an empty call link", () => {
+    render(<CustomerCard job={{ ...job, phone: "", city: "", source: "offer" }} referrer={null} />);
+    expect(screen.getByText("No phone number yet")).toBeInTheDocument();
+    expect(document.querySelector('a[href^="tel:"]')).toBeNull();
+    expect(screen.getByText("Offer pop-up")).toBeInTheDocument();
+  });
+});

@@ -56,7 +56,7 @@ export function JobHeader({ job, now, team, defaultMinutes, parent = null, delet
             ) : null}
           </div>
           <p className="text-sm text-ink-soft">
-            {[job.city, `Created ${formatShortDate(job.createdAt)}`, inStage(daysBetween(job.stageChangedAt, now))].join(" · ")}
+            {[job.city, `Created ${formatShortDate(job.createdAt)}`, inStage(daysBetween(job.stageChangedAt, now))].filter(Boolean).join(" · ")}
           </p>
           {parent ? (
             <p className="text-sm">
@@ -72,8 +72,13 @@ export function JobHeader({ job, now, team, defaultMinutes, parent = null, delet
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <CallButton jobId={job.id} name={job.name} phone={job.phone} />
-          <a href={`sms:+1${job.phone}`} className={ACTION_LINK}>Text</a>
+          {/* An offer pop-up sign-up has no phone number yet. */}
+          {job.phone ? (
+            <>
+              <CallButton jobId={job.id} name={job.name} phone={job.phone} />
+              <a href={`sms:+1${job.phone}`} className={ACTION_LINK}>Text</a>
+            </>
+          ) : null}
           {job.email ? <a href={`mailto:${job.email}`} className={ACTION_LINK}>Email</a> : null}
           <ScheduleDialog jobId={job.id} gateCode={job.gateCode ?? null} defaultMinutes={defaultMinutes} />
           <details className="sm:relative">

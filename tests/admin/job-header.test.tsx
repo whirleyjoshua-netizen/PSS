@@ -39,6 +39,13 @@ describe("JobHeader", () => {
     expect(screen.queryByText(/^PSS-/)).toBeNull();
   });
 
+  it("hides Call and Text for an offer sign-up with no phone, and leaves no empty city in the line", () => {
+    render(<JobHeader job={{ ...job, phone: "", city: "" }} now={now} team={team} defaultMinutes={MINUTES} />);
+    expect(document.querySelector('a[href^="tel:"], a[href^="sms:"]')).toBeNull();
+    expect(screen.queryByText(/Log a call/)).toBeNull();
+    expect(screen.getByText("Created Sep 11, 2026 · 1 day in stage")).toBeInTheDocument();
+  });
+
   it("offers the Assigned to control", () => {
     render(<JobHeader job={job} now={now} team={team} defaultMinutes={MINUTES} />);
     expect(screen.getByLabelText("Assigned to")).toBeInTheDocument();

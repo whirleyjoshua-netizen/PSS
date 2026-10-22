@@ -64,12 +64,13 @@ export async function deleteJobAction(id: string, _formData: FormData): Promise<
 export async function saveDetails(id: string, _prev: FormState, formData: FormData): Promise<FormState> {
   const { email } = await requireAdmin();
   const values = captureValues(formData, [
-    "address", "city", "brands", "orderedOn", "budget",
+    "address", "city", "phone", "brands", "orderedOn", "budget",
     "windowCountExact", "treatmentTypes", "motorized",
   ]);
   const parsed = detailsSchema.safeParse({
     address: formData.get("address") ?? "",
     city: formData.get("city") ?? "",
+    phone: formData.get("phone") ?? "",
     brands: formData.getAll("brands"),
     orderedOn: formData.get("orderedOn") ?? "",
     budget: formData.get("budget") ?? "",

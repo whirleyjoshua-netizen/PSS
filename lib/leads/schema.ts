@@ -13,9 +13,17 @@ export type LeadSource = (typeof LEAD_SOURCES)[number];
 /** A lead that came through a Google Ads lead form (app/api/ads/lead-form), not a site form. */
 export const GOOGLE_FORM_SOURCE = "google_form";
 
-/** How the admin and the lead email name where a lead came in: the stored code, except Google's form. */
+/**
+ * A name-and-email sign-up from the offer pop-up (app/api/offer): not a consultation request yet, so it has no phone
+ * or city (stored empty) and is never counted as a lead conversion.
+ */
+export const OFFER_SOURCE = "offer";
+
+/** How the admin and the lead email name where a lead came in: the stored code, except Google's form and the pop-up. */
 export function leadSourceLabel(source: string): string {
-  return source === GOOGLE_FORM_SOURCE ? "Google lead form" : source;
+  if (source === GOOGLE_FORM_SOURCE) return "Google lead form";
+  if (source === OFFER_SOURCE) return "Offer pop-up";
+  return source;
 }
 
 /**
@@ -74,6 +82,16 @@ export const consultationSchema = z.object({
 });
 
 export type ConsultationInput = z.infer<typeof consultationSchema>;
+
+/** The offer pop-up's sign-up: a name and an email, so we can send the offer and follow up. */
+export const offerSignupSchema = z.object({
+  name: consultationSchema.shape.name,
+  email: consultationSchema.shape.email,
+  attribution: attributionSchema.optional().catch(undefined),
+  company: z.string().max(0, "Rejected").optional(),
+});
+
+export type OfferSignupInput = z.infer<typeof offerSignupSchema>;
 
 /** Ten stored digits into a display-formatted number for the notification email. */
 export const formatPhone = (digits: string): string =>
