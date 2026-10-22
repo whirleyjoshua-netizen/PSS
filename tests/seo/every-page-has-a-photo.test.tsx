@@ -11,6 +11,8 @@ import AboutPage from "@/app/(site)/about/page";
 import GalleryPage from "@/app/(site)/gallery/page";
 import ReviewsPage from "@/app/(site)/reviews/page";
 import FaqPage from "@/app/(site)/faq/page";
+import ArticlePage from "@/app/(site)/learn/[slug]/page";
+import { articles } from "@/content/articles";
 import { categories, products } from "@/content/products";
 import { cities } from "@/content/cities";
 import { guides } from "@/content/guides";
@@ -31,6 +33,7 @@ const PAGES: [string, () => ReactElement | Promise<ReactElement>][] = [
   ["/gallery", () => <GalleryPage />],
   ["/reviews", () => <ReviewsPage />],
   ["/faq", () => <FaqPage />],
+  ...articles.map((a) => [`/learn/${a.slug}`, () => ArticlePage({ params: Promise.resolve({ slug: a.slug }) })] as [string, () => Promise<ReactElement>]),
 ];
 
 describe("every page has at least one photo", () => {

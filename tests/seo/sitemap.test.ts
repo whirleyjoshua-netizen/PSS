@@ -8,9 +8,9 @@ describe("sitemap", () => {
 
     // 1 home + 5 hubs + 12 products + 4 cities
     // + gallery, reviews, about, contact, privacy, accessibility, faq
-    // + 2 guides (the guides index now redirects to /faq#care)
-    expect(urls).toHaveLength(31);
-    expect(new Set(urls).size).toBe(31);
+    // + 2 guides (the guides index now redirects to /faq#care) + 3 buying guides (/learn, 2026-10-22)
+    expect(urls).toHaveLength(34);
+    expect(new Set(urls).size).toBe(34);
   });
 
   it("lists the FAQ undated (its answers come from other files, so no one date is true), and not the retired guides index", async () => {
@@ -23,7 +23,11 @@ describe("sitemap", () => {
 
   it("claims a last-modified date only where the content model records one", async () => {
     const { guides } = await import("@/content/guides");
-    const dated = new Set([...guides.map((g) => `${business.domain}/guides/${g.slug}`)]);
+    const { articles } = await import("@/content/articles");
+    const dated = new Set([
+      ...guides.map((g) => `${business.domain}/guides/${g.slug}`),
+      ...articles.map((a) => `${business.domain}/learn/${a.slug}`),
+    ]);
     for (const entry of await sitemap()) {
       if (dated.has(entry.url)) expect(entry.lastModified, entry.url).toBeInstanceOf(Date);
       else expect(entry.lastModified, entry.url).toBeUndefined();

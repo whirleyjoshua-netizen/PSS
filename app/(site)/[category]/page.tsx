@@ -12,6 +12,7 @@ import { ReviewSpotlight } from "@/components/reviews/ReviewSpotlight";
 import { uniquePhotos } from "@/lib/content/page-photos";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { PageFaq } from "@/components/faq/PageFaq";
+import { MoreReading } from "@/components/learn/MoreReading";
 import { faqsFor } from "@/content/page-faqs";
 import { consultationPhoto } from "@/content/gallery";
 import { breadcrumbSchema, categoryServiceSchema } from "@/lib/seo/schema";
@@ -99,6 +100,7 @@ export default async function CategoryPage({
         />
       ) : null}
       <PageFaq title={`Questions about ${(found.heading ?? found.name).toLowerCase()}.`} items={faqsFor(found.slug)} path={`/${found.slug}`} />
+      <MoreReading path={`/${found.slug}`} />
       <ReviewSpotlight reviews={spotlightReviewsExceptFeatured} />
       <ConsultationCta href="#book" />
     </>

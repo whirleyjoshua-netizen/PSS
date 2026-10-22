@@ -117,6 +117,20 @@ export default async function CityPage({
 
       <Section tone="ivory">
         <h2 className="text-3xl font-light tracking-tight text-charcoal">
+          Window treatments for {found.name} homes.
+        </h2>
+        <div className="mt-8 grid gap-10 md:grid-cols-3">
+          {found.local.map((part) => (
+            <div key={part.heading} className="flex flex-col gap-3">
+              <h3 className="font-display text-xl font-light tracking-tight text-charcoal">{part.heading}</h3>
+              <p className="leading-relaxed text-ink-soft">{part.body}</p>
+            </div>
+          ))}
+        </div>
+      </Section>
+
+      <Section tone="ivory" className="border-t border-rule">
+        <h2 className="text-3xl font-light tracking-tight text-charcoal">
           How a {found.name} project works.
         </h2>
         <div className="mt-6 flex max-w-[72ch] flex-col gap-4 text-lg leading-relaxed text-ink-soft">
