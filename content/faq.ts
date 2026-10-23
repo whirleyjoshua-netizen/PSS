@@ -58,7 +58,7 @@ export const FAQ_GROUPS: FaqGroup[] = [
       },
       {
         q: "What types of window treatments does Premier Shade Solutions offer?",
-        a: "Five kinds, all custom. Blinds: vertical blinds, and wood and faux wood blinds. Shades: roller, solar, cellular, roman, woven wood and transitional. Shutters: plantation shutters in composite or real wood. Outdoor: exterior solar screens that stop the heat before it reaches the glass. And motorization, which puts blinds and shades on an app, a wall remote or a schedule. We carry Hunter Douglas, Alta and Norman, so we can show you more than one maker's take on the same window. Every one is made to your measurements and installed by us.",
+        a: "Five kinds, all custom. Blinds: vertical blinds, and wood and faux wood blinds. Shades: roller, solar, cellular, roman, woven wood and transitional. Shutters: plantation shutters in composite or real wood. Outdoor: exterior solar screens that stop the heat before it reaches the glass. And motorization, which puts blinds and shades on an app, a wall remote or a schedule. We are an Authorized Hunter Douglas Dealer and also carry Alta and Norman, so we can show you more than one maker's take on the same window. Every one is made to your measurements and installed by us.",
         links: [
           { label: "Blinds", href: "/blinds" },
           { label: "Shades", href: "/shades" },

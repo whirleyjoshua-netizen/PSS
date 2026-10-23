@@ -2,6 +2,7 @@ import { isPromoLive } from "@/lib/promo";
 import { leadTimeSummary } from "@/lib/lead-times";
 import { leadTimes } from "./lead-times";
 import { holidayOffer, holidayPromo } from "./promo";
+import { HD_RESTRICTED_EXCLUSION, HD_RESTRICTED_NOTE } from "./offer-terms";
 
 /**
  * The /holiday ad landing page (spec 2026-10-10). It follows the banner's dates in content/promo.ts: the 10% offer
@@ -26,11 +27,14 @@ export const HOLIDAY_OFFER_LAST_DAY = new Date(new Date(holidayOffer.endsAt).get
 
 export const HOLIDAY_OFFER_LINE = `10% off 3 or more custom shades or blinds. Book your free consult by ${HOLIDAY_OFFER_LAST_DAY}.`;
 
+/** The /holiday page's fine print under the offer (content/offer-terms.ts). */
+export const HOLIDAY_OFFER_FINEPRINT = HD_RESTRICTED_EXCLUSION;
+
 /** The homepage hero form's one line, above Invite Us Over while the offer runs (components/home/HeroOffer.tsx). */
 export const HOLIDAY_FORM_LINE = `Holiday: 10% off 3+ shades or blinds when you book by ${HOLIDAY_OFFER_LAST_DAY}.`;
 
 /** Rides along on an offer-window lead as its notes, so Shade’ knows to take the 10% off the quote. */
-export const HOLIDAY_LEAD_NOTE = `Holiday special: 10% off 3+ custom shades or blinds (consult booked by ${HOLIDAY_OFFER_LAST_DAY}).`;
+export const HOLIDAY_LEAD_NOTE = `Holiday special: 10% off 3+ custom shades or blinds (consult booked by ${HOLIDAY_OFFER_LAST_DAY}). ${HD_RESTRICTED_NOTE}`;
 
 const weeks = (label: string) => {
   const leadTime = leadTimes.find((l) => l.label === label)!;

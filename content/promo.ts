@@ -13,7 +13,7 @@ import type { Promo, Season } from "@/lib/promo";
  */
 export const holidayOffer: Promo = {
   id: "holiday-10-off-2026",
-  message: "Holiday special: 10% off 3 or more custom shades or blinds. Book by Nov 15.",
+  message: "Holiday special: 10% off 3 or more custom shades or blinds. Book by Nov 15. Excludes Hunter Douglas restricted products.",
   shortMessage: "10% off 3+ shades",
   cta: "Free in-home consult →",
   shortCta: "Book by Nov 15 →",

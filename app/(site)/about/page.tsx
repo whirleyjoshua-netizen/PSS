@@ -39,7 +39,7 @@ export default function AboutPage() {
               <strong className="font-medium text-charcoal">Twenty-plus years in the trade.</strong>{" "}
               Josh has spent more than twenty years in window treatments: installing them, building
               them, selling them and repairing them, so he knows how they fail and how to keep that
-              from happening. Today we carry Hunter Douglas, Alta and Norman, so we can put more than
+              from happening. Today we are an Authorized Hunter Douglas Dealer and also carry Alta and Norman, so we can put more than
               one maker&rsquo;s answer in front of your window and tell you honestly which one fits.
             </p>
             <p>

@@ -2,6 +2,7 @@
 
 import { useSyncExternalStore } from "react";
 import { isPromoLive, type Season } from "@/lib/promo";
+import { HD_RESTRICTED_EXCLUSION } from "@/content/offer-terms";
 
 const noSubscribe = () => () => {};
 
@@ -24,6 +25,7 @@ export function HeroOffer({ line, note, season }: { line: string | readonly stri
       {(typeof line === "string" ? [line] : line).map((text) => (
         <p key={text} className="text-sm font-medium text-charcoal">{text}</p>
       ))}
+      <p className="mt-1 text-xs text-ink-soft">{HD_RESTRICTED_EXCLUSION}</p>
       <input type="hidden" name="notes" value={note} readOnly />
     </div>
   );

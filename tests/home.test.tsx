@@ -160,10 +160,10 @@ describe("Home", () => {
 });
 
 describe("What we install (owner 2026-10-21)", () => {
-  it("names the brands we carry, never as an authorized dealer", () => {
+  it("names the brands, authorized only for Hunter Douglas (owner 2026-10-22, per HD's 2026 media kit)", () => {
     render(<CategoryGrid />);
-    expect(screen.getByText("We serve the Las Vegas valley with Hunter Douglas, Alta and Norman blinds, shades and shutters, in a wide variety of fabrics, materials and textures.")).toBeInTheDocument();
-    expect(document.body.textContent).not.toMatch(/dealer/i);
+    expect(screen.getByText("As an Authorized Hunter Douglas Dealer, we serve the Las Vegas valley with Hunter Douglas, Alta and Norman blinds, shades and shutters, in a wide variety of fabrics, materials and textures.")).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/authorized (alta|norman)|(alta|norman) (authorized )?dealer/i);
   });
 });
 

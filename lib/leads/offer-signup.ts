@@ -3,6 +3,7 @@ import { Resend } from "resend";
 import { db } from "@/lib/db";
 import { business } from "@/content/business";
 import { liveOffers } from "@/content/offer-popup";
+import { HD_RESTRICTED_EXCLUSION } from "@/content/offer-terms";
 import { adminOrigin } from "@/lib/admin/origin";
 import { adClickLabel } from "./attribution";
 import { OFFER_SOURCE, type OfferSignupInput } from "./schema";
@@ -79,6 +80,7 @@ export async function sendOfferEmail(input: OfferSignupInput, now: Date): Promis
     `Thank you for your interest in ${business.name}. Here is your offer:`,
     "",
     ...liveOffers(now).map((offer) => `- ${offer.line}`),
+    HD_RESTRICTED_EXCLUSION,
     "",
     "To use it, book your free in-home consultation. We bring real samples to your windows, measure each one, and send you a written quote. No charge, no obligation.",
     "",

@@ -67,7 +67,7 @@ export function CategoryGrid() {
       <SectionHeading
         eyebrow="What we install"
         title="Custom blinds, shades and shutters, measured precisely."
-        lead="We serve the Las Vegas valley with Hunter Douglas, Alta and Norman blinds, shades and shutters, in a wide variety of fabrics, materials and textures."
+        lead="As an Authorized Hunter Douglas Dealer, we serve the Las Vegas valley with Hunter Douglas, Alta and Norman blinds, shades and shutters, in a wide variety of fabrics, materials and textures."
       />
 
       {/* Tall cards side by side: a swipeable row on phones and tablets, all four in one row from lg up. */}

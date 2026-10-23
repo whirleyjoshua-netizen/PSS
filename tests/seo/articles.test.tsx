@@ -34,10 +34,10 @@ describe("buying guides (SEO plan drafts, 2026-10-22)", () => {
     for (const article of articles) for (const product of article.products) expect(known).toContain(product.href);
   });
 
-  it("never says authorized dealer, quotes a price or promises a saving", () => {
+  it("calls us authorized only for Hunter Douglas, and never quotes a price or promises a saving", () => {
     for (const article of articles) {
       const text = JSON.stringify(article);
-      expect(text).not.toMatch(/authorized dealer|\$\d|save \d|\d+% (off|savings)/i);
+      expect(text.replace(/Authorized Hunter Douglas Dealer/g, "")).not.toMatch(/authorized|\$\d|save \d|\d+% (off|savings)/i);
     }
   });
 
@@ -51,7 +51,7 @@ describe("buying guides (SEO plan drafts, 2026-10-22)", () => {
 });
 
 describe("the brands guide (owner 2026-10-22: approved to use our vendors' names)", () => {
-  it("is published, and says we carry them, never authorized dealer", async () => {
+  it("is published", async () => {
     expect(HELD_ARTICLES).toHaveLength(0);
     expect((await generateStaticParams()).map((p) => p.slug)).toContain("hunter-douglas-alta-norman-las-vegas");
     expect(sitemap().some((e) => e.url.endsWith("/learn/hunter-douglas-alta-norman-las-vegas"))).toBe(true);

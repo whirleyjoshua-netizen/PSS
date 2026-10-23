@@ -142,17 +142,17 @@ export const articles: Article[] = [
     seo: {
       title: "Hunter Douglas, Alta & Norman | Premier Shade Solutions",
       description:
-        "We carry Hunter Douglas, Alta and Norman blinds, shades and shutters in Las Vegas, measured and installed by our family. Compare makers at your window.",
+        "An Authorized Hunter Douglas Dealer in Las Vegas that also carries Alta and Norman, measured and installed by our family. Compare makers at your window.",
     },
     published: "2026-10-22",
     updated: "2026-10-22",
     quickAnswer:
-      "We carry Hunter Douglas, Alta and Norman, so at your free consultation we can show you more than one maker's answer for the same window, and tell you honestly which one fits. Whichever you choose, we measure it and install it ourselves.",
+      "We are an Authorized Hunter Douglas Dealer and also carry Alta and Norman, so at your free consultation we can show you more than one maker's answer for the same window, and tell you honestly which one fits. Whichever you choose, we measure it and install it ourselves.",
     sections: [
       {
         heading: "Why we carry more than one brand",
         paragraphs: [
-          "Many window treatment companies sell one maker's line, so every window gets that maker's answer. We carry three, Hunter Douglas, Alta and Norman, which means we can put more than one option in front of your window and let you see the difference in your own light.",
+          "Many window treatment companies sell one maker's line, so every window gets that maker's answer. We carry three: as an Authorized Hunter Douglas Dealer we offer Hunter Douglas, and we also carry Alta and Norman, which means we can put more than one option in front of your window and let you see the difference in your own light.",
           "Josh has spent more than twenty years in window treatments, installing, building, selling and repairing them. That is the experience behind telling you which product holds up on a west-facing window in this valley, and which one is the better value for a room that does not take the sun.",
         ],
       },

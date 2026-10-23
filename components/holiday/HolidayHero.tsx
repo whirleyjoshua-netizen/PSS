@@ -1,7 +1,7 @@
 import Image from "next/image";
 import { Container } from "@/components/ui/Container";
 import { HeroForm } from "@/components/forms/HeroForm";
-import { HOLIDAY_LEAD_NOTE, HOLIDAY_OFFER_LINE, holidayLeadTimes } from "@/content/holiday";
+import { HOLIDAY_LEAD_NOTE, HOLIDAY_OFFER_FINEPRINT, HOLIDAY_OFFER_LINE, holidayLeadTimes } from "@/content/holiday";
 import { holidayOffer } from "@/content/promo";
 import type { Photo } from "@/content/products";
 import { Bow, Seal, Snowfall, Sparkles, StringLights } from "./Decor";
@@ -48,7 +48,10 @@ export function HolidayHero({ stage, photo }: { stage: "offer" | "family"; photo
               </h1>
             )}
             {stage === "offer" ? (
-              <p className="max-w-xl font-display text-base font-medium leading-snug text-holiday-snow sm:text-xl">{HOLIDAY_OFFER_LINE}</p>
+              <>
+                <p className="max-w-xl font-display text-base font-medium leading-snug text-holiday-snow sm:text-xl">{HOLIDAY_OFFER_LINE}</p>
+                <p className="-mt-3 max-w-xl text-xs text-holiday-snow/70">{HOLIDAY_OFFER_FINEPRINT}</p>
+              </>
             ) : null}
             <p className="hidden max-w-xl leading-relaxed text-holiday-snow/75 sm:block">{holidayLeadTimes(stage)}</p>
             {stage === "offer" ? (

@@ -11,6 +11,7 @@ import {
 import { offerSignupSchema } from "@/lib/leads/schema";
 import { recallAttribution } from "@/lib/leads/attribution";
 import { trackOfferSignup } from "@/lib/analytics/events";
+import { HD_RESTRICTED_EXCLUSION } from "@/content/offer-terms";
 
 /** Pages that come after a lead, or belong to a customer: the pop-up would only get in the way. */
 const HIDDEN_ON = ["/thank-you", "/project", "/unsubscribe"];
@@ -169,6 +170,7 @@ export function OfferPopup() {
               {offers.map((offer) => (
                 <p key={offer.line} className="text-sm font-medium text-charcoal">{offer.line}</p>
               ))}
+              <p className="mt-1 text-xs text-ink-soft">{HD_RESTRICTED_EXCLUSION}</p>
             </div>
             <p className="text-sm text-ink-soft">{OFFER_POPUP.intro}</p>
             <TextField id="offer-name" name="name" label="Name" autoComplete="name" required />
