@@ -182,6 +182,177 @@ export const articles: Article[] = [
       { name: "Motorization", href: "/motorization" },
     ],
   },
+  {
+    slug: "what-drives-window-treatment-cost-las-vegas",
+    crumb: "What drives the cost",
+    title: "What drives the cost of window treatments in Las Vegas",
+    seo: {
+      title: "What Window Treatments Cost | Premier Shade Solutions",
+      description:
+        "Why one quote is higher than another: windows, sizes, product and fabric, how it operates, and extras. How custom window treatment pricing works in Las Vegas.",
+    },
+    published: "2026-10-22",
+    updated: "2026-10-22",
+    quickAnswer:
+      "Five things set the price of custom window treatments: how many windows, how big they are, the product and fabric you choose, how it operates (cordless, chain or motorized), and any extras. We don't publish a price list because those five change with every home, but your quote is free and in writing, so you see every line before you say yes.",
+    sections: [
+      {
+        heading: "Why there's no price list",
+        paragraphs: [
+          "Custom means each blind, shade or shutter is made to the exact size of your window. Two homes with the same number of windows can come out very differently, because the windows are different sizes and the rooms need different things. A price list would be wrong for almost everyone, so we price the windows you actually have.",
+        ],
+      },
+      {
+        heading: "1. How many windows",
+        paragraphs: [
+          "The biggest driver is simply the count. Covering the whole house at once is usually more efficient than doing it a room at a time, especially in newer homes where many windows are the same size. If you are only planning the front rooms, it is still worth asking for the whole house, so you can see the difference.",
+        ],
+      },
+      {
+        heading: "2. How big they are",
+        paragraphs: [
+          "A tall great-room window or a wide patio slider takes more material and more work than a bedroom window. Very wide openings can also change what is possible: composite shutter panels get heavy, so a wide opening may need extra stiles that interrupt the view, which we plan at the measurement rather than after the order.",
+        ],
+      },
+      {
+        heading: "3. The product and the fabric",
+        paragraphs: [
+          "Different products sit at different levels. Faux wood blinds are the practical everyday choice, and wood blinds bring the warmth of a shutter at a fraction of the cost. Composite shutters are generally more affordable than comparable real wood. Solar screens are the most cost-effective way to treat a whole west or south side of the house from outside. Within each product, the fabric or finish you choose moves the number too.",
+        ],
+      },
+      {
+        heading: "4. How it operates",
+        paragraphs: [
+          "A cordless or chain shade costs less than a motorized one. Motorization earns its place on windows nobody can reach and on rooms you want on a schedule, and modern battery motors need no electrician, so there is no wiring cost on top. Motorized products also take about a week longer to arrive.",
+        ],
+      },
+      {
+        heading: "5. Extras",
+        paragraphs: [
+          "Taking your old blinds down is priced per window on your quote, so there are no surprises on install day. Hauling them away is free. If the final measurement changes a size, the mounting or the product, you hear the new price first, and nothing is ordered until you approve it.",
+        ],
+      },
+      {
+        heading: "Getting a real number",
+        paragraphs: [
+          "The fastest way to a real number is the free in-home consultation. We bring samples to your windows, Josh measures every window himself, and you get a written quote with your lead time on it. No charge and no obligation.",
+        ],
+      },
+    ],
+    products: [
+      { name: "Blinds", href: "/blinds" },
+      { name: "Shades", href: "/shades" },
+      { name: "Shutters", href: "/shutters" },
+      { name: "Outdoor shading", href: "/outdoor" },
+    ],
+  },
+  {
+    slug: "composite-vs-wood-shutters-las-vegas",
+    crumb: "Composite vs. wood shutters",
+    title: "Composite vs. wood shutters in the Las Vegas sun",
+    seo: {
+      title: "Composite vs. Wood Shutters | Premier Shade Solutions",
+      description:
+        "Composite shutters won't warp, yellow or swell; real wood is lighter and shows its grain. Which plantation shutter belongs on which Las Vegas window.",
+    },
+    published: "2026-10-22",
+    updated: "2026-10-22",
+    quickAnswer:
+      "For most Las Vegas windows, composite. A composite louver will not warp on a west-facing window, will not yellow, and will not swell in a bathroom. Real wood is lighter, so it allows wider panels and a cleaner view, and it is the only choice if you want visible grain, which makes it the pick for shaded windows and formal rooms.",
+    sections: [
+      {
+        heading: "What each one is",
+        paragraphs: [
+          "Both are plantation shutters: wide-louver interior shutters built to the window opening and framed to the wall. The difference is the material. Composite shutters use an engineered wood or polymer core wrapped in a durable finish. Real wood shutters are milled from hardwood, usually basswood, and stained or painted.",
+        ],
+      },
+      {
+        heading: "The sun decides most of it",
+        paragraphs: [
+          "West-facing glass in this valley takes direct sun from about two in the afternoon until sunset. That is what kills wood: in sustained direct sun it can fade, and it moves. Composite removes the two things that ruin wood in the desert, sun and moisture, which is why it is our default for most Las Vegas homes and the reason we specify it far more often than real wood.",
+          "Moisture matters too. A composite shutter is safe in bathrooms, laundry rooms and kitchens, where wood can swell.",
+        ],
+      },
+      {
+        heading: "Where real wood wins",
+        paragraphs: [
+          "Wood is significantly lighter than composite, so a wide opening can take wider panels before extra stiles are needed, which means a cleaner, more open view. And wood is the only option if you want visible grain: a stained wood shutter next to wood floors or exposed beams does something a painted composite cannot imitate.",
+          "We specify real wood for shaded windows, interior openings and formal rooms, and steer people to composite for the west-facing glass.",
+        ],
+      },
+      {
+        heading: "Cost",
+        paragraphs: [
+          "Composite shutters are generally more affordable than comparable real wood. Both are among the longest-lasting things we install: on a hard west wall, a shutter still looks right in fifteen years when a fabric shade would have been replaced twice.",
+        ],
+      },
+      {
+        heading: "Mixing them",
+        paragraphs: [
+          "Many homes do both: composite on the sunny sides, the kitchen and the bathrooms, and wood in a shaded formal room where the grain can match the floors. We walk the house with you at the consultation and plan each window, including the louver size, which for the large modern glass in most Las Vegas homes is usually 4 1/2 inch.",
+        ],
+      },
+    ],
+    products: [
+      { name: "Composite shutters", href: "/shutters/composite-shutters" },
+      { name: "Real wood shutters", href: "/shutters/wood-shutters" },
+      { name: "Plantation shutters", href: "/shutters/plantation-shutters" },
+    ],
+  },
+  {
+    slug: "window-treatments-for-sliding-glass-doors",
+    crumb: "Sliding glass doors",
+    title: "Window treatments for sliding glass doors in Las Vegas",
+    seo: {
+      title: "Sliding Door Window Treatments | Premier Shade Solutions",
+      description:
+        "Vertical blinds, cellular shades, solar screens or motorization: what works on Las Vegas sliding glass doors, and how to keep the door working as a door.",
+    },
+    published: "2026-10-22",
+    updated: "2026-10-22",
+    quickAnswer:
+      "Vertical blinds are still the most sensible answer for most sliding glass doors: the vanes stack to one side so the door still works as a door, and they tilt to block the low western sun. Cellular shades stack small for tall glass, motorization handles glass too high to reach, and exterior solar screens take the heat off the patio-facing windows.",
+    sections: [
+      {
+        heading: "The hardest opening in the house",
+        paragraphs: [
+          "Almost every Las Vegas home has a sliding glass door onto the patio, and it is usually the hardest opening to treat. It is wide, it is a door people walk through all day, and on the west side it takes the low afternoon sun straight into the room.",
+          "Whatever goes on it has to do three things: leave the door usable, control that low sun, and still look right when it is open.",
+        ],
+      },
+      {
+        heading: "Vertical blinds",
+        paragraphs: [
+          "Verticals remain the most practical choice. The vanes stack left, right or split to the center, so the door still works as a door, and they tilt to block the low western sun that a horizontal blind cannot reach.",
+          "Today's vertical is not the brittle plastic one you remember. Fabric-wrapped, faux wood and PVC vanes in warm neutrals hang straight and move quietly. Because the vanes hang rather than stack, they shed dust instead of collecting it, and a damaged vane replaces on its own.",
+        ],
+      },
+      {
+        heading: "Cellular shades and motorization",
+        paragraphs: [
+          "For tall glass, a cellular shade stacks remarkably small when it is raised, which keeps the opening usable, and its trapped air insulates against the afternoon heat. Where the glass runs higher than anyone can reach, motorization lets you open and close it from an app, a remote or a schedule, with a battery motor and no wiring.",
+        ],
+      },
+      {
+        heading: "Stop the heat outside",
+        paragraphs: [
+          "If the problem is heat more than light, exterior solar screens on the windows that face the patio turn away roughly 70–90% of the sun's heat before it reaches the glass. They darken the view a little from inside and are visible from outside, so we check your HOA's guidelines with you before ordering.",
+        ],
+      },
+      {
+        heading: "What about shutters?",
+        paragraphs: [
+          "Shutters can work on sliders, but very wide openings make composite panels heavy, and the panels have to clear the door handle and the path through the door. We plan the layout at the measurement, not after the order, and we will tell you honestly if a slider is better served by something else.",
+        ],
+      },
+    ],
+    products: [
+      { name: "Vertical blinds", href: "/blinds/vertical-blinds" },
+      { name: "Cellular shades", href: "/shades/cellular-shades" },
+      { name: "Motorization", href: "/motorization" },
+      { name: "Solar screens", href: "/outdoor/solar-screens" },
+    ],
+  },
 ];
 
 /**
