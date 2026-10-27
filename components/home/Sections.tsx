@@ -1,7 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { Container } from "@/components/ui/Container";
-import { Section, SectionHeading, Eyebrow } from "@/components/ui/Section";
+import { Section, SectionHeading } from "@/components/ui/Section";
 import { ButtonLink } from "@/components/ui/Button";
 import { business } from "@/content/business";
 import { categories, type CategorySlug, type Photo } from "@/content/products";
@@ -241,80 +241,6 @@ export function Testimonials() {
   );
 }
 
-/* ---------------------------------------------------------------- family */
-
-export function FamilySection() {
-  return (
-    // Sand: it sits between the charcoal Why Premier band and the ivory gallery.
-    <Section tone="sand">
-      <div className="grid items-center gap-12 lg:grid-cols-2">
-        {/* Owner 2026-10-01: the three of them here; the children are never named. */}
-        <div className="relative mx-auto aspect-4/3 w-full overflow-hidden bg-sand">
-          <Image
-            src="/brand/owners-family.webp"
-            alt="Josh and Shade’ standing outside in the sun with their young daughter held between them"
-            fill
-            sizes="(min-width: 1024px) 36rem, 100vw"
-            className="object-cover"
-          />
-        </div>
-
-        <div className="flex flex-col gap-5">
-          <Eyebrow>Who you&rsquo;ll be working with</Eyebrow>
-          <h2 className="text-3xl font-light tracking-tight text-charcoal md:text-4xl">
-            When you invite us in, you&rsquo;re inviting in family.
-          </h2>
-          <p className="text-ink-soft">
-            We&rsquo;re a family-run business here in the Las Vegas valley. When we
-            walk through your door, we&rsquo;re not thinking about the sale.
-            We&rsquo;re thinking about how we&rsquo;d want someone to treat our own
-            home. We&rsquo;ll listen, bring the samples, measure everything
-            ourselves and stay with you from consultation to installation.
-          </p>
-          <div className="pt-2">
-            <ButtonLink href="/about" variant="outline">
-              Meet the family
-            </ButtonLink>
-          </div>
-        </div>
-      </div>
-    </Section>
-  );
-}
-
-/* ---------------------------------------------------------- service area */
-
-/** A slim strip, not a full section (owner, 2026-10-14: the big block was unnecessary). */
-export function ServiceAreaBlock() {
-  return (
-    <section className="border-y border-rule bg-sand text-charcoal">
-      <Container>
-        <div className="flex flex-col gap-3 py-6 lg:flex-row lg:items-center lg:justify-between lg:gap-8">
-          <h2 className="font-display text-lg font-light tracking-tight">Serving the Las Vegas valley.</h2>
-          <ul className="flex flex-wrap items-center gap-x-5 gap-y-1 text-sm">
-            {business.serviceArea.map((city) => (
-              <li key={city}>
-                <Link
-                  href={cityPath(city)}
-                  className="inline-flex min-h-11 items-center underline-offset-4 hover:underline"
-                >
-                  {city}
-                </Link>
-              </li>
-            ))}
-          </ul>
-          <p className="text-sm text-ink-soft">
-            We also travel to {business.travelArea.join(" and ")}. Not listed?{" "}
-            <a href={business.phone.href} className="inline-flex min-h-11 items-center text-charcoal underline underline-offset-4">
-              Call {business.phone.display}
-            </a>
-          </p>
-        </div>
-      </Container>
-    </section>
-  );
-}
-
 /* ------------------------------------------------------------ closing cta */
 
 export function ClosingCta() {
@@ -341,6 +267,26 @@ export function ClosingCta() {
           </div>
           <p className="text-sm text-sand/75">Free in-home consultation. No charge, no obligation.</p>
         </div>
+      </div>
+
+      {/* The service area, inside the closing block rather than a light strip of its own (owner, 2026-10-27). */}
+      <div className="mt-12 flex flex-col gap-3 border-t border-ivory/15 pt-8 lg:flex-row lg:items-center lg:justify-between lg:gap-8">
+        <h3 className="font-display text-lg font-light tracking-tight text-ivory">Serving the Las Vegas valley.</h3>
+        <ul className="flex flex-wrap items-center gap-x-5 gap-y-1 text-sm text-ivory">
+          {business.serviceArea.map((city) => (
+            <li key={city}>
+              <Link href={cityPath(city)} className="inline-flex min-h-11 items-center underline-offset-4 hover:underline">
+                {city}
+              </Link>
+            </li>
+          ))}
+        </ul>
+        <p className="text-sm text-sand/75">
+          We also travel to {business.travelArea.join(" and ")}. Not listed?{" "}
+          <a href={business.phone.href} className="inline-flex min-h-11 items-center text-ivory underline underline-offset-4">
+            Call {business.phone.display}
+          </a>
+        </p>
       </div>
     </Section>
   );

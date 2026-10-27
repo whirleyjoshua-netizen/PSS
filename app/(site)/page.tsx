@@ -9,8 +9,6 @@ import {
   WhyPremier,
   GalleryStrip,
   Testimonials,
-  FamilySection,
-  ServiceAreaBlock,
   ClosingCta,
 } from "@/components/home/Sections";
 import { PastWorkReviews } from "@/components/reviews/PastWorkReviews";
@@ -32,8 +30,8 @@ export const metadata: Metadata = {
 };
 
 /**
- * Products first, then the experience and the family, then our work, then trust (owner, 2026-10-13: products and
- * gallery above the reviews; 2026-10-14: products above the family).
+ * Products first, then the experience, then our work, then trust (owner, 2026-10-13: products and gallery above
+ * the reviews). The family section lives on /about only (owner, 2026-10-27).
  */
 export default function Home() {
   return (
@@ -42,12 +40,10 @@ export default function Home() {
       <TrustBar />
       <CategoryGrid />
       <WhyPremier />
-      <FamilySection />
       <GalleryStrip />
       <Testimonials />
       <PastWorkReviews />
       <Objections />
-      <ServiceAreaBlock />
       <ClosingCta />
     </>
   );

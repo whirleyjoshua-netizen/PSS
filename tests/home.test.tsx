@@ -72,24 +72,12 @@ describe("Home", () => {
     expect(hrefs).toContain(business.phone.href);
   });
 
-  it("leads with the family: eyebrow, family section and its link to Meet the family", () => {
+  // Owner 2026-10-27: the family section moved off the homepage; it lives on /about.
+  it("keeps the family eyebrow but no family section", () => {
     render(<Home />);
     expect(screen.getByText("Family-run window treatments · Las Vegas valley")).toBeInTheDocument();
-    expect(
-      screen.getByRole("heading", { level: 2, name: /when you invite us in, you[’']re inviting in family/i }),
-    ).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /meet the family/i })).toHaveAttribute("href", "/about");
-  });
-
-  // Owner 2026-10-01 changed the family-brand rule: the homepage family section
-  // shows the three of them. The children are still never named.
-  it("shows the owners' family photo beside 'inviting in family'", () => {
-    render(<Home />);
-    const heading = screen.getByRole("heading", { level: 2, name: /when you invite us in, you[’']re inviting in family/i });
-    const section = heading.closest("section")!;
-    const img = section.querySelector("img")!;
-    expect(decodeURIComponent(img.getAttribute("src") ?? "")).toContain("/brand/owners-family.webp");
-    expect(img.getAttribute("alt")).toMatch(/Josh and Shade/);
+    expect(screen.queryByText(/inviting in family/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /meet the family/i })).not.toBeInTheDocument();
   });
 
   it("closes with Invite us over and the coffee line", () => {
@@ -98,7 +86,7 @@ describe("Home", () => {
     expect(screen.getByText(/you bring the coffee/i)).toBeInTheDocument();
   });
 
-  it("orders the sections products, experience, family and gallery, then reviews", () => {
+  it("orders the sections products, experience and gallery, then reviews", () => {
     const { container } = render(<Home />);
     const text = container.textContent ?? "";
     const at = (s: string) => {
@@ -107,8 +95,7 @@ describe("Home", () => {
       return i;
     };
     expect(at("Custom blinds, shades and shutters, measured precisely.")).toBeLessThan(at("Why Las Vegas homeowners work with us."));
-    expect(at("Why Las Vegas homeowners work with us.")).toBeLessThan(at("inviting in family"));
-    expect(at("inviting in family")).toBeLessThan(at("Installed by the two of us."));
+    expect(at("Why Las Vegas homeowners work with us.")).toBeLessThan(at("Installed by the two of us."));
     expect(at("Installed by the two of us.")).toBeLessThan(at("Here is what our clients said"));
     expect(at("Here is what our clients said")).toBeLessThan(at("What makes us different."));
   });
@@ -135,11 +122,12 @@ describe("Home", () => {
     expect(within(section).getByText("We go the extra mile")).toBeInTheDocument();
   });
 
-  it("lists the service area as a slim strip of city links with a call link", () => {
+  // Owner 2026-10-27: no light strip of its own; the cities sit inside the charcoal closing block.
+  it("lists the service area inside the closing block, as city links with a call link", () => {
     render(<Home />);
-    const strip = screen.getByRole("heading", { level: 2, name: "Serving the Las Vegas valley." }).closest("section")!;
-    expect(strip.className).not.toMatch(/py-20/);
-    const links = within(strip).getAllByRole("link");
+    const closing = screen.getByRole("heading", { level: 2, name: /^invite us over\.$/i }).closest("section")!;
+    const heading = within(closing).getByRole("heading", { level: 3, name: "Serving the Las Vegas valley." });
+    const links = within(heading.parentElement!).getAllByRole("link");
     expect(links.map((a) => a.getAttribute("href"))).toEqual([
       ...business.serviceArea.map(cityPath),
       business.phone.href,
@@ -149,10 +137,10 @@ describe("Home", () => {
 
   it("ends its sentence headlines with a period", () => {
     render(<Home />);
+    expect(screen.getByRole("heading", { level: 3, name: "Serving the Las Vegas valley." })).toBeInTheDocument();
     for (const title of [
       "Custom blinds, shades and shutters, measured precisely.",
       "Installed by the two of us.",
-      "Serving the Las Vegas valley.",
     ]) {
       expect(screen.getByRole("heading", { level: 2, name: title })).toBeInTheDocument();
     }

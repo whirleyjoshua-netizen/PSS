@@ -36,7 +36,8 @@ describe("SEO inventory survives the family redesign (spec §2)", () => {
       ...categories.filter((c) => c.slug !== "outdoor").map((c) => `/${c.slug}`),
       ...cities.map((c) => `/service-area/${c.slug}`),
       "/gallery",
-      "/about",
+      // The family section, and its /about link, left the homepage (owner, 2026-10-27); the site header and
+      // footer still link /about on every page (tests/layout/header.test.tsx).
       "/contact",
       "/reviews",
       business.phone.href,
