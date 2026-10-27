@@ -30,6 +30,12 @@ describe("structured data", () => {
     expect(schema.url).toBe(business.domain);
   });
 
+  it("uses the logo as the business image, not the family photo (owner, 2026-10-27)", () => {
+    const schema = localBusinessSchema() as unknown as Record<string, unknown>;
+    expect(schema.image).toBe(`${business.domain}/brand/lockup-light.png`);
+    expect(JSON.stringify(schema)).not.toMatch(/owners-family/);
+  });
+
   it("publishes the city but never a street while the street is a placeholder", () => {
     // A wrong street address in LocalBusiness schema is worse than none —
     // it can attach the business to a location it has never operated from.

@@ -46,7 +46,8 @@ export function localBusinessSchema(): LocalBusinessSchema {
     "@id": BUSINESS_ID,
     name: business.name,
     logo: absolute("/brand/lockup-light.png"),
-    image: absolute("/brand/owners-family.webp"),
+    // The logo, not the family photo (owner, 2026-10-27: the family photo is off the homepage too).
+    image: absolute("/brand/lockup-light.png"),
     description:
       "Custom blinds, shades, shutters, and motorized window treatments for the Las Vegas valley, measured and installed by the owners.",
     url: business.domain,
