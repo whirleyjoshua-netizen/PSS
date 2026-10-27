@@ -21,6 +21,7 @@ const WORTH = "Are custom window treatments worth it?";
 const EXISTING = "Can you install window treatments in an existing home?";
 const AREAS = "What areas does Premier Shade Solutions serve?";
 const INSURED = "Are you insured?";
+const MEASURED = "Do my windows need to be professionally measured?";
 
 const SHUTTERS = [WORTH, LAST, HEAT, LEAD_TIME];
 
@@ -37,7 +38,8 @@ export const PAGE_FAQS: Record<string, readonly string[]> = {
   "shades/woven-wood-shades": [PRIVACY, CLEAN, LEAD_TIME, WARRANTY],
   "shades/transitional-shades": [PRIVACY, BLINDS_VS_SHADES, LEAD_TIME, WARRANTY],
   shutters: SHUTTERS,
-  "shutters/plantation-shutters": SHUTTERS,
+  // Measuring and install first: Google tests this page for "plantation shutter installation" (SEO audit 2026-10-27).
+  "shutters/plantation-shutters": [MEASURED, LEAD_TIME, EXISTING, WORTH, HEAT],
   "shutters/composite-shutters": SHUTTERS,
   "shutters/wood-shutters": SHUTTERS,
   outdoor: [HEAT, EXISTING, LEAD_TIME, WARRANTY],

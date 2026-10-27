@@ -11,6 +11,11 @@
  */
 
 import { altaPhotos } from "./stock-photos";
+import { leadTimes } from "./lead-times";
+
+const shutterLeadTime = leadTimes.find((leadTime) => leadTime.label === "Shutters");
+if (!shutterLeadTime) throw new Error("No lead time for Shutters");
+const SHUTTER_WEEKS = `${shutterLeadTime.minWeeks} to ${shutterLeadTime.maxWeeks} weeks`;
 
 export const CATEGORY_SLUGS = [
   "blinds",
@@ -126,6 +131,7 @@ export const categories: Category[] = [
   {
     slug: "shades",
     name: "Shades",
+    heading: "Window Shades",
     navLabel: "Shades",
     tagline: "Soft light, or none at all.",
     intro: [
@@ -492,6 +498,8 @@ export const products: Product[] = [
       "Plantation shutters are wide-louver interior shutters fitted into the window opening and framed to the wall. Because they are built to the opening rather than hung in front of it, they read as architecture — and they are the one window treatment that reliably adds value at resale rather than depreciating.",
       "The louver size sets the character. Three-and-a-half inch louvers suit smaller windows and traditional rooms. Four-and-a-half inch louvers give a cleaner sightline and more view when open, which is what most Las Vegas homes with large modern glass should be using.",
       "They also solve problems fabric cannot. Louvers tilt to redirect low afternoon sun up toward the ceiling instead of into your eyes, they never fade or fray, and they add a real layer of insulation at the glass. On a hard west elevation, a shutter will still look right in fifteen years when a fabric shade would have been replaced twice.",
+      // Only promises the owner confirmed (content/consultation.ts); the weeks come from content/lead-times.ts.
+      `Plantation shutter installation is done by the two of us, never a subcontractor. Josh measures every opening himself and works out details like an extra stile on a wide panel, and our measurement guarantee covers every number: if one is off, we remake the shutter and install it again, free. Shutters take ${SHUTTER_WEEKS}, counted from the day you order, and we put up temporary shades for free while you wait. On install day we walk through every window with you, clean up and haul your old blinds away free.`,
     ],
     features: [
       "3 1/2 inch and 4 1/2 inch louvers to suit the window and the room",

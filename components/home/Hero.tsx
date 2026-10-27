@@ -21,6 +21,9 @@ const cities = (names: readonly string[]) =>
   names.length < 2 ? names.join("") : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
 
 /** Under the tagline: what we sell, where, and who does the work. */
+/** The search words the homepage is meant to win, with the tagline kept as the line beneath (owner, 2026-10-27, SEO audit). */
+export const HERO_HEADLINE = "Custom blinds, shades and shutters in Las Vegas.";
+
 export const HERO_SUBHEAD = `Custom blinds, shades, shutters and solar screens for ${cities(business.serviceArea)}. Shade’ designs, Josh measures and installs. No call center, no subcontractors.`;
 
 function HeroFormProof() {
@@ -72,8 +75,12 @@ export function Hero() {
               </p>
 
               <h1 className="text-4xl font-light leading-[1.1] tracking-tight sm:text-5xl lg:text-6xl">
-                {business.tagline}
+                {HERO_HEADLINE}
               </h1>
+
+              <p className="font-display text-xl font-light tracking-tight text-champagne sm:text-2xl">
+                {business.tagline}
+              </p>
 
               <p className="max-w-xl text-lg text-sand/80">
                 {HERO_SUBHEAD}

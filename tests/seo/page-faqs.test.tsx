@@ -7,6 +7,7 @@ import { categories, products } from "@/content/products";
 import { cities } from "@/content/cities";
 import { PAGE_FAQS, faqsFor } from "@/content/page-faqs";
 import { FAQ_GROUPS } from "@/content/faq";
+import { leadTimes } from "@/content/lead-times";
 
 const schemas = (container: HTMLElement) =>
   Array.from(container.querySelectorAll('script[type="application/ld+json"]')).map((s) => JSON.parse(s.textContent ?? "{}"));
@@ -67,5 +68,21 @@ describe("page FAQs (owner 2026-10-21, SEO plan)", () => {
   it("heads the motorization page with the words people search for", async () => {
     render(await CategoryPage({ params: Promise.resolve({ category: "motorization" }) }));
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Motorized Shades and Blinds in Las Vegas");
+  });
+
+  // SEO audit 2026-10-27: Google tests the plantation page for "plantation shutter installation" (position 13).
+  it("answers installation on the plantation shutters page, with the contract's shutter weeks", async () => {
+    const { container } = render(
+      await ProductPage({ params: Promise.resolve({ category: "shutters", product: "plantation-shutters" }) }),
+    );
+    expect(faqsFor("shutters/plantation-shutters")[0].q).toBe("Do my windows need to be professionally measured?");
+    const shutters = leadTimes.find((l) => l.label === "Shutters")!;
+    expect(container.textContent).toContain("Plantation shutter installation is done by the two of us, never a subcontractor.");
+    expect(container.textContent).toContain(`Shutters take ${shutters.minWeeks} to ${shutters.maxWeeks} weeks, counted from the day you order`);
+  });
+
+  it("heads the shades page with the words people search for", async () => {
+    render(await CategoryPage({ params: Promise.resolve({ category: "shades" }) }));
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Window Shades in Las Vegas");
   });
 });

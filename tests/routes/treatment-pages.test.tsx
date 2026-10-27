@@ -18,7 +18,7 @@ describe("category page redesign", () => {
     const shades = category("shades");
     const { container } = await renderCategory("shades");
 
-    expect(screen.getByRole("heading", { level: 1, name: "Shades in Las Vegas" }).className).toContain("heading-serif");
+    expect(screen.getByRole("heading", { level: 1, name: "Window Shades in Las Vegas" }).className).toContain("heading-serif");
     expect(screen.getByText(shades.seo.description)).toBeInTheDocument();
     expect(within(screen.getByRole("list", { name: "Highlights" })).getAllByRole("listitem").map((li) => li.textContent))
       .toEqual(shades.highlights.map((h) => h.label));

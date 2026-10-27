@@ -9,12 +9,14 @@ import { cityPath } from "@/lib/content/cities";
 import { CategoryGrid } from "@/components/home/Sections";
 
 describe("Home", () => {
-  it("has exactly one h1 and it carries the tagline", () => {
+  // Owner 2026-10-27 (SEO audit): the h1 carries the search words; the tagline stays visible beneath it.
+  it("has exactly one h1, with the search words, and keeps the tagline beneath it", () => {
     const { container } = render(<Home />);
     const headings = container.querySelectorAll("h1");
 
     expect(headings).toHaveLength(1);
-    expect(headings[0].textContent).toContain(business.tagline);
+    expect(headings[0].textContent).toBe("Custom blinds, shades and shutters in Las Vegas.");
+    expect(screen.getByText(business.tagline, { selector: "p" })).toBeInTheDocument();
   });
 
   it("links every product category but outdoor, which the header menu links (owner, 2026-10-14)", () => {
@@ -29,7 +31,7 @@ describe("Home", () => {
 
   it("covers the category cards with Alta catalog photos, never our gallery", () => {
     render(<Home />);
-    const section = screen.getByRole("heading", { level: 2, name: "Custom blinds, shades and shutters, measured precisely." }).closest("section")!;
+    const section = screen.getByRole("heading", { level: 2, name: "Measured precisely, made for your windows." }).closest("section")!;
     const cards = within(section).getAllByRole("listitem");
     // Outdoor has no Alta photo, so it is left off; every card has a cover.
     expect(cards.map((card) => card.querySelector("h3")?.textContent)).toEqual(["Blinds", "Shades", "Shutters", "Motorization"]);
@@ -94,7 +96,7 @@ describe("Home", () => {
       expect(i, s).toBeGreaterThanOrEqual(0);
       return i;
     };
-    expect(at("Custom blinds, shades and shutters, measured precisely.")).toBeLessThan(at("Why Las Vegas homeowners work with us."));
+    expect(at("Measured precisely, made for your windows.")).toBeLessThan(at("Why Las Vegas homeowners work with us."));
     expect(at("Why Las Vegas homeowners work with us.")).toBeLessThan(at("Installed by the two of us."));
     expect(at("Installed by the two of us.")).toBeLessThan(at("Here is what our clients said"));
     expect(at("Here is what our clients said")).toBeLessThan(at("What makes us different."));
@@ -139,7 +141,7 @@ describe("Home", () => {
     render(<Home />);
     expect(screen.getByRole("heading", { level: 3, name: "Serving the Las Vegas valley." })).toBeInTheDocument();
     for (const title of [
-      "Custom blinds, shades and shutters, measured precisely.",
+      "Measured precisely, made for your windows.",
       "Installed by the two of us.",
     ]) {
       expect(screen.getByRole("heading", { level: 2, name: title })).toBeInTheDocument();

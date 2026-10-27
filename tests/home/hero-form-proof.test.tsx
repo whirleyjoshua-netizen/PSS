@@ -1,7 +1,7 @@
 import { act, render, screen, within } from "@testing-library/react";
 import { renderToString } from "react-dom/server";
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { Hero, HERO_SUBHEAD } from "@/components/home/Hero";
+import { Hero, HERO_SUBHEAD, HERO_HEADLINE } from "@/components/home/Hero";
 import { HeroOffer } from "@/components/home/HeroOffer";
 import { PROMISES } from "@/components/booking/PromiseRow";
 import { business } from "@/content/business";
@@ -23,11 +23,12 @@ describe("the hero subhead", () => {
     expect(HERO_SUBHEAD).toContain(`for ${first}, ${rest.slice(0, -1).join(", ")} and ${rest.at(-1)}.`);
   });
 
-  it("replaces the generic family line and keeps the tagline as the h1", () => {
+  it("replaces the generic family line and keeps the tagline under the h1", () => {
     render(<Hero />);
     expect(screen.getByText(HERO_SUBHEAD)).toBeInTheDocument();
     expect(screen.queryByText(/streamlined/i)).toBeNull();
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(business.tagline);
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(HERO_HEADLINE);
+    expect(screen.getByText(business.tagline)).toBeInTheDocument();
   });
 });
 
