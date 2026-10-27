@@ -575,6 +575,41 @@ export const products: Product[] = [
         "Custom hardwood plantation shutters for Las Vegas homes. Real grain, wider panels, stain-matched to your woodwork. Free consultation.",
     },
   },
+  {
+    // SEO audit 2026-10-27: "bypass slider shutters" sat at 16.9 with no page. Norman facts from normanusa.com
+    // (read 2026-10-27); Hunter Douglas and Alta content is not used (HD 2026 media kit). Bypass: owner confirmed 2026-10-27.
+    slug: "sliding-door-shutters",
+    name: "Sliding Door Shutters",
+    category: "shutters",
+    tagline: "Shutters that still let the door open.",
+    opening:
+      "Sliding door shutters fold or slide clear of the glass, so a patio slider or a pair of French doors gets the look of plantation shutters and still opens all the way.",
+    body: [
+      "A sliding glass door is the one opening a standard shutter can't cover, because the panels would block the door. Shutters for sliding doors solve that two ways. Bi-fold panels are hinged together and fold back to one side of the opening. Bypass panels hang from a track at the top and slide past one another, the same way the door does.",
+      "Norman's Bi-fold 180™ design is built for exactly this. It's offered on Woodlore® Plus, Brightwood™ and Normandy® shutters. Woodlore® Plus panels run up to 36 inches wide, and lighter hardwood lines allow wider single panels, which means fewer panels to fold on a wide slider.",
+      "French doors are simpler. The shutter panels mount on each door and swing with it, so both doors still open and the louvers stay put. A pair of shuttered French doors next to a shuttered window reads as one finished wall.",
+      "In Las Vegas, the patio slider is often the biggest piece of west-facing glass in the house. Louvers tilt to send the low afternoon sun up toward the ceiling instead of across the floor, and composite louvers won't warp or yellow in that sun. Real wood is lighter, so it suits the widest openings on shaded sides of the house.",
+      `Josh measures every door himself, including the clearance the panels need to fold or slide, and our measurement guarantee covers every number: if one is off, we remake it and install it again, free. Shutters take ${SHUTTER_WEEKS}, counted from the day you order.`,
+    ],
+    features: [
+      "Bi-fold panels that fold back to one side of a patio slider",
+      "Bypass panels that slide past one another on a top track",
+      "Door-mounted panels for French doors, so both doors still open",
+      "Composite for west-facing glass, real wood for the widest shaded openings",
+      "Measured for clearance and installed by the owners",
+    ],
+    bestFor: "Patio sliders, French doors and extra-wide windows where a fixed shutter would block the opening.",
+    image: altaPhotos.shuttersFrenchDoors,
+    storyPhoto: {
+      src: "/gallery/plantation-shutters-french-doors.webp",
+      alt: "White plantation shutters mounted on a pair of French doors and on the tall window beside them.",
+    },
+    seo: {
+      title: "Sliding Door Shutters in Las Vegas | Premier Shade Solutions",
+      description:
+        "Custom shutters for sliding glass doors and French doors in Las Vegas: bi-fold and bypass panels that clear the door. Free in-home consultation.",
+    },
+  },
 
   // --------------------------------------------------------------- outdoor
   {

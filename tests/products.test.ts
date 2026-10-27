@@ -27,8 +27,8 @@ describe("product taxonomy", () => {
     expect(getCategory("drapery")).toBeUndefined();
   });
 
-  it("has twelve child products", () => {
-    expect(products).toHaveLength(12);
+  it("has thirteen child products", () => {
+    expect(products).toHaveLength(13);
   });
 
   it("no longer carries aluminum or mini blinds", () => {
@@ -93,7 +93,7 @@ describe("product taxonomy", () => {
   });
 
   it("produces one static path per child product", () => {
-    expect(allProductPaths()).toHaveLength(12);
+    expect(allProductPaths()).toHaveLength(13);
     expect(allProductPaths()).toContainEqual({
       category: "shades",
       product: "solar-shades",
@@ -143,7 +143,7 @@ describe("redesign wording (spec 2026-10-01 §5)", () => {
 });
 
 describe("story photos (spec §6)", () => {
-  const WITH_STORY = ["vertical-blinds", "wood-blinds", "roller-shades", "solar-shades", "cellular-shades", "plantation-shutters", "composite-shutters", "wood-shutters", "roman-shades", "woven-wood-shades", "transitional-shades"];
+  const WITH_STORY = ["vertical-blinds", "wood-blinds", "roller-shades", "solar-shades", "cellular-shades", "plantation-shutters", "composite-shutters", "wood-shutters", "sliding-door-shutters", "roman-shades", "woven-wood-shades", "transitional-shades"];
 
   it("are set on exactly the products we have a second photo of", () => {
     expect(products.filter((p) => p.storyPhoto).map((p) => p.slug).sort()).toEqual([...WITH_STORY].sort());
@@ -172,6 +172,7 @@ describe("hero and info photos (owner 2026-10-09)", () => {
     ["plantation-shutters", A("shuttersKitchen"), A("shuttersFrenchDoors")],
     ["composite-shutters", A("compositeShuttersDining"), A("shuttersFrenchDoors")],
     ["wood-shutters", A("woodShuttersKitchen"), "/gallery/plantation-shutters-kitchen-sink.webp"],
+    ["sliding-door-shutters", A("shuttersFrenchDoors"), "/gallery/plantation-shutters-french-doors.webp"],
   ];
 
   it.each(PLACED)("%s shows its hero and story photos", (slug, image, story) => {

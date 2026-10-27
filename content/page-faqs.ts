@@ -42,6 +42,7 @@ export const PAGE_FAQS: Record<string, readonly string[]> = {
   "shutters/plantation-shutters": [MEASURED, LEAD_TIME, EXISTING, WORTH, HEAT],
   "shutters/composite-shutters": SHUTTERS,
   "shutters/wood-shutters": SHUTTERS,
+  "shutters/sliding-door-shutters": [MEASURED, LEAD_TIME, HEAT, WORTH],
   outdoor: [HEAT, EXISTING, LEAD_TIME, WARRANTY],
   "outdoor/solar-screens": [HEAT, EXISTING, LEAD_TIME, WARRANTY],
   motorization: [
