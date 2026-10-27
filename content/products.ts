@@ -592,6 +592,11 @@ export const products: Product[] = [
       "Real wood shutters are milled from hardwood, usually basswood, and finished in stain or paint. Wood is significantly lighter than composite, which means wider panels are possible before extra stiles are needed — so on a large opening a wood shutter can give a cleaner, more open sightline.",
       "Wood is also the only option if you want visible grain. A stained wood shutter next to wood floors or exposed beams does something no painted composite can imitate.",
       "The trade-off is honest and worth stating plainly: wood moves. In sustained direct sun it can fade, and in a humid room it can swell. We specify it for shaded elevations, interior openings, and formal rooms — and steer people to composite for the west-facing glass.",
+      // SEO audit 2026-10-27: real wood, custom wood and wood shutters searches sat at 19–23. HD and Alta names
+      // from Brite's product list only; Norman facts from normanusa.com (read 2026-10-27). Our own words throughout.
+      `We carry real wood shutters from all three makers we work with. As an ${HD_DEALER}, we offer Hunter Douglas Heritance® Hardwood Shutters. From Alta, Wood Shutters. From Norman, Normandy® shutters in solid hardwood, light enough for wider single panels, and Brightwood™ shutters, which pair hardwood panels with a wood-composite frame. We bring finish samples from each to your home, so you can hold a stain against your floors before you choose.`,
+      "In a Las Vegas home, the rooms that suit wood are the ones the sun doesn't reach: north- and east-facing windows, interior openings, and formal living and dining rooms. A wide shaded opening is where wood earns its keep, because the lighter panel can span farther with fewer stiles. A patio slider on the shaded side of the house can take wood shutters on a bi-fold or bypass track.",
+      `Josh measures every opening himself, and our measurement guarantee covers every number: if one is off, we remake it and install it again, free. Wood shutters take ${SHUTTER_WEEKS}, counted from the day you order, and we install every one ourselves.`,
     ],
     features: [
       "Milled hardwood with visible natural grain",
@@ -607,9 +612,9 @@ export const products: Product[] = [
       alt: "White plantation shutters with open louvers over a farmhouse kitchen sink and marble countertop",
     },
     seo: {
-      title: "Real Wood Shutters in Las Vegas | Premier Shade Solutions",
+      title: "Custom Wood Shutters in Las Vegas | Premier Shade Solutions",
       description:
-        "Custom hardwood plantation shutters for Las Vegas homes. Real grain, wider panels, stain-matched to your woodwork. Free consultation.",
+        "Custom real wood and hardwood shutters for Las Vegas homes, from Hunter Douglas, Alta and Norman. Stain-matched to your woodwork. Free consultation.",
     },
   },
   {

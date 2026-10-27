@@ -42,7 +42,7 @@ export const PAGE_FAQS: Record<string, readonly string[]> = {
   // Measuring and install first: Google tests this page for "plantation shutter installation" (SEO audit 2026-10-27).
   "shutters/plantation-shutters": [MEASURED, LEAD_TIME, EXISTING, WORTH, HEAT],
   "shutters/composite-shutters": SHUTTERS,
-  "shutters/wood-shutters": SHUTTERS,
+  "shutters/wood-shutters": [MEASURED, HEAT, LAST, LEAD_TIME],
   "shutters/sliding-door-shutters": [MEASURED, LEAD_TIME, HEAT, WORTH],
   outdoor: [HEAT, EXISTING, LEAD_TIME, WARRANTY],
   "outdoor/solar-screens": [HEAT, EXISTING, LEAD_TIME, WARRANTY],

@@ -59,4 +59,10 @@ describe("Hunter Douglas advertising rules", () => {
     expect(text).not.toMatch(/\b(Silhouette|Pirouette|Nantucket|Luminette)(?![®™])/);
     expect(text).not.toMatch(/-like/i);
   });
+
+  it("names Hunter Douglas marks the same way on every product page", () => {
+    const text = products.map((p) => p.body.join(" ")).join(" ");
+    expect(text).toContain("Hunter Douglas Heritance® Hardwood Shutters");
+    expect(text).not.toMatch(/\b(Silhouette|Pirouette|Nantucket|Luminette|Heritance|NewStyle|Palm Beach)(?![®™])/);
+  });
 });
