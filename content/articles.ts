@@ -182,6 +182,71 @@ export const articles: Article[] = [
       { name: "Motorization", href: "/motorization" },
     ],
   },
+  {
+    // Monthly guide 1 (SEO audit 2026-10-27). Claims only from content/faq.ts, content/products.ts and the guides above.
+    slug: "west-facing-windows-las-vegas",
+    crumb: "West-facing windows",
+    title: "The best window treatments for west-facing windows in Las Vegas",
+    seo: {
+      title: "West-Facing Window Treatments | Premier Shade Solutions",
+      description:
+        "West-facing glass in Las Vegas takes direct sun from about 2 p.m. to sunset. What stops the heat, what keeps the view, and what to choose for each room.",
+    },
+    published: "2026-10-27",
+    updated: "2026-10-27",
+    quickAnswer:
+      "Start outside: an exterior solar screen turns away roughly 70–90% of the sun's heat before it reaches a west-facing window. Inside, choose by room: a solar shade where you want the view without the glare, a solar-and-blackout dual roller in bedrooms, composite shutters where you want something permanent, and motorization so the shades close themselves before the afternoon sun arrives.",
+    sections: [
+      {
+        heading: "Why west windows are the hard ones",
+        paragraphs: [
+          "West-facing glass in the Las Vegas valley takes direct sun from about two in the afternoon until sunset, in the hottest part of the day. The sun is low by then, so it reaches deep into the room instead of stopping at the sill. That is the window that heats the room you avoid in July, puts glare on the television and slowly bleaches the floor in front of it.",
+          "No single product fixes all of that. The best answer is usually two layers: one that stops the heat and one that controls the light.",
+        ],
+      },
+      {
+        heading: "Stop the heat before it reaches the glass",
+        paragraphs: [
+          "Heat is easiest to handle outside. An exterior solar screen mounted over the window rejects roughly 70–90% of the sun's heat, depending on the mesh, before it gets to the glass. That makes screens the most economical way to treat a whole west wall.",
+          "Screens can be seen from the street, so we usually put them on the sides of the house that take the beating, and we check your HOA's guidelines with you before ordering.",
+        ],
+      },
+      {
+        heading: "Inside, choose by room",
+        paragraphs: [
+          "Living room and home office: a solar shade. It cuts glare and blocks up to 99% of UV while you still see out. The openness factor sets the balance: a tight 3% fabric turns away more heat and UV, a 10% keeps a crisper view. We pick it window by window.",
+          "Bedroom: a solar fabric and a blackout on one dual roller, so the room has a view by day and real darkness at night. For anyone who sleeps days, the blackout gets side channels to close the light gaps.",
+          "Front rooms and formal rooms: composite shutters. Composite won't warp or yellow in direct sun, and the louvers tilt to send the low afternoon sun up toward the ceiling instead of into your eyes.",
+          "Patio slider: vertical blinds, whose vanes tilt to block the low western sun and stack to one side, or composite shutters on a bi-fold or bypass track that clear the door.",
+        ],
+      },
+      {
+        heading: "What to keep off west glass",
+        paragraphs: [
+          "Real wood shutters fade in sustained direct sun, so we keep wood for the shaded sides of the house and use composite on the west. A sheer shade on its own softens glare but doesn't block heat; on a west window, pair it with a solar screen outside.",
+        ],
+      },
+      {
+        heading: "Let the shades close themselves",
+        paragraphs: [
+          "The afternoon sun arrives whether or not anyone is home. Motorized shades can close on a schedule every summer afternoon, and with Alta's BLISS® Automation you can set timers by the clock or by your local sunrise and sunset. They are also the answer for tall west glass nobody can reach.",
+        ],
+      },
+      {
+        heading: "Which of your windows face west",
+        paragraphs: [
+          "At your free consultation we walk the house with you, note which windows take the afternoon sun, and bring screen, shade and shutter samples to hold up in your own light. Josh measures every window himself, backed by our measurement guarantee, and we install everything ourselves.",
+        ],
+      },
+    ],
+    products: [
+      { name: "Solar screens", href: "/outdoor/solar-screens" },
+      { name: "Solar shades", href: "/shades/solar-shades" },
+      { name: "Composite shutters", href: "/shutters/composite-shutters" },
+      { name: "Sliding door shutters", href: "/shutters/sliding-door-shutters" },
+      { name: "Motorization", href: "/motorization" },
+    ],
+  },
 ];
 
 /**
