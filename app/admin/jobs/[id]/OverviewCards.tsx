@@ -28,9 +28,9 @@ export function CustomerCard({ job, referrer }: { job: Job; referrer: Job | null
       <dl className={`${DL} border-t border-rule pt-4`}>
         <dt className="text-ink-soft">Heard about us</dt><dd>{job.heardVia ?? "—"}</dd>
         <dt className="text-ink-soft">Came in via</dt><dd>{leadSourceLabel(job.source)}</dd>
-        {job.adClick ? (
+        {job.trafficSource ? (
           <>
-            <dt className="text-ink-soft">Ad click</dt><dd>{job.adClick}</dd>
+            <dt className="text-ink-soft">Came from</dt><dd>{job.trafficSource}</dd>
           </>
         ) : null}
         {referrer ? (

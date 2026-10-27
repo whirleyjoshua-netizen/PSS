@@ -25,7 +25,7 @@ export const attributionSchema = z.object({
   utmCampaign: text(150),
   utmTerm: text(150),
   landingPage: text(300),
-  /** ISO time of the click, so a stale one can be dropped. */
+  /** ISO time of the click (or referred visit), so a stale one can be dropped. Stored as ad_clicked_at. */
   clickedAt: z.string().datetime().optional().catch(undefined),
 });
 
@@ -58,12 +58,63 @@ export function attributionFromUrl(href: string, now = new Date()): Attribution 
   return attributionSchema.parse({ ...found, landingPage: url.pathname, clickedAt: now.toISOString() });
 }
 
+/** Search engines, by referrer host. Google's Android app sends an android-app:// referrer. */
+const SEARCH_ENGINES: [RegExp, string][] = [
+  [/(^|\.)google\.|googlequicksearchbox/, "google"],
+  [/(^|\.)bing\.com$/, "bing"],
+  [/(^|\.)duckduckgo\.com$/, "duckduckgo"],
+  [/(^|\.)yahoo\.com$/, "yahoo"],
+  [/(^|\.)search\.brave\.com$/, "brave"],
+  [/(^|\.)ecosia\.org$/, "ecosia"],
+];
+
+/** Hosts that hand a visitor back mid-flow rather than sending one in. */
+const NOT_A_SOURCE = /(^|\.)stripe\.com$/;
+
+const bareHost = (host: string) => host.toLowerCase().replace(/^www\./, "");
+
+/**
+ * The site that sent an untagged visitor: utm_medium "organic" for a search
+ * engine and "link" for any other site (the Hunter Douglas dealer page, Yelp).
+ * Null for a direct visit, a visit from our own pages, or a tagged landing URL,
+ * which attributionFromUrl reads instead.
+ */
+export function attributionFromReferrer(href: string, referrer: string, now = new Date()): Attribution | null {
+  let url: URL;
+  let from: URL;
+  try {
+    url = new URL(href);
+    from = new URL(referrer);
+  } catch {
+    return null;
+  }
+  if (attributionFromUrl(href, now)) return null;
+  const host = bareHost(from.hostname || from.host);
+  if (!host || host === bareHost(url.hostname) || NOT_A_SOURCE.test(host)) return null;
+  const engine = SEARCH_ENGINES.find(([pattern]) => pattern.test(host));
+  return attributionSchema.parse({
+    utmSource: engine ? engine[1] : host,
+    utmMedium: engine ? "organic" : "link",
+    landingPage: url.pathname,
+    clickedAt: now.toISOString(),
+  });
+}
+
 type Store = Pick<Storage, "getItem" | "setItem">;
 
-/** Keeps the newest click: Google credits the last ad clicked before converting. */
-export function rememberAttribution(storage: Store, href: string, now = new Date()): void {
+/**
+ * Keeps the newest tagged click: Google credits the last ad clicked before converting.
+ * An untagged visit's referrer is kept only when nothing is remembered yet, so a
+ * later search visit never overwrites the ad click Google Ads needs.
+ */
+export function rememberAttribution(storage: Store, href: string, now = new Date(), referrer = ""): void {
   const click = attributionFromUrl(href, now);
-  if (click) storage.setItem(ATTRIBUTION_KEY, JSON.stringify(click));
+  if (click) {
+    storage.setItem(ATTRIBUTION_KEY, JSON.stringify(click));
+    return;
+  }
+  const visit = referrer ? attributionFromReferrer(href, referrer, now) : null;
+  if (visit && !recallAttribution(storage, now)) storage.setItem(ATTRIBUTION_KEY, JSON.stringify(visit));
 }
 
 /** The remembered click, or undefined when there is none or it is past Google's window. */
@@ -80,11 +131,16 @@ export function recallAttribution(storage: Store, now = new Date()): Attribution
   return age <= ATTRIBUTION_DAYS * 86_400_000 ? parsed.data : undefined;
 }
 
-/** "Google Ads · Custom Blinds in Las Vegas" for the job page, or null for an unpaid visit. */
-export function adClickLabel(click: Attribution | null | undefined): string | null {
+/**
+ * Where a lead came from, for the job page and the lead email: "Google Ads · Custom
+ * Blinds in Las Vegas", "google · organic" or "hunterdouglas.com · link". Null when unknown.
+ */
+export function trafficSourceLabel(click: Attribution | null | undefined): string | null {
   if (!click) return null;
   const paid = click.gclid || click.gbraid || click.wbraid;
   const source = paid ? "Google Ads" : click.utmSource;
   if (!source) return null;
-  return [source, click.utmCampaign, click.utmTerm ? `“${click.utmTerm}”` : null].filter(Boolean).join(" · ");
+  return [source, paid ? null : click.utmMedium, click.utmCampaign, click.utmTerm ? `“${click.utmTerm}”` : null]
+    .filter(Boolean)
+    .join(" · ");
 }

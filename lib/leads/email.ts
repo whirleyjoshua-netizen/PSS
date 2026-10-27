@@ -1,5 +1,5 @@
 import { Resend } from "resend";
-import { adClickLabel } from "./attribution";
+import { trafficSourceLabel } from "./attribution";
 import { business } from "@/content/business";
 import { CALLBACK_WINDOW } from "@/content/consultation";
 import { adminOrigin } from "@/lib/admin/origin";
@@ -54,7 +54,7 @@ export async function sendLeadNotification(
     input.treatments?.length ? `Interested: ${input.treatments.join(", ")}` : null,
     input.windowCount ? `Windows:    ${input.windowCount}` : null,
     input.heardVia ? `Heard via:  ${input.heardVia}` : null,
-    adClickLabel(input.attribution) ? `Ad click:   ${adClickLabel(input.attribution)}` : null,
+    trafficSourceLabel(input.attribution) ? `Came from:  ${trafficSourceLabel(input.attribution)}` : null,
     input.notes ? `\nNotes:\n${input.notes}` : null,
     input.source === GOOGLE_FORM_SOURCE
       ? `\nSubmitted from the ${leadSourceLabel(input.source)}.`

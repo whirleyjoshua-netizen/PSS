@@ -5,7 +5,7 @@ import { business } from "@/content/business";
 import { liveOffers } from "@/content/offer-popup";
 import { HD_RESTRICTED_EXCLUSION } from "@/content/offer-terms";
 import { adminOrigin } from "@/lib/admin/origin";
-import { adClickLabel } from "./attribution";
+import { trafficSourceLabel } from "./attribution";
 import { OFFER_SOURCE, type OfferSignupInput } from "./schema";
 
 /** The lead's notes: where it came from, then each offer running when they signed up, so the quote takes it off. */
@@ -56,7 +56,7 @@ export async function sendOfferNotification(input: OfferSignupInput & { notes: s
     "",
     `Name:       ${input.name}`,
     `Email:      ${input.email}`,
-    adClickLabel(input.attribution) ? `Ad click:   ${adClickLabel(input.attribution)}` : null,
+    trafficSourceLabel(input.attribution) ? `Came from:  ${trafficSourceLabel(input.attribution)}` : null,
     `\nNotes:\n${input.notes}`,
   ].filter((line): line is string => line !== null);
 
