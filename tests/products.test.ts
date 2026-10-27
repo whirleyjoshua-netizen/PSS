@@ -27,8 +27,8 @@ describe("product taxonomy", () => {
     expect(getCategory("drapery")).toBeUndefined();
   });
 
-  it("has thirteen child products", () => {
-    expect(products).toHaveLength(13);
+  it("has fourteen child products", () => {
+    expect(products).toHaveLength(14);
   });
 
   it("no longer carries aluminum or mini blinds", () => {
@@ -93,7 +93,7 @@ describe("product taxonomy", () => {
   });
 
   it("produces one static path per child product", () => {
-    expect(allProductPaths()).toHaveLength(13);
+    expect(allProductPaths()).toHaveLength(14);
     expect(allProductPaths()).toContainEqual({
       category: "shades",
       product: "solar-shades",
@@ -143,7 +143,7 @@ describe("redesign wording (spec 2026-10-01 §5)", () => {
 });
 
 describe("story photos (spec §6)", () => {
-  const WITH_STORY = ["vertical-blinds", "wood-blinds", "roller-shades", "solar-shades", "cellular-shades", "plantation-shutters", "composite-shutters", "wood-shutters", "sliding-door-shutters", "roman-shades", "woven-wood-shades", "transitional-shades"];
+  const WITH_STORY = ["vertical-blinds", "wood-blinds", "roller-shades", "solar-shades", "cellular-shades", "plantation-shutters", "composite-shutters", "wood-shutters", "sliding-door-shutters", "roman-shades", "woven-wood-shades", "transitional-shades", "sheer-shades"];
 
   it("are set on exactly the products we have a second photo of", () => {
     expect(products.filter((p) => p.storyPhoto).map((p) => p.slug).sort()).toEqual([...WITH_STORY].sort());
@@ -169,6 +169,7 @@ describe("hero and info photos (owner 2026-10-09)", () => {
     ["roman-shades", "/gallery/roman-shades-woven-dining-room.webp", "/gallery/roman-shades-primary-bath.webp"],
     ["woven-wood-shades", A("wovenBedroom"), A("wovenLivingRoom")],
     ["transitional-shades", A("bandedLivingRoom"), A("bandedBedroom")],
+    ["sheer-shades", A("sheerShadingsDiningRoom"), A("sheerShadingsLivingRoom")],
     ["plantation-shutters", A("shuttersKitchen"), A("shuttersFrenchDoors")],
     ["composite-shutters", A("compositeShuttersDining"), A("shuttersFrenchDoors")],
     ["wood-shutters", A("woodShuttersKitchen"), "/gallery/plantation-shutters-kitchen-sink.webp"],

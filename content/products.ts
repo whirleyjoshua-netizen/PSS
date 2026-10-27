@@ -12,10 +12,14 @@
 
 import { altaPhotos } from "./stock-photos";
 import { leadTimes } from "./lead-times";
+import { HD_DEALER } from "./offer-terms";
 
 const shutterLeadTime = leadTimes.find((leadTime) => leadTime.label === "Shutters");
 if (!shutterLeadTime) throw new Error("No lead time for Shutters");
 const SHUTTER_WEEKS = `${shutterLeadTime.minWeeks} to ${shutterLeadTime.maxWeeks} weeks`;
+const shadeLeadTime = leadTimes.find((leadTime) => leadTime.label === "Shades");
+if (!shadeLeadTime) throw new Error("No lead time for Shades");
+const SHADE_WEEKS = `${shadeLeadTime.minWeeks} to ${shadeLeadTime.maxWeeks} weeks`;
 
 export const CATEGORY_SLUGS = [
   "blinds",
@@ -483,6 +487,39 @@ export const products: Product[] = [
       title: "Zebra Shades in Las Vegas, NV | Premier Shade Solutions",
       description:
         "Dual-layer transitional zebra shades for Las Vegas homes. Sheer and privacy in a single shade. Free in-home consultation and install.",
+    },
+  },
+  {
+    // Owner 2026-10-27: we carry sheers from all three makers. Names only from Brite's product list and Norman's
+    // public site; descriptions are our own words (HD 2026 media kit: no HD content fed to AI or reused). HD marks
+    // keep their ® or ™ and descriptor, next to the Hunter Douglas name, never plural.
+    slug: "sheer-shades",
+    name: "Sheer Shades",
+    category: "shades",
+    tagline: "Daylight, softened.",
+    opening:
+      "Sheer shades soften hard Las Vegas daylight into an even glow, and their fabric vanes tilt from an open view to privacy without lowering a second shade.",
+    body: [
+      "A sheer shade pairs a sheer fabric with soft fabric vanes. Open the vanes and you look out through the sheer, with the glare taken off. Close them and the room goes private while the light still comes through soft. It's the look of a sheer curtain with the control of a blind.",
+      `As an ${HD_DEALER} we offer four from Hunter Douglas. Hunter Douglas Silhouette® Window Shadings hold soft fabric vanes between two sheer layers, so the vanes seem to float. Hunter Douglas Pirouette® Window Shadings hang the vanes from a single sheer backing, and closed they read as a tailored flat shade. Hunter Douglas Nantucket™ Window Shadings use soft vanes between sheer layers with a simpler set of fabrics and options. Hunter Douglas Luminette® Privacy Sheers turn the idea on its side, with vertical fabric vanes that draw to one side, which makes them a soft choice for sliding glass doors and wide windows.`,
+      "We also carry Alta's Sheer Shadings, and we can motorize them with Alta's BLISS® Automation, so they open and close from an app, a remote or a schedule. From Norman, PerfectSheer™ Shades alternate sheer and solid fabric vanes that rotate open for the view or angle to soften the light, in light-filtering or room-darkening fabrics, with Norman's motorization or its AutoWand.",
+      "A sheer is a glare softener, not a heat blocker. On hard west-facing glass we can pair one with an exterior solar screen that stops the heat outside, and keep the sheer for the look and the privacy inside.",
+      `Josh measures every window himself, and our measurement guarantee covers every number: if one is off, we remake it and install it again, free. Shades take ${SHADE_WEEKS}, counted from the day you order. We bring samples from all three makers to your home, so you see each sheer in your own light.`,
+    ],
+    features: [
+      "Fabric vanes that tilt from an open, softened view to privacy",
+      "Hunter Douglas, Alta and Norman sheers, compared side by side at your consultation",
+      "Vertical sheers for sliding glass doors and wide windows",
+      "Light-filtering and room-darkening fabrics",
+      "Motorization available",
+    ],
+    bestFor: "Living rooms, dining rooms and street-facing windows that want daylight and privacy at once.",
+    image: altaPhotos.sheerShadingsDiningRoom,
+    storyPhoto: altaPhotos.sheerShadingsLivingRoom,
+    seo: {
+      title: "Sheer Shades in Las Vegas, NV | Premier Shade Solutions",
+      description:
+        "Hunter Douglas, Alta and Norman sheer shades for Las Vegas homes: soft, filtered daylight and privacy in one shade. Free in-home consultation.",
     },
   },
 

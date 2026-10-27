@@ -43,8 +43,8 @@ const firstImage = (images: unknown): Image | undefined => {
 const all = await routes();
 
 describe("every category, product and city page shares with a picture", () => {
-  it("covers all 22 money pages", () => {
-    expect(all).toHaveLength(5 + 13 + 4);
+  it("covers all 23 money pages", () => {
+    expect(all).toHaveLength(5 + 14 + 4);
   });
 
   it.each(all)("%s has a sized JPEG og image that exists, a large Twitter card, and the site name", async (route, load) => {

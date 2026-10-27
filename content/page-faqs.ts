@@ -37,6 +37,7 @@ export const PAGE_FAQS: Record<string, readonly string[]> = {
   "shades/roman-shades": [SAFE, CLEAN, LEAD_TIME, WARRANTY],
   "shades/woven-wood-shades": [PRIVACY, CLEAN, LEAD_TIME, WARRANTY],
   "shades/transitional-shades": [PRIVACY, BLINDS_VS_SHADES, LEAD_TIME, WARRANTY],
+  "shades/sheer-shades": [PRIVACY, BLOCK_SUN, MEASURED, LEAD_TIME],
   shutters: SHUTTERS,
   // Measuring and install first: Google tests this page for "plantation shutter installation" (SEO audit 2026-10-27).
   "shutters/plantation-shutters": [MEASURED, LEAD_TIME, EXISTING, WORTH, HEAT],

@@ -7,6 +7,7 @@ import { holidayOffer, solarOffer } from "@/content/promo";
 import { HeroOffer } from "@/components/home/HeroOffer";
 import { FAQ_GROUPS } from "@/content/faq";
 import AboutPage from "@/app/(site)/about/page";
+import { products } from "@/content/products";
 
 const send = vi.fn();
 vi.mock("resend", () => ({ Resend: class { emails = { send }; } }));
@@ -40,5 +41,22 @@ describe("Hunter Douglas advertising rules", () => {
     const faq = JSON.stringify(FAQ_GROUPS);
     expect(faq).toContain(HD_DEALER);
     expect(document.body.textContent + faq).not.toMatch(/Hunter Douglas (Las Vegas|Store|Showroom|Outlet|Lifetime Warranty)|exclusive dealer|only dealer|authorized (alta|norman)/i);
+  });
+
+  // Media kit: a product mark keeps its ® or ™ and its descriptor, sits by the Hunter Douglas name, never plural.
+  it("names each Hunter Douglas sheer the way HD requires", () => {
+    const text = products.find((p) => p.slug === "sheer-shades")!.body.join(" ");
+    for (const mark of [
+      "Silhouette® Window Shadings",
+      "Pirouette® Window Shadings",
+      "Nantucket™ Window Shadings",
+      "Luminette® Privacy Sheers",
+    ]) {
+      expect(text).toContain(`Hunter Douglas ${mark}`);
+    }
+    expect(text).toContain(HD_DEALER);
+    // Every mention carries its symbol: no bare or plural mark, and nothing "-like".
+    expect(text).not.toMatch(/\b(Silhouette|Pirouette|Nantucket|Luminette)(?![®™])/);
+    expect(text).not.toMatch(/-like/i);
   });
 });
