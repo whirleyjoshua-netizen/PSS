@@ -1,4 +1,12 @@
 import { WARRANTY } from "./warranty";
+import { gallery, type GalleryItem } from "./gallery";
+
+/** One of our own installs from content/gallery.ts, by its file, so the alt text and caption have one home. */
+const install = (src: string): GalleryItem => {
+  const found = gallery.find((item) => item.src === src);
+  if (!found) throw new Error(`No gallery photo ${src}`);
+  return found;
+};
 
 /**
  * Buying guides at /learn/<slug> (SEO plan 2026-10-21, from the 10-17 keyword research: the comparison page, the
@@ -8,7 +16,12 @@ import { WARRANTY } from "./warranty";
  * from content/products.ts, content/faq.ts or content/warranty.ts. No prices, no "authorized dealer", no savings
  * figures (owner rulings 2026-10-17).
  */
-export type ArticleSection = { heading: string; paragraphs: string[] };
+export type ArticleSection = {
+  heading: string;
+  paragraphs: string[];
+  /** A photo of our own install shown under the section (owner 2026-10-28), never stock of a brand we carry. */
+  photo?: GalleryItem;
+};
 
 export type Article = {
   slug: string;
@@ -56,6 +69,7 @@ export const articles: Article[] = [
       },
       {
         heading: "Glare, view and UV",
+        photo: install("/gallery/solar-shades-long-window.webp"),
         paragraphs: [
           "This is where the solar shade wins. It blocks up to 99% of UV, which is what quietly bleaches hardwood, rugs and leather, and it cuts the glare that makes a television or a monitor unusable in the afternoon, while you still see out.",
           "The number that matters is the openness factor, from 1% to 14%. A tight 3% screen turns away more heat and UV with a softer view; a 10% screen keeps a crisp view and lets more light through. We choose it window by window, because the right answer depends on which way the window faces and what is outside it.",
@@ -213,6 +227,7 @@ export const articles: Article[] = [
       },
       {
         heading: "Inside, choose by room",
+        photo: install("/gallery/solar-shades-balcony-view.webp"),
         paragraphs: [
           "Living room and home office: a solar shade. It cuts glare and blocks up to 99% of UV while you still see out. The openness factor sets the balance: a tight 3% fabric turns away more heat and UV, a 10% keeps a crisper view. We pick it window by window.",
           "Bedroom: a solar fabric and a blackout on one dual roller, so the room has a view by day and real darkness at night. For anyone who sleeps days, the blackout gets side channels to close the light gaps.",
@@ -228,6 +243,7 @@ export const articles: Article[] = [
       },
       {
         heading: "Let the shades close themselves",
+        photo: install("/gallery/cellular-shades-great-room-motorized.webp"),
         paragraphs: [
           "The afternoon sun arrives whether or not anyone is home. Motorized shades can close on a schedule every summer afternoon, and with Alta's BLISS® Automation you can set timers by the clock or by your local sunrise and sunset. They are also the answer for tall west glass nobody can reach.",
         ],

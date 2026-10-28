@@ -1,3 +1,5 @@
+import { existsSync } from "node:fs";
+import path from "node:path";
 import { render, screen, within } from "@testing-library/react";
 import { describe, it, expect } from "vitest";
 import ArticlePage, { generateMetadata } from "@/app/(site)/learn/[slug]/page";
@@ -78,5 +80,27 @@ describe("deeper city pages", () => {
   it("says something different in every city", () => {
     const bodies = cities.flatMap((c) => c.local.map((l) => l.body));
     expect(new Set(bodies).size).toBe(bodies.length);
+  });
+
+  // Owner 2026-10-28: guides show our own installs, with the gallery's alt text and caption.
+  it("shows the west-facing guide's install photos under their sections", async () => {
+    const article = articles.find((a) => a.slug === "west-facing-windows-las-vegas")!;
+    const photos = article.sections.flatMap((section) => (section.photo ? [section.photo] : []));
+    expect(photos.map((p) => p.src)).toEqual([
+      "/gallery/solar-shades-balcony-view.webp",
+      "/gallery/cellular-shades-great-room-motorized.webp",
+    ]);
+    const { container } = render(await ArticlePage({ params: Promise.resolve({ slug: article.slug }) }));
+    for (const photo of photos) {
+      const img = container.querySelector(`img[alt="${photo.alt}"]`);
+      expect(img, photo.src).not.toBeNull();
+      expect(img!.closest("figure")!.textContent).toContain(photo.caption!);
+    }
+  });
+
+  it("only uses install photos that exist", () => {
+    for (const article of articles)
+      for (const section of article.sections)
+        if (section.photo) expect(existsSync(path.join(process.cwd(), "public", section.photo.src)), section.photo.src).toBe(true);
   });
 });

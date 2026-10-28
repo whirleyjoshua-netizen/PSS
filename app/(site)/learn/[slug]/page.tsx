@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageHero } from "@/components/product/ProductParts";
@@ -69,6 +70,16 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
               {section.paragraphs.map((paragraph) => (
                 <p key={paragraph.slice(0, 40)} className="mt-3 leading-relaxed text-ink-soft">{paragraph}</p>
               ))}
+              {section.photo ? (
+                <figure className="mt-6">
+                  <div className="relative aspect-3/2 w-full overflow-hidden bg-sand">
+                    <Image src={section.photo.src} alt={section.photo.alt} fill sizes="(min-width: 768px) 42rem, 100vw" className="object-cover" />
+                  </div>
+                  {section.photo.caption ? (
+                    <figcaption className="mt-2 text-sm text-ink-soft">{section.photo.caption}</figcaption>
+                  ) : null}
+                </figure>
+              ) : null}
             </section>
           ))}
 
