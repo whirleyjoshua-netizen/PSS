@@ -101,11 +101,18 @@ export const cities: City[] = [
       { name: "Motorization", href: "/motorization", why: "For two-story great rooms, where a shade fourteen feet up only gets used if it is easy to operate." },
       { name: "Solar Screens", href: "/outdoor/solar-screens", why: "For the bigger sliders: fixed screens turn away roughly 70–90% of the sun's heat before it reaches the glass." },
       { name: "Roller Shades", href: "/shades/roller-shades", why: "One clean line of fabric across the larger openings, with motorized operation when the window is out of reach." },
+      { name: "Sliding Door Shutters", href: "/shutters/sliding-door-shutters", why: "For the bigger patio sliders: bi-fold or bypass panels that clear the door, with louvers that tilt the afternoon sun up toward the ceiling." },
     ],
     local: [
       {
         heading: "Two-story great rooms",
-        body: "Many Henderson homes have a great room with glass that runs well above where anyone can reach. A shade that high only gets used if it is easy to use, which is why so many of our Henderson jobs end up motorized. We install Alta's BLISS motorization: open and close every shade from the free app or a remote that runs up to 10 shades, and set timers by the clock or by your local sunrise and sunset. Each motor recharges with a USB-C cable, so there is no wiring and no electrician.",
+        // Owner 2026-10-29: a motorized job just finished in Henderson (89015). No neighborhood claimed.
+        body: "Many Henderson homes have a great room with glass that runs well above where anyone can reach. A shade that high only gets used if it is easy to use, which is why so many of our Henderson jobs end up motorized, our most recent one included. We install Alta's BLISS motorization: open and close every shade from the free app or a remote that runs up to 10 shades, and set timers by the clock or by your local sunrise and sunset. Each motor recharges with a USB-C cable, so there is no wiring and no electrician.",
+      },
+      {
+        // SEO 2026-10-29: "henderson shutters" was this page's top product search (position 56) and the page never said shutters.
+        heading: "Shutters for Henderson homes",
+        body: "Plantation shutters suit Henderson's larger openings when the material matches the sun. Composite is our default for the west- and south-facing glass, because a composite louver won't warp or yellow in direct sun, and real wood suits the shaded rooms. The bigger patio sliders can take shutters too: bi-fold panels fold back to one side and bypass panels slide past each other on a top track, so the door still opens. Josh measures every opening himself, including the clearance a slider panel needs, and we carry shutters from Hunter Douglas, Alta and Norman.",
       },
       {
         heading: "Sliders onto the covered patio",
@@ -119,7 +126,7 @@ export const cities: City[] = [
     seo: {
       title: "Window Treatments in Henderson, NV | Premier Shade Solutions",
       description:
-        "Custom blinds, shades, shutters, and motorized treatments in Henderson, NV. Free in-home consultation and owner installation.",
+        "Custom shutters, blinds, shades, solar screens and motorization in Henderson, NV. Free in-home consultation and owner installation.",
     },
   },
   {

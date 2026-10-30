@@ -63,6 +63,12 @@ describe("Hunter Douglas advertising rules", () => {
   it("names Hunter Douglas marks the same way on every product page", () => {
     const text = products.map((p) => p.body.join(" ")).join(" ");
     expect(text).toContain("Hunter Douglas Heritance® Hardwood Shutters");
+    const plantation = products.find((p) => p.slug === "plantation-shutters")!.body.join(" ");
+    for (const mark of ["Heritance® Hardwood Shutters", "NewStyle® Hybrid Shutters", "Palm Beach™ Polysatin Shutters"]) {
+      expect(plantation).toContain(`Hunter Douglas ${mark}`);
+    }
+    // Norman's site makes no "made in USA" claim (checked 2026-10-29); none goes on ours without Norman's wording in writing.
+    expect(text).not.toMatch(/made in (the )?usa|american[- ]made/i);
     expect(text).not.toMatch(/\b(Silhouette|Pirouette|Nantucket|Luminette|Heritance|NewStyle|Palm Beach)(?![®™])/);
   });
 });

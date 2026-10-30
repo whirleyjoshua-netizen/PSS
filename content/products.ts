@@ -535,8 +535,13 @@ export const products: Product[] = [
       "Plantation shutters are wide-louver interior shutters fitted into the window opening and framed to the wall. Because they are built to the opening rather than hung in front of it, they read as architecture — and they are the one window treatment that reliably adds value at resale rather than depreciating.",
       "The louver size sets the character. Three-and-a-half inch louvers suit smaller windows and traditional rooms. Four-and-a-half inch louvers give a cleaner sightline and more view when open, which is what most Las Vegas homes with large modern glass should be using.",
       "They also solve problems fabric cannot. Louvers tilt to redirect low afternoon sun up toward the ceiling instead of into your eyes, they never fade or fray, and they add a real layer of insulation at the glass. On a hard west elevation, a shutter will still look right in fifteen years when a fabric shade would have been replaced twice.",
+      // SEO 2026-10-29: plantation queries sat at 13–48 and the page named no makers. HD and Alta line names from
+      // Brite's product list only; Norman names from normanusa.com. Our own words throughout. No "made in USA" claim:
+      // Norman's site doesn't make one (checked 2026-10-29), so it waits for Norman's own wording in writing.
+      `We carry plantation shutters from all three makers we work with. As an ${HD_DEALER}, we offer Hunter Douglas Heritance® Hardwood Shutters, Hunter Douglas NewStyle® Hybrid Shutters and Hunter Douglas Palm Beach™ Polysatin Shutters. From Alta, Composite, Polyresin and Wood Shutters. From Norman, Woodlore® Plus, Brightwood™ and Normandy® shutters. We bring samples from each to your home, so you see the louvers and finishes in your own light.`,
+      "The right material depends on which way the window faces. Composite is our default for west- and south-facing glass, because a composite louver won't warp or yellow in direct sun. Real wood is lighter and takes a stain, so it suits shaded rooms and the widest openings. A patio slider or a pair of French doors takes bi-fold or bypass panels, so the door still opens.",
       // Only promises the owner confirmed (content/consultation.ts); the weeks come from content/lead-times.ts.
-      `Plantation shutter installation is done by the two of us, never a subcontractor. Josh measures every opening himself and works out details like an extra stile on a wide panel, and our measurement guarantee covers every number: if one is off, we remake the shutter and install it again, free. Shutters take ${SHUTTER_WEEKS}, counted from the day you order, and we put up temporary shades for free while you wait. On install day we walk through every window with you, clean up and haul your old blinds away free.`,
+      `Plantation shutter installation is done by the two of us, never a subcontractor, across Las Vegas, Henderson, Summerlin and North Las Vegas and out to Pahrump and Mesquite. Josh measures every opening himself and works out details like an extra stile on a wide panel, and our measurement guarantee covers every number: if one is off, we remake the shutter and install it again, free. Shutters take ${SHUTTER_WEEKS}, counted from the day you order, and we put up temporary shades for free while you wait. On install day we walk through every window with you, clean up and haul your old blinds away free.`,
     ],
     features: [
       "3 1/2 inch and 4 1/2 inch louvers to suit the window and the room",
@@ -544,6 +549,7 @@ export const products: Product[] = [
       "Hidden tilt rod option for a clean, uninterrupted louver face",
       "Adds insulation at the glass and never fades or frays",
       "The window treatment most likely to return value at resale",
+      "Hunter Douglas, Alta and Norman lines, with samples brought to your home",
     ],
     bestFor: "Front-facing rooms, primary living spaces, and homes being held long term.",
     image: altaPhotos.shuttersKitchen,
@@ -551,7 +557,7 @@ export const products: Product[] = [
     seo: {
       title: "Plantation Shutters in Las Vegas | Premier Shade Solutions",
       description:
-        "Custom plantation shutters for Las Vegas homes. Built to the opening, framed, and installed by the owners. Free in-home consultation.",
+        "Custom plantation shutters for Las Vegas homes from Hunter Douglas, Alta and Norman. Measured and installed by the owners. Free in-home consultation.",
     },
   },
   {

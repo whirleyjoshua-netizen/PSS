@@ -77,7 +77,9 @@ describe("page FAQs (owner 2026-10-21, SEO plan)", () => {
     );
     expect(faqsFor("shutters/plantation-shutters")[0].q).toBe("Do my windows need to be professionally measured?");
     const shutters = leadTimes.find((l) => l.label === "Shutters")!;
-    expect(container.textContent).toContain("Plantation shutter installation is done by the two of us, never a subcontractor.");
+    expect(container.textContent).toContain(
+      "Plantation shutter installation is done by the two of us, never a subcontractor, across Las Vegas, Henderson, Summerlin and North Las Vegas and out to Pahrump and Mesquite.",
+    );
     expect(container.textContent).toContain(`Shutters take ${shutters.minWeeks} to ${shutters.maxWeeks} weeks, counted from the day you order`);
   });
 
