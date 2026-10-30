@@ -7,6 +7,7 @@ import type { LeadSource } from "@/lib/leads/schema";
 import { useConsultationForm } from "./useConsultationForm";
 import { BookingPicker, type PickedVisit } from "./BookingPicker";
 import { FormMessage, Honeypot, TextField } from "./Field";
+import { GLASS_TILE } from "@/components/ui/glass";
 
 /**
  * Three fields, no scrolling. Detail is collected on the phone call — every
@@ -36,6 +37,7 @@ export function HeroForm({
   beforeSubmit,
   footer,
   booking = false,
+  glass = false,
 }: {
   className?: string;
   idPrefix?: string;
@@ -47,12 +49,14 @@ export function HeroForm({
   beforeSubmit?: React.ReactNode;
   footer?: React.ReactNode;
   booking?: boolean;
+  /** Frosted and rounded where it sits on a hero photo (see GLASS_TILE). */
+  glass?: boolean;
 }) {
   const { state, error, submit } = useConsultationForm(source);
   const [visit, setVisit] = useState<PickedVisit | null>(null);
 
   return (
-    <div className={`bg-ivory p-6 shadow-xl sm:p-8 ${className ?? ""}`}>
+    <div className={`bg-ivory p-6 shadow-xl sm:p-8 ${glass ? GLASS_TILE : ""} ${className ?? ""}`}>
       {/* The homepage (booking) gives the heading more weight (owner 2026-10-20); the other pages keep it small for the phone fold. */}
       <h2 className={`font-display font-light tracking-tight text-charcoal ${booking ? "text-3xl sm:text-4xl" : "text-xl"}`}>
         {/* The big heading must never break as "Free in- / home". */}

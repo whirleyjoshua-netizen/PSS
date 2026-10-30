@@ -4,6 +4,7 @@ import { HeroForm } from "@/components/forms/HeroForm";
 import { Breadcrumbs, type Crumb } from "@/components/product/ProductParts";
 import { FeaturedReviewCard } from "@/components/booking/FeaturedReview";
 import type { Photo } from "@/content/products";
+import { GLASS_TILE } from "@/components/ui/glass";
 
 /**
  * The top of a category or product page (spec 2026-10-01 §3.1). It is the page's
@@ -14,9 +15,9 @@ import type { Photo } from "@/content/products";
  * featured review stacked on sand. The lead is hidden below sm and the gaps are
  * tighter, to keep the Invite Us Over button above a 390×844 fold
  * (e2e/consultation.spec.ts). Tablet (sm): a taller band (16/7) and the lead.
- * lg up: the photo fills the whole section; the title sits in an ivory panel on
+ * lg up: the photo fills the whole section; the title sits in a frosted panel on
  * the left, the form floats on the right, and the review card sits under the
- * title, on the photo.
+ * title, on the photo. All three are frosted, rounded tiles (components/ui/glass.ts).
  */
 export function TreatmentHero({
   photo,
@@ -53,7 +54,9 @@ export function TreatmentHero({
 
       <Container className="relative">
         <div className="grid gap-4 pb-6 pt-4 sm:gap-6 sm:pt-6 lg:grid-cols-12 lg:gap-8 lg:py-16">
-          <div className="flex flex-col gap-3 sm:gap-4 lg:col-span-6 lg:row-start-1 lg:bg-ivory/85 lg:p-10 lg:backdrop-blur-sm">
+          <div
+            className={`flex flex-col gap-3 sm:gap-4 lg:col-span-6 lg:row-start-1 lg:p-10 ${GLASS_TILE}`}
+          >
             {trail ? <Breadcrumbs trail={trail} /> : null}
             <p className="font-display text-xs font-medium uppercase tracking-[0.22em] text-champagne-ink">
               {eyebrow}
@@ -68,10 +71,11 @@ export function TreatmentHero({
             treatment={treatment}
             introOnPhone={false}
             beforeSubmit={offer}
+            glass
             className="relative z-10 lg:col-start-9 lg:col-end-13 lg:row-span-2 lg:row-start-1 lg:self-start"
           />
 
-          <FeaturedReviewCard className="lg:col-span-6 lg:row-start-2 lg:max-w-lg" />
+          <FeaturedReviewCard glass className="lg:col-span-6 lg:row-start-2 lg:max-w-lg" />
         </div>
       </Container>
     </section>
