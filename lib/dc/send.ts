@@ -170,7 +170,6 @@ function pricedInput(job: Job, version: StoredVersion, priced: PricedVersion, pr
     // Only what prints as its own line: built-in installation and handling are inside the line prices.
     installCents: priced.installLineCents, handlingChargedCents: priced.handlingChargedCents,
     oversizedCents: priced.oversizedCents, clientTotalCents: priced.clientTotalCents!,
-    installIncluded: priced.installQuoteId !== null,
     discount: priced.discountCents > 0 ? { label: priced.discountLabel!, pct: priced.discountPct, cents: priced.discountCents } : null,
   };
 }

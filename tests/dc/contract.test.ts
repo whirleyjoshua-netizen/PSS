@@ -13,7 +13,6 @@ const input: ContractInput = {
     { room: "", description: "Hunter Douglas PowerView Gateway", options: [["Collection", "Motorization"]], qty: 1, sellUnitCents: 20501, sellExtendedCents: 20501 },
   ],
   installCents: 25000, handlingChargedCents: 6600, oversizedCents: 0, clientTotalCents: 128150 + 20501 + 25000 + 6600,
-  installIncluded: true,
 };
 
 /** Options a DC line can carry that must never reach the client. */

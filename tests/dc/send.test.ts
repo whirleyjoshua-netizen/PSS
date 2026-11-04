@@ -317,8 +317,6 @@ describe("sendQuote", () => {
   it("with no discount the PDF gets none and the re-check is for no discount", async () => {
     await send();
     expect(quotePdf.buildQuotePdf.mock.calls[0][0].discount).toBeNull();
-    // An installation price was saved, so the fine print may say installation is included.
-    expect(quotePdf.buildQuotePdf.mock.calls[0][0].installIncluded).toBe(true);
     const call = sql.mock.calls[0];
     const strings = call[0] as TemplateStringsArray;
     const valueAfter = (fragment: string) => call[1 + strings.findIndex((part) => part.replace(/\s+/g, " ").endsWith(fragment))];
@@ -548,12 +546,6 @@ describe("previewQuote", () => {
     await send();
     const [sent] = quotePdf.buildQuotePdf.mock.calls[0];
     expect({ ...previewed, date: null }).toEqual({ ...sent, date: null });
-  });
-
-  it("tells the quote there is no installation when No installation is ticked", async () => {
-    store.listVersions.mockResolvedValue([{ ...version, noInstall: true }]);
-    await previewQuote(JOB);
-    expect(quotePdf.buildQuotePdf.mock.calls[0][0].installIncluded).toBe(false);
   });
 
   it("writes nothing, shares nothing and emails no one", async () => {

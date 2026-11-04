@@ -15,7 +15,6 @@ const input: ContractInput = {
     { room: "", description: "Hunter Douglas PowerView Gateway", options: [["Collection", "Motorization"]], qty: 1, sellUnitCents: 20501, sellExtendedCents: 20501 },
   ],
   installCents: 25000, handlingChargedCents: 6600, oversizedCents: 0, clientTotalCents: 128150 + 20501 + 25000 + 6600,
-  installIncluded: true,
 };
 
 /** Every string drawn, with where, captured before pdf-lib encodes it. */
@@ -89,12 +88,10 @@ describe("quote fine print", () => {
     expect(drawn[fine].y).toBeLessThan(drawn[closing].y);
     expect(drawn[fine].size).toBeLessThan(drawn[closing].size!);
   });
-  it("never claims installation on a quote sent with No installation", async () => {
+  it("prints the same line when no installation is charged (owner 2026-11-04)", async () => {
     const drawn = spyOnDrawText();
-    await buildQuotePdf({ ...input, installIncluded: false });
-    const texts = drawn.map((d) => d.text);
-    expect(texts).toContain("This quote includes shipping.");
-    expect(texts.some((t) => /installation and shipping/.test(t))).toBe(false);
+    await buildQuotePdf({ ...input, installCents: 0, clientTotalCents: input.clientTotalCents - input.installCents });
+    expect(drawn.map((d) => d.text)).toContain("This quote includes installation and shipping.");
   });
   it("is not on the contract, which has its own terms", async () => {
     const drawn = spyOnDrawText();
