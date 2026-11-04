@@ -29,7 +29,7 @@ describe("detailsSchema", () => {
     });
     expect(parsed).toEqual({
       brands: ["Alta Window Fashions"], orderedOn: "2027-01-10",
-      address: null, city: "Henderson", phone: null,
+      address: null, city: "Henderson", phone: null, email: undefined, name: undefined,
       budgetTier: null,
       windowCountExact: null, treatmentTypes: [], motorized: false,
     });
@@ -54,6 +54,26 @@ describe("detailsSchema", () => {
     const parsed = detailsSchema.parse({ ...place, visitAt: "2026-12-15T14:30", installOn: "2027-01-10" });
     expect(parsed).not.toHaveProperty("visitAt");
     expect(parsed).not.toHaveProperty("installOn");
+  });
+});
+
+describe("detailsSchema name and email", () => {
+  it("corrects the customer's name and email, the way the website takes them", () => {
+    const parsed = detailsSchema.parse({ ...place, name: "  Dana Reyes ", email: " Dana@Example.com " });
+    expect(parsed.name).toBe("Dana Reyes");
+    expect(parsed.email).toBe("dana@example.com");
+  });
+  it("keeps what is stored when the form sends neither", () => {
+    const parsed = detailsSchema.parse(place);
+    expect(parsed.name).toBeUndefined();
+    expect(parsed.email).toBeUndefined();
+  });
+  it("removes the email when it is blanked", () => {
+    expect(detailsSchema.parse({ ...place, email: "  " }).email).toBeNull();
+  });
+  it("refuses a blank name or a bad email", () => {
+    expect(detailsSchema.safeParse({ ...place, name: " " }).success).toBe(false);
+    expect(detailsSchema.safeParse({ ...place, email: "dana@" }).success).toBe(false);
   });
 });
 

@@ -126,6 +126,25 @@ describe("with a session", () => {
     expect(geocodeLead).not.toHaveBeenCalled();
   });
 
+  it("saves a corrected name and email, and keeps them when the form has no such fields", async () => {
+    await actions.saveDetails(ID, {}, form({ city: "Henderson", name: "Dana Reyes", email: "Dana@Example.com" }));
+    expect(jobs.updateDetails).toHaveBeenCalledWith(ID, expect.objectContaining({
+      name: "Dana Reyes", email: "dana@example.com",
+    }), "owner@example.com");
+    jobs.updateDetails.mockClear();
+    await actions.saveDetails(ID, {}, form({ city: "Henderson" }));
+    const input = jobs.updateDetails.mock.calls[0][1];
+    expect(input.name).toBeUndefined();
+    expect(input.email).toBeUndefined();
+  });
+
+  it("keeps the typed name and email when the details do not validate", async () => {
+    const state = await actions.saveDetails(ID, {}, form({ city: "Henderson", name: "Dana Reyes", email: "dana@" }));
+    expect(state.error).toBeTruthy();
+    expect(state.values).toMatchObject({ name: "Dana Reyes", email: "dana@" });
+    expect(jobs.updateDetails).not.toHaveBeenCalled();
+  });
+
   it("keeps the typed address and city when the details do not validate", async () => {
     const state = await actions.saveDetails(ID, {}, form({ address: "12 Sample St", city: "Reno" }));
     expect(state.values).toMatchObject({ address: "12 Sample St", city: "Reno" });

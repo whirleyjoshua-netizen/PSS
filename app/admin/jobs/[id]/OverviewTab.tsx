@@ -61,7 +61,7 @@ export function OverviewTab({ job, editing, now, measurements, allWindows, measu
 
   return (
     <div className="grid gap-6 lg:grid-cols-3">
-      <CustomerCard job={job} referrer={referrer} />
+      <CustomerCard job={job} referrer={referrer} editHref={edit} />
       <ProjectCard job={job} editHref={edit} />
 
       {editing ? (

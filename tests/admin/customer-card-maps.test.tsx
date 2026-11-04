@@ -16,7 +16,7 @@ const job = {
 describe("CustomerCard address", () => {
   // Owner 2026-10-02: tapping the address must not take the owner off the client's page.
   it("opens Google Maps in a new window, keeping the client page open", () => {
-    render(<CustomerCard job={job} referrer={null} />);
+    render(<CustomerCard job={job} referrer={null} editHref="/edit" />);
     const link = screen.getByRole("link", { name: "12 Main St, Henderson" });
     expect(link).toHaveAttribute("href", "https://maps.google.com/?q=12%20Main%20St%2C%20Henderson%2C%20NV");
     expect(link).toHaveAttribute("target", "_blank");
@@ -26,13 +26,13 @@ describe("CustomerCard address", () => {
 
 describe("CustomerCard source", () => {
   it("shows a Google lead form lead as \"Google lead form\", not its stored code", () => {
-    render(<CustomerCard job={{ ...job, source: "google_form" }} referrer={null} />);
+    render(<CustomerCard job={{ ...job, source: "google_form" }} referrer={null} editHref="/edit" />);
     expect(screen.getByText("Google lead form")).toBeInTheDocument();
     expect(screen.queryByText("google_form")).toBeNull();
   });
 
   it("keeps showing a website lead's form as before", () => {
-    render(<CustomerCard job={job} referrer={null} />);
+    render(<CustomerCard job={job} referrer={null} editHref="/edit" />);
     expect(screen.getByText("contact")).toBeInTheDocument();
   });
 });
@@ -40,9 +40,16 @@ describe("CustomerCard source", () => {
 describe("CustomerCard phone", () => {
   // Owner 2026-10-21: an offer pop-up sign-up gives only a name and an email.
   it("says there is no number yet instead of an empty call link", () => {
-    render(<CustomerCard job={{ ...job, phone: "", city: "", source: "offer" }} referrer={null} />);
+    render(<CustomerCard job={{ ...job, phone: "", city: "", source: "offer" }} referrer={null} editHref="/edit" />);
     expect(screen.getByText("No phone number yet")).toBeInTheDocument();
     expect(document.querySelector('a[href^="tel:"]')).toBeNull();
     expect(screen.getByText("Offer pop-up")).toBeInTheDocument();
+  });
+});
+
+describe("CustomerCard edit link", () => {
+  it("opens the details form, so the customer's information can be corrected any time", () => {
+    render(<CustomerCard job={job} referrer={null} editHref="/admin/jobs/x?edit=details" />);
+    expect(screen.getByRole("link", { name: "Edit customer details" })).toHaveAttribute("href", "/admin/jobs/x?edit=details");
   });
 });

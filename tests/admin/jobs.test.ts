@@ -276,7 +276,7 @@ describe("changing jobs", () => {
     for (const column of ["lat", "lng", "geocode_status", "geocoded_at"]) {
       expect(statement).toContain(`${column} = case when address is distinct from ?::text or city is distinct from ?::text then null else ${column} end`);
     }
-    expect(statement).toContain("with prev as (select address, city from leads where id = ?), changed as ( update leads set");
+    expect(statement).toContain("with prev as (select address, city, name, email, phone from leads where id = ?), changed as ( update leads set");
     expect(statement).toContain("(prev.address is distinct from ?::text or prev.city is distinct from ?::text) as address_changed");
     expect(statement).toContain("from changed, prev");
     expect(sql.mock.calls[0]).toEqual(expect.arrayContaining(["12 Sample St", "Henderson"]));
@@ -284,6 +284,31 @@ describe("changing jobs", () => {
     expect(await jobs.updateDetails(ID, input, "owner@example.com")).toEqual({ saved: true, addressChanged: false });
     sql.mockResolvedValue([]);
     expect(await jobs.updateDetails(ID, input, "owner@example.com")).toEqual({ saved: false, addressChanged: false });
+  });
+
+  it("updateDetails corrects the name and email, and keeps them when the form sent neither", async () => {
+    sql.mockResolvedValue([{ id: ID }]);
+    const base = { address: null, city: "Henderson", phone: null, brands: [], orderedOn: null, budgetTier: null, windowCountExact: null, treatmentTypes: [], motorized: false };
+    await jobs.updateDetails(ID, { ...base, name: "Dana Reyes", email: "dana@example.com" }, "owner@example.com");
+    const statement = text(sql.mock.calls[0]).replace(/\s+/g, " ");
+    expect(statement).toContain("name = coalesce(?::text, name)");
+    expect(statement).toContain("email = case when ?::boolean then ?::text else email end");
+    expect(sql.mock.calls[0]).toEqual(expect.arrayContaining(["Dana Reyes", true, "dana@example.com"]));
+    // The timeline says what the name, email or phone was before, so a mistyped edit can be put back.
+    expect(statement).toContain("'name ' || prev.name || ' → ' || changed.name");
+    expect(statement).toContain("'email ' || coalesce(prev.email, 'none') || ' → ' || coalesce(changed.email, 'none')");
+    expect(statement).toContain("'phone ' || coalesce(prev.phone, 'none') || ' → ' || changed.phone");
+
+    sql.mockClear();
+    await jobs.updateDetails(ID, base, "owner@example.com");
+    const keep = sql.mock.calls[0];
+    // Neither sent: no name to write, and the email flag is false so the stored one stays.
+    expect(keep.slice(1)).not.toContain(true);
+    expect(keep).toEqual(expect.arrayContaining([false]));
+
+    sql.mockClear();
+    await jobs.updateDetails(ID, { ...base, email: null }, "owner@example.com");
+    expect(sql.mock.calls[0]).toEqual(expect.arrayContaining([true]));
   });
 
   it("createJob schedules a geocode of the new job, so every caller gets coordinates", async () => {

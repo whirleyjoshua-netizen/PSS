@@ -255,10 +255,12 @@ export async function updateDetails(
 ): Promise<{ saved: boolean; addressChanged: boolean }> {
   if (!isUuid(id)) return { saved: false, addressChanged: false };
   const rows = await db()`
-    with prev as (select address, city from leads where id = ${id}),
+    with prev as (select address, city, name, email, phone from leads where id = ${id}),
     changed as (
       update leads set
         address = ${input.address}, city = ${input.city}, phone = coalesce(${input.phone}::text, phone),
+        name = coalesce(${input.name ?? null}::text, name),
+        email = case when ${input.email !== undefined}::boolean then ${input.email ?? null}::text else email end,
         lat = case when address is distinct from ${input.address}::text or city is distinct from ${input.city}::text then null else lat end,
         lng = case when address is distinct from ${input.address}::text or city is distinct from ${input.city}::text then null else lng end,
         geocode_status = case when address is distinct from ${input.address}::text or city is distinct from ${input.city}::text then null else geocode_status end,
@@ -268,11 +270,18 @@ export async function updateDetails(
         window_count_exact = ${input.windowCountExact}, treatment_types = ${input.treatmentTypes}::text[], motorized = ${input.motorized},
         updated_at = now()
       where id = ${id}
-      returning id
+      returning id, name, email, phone
     ),
     logged as (
+      -- A corrected name, email or phone says what it was, so a mistyped edit can be put back.
       insert into job_events (lead_id, actor, kind, body)
-      select id, ${actor}, 'edit', 'Updated job details' from changed
+      select changed.id, ${actor}, 'edit', concat_ws(' · ', 'Updated job details',
+        case when prev.name is distinct from changed.name then 'name ' || prev.name || ' → ' || changed.name end,
+        case when prev.email is distinct from changed.email
+          then 'email ' || coalesce(prev.email, 'none') || ' → ' || coalesce(changed.email, 'none') end,
+        case when prev.phone is distinct from changed.phone
+          then 'phone ' || coalesce(prev.phone, 'none') || ' → ' || changed.phone end)
+      from changed, prev
       returning id
     )
     select changed.id,

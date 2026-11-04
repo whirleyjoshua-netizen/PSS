@@ -64,10 +64,13 @@ export async function deleteJobAction(id: string, _formData: FormData): Promise<
 export async function saveDetails(id: string, _prev: FormState, formData: FormData): Promise<FormState> {
   const { email } = await requireAdmin();
   const values = captureValues(formData, [
-    "address", "city", "phone", "brands", "orderedOn", "budget",
+    "name", "email", "address", "city", "phone", "brands", "orderedOn", "budget",
     "windowCountExact", "treatmentTypes", "motorized",
   ]);
   const parsed = detailsSchema.safeParse({
+    // Absent (not blank) keeps what is stored: see detailsSchema.
+    name: formData.get("name") ?? undefined,
+    email: formData.get("email") ?? undefined,
     address: formData.get("address") ?? "",
     city: formData.get("city") ?? "",
     phone: formData.get("phone") ?? "",

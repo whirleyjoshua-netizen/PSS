@@ -30,6 +30,16 @@ describe("DetailsForm", () => {
     expect(screen.getByLabelText("Shutters")).not.toBeChecked();
     expect(screen.getByLabelText("Motorized")).toBeChecked();
   });
+  it("lets the owner correct the customer's name and email", () => {
+    render(<DetailsForm job={{ ...job, email: "maria@example.com" }} />);
+    expect(screen.getByLabelText("Name")).toHaveValue("Maria Lopez");
+    expect(screen.getByLabelText("Name")).toBeRequired();
+    expect(screen.getByLabelText("Email")).toHaveValue("maria@example.com");
+  });
+  it("shows an empty email field when the job has none", () => {
+    render(<DetailsForm job={job} />);
+    expect(screen.getByLabelText("Email")).toHaveValue("");
+  });
   it("lets the owner correct the address and city", () => {
     render(<DetailsForm job={{ ...job, address: "12 Sample St", city: "North Las Vegas" }} />);
     expect(screen.getByLabelText("Address")).toHaveValue("12 Sample St");

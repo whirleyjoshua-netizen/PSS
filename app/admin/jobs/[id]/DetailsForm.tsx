@@ -48,6 +48,8 @@ export function DetailsForm({ job }: { job: Job }) {
     >
       {/* Appointment dates are not edited here: the Schedule button owns them.
           Money is not either: pricing lives on the Install tab. */}
+      <TextField id="name" name="name" label="Name" required defaultValue={field("name", job.name)} />
+      <TextField id="email" name="email" label="Email" type="email" defaultValue={field("email", job.email ?? "")} />
       <TextField id="address" name="address" label="Address" defaultValue={field("address", job.address ?? "")} />
       <SelectField id="city" name="city" label="City" options={cityOptions} defaultValue={field("city", job.city)} />
       <TextField id="phone" name="phone" label="Phone" type="tel" defaultValue={field("phone", job.phone ? formatPhone(job.phone) : "")} />

@@ -10,11 +10,14 @@ import { CARD, HEADING, TEXT_LINK } from "./ui";
 
 const DL = "grid grid-cols-[8rem_1fr] gap-x-4 gap-y-2 text-sm";
 
-export function CustomerCard({ job, referrer }: { job: Job; referrer: Job | null }) {
+export function CustomerCard({ job, referrer, editHref }: { job: Job; referrer: Job | null; editHref: string }) {
   const place = [job.address, job.city].filter(Boolean).join(", ");
   return (
     <section aria-labelledby="customer-heading" className={CARD}>
-      <h2 id="customer-heading" className={HEADING}>Customer</h2>
+      <div className="flex items-center justify-between gap-3">
+        <h2 id="customer-heading" className={HEADING}>Customer</h2>
+        <Link href={editHref} aria-label="Edit customer details" className={TEXT_LINK}>Edit</Link>
+      </div>
       <div className="flex flex-col gap-1">
         <p className="font-display text-lg">{job.name}</p>
         {job.phone ? (

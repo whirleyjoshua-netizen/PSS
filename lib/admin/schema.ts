@@ -38,6 +38,13 @@ export const detailsSchema = z
     // An offer pop-up sign-up arrives with no phone (owner 2026-10-21): it is added here once we have it. Blank keeps
     // the number already stored.
     phone: z.preprocess(blank, site.phone.optional()).transform((value) => value ?? null),
+    // The customer's name and email, correctable after the job is added (owner 2026-11-04). Absent (an older form)
+    // keeps what is stored; the name can't be blanked, and a blank email removes it, since a job needs none.
+    name: site.name.optional(),
+    email: z.preprocess(
+      (value) => (typeof value === "string" && value.trim() === "" ? null : value),
+      site.email.nullable().optional(),
+    ),
     brands: z.array(z.enum(BRANDS)).default([]),
     orderedOn: day,
     budget: z.preprocess(blank, z.enum(BUDGET_TIERS, { error: "Pick a budget tier" }).optional()),
