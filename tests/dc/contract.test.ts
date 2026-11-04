@@ -182,8 +182,8 @@ describe("buildContractPdf", () => {
     const drawn = spyOnDrawText();
     await buildContractPdf({ ...input, version: 2 }, { pdf: await (await PDFDocument.create()).save() });
     const all = drawn.map(({ text }) => text).join("\n");
-    expect(all).toContain("Contract PSS-1042 · Version 2");
-    expect(all).not.toContain("Version 1");
+    expect(all).toContain("Contract PSS-1042-2");
+    expect(all).not.toMatch(/version/i);
   });
   it("spills a long quote onto more pages instead of drawing off the page", async () => {
     const terms = await (await PDFDocument.create()).save();

@@ -2,7 +2,7 @@ import "server-only";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import { embedLogo, markPages } from "@/lib/pdf/logo";
 import { LETTER, MARGIN } from "@/lib/pdf/text";
-import { winAnsiSafe, type ContractInput } from "./contract-layout";
+import { versionedNo, winAnsiSafe, type ContractInput } from "./contract-layout";
 import { drawPricedPages } from "./contract-pdf";
 
 const PREVIEW = "PREVIEW · Not sent to the client";
@@ -17,7 +17,7 @@ export async function buildQuotePdf(input: ContractInput, options: { preview?: b
   const regular = await doc.embedFont(StandardFonts.Helvetica);
   const bold = await doc.embedFont(StandardFonts.HelveticaBold);
   const logo = await embedLogo(doc);
-  drawPricedPages(doc, logo, regular, bold, input, `Quote ${input.projectNo} · Version ${input.version}`,
+  drawPricedPages(doc, logo, regular, bold, input, `Quote ${versionedNo(input.projectNo, input.version)}`,
     "Approve this quote on your project page and we will send your contract to sign.", { details: false });
   markPages(doc, logo, { fromPage: 1 });
   if (options.preview) {

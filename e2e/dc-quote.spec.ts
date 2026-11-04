@@ -566,8 +566,8 @@ test.describe("quote, approve, sign, deposit, measure — and the release gate",
 
   const waivedTotal = () => waived.clientTotalCents!;
   const deposit = () => Math.round(waivedTotal() / 2);
-  const quoteName = () => `Quote ${formatProjectNo(job.projectNo)} v1.pdf`;
-  const contractName = () => `Contract ${formatProjectNo(job.projectNo)} v1.pdf`;
+  const quoteName = () => `Quote ${formatProjectNo(job.projectNo)}-1.pdf`;
+  const contractName = () => `Contract ${formatProjectNo(job.projectNo)}-1.pdf`;
   let quoteFileId = "";
 
   test("with the starter terms, Send quote shares the reviewed total as a quote, with no contract yet, and the job moves to Quoted", async ({ page }) => {
@@ -603,7 +603,7 @@ test.describe("quote, approve, sign, deposit, measure — and the release gate",
     expect(await sql()`select id from job_files where lead_id = ${job.id} and doc_type = 'contract'`).toHaveLength(0);
 
     const printed = pdfText(await fetchBytes(page, `/admin/files/${quoteFileId}`));
-    expect(printed).toContain(`Quote ${formatProjectNo(job.projectNo)} · Version 1`);
+    expect(printed).toContain(`Quote ${formatProjectNo(job.projectNo)}-1`);
     expect(printed).toContain(formatCents(waivedTotal()));
     // Installation and the handling fee are inside the line prices: neither prints as its own line.
     expect(printed).not.toContain("Installation");
@@ -821,9 +821,9 @@ test.describe("two quote options: both seeded options are sent and offered toget
       { option: "B", status: "offered", client_total_cents: totalB, quote_file_id: expect.any(String) },
     ]);
     const quotes = await sql()`select name, (shared_at is not null) as shared from job_files where lead_id = ${optionsJob.id} and doc_type = 'quote'`;
-    expect(quotes.map((f) => `${f.name}:${f.shared}`).sort()).toEqual([`Quote ${optionNo("A")} v1.pdf:true`, `Quote ${optionNo("B")} v1.pdf:true`].sort());
+    expect(quotes.map((f) => `${f.name}:${f.shared}`).sort()).toEqual([`Quote ${optionNo("A")}-1.pdf:true`, `Quote ${optionNo("B")}-1.pdf:true`].sort());
     expect(await sql()`select status, quote_cents from leads where id = ${optionsJob.id}`).toEqual([{ status: "quoted", quote_cents: totalB }]);
-    expect(pdfText(await fetchBytes(page, `/admin/files/${versions[1].quote_file_id}`))).toContain(`Quote ${optionNo("B")} · Version 1`);
+    expect(pdfText(await fetchBytes(page, `/admin/files/${versions[1].quote_file_id}`))).toContain(`Quote ${optionNo("B")}-1`);
   });
 
   test("the client sees both options with their own PDFs, approves B, A is gone and B's contract arrives", async ({ browser }) => {
@@ -838,10 +838,10 @@ test.describe("two quote options: both seeded options are sent and offered toget
     const optionB = options.getByRole("listitem", { name: "Option B" });
     await expect(optionA).toContainText(formatCents(totalA));
     await expect(optionB).toContainText(formatCents(totalB));
-    await expect(optionA.getByRole("link", { name: `Quote ${optionNo("A")} v1.pdf` })).toHaveAttribute("href", `/project/files/${a.quote_file_id}`);
-    await expect(optionB.getByRole("link", { name: `Quote ${optionNo("B")} v1.pdf` })).toHaveAttribute("href", `/project/files/${b.quote_file_id}`);
+    await expect(optionA.getByRole("link", { name: `Quote ${optionNo("A")}-1.pdf` })).toHaveAttribute("href", `/project/files/${a.quote_file_id}`);
+    await expect(optionB.getByRole("link", { name: `Quote ${optionNo("B")}-1.pdf` })).toHaveAttribute("href", `/project/files/${b.quote_file_id}`);
     // Each option's PDF downloads on its own and is that option's quote: its own header and its own total.
-    // "Quote PSS-n · Version 1" is not a substring of "Quote PSS-n-B · Version 1", so the headers can't be confused.
+    // "Quote PSS-n-1" is not a substring of "Quote PSS-n-B-1", so the headers can't be confused.
     for (const [letter, fileId, total, otherLetter, otherTotal] of [
       ["A", a.quote_file_id, totalA, "B", totalB],
       ["B", b.quote_file_id, totalB, "A", totalA],
@@ -850,7 +850,7 @@ test.describe("two quote options: both seeded options are sent and offered toget
       expect(bytes.subarray(0, 5).toString()).toBe("%PDF-");
       const printed = pdfText(bytes);
       const joined = printed.join("\n");
-      expect(printed).toContain(`Quote ${optionNo(letter)} · Version 1`);
+      expect(printed).toContain(`Quote ${optionNo(letter)}-1`);
       expect(printed).toContain(formatCents(total));
       expect(joined).not.toContain(`Quote ${optionNo(otherLetter)} `);
       expect(joined).not.toContain(formatCents(otherTotal));
@@ -862,8 +862,8 @@ test.describe("two quote options: both seeded options are sent and offered toget
     await expect(customer.getByRole("status")).toContainText("Thank you — we have your approval");
     await expect(customer.getByRole("region", { name: "Your quote options" })).toHaveCount(0);
     await expect(customer.getByRole("heading", { name: "Documents to sign" })).toBeVisible();
-    await expect(customer.locator("details", { hasText: `Contract ${optionNo("B")} v1.pdf` })).toHaveCount(1);
-    await expect(customer.locator("main")).not.toContainText(`Quote ${optionNo("A")} v1.pdf`);
+    await expect(customer.locator("details", { hasText: `Contract ${optionNo("B")}-1.pdf` })).toHaveCount(1);
+    await expect(customer.locator("main")).not.toContainText(`Quote ${optionNo("A")}-1.pdf`);
     expect(await download(customer, `/project/files/${a.quote_file_id}`)).toEqual({ status: 404, html: false });
 
     const after = await sql()`select option, status, (approved_at is not null) as approved, contract_file_id from dc_quote_versions
@@ -880,9 +880,9 @@ test.describe("two quote options: both seeded options are sent and offered toget
     expect(await sql()`select body from job_events where lead_id = ${optionsJob.id} and kind = 'quote' and body like 'Approved %'`)
       .toEqual([]);
     expect(await sql()`select name, (shared_at is not null) as shared from job_files where id = ${after[1].contract_file_id}`)
-      .toEqual([{ name: `Contract ${optionNo("B")} v1.pdf`, shared: true }]);
+      .toEqual([{ name: `Contract ${optionNo("B")}-1.pdf`, shared: true }]);
     const printed = pdfText(await fetchBytes(customer, `/project/files/${after[1].contract_file_id}`));
-    expect(printed).toContain(`Contract ${optionNo("B")} · Version 1`);
+    expect(printed).toContain(`Contract ${optionNo("B")}-1`);
     expect(printed).toContain(formatCents(totalB));
   });
 });

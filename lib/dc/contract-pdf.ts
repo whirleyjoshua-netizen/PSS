@@ -1,7 +1,7 @@
 import "server-only";
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import { formatShortDate } from "@/lib/admin/time";
-import { contractRows, winAnsiSafe, type ContractInput } from "./contract-layout";
+import { contractRows, versionedNo, winAnsiSafe, type ContractInput } from "./contract-layout";
 import { drawLetterhead, embedLogo, markPages, type EmbeddedLogo } from "@/lib/pdf/logo";
 import { LETTER, MARGIN, wrap } from "@/lib/pdf/text";
 import { parseDocText } from "@/lib/docs/parse";
@@ -102,7 +102,7 @@ export async function renderContractPdf(input: ContractInput, terms: ContractTer
   const regular = await doc.embedFont(StandardFonts.Helvetica);
   const bold = await doc.embedFont(StandardFonts.HelveticaBold);
   const logo = await embedLogo(doc);
-  drawPricedPages(doc, logo, regular, bold, input, `Contract ${input.projectNo} · Version ${input.version}`,
+  drawPricedPages(doc, logo, regular, bold, input, `Contract ${versionedNo(input.projectNo, input.version)}`,
     "The terms and conditions on the following pages are part of this contract.", { details: true });
 
   const initials: InitialsMark[] = [];

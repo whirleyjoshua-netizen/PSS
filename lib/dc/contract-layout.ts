@@ -36,6 +36,14 @@ const encodable = (ch: string) => /[\x20-\x7e\xa1-\xff]/.test(ch) || WIN_ANSI_EX
  * Text pdf-lib's standard (WinAnsi) fonts can draw: any run of whitespace (newlines, tabs)
  * becomes one space, typographic marks are mapped, WinAnsi characters are kept, the rest "?".
  */
+/**
+ * The number printed on a quote or contract and in its file name: the option number with the version after
+ * a dash (PSS-1042-1, PSS-1042-B-2). The client sees it, so no "Version 1" heading (owner 2026-11-04).
+ */
+export function versionedNo(optionNo: string, version: number): string {
+  return `${optionNo}-${version}`;
+}
+
 export function winAnsiSafe(text: string): string {
   return [...text.replace(/\s+/g, " ")].map((ch) => TYPOGRAPHIC[ch] ?? (encodable(ch) ? ch : "?")).join("");
 }

@@ -229,7 +229,7 @@ describe("sendQuote", () => {
   it("freezes the price, shares a quote PDF and logs it in ONE statement, then emails the client; no contract yet", async () => {
     expect(await send()).toEqual({ ok: true, emailed: true });
     expect(createFile).toHaveBeenCalledWith(expect.objectContaining({
-      docType: "quote", name: "Quote PSS-1042 v1.pdf", contentType: "application/pdf", actor: OWNER,
+      docType: "quote", name: "Quote PSS-1042-1.pdf", contentType: "application/pdf", actor: OWNER,
     }));
     expect(new Uint8Array(await (createFile.mock.calls[0][0] as { body: Blob }).body.arrayBuffer())).toEqual(new Uint8Array([2]));
     expect(sql).toHaveBeenCalledTimes(1);
@@ -244,7 +244,7 @@ describe("sendQuote", () => {
       "when status in ('new','contacted','visit_booked','approved') then 'quoted'", "'Quote sent'", "'quote'",
       "stage_changed_at = case when status in ('new','contacted','visit_booked','approved') then now() else stage_changed_at end",
     ]) expect(s).toContain(part);
-    expect(quoteEmail.sendQuoteEmail).toHaveBeenCalledWith(job, "Quote PSS-1042 v1.pdf", new Uint8Array([2]));
+    expect(quoteEmail.sendQuoteEmail).toHaveBeenCalledWith(job, "Quote PSS-1042-1.pdf", new Uint8Array([2]));
     expect(pdf.renderContractPdf).not.toHaveBeenCalled();
     expect(email.sendContractEmail).not.toHaveBeenCalled();
     expect(blob.get).toHaveBeenCalledWith("settings/terms.pdf", { access: "private" });
@@ -275,7 +275,7 @@ describe("sendQuote", () => {
     expect(values[text(sql.mock.calls[0]).split("?").findIndex((part) => part.endsWith("handling_folded_cents = "))]).toBe(priced.handlingFoldedCents);
     expect(printed.handlingChargedCents).toBe(0);
     expect(values[text(sql.mock.calls[0]).split("?").findIndex((part) => part.endsWith("install_folded_cents = "))]).toBe(priced.installFoldedCents);
-    expect(values).toContain(`Sent Quote PSS-1042 v1.pdf for ${formatCents(priced.clientTotalCents)}`);
+    expect(values).toContain(`Sent Quote PSS-1042-1.pdf for ${formatCents(priced.clientTotalCents)}`);
   });
 
   it("re-checks the stored pricing inputs the review read (waive, no-install, every line's %)", async () => {
@@ -404,7 +404,7 @@ describe("sendContract, from the approved quote", () => {
     expect(printed).toMatchObject({ projectNo: "PSS-1042", version: 1, clientTotalCents: frozenTotal, installCents: 25000 });
     expect(printed.lines).toEqual([expect.objectContaining({ sellUnitCents: 39300, sellExtendedCents: productsCents })]);
     expect(createFile).toHaveBeenCalledWith(expect.objectContaining({
-      docType: "contract", name: "Contract PSS-1042 v1.pdf", signMarks: MARKS, actor: "Sent on approval",
+      docType: "contract", name: "Contract PSS-1042-1.pdf", signMarks: MARKS, actor: "Sent on approval",
     }));
     expect(sql).toHaveBeenCalledTimes(1);
     const s = text(sql.mock.calls[0]);
@@ -417,8 +417,8 @@ describe("sendContract, from the approved quote", () => {
     // The price was frozen at Send quote: nothing re-prices or supersedes here.
     expect(s).not.toContain("update dc_quote_lines");
     expect(s).not.toContain("superseded");
-    expect(sql.mock.calls[0].slice(1)).toContain(`Sent Contract PSS-1042 v1.pdf for ${formatCents(frozenTotal)}`);
-    expect(email.sendContractEmail).toHaveBeenCalledWith({ ...job, status: "approved" }, "Contract PSS-1042 v1.pdf");
+    expect(sql.mock.calls[0].slice(1)).toContain(`Sent Contract PSS-1042-1.pdf for ${formatCents(frozenTotal)}`);
+    expect(email.sendContractEmail).toHaveBeenCalledWith({ ...job, status: "approved" }, "Contract PSS-1042-1.pdf");
   });
 
   it("prints the live terms template, filled for this job", async () => {
@@ -538,7 +538,7 @@ describe("terms from the Documents page", () => {
 describe("previewQuote", () => {
   it("prints exactly what Send quote would print, marked a preview, and writes nothing", async () => {
     const result = await previewQuote(JOB);
-    expect(result).toEqual({ pdf: new Uint8Array([2]), name: "Quote PSS-1042 v1 PREVIEW.pdf" });
+    expect(result).toEqual({ pdf: new Uint8Array([2]), name: "Quote PSS-1042-1 PREVIEW.pdf" });
     const [previewed, options] = quotePdf.buildQuotePdf.mock.calls[0];
     expect(options).toEqual({ preview: true });
 
@@ -557,7 +557,7 @@ describe("previewQuote", () => {
 
   it("previews even when Send is blocked by something other than the price", async () => {
     jobs.getJob.mockResolvedValue({ ...job, email: null });
-    expect(await previewQuote(JOB)).toMatchObject({ name: "Quote PSS-1042 v1 PREVIEW.pdf" });
+    expect(await previewQuote(JOB)).toMatchObject({ name: "Quote PSS-1042-1 PREVIEW.pdf" });
   });
 
   it("refuses while a line has no price", async () => {
@@ -611,16 +611,16 @@ describe("quote options (spec §5)", () => {
     store.listVersions.mockResolvedValue([version, optionB]);
     const review = await loadReview(JOB, "B");
     expect(await sendQuote({ jobId: JOB, versionId: VB, fingerprint: review!.fingerprint, actor: OWNER })).toEqual({ ok: true, emailed: true });
-    expect(createFile).toHaveBeenCalledWith(expect.objectContaining({ name: "Quote PSS-1042-B v1.pdf", docType: "quote" }));
+    expect(createFile).toHaveBeenCalledWith(expect.objectContaining({ name: "Quote PSS-1042-B-1.pdf", docType: "quote" }));
     expect(quotePdf.buildQuotePdf.mock.calls[0][0]).toMatchObject({ projectNo: "PSS-1042-B", version: 1 });
-    expect(quoteEmail.sendQuoteEmail).toHaveBeenCalledWith(job, "Quote PSS-1042-B v1.pdf", new Uint8Array([2]));
+    expect(quoteEmail.sendQuoteEmail).toHaveBeenCalledWith(job, "Quote PSS-1042-B-1.pdf", new Uint8Array([2]));
     const call = sql.mock.calls[0];
     const s = text(call);
     const offeredCte = s.slice(s.indexOf("offered as ("), s.indexOf("priced_lines as ("));
     expect(offeredCte).toContain("and version = (select max(version) from dc_quote_versions where lead_id = ? and option = ?)");
     expect(after(call, "and option = ")).toEqual(["B"]);
     expect(after(call, "and (option = ")).toEqual(["B"]);
-    expect(call.slice(1)).toContain(`Sent Quote PSS-1042-B v1.pdf for ${formatCents(review!.priced.clientTotalCents)}`);
+    expect(call.slice(1)).toContain(`Sent Quote PSS-1042-B-1.pdf for ${formatCents(review!.priced.clientTotalCents)}`);
   });
 
   it("refuses while another option is signed: a blocker on the review, and nothing written", async () => {
@@ -651,7 +651,7 @@ describe("quote options (spec §5)", () => {
 
   it("previews option B under its number", async () => {
     store.listVersions.mockResolvedValue([version, optionB]);
-    expect(await previewQuote(JOB, "B")).toMatchObject({ name: "Quote PSS-1042-B v1 PREVIEW.pdf" });
+    expect(await previewQuote(JOB, "B")).toMatchObject({ name: "Quote PSS-1042-B-1 PREVIEW.pdf" });
     expect(quotePdf.buildQuotePdf.mock.calls[0][0]).toMatchObject({ projectNo: "PSS-1042-B" });
   });
 
@@ -661,7 +661,7 @@ describe("quote options (spec §5)", () => {
     jobs.getJob.mockResolvedValue({ ...job, status: "approved" });
     expect(await sendContract({ jobId: JOB, versionId: VB, actor: "Sent on approval" })).toEqual({ ok: true, emailed: true });
     expect(pdf.renderContractPdf.mock.calls[0][0]).toMatchObject({ projectNo: "PSS-1042-B", version: 1 });
-    expect(createFile).toHaveBeenCalledWith(expect.objectContaining({ name: "Contract PSS-1042-B v1.pdf", docType: "contract" }));
+    expect(createFile).toHaveBeenCalledWith(expect.objectContaining({ name: "Contract PSS-1042-B-1.pdf", docType: "contract" }));
     const call = sql.mock.calls[0];
     expect(text(call)).toContain("and version = (select max(version) from dc_quote_versions where lead_id = ? and option = ?)");
     expect(after(call, "and option = ")).toEqual(["B"]);

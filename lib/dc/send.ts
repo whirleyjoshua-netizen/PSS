@@ -10,7 +10,7 @@ import { fillFields, termsFieldValues } from "@/lib/docs/fill";
 import { remainingMarkers } from "@/lib/docs/parse";
 import { STARTER_TERMS } from "@/lib/docs/starter-terms";
 import { liveTemplateOfKind, type DocumentTemplate } from "@/lib/docs/templates";
-import type { ContractInput } from "./contract-layout";
+import { versionedNo, type ContractInput } from "./contract-layout";
 import { renderContractPdf, type ContractTerms } from "./contract-pdf";
 import { sellUnitCents } from "./money";
 import { pickInstallQuote, priceVersion, pricingFingerprint, sendBlockers, type InstallChoice, type PricedVersion } from "./pricing";
@@ -188,7 +188,7 @@ export async function previewQuote(jobId: string, option = "A"): Promise<{ pdf: 
   if (priced.blockers.length > 0) return { error: priced.blockers[0] };
   const optionNo = formatOptionNo(job.projectNo, version.option) ?? "PSS";
   const pdf = await buildQuotePdf(pricedInput(job, version, priced, optionNo, new Date()), { preview: true });
-  return { pdf, name: `Quote ${optionNo} v${version.version} PREVIEW.pdf` };
+  return { pdf, name: `Quote ${versionedNo(optionNo, version.version)} PREVIEW.pdf` };
 }
 
 /**
@@ -216,7 +216,7 @@ export async function sendQuote(input: { jobId: string; versionId: string; finge
   if ("error" in terms) return terms;
 
   const optionNo = formatOptionNo(job.projectNo, version.option) ?? "PSS";
-  const name = `Quote ${optionNo} v${version.version}.pdf`;
+  const name = `Quote ${versionedNo(optionNo, version.version)}.pdf`;
   const pdf = await buildQuotePdf(pricedInput(job, version, priced, optionNo, now));
   const file = await createFile({ leadId: job.id, kind: "document", name, contentType: "application/pdf",
     body: new Blob([new Uint8Array(pdf)], { type: "application/pdf" }), actor: input.actor, docType: "quote" });
@@ -342,7 +342,7 @@ export async function sendContract(input: { jobId: string; versionId: string; ac
   if ("error" in terms) return terms;
 
   const optionNo = formatOptionNo(job.projectNo, version.option) ?? "PSS";
-  const name = `Contract ${optionNo} v${version.version}.pdf`;
+  const name = `Contract ${versionedNo(optionNo, version.version)}.pdf`;
   const rendered = await renderContractPdf(pricedInput(job, version, priced, optionNo, now), terms);
   // The marks go in with the file, in createFile's one statement (visible signatures spec §3).
   const file = await createFile({ leadId: job.id, kind: "document", name, contentType: "application/pdf",

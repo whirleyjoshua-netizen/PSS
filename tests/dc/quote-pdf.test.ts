@@ -35,12 +35,14 @@ describe("buildQuotePdf", () => {
     const drawn = spyOnDrawText();
     const bytes = await buildQuotePdf(input);
     const texts = drawn.map((d) => d.text);
-    expect(texts).toContain("Quote PSS-1042 · Version 1");
+    expect(texts).toContain("Quote PSS-1042-1");
     for (const figure of ["$1,281.50", "$205.01", "Installation", "$250", "Hunter Douglas handling", "$66", "Total", "$1,802.51"]) {
       expect(texts).toContain(figure);
     }
     for (const absent of ["Terms and Conditions", "Client signature", "Initials", "Signature"]) expect(texts).not.toContain(absent);
     expect(texts.some((t) => t.startsWith("Contract "))).toBe(false);
+    // The client reads this: the version is the trailing -1, never a "Version 1" heading (owner 2026-11-04).
+    expect(texts.some((t) => /version/i.test(t))).toBe(false);
     expect((await PDFDocument.load(bytes)).getPageCount()).toBe(1);
   });
 
@@ -67,10 +69,10 @@ describe("buildQuotePdf", () => {
     const page1 = contract.slice(0, contract.findIndex((d) => d.text === closing) + 1).map((d) => d.text).filter(Boolean);
     const quoteTexts = quote.map((d) => d.text);
     expect(quoteTexts.filter((t) => !page1.includes(t))).toEqual([
-      "Quote PSS-1042 · Version 1", "Approve this quote on your project page and we will send your contract to sign.",
+      "Quote PSS-1042-1", "Approve this quote on your project page and we will send your contract to sign.",
     ]);
     expect(page1.filter((t) => !quoteTexts.includes(t))).toEqual([
-      "Contract PSS-1042 · Version 1", '48 1/2" W x 72 3/8" H · Inside Mount · PowerView', closing,
+      "Contract PSS-1042-1", '48 1/2" W x 72 3/8" H · Inside Mount · PowerView', closing,
     ]);
   });
 });
