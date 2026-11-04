@@ -15,14 +15,15 @@ const input: ContractInput = {
     { room: "", description: "Hunter Douglas PowerView Gateway", options: [["Collection", "Motorization"]], qty: 1, sellUnitCents: 20501, sellExtendedCents: 20501 },
   ],
   installCents: 25000, handlingChargedCents: 6600, oversizedCents: 0, clientTotalCents: 128150 + 20501 + 25000 + 6600,
+  installIncluded: true,
 };
 
 /** Every string drawn, with where, captured before pdf-lib encodes it. */
 function spyOnDrawText() {
-  const drawn: { text: string; x: number; y: number }[] = [];
+  const drawn: { text: string; x: number; y: number; size?: number }[] = [];
   const original = PDFPage.prototype.drawText;
   vi.spyOn(PDFPage.prototype, "drawText").mockImplementation(function (this: PDFPage, text, options) {
-    drawn.push({ text, x: options?.x ?? 0, y: options?.y ?? 0 });
+    drawn.push({ text, x: options?.x ?? 0, y: options?.y ?? 0, size: options?.size });
     return original.call(this, text, options);
   });
   return drawn;
@@ -70,10 +71,35 @@ describe("buildQuotePdf", () => {
     const quoteTexts = quote.map((d) => d.text);
     expect(quoteTexts.filter((t) => !page1.includes(t))).toEqual([
       "Quote PSS-1042-1", "Approve this quote on your project page and we will send your contract to sign.",
+      "This quote includes installation and shipping.",
     ]);
     expect(page1.filter((t) => !quoteTexts.includes(t))).toEqual([
       "Contract PSS-1042-1", '48 1/2" W x 72 3/8" H · Inside Mount · PowerView', closing,
     ]);
+  });
+});
+
+describe("quote fine print", () => {
+  it("says installation and shipping are included, in small print under the closing line (owner 2026-11-04)", async () => {
+    const drawn = spyOnDrawText();
+    await buildQuotePdf(input);
+    const closing = drawn.findIndex((d) => d.text.startsWith("Approve this quote"));
+    const fine = drawn.findIndex((d) => d.text === "This quote includes installation and shipping.");
+    expect(fine).toBeGreaterThan(closing);
+    expect(drawn[fine].y).toBeLessThan(drawn[closing].y);
+    expect(drawn[fine].size).toBeLessThan(drawn[closing].size!);
+  });
+  it("never claims installation on a quote sent with No installation", async () => {
+    const drawn = spyOnDrawText();
+    await buildQuotePdf({ ...input, installIncluded: false });
+    const texts = drawn.map((d) => d.text);
+    expect(texts).toContain("This quote includes shipping.");
+    expect(texts.some((t) => /installation and shipping/.test(t))).toBe(false);
+  });
+  it("is not on the contract, which has its own terms", async () => {
+    const drawn = spyOnDrawText();
+    await renderContractPdf(input, { text: "## Terms\n\n1. Something." });
+    expect(drawn.some((d) => d.text.startsWith("This quote includes"))).toBe(false);
   });
 });
 

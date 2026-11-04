@@ -11,7 +11,14 @@ export type ContractInput = {
   installCents: number; handlingChargedCents: number; oversizedCents: number; clientTotalCents: number;
   /** The owner's discount (migration 042), printed as its own line only when there is one; clientTotalCents is after it. */
   discount?: { label: string; pct: number | null; cents: number } | null;
+  /** False when the owner ticked No installation: the quote's fine print then can't claim installation. */
+  installIncluded: boolean;
 };
+
+/** The quote's fine print (owner 2026-11-04): installation and shipping are built into the prices, so say so. */
+export function quoteFinePrint(input: Pick<ContractInput, "installIncluded">): string {
+  return input.installIncluded ? "This quote includes installation and shipping." : "This quote includes shipping.";
+}
 export type ContractRow = { room: string; product: string; details: string; qty: string; unit: string; total: string };
 
 /** Marks mapped to plain ASCII so the contract reads the same whatever the source typed. */

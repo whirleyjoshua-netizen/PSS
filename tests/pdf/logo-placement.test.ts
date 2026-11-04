@@ -35,6 +35,7 @@ const input: ContractInput = {
   client: { name: "Test Testt", address: "1 Main St", city: "Las Vegas", email: "t@example.com" },
   lines: Array.from({ length: 30 }, () => line),
   installCents: 25000, handlingChargedCents: 6600, oversizedCents: 0, clientTotalCents: 30 * 128150 + 31600,
+  installIncluded: true,
 };
 const TERMS = Array.from({ length: 12 }, (_, i) => `## ${i + 1}. Section\n\n${"The client agrees to the terms of this section. ".repeat(12)}`).join("\n\n");
 

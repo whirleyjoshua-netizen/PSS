@@ -41,7 +41,7 @@ export async function buildTermsPdf(text: string): Promise<Uint8Array> {
  * approves and the contract they sign show the same figures. `details` draws the size · mount · fabric ·
  * control line under each product: the contract prints it, the quote leaves it out (owner, 2026-10-07).
  */
-export function drawPricedPages(doc: PDFDocument, logo: EmbeddedLogo, regular: PDFFont, bold: PDFFont, input: ContractInput, heading: string, closing: string, { details: showDetails }: { details: boolean }): void {
+export function drawPricedPages(doc: PDFDocument, logo: EmbeddedLogo, regular: PDFFont, bold: PDFFont, input: ContractInput, heading: string, closing: string, { details: showDetails, finePrint }: { details: boolean; finePrint?: string }): void {
   const { rows, totals } = contractRows(input);
   const fullWidth = LETTER[0] - 2 * MARGIN;
 
@@ -91,9 +91,13 @@ export function drawPricedPages(doc: PDFDocument, logo: EmbeddedLogo, regular: P
     right(value, LETTER[0] - MARGIN, strong ? 11 : 9, strong ? bold : regular);
     y -= strong ? 16 : 13;
   }
-  need(40);
+  need(finePrint ? 56 : 40);
   y -= 16;
   text(closing, MARGIN, 9);
+  if (finePrint) {
+    y -= 14;
+    page.drawText(winAnsiSafe(finePrint), { x: MARGIN, y, size: 7.5, font: regular, color: rgb(0.35, 0.35, 0.35) });
+  }
 }
 
 /** Page 1+: the priced contract. Then the terms: drawn from the terms template, or the uploaded PDF page for page. Signing stamps it later. */
