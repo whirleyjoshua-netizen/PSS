@@ -9,7 +9,7 @@ import {
   pendingStripeDeposit, type Deposit,
 } from "./deposits";
 import { payPath } from "./pay-link";
-import { closeCheckout, stripeClient } from "./stripe";
+import { closeCheckout, isMissingAtStripe, stripeClient } from "./stripe";
 
 export type CheckoutJob = Pick<Job, "id" | "projectNo" | "status" | "email">;
 
@@ -98,6 +98,11 @@ export async function openDepositCheckout(job: CheckoutJob): Promise<Exclude<Sta
         ? await stripe.checkout.sessions.retrieve(deposit.stripeSessionId)
         : await stripe.checkout.sessions.create(checkoutParams(job, deposit, payPage), { idempotencyKey: `deposit-${deposit.id}` });
     } catch (error) {
+      // A checkout opened under the other mode's key (test, before the switch to live): give the row up and claim a fresh one.
+      if (deposit.stripeSessionId && isMissingAtStripe(error)) {
+        await expireDeposit(deposit.stripeSessionId);
+        continue;
+      }
       console.error(`Could not open card checkout for deposit ${deposit.id}`, error);
       return "unavailable";
     }

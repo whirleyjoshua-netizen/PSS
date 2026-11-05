@@ -12,7 +12,9 @@ const create = vi.fn();
 const retrieve = vi.fn();
 const stripeClient = vi.fn(() => ({ checkout: { sessions: { create, retrieve } } }) as unknown);
 const closeCheckout = vi.fn();
-vi.mock("@/lib/payments/stripe", () => ({ stripeClient, closeCheckout }));
+vi.mock("@/lib/payments/stripe", async (importOriginal) => ({
+  stripeClient, closeCheckout, isMissingAtStripe: (await importOriginal<typeof import("@/lib/payments/stripe")>()).isMissingAtStripe,
+}));
 const redirect = vi.fn((path: string) => { throw new Error(`NEXT_REDIRECT ${path}`); });
 vi.mock("next/navigation", () => ({ redirect }));
 
@@ -205,6 +207,26 @@ describe("startDepositAction", () => {
     expect(await startDepositAction(MINE)).toEqual({ url: "https://checkout.stripe.test/c/cs_1" });
     expect(deposits.expireDeposit).toHaveBeenCalledWith("cs_old");
     expect(create).toHaveBeenCalledWith(expect.anything(), { idempotencyKey: "deposit-6e2f7b3f-4c5d-4e6f-9a71-8b9c0d1e2f3a" });
+  });
+
+  // 2026-11-05: a client opened checkout while the site still had Stripe's TEST keys. Under the live key Stripe
+  // has no such session, so the row is given up and a fresh live checkout opens, instead of "unavailable" for 23 hours.
+  it("gives up a checkout Stripe can't find under this key and opens a fresh one", async () => {
+    const { default: Stripe } = await import("stripe");
+    deposits.claimStripeDeposit
+      .mockResolvedValueOnce(pending({ stripeSessionId: "cs_test_old" }))
+      .mockResolvedValueOnce(pending({ id: "6e2f7b3f-4c5d-4e6f-9a71-8b9c0d1e2f3a" }));
+    retrieve.mockRejectedValueOnce(new Stripe.errors.StripeInvalidRequestError({ type: "invalid_request_error", code: "resource_missing", message: "No such checkout.session" }));
+    expect(await startDepositAction(MINE)).toEqual({ url: "https://checkout.stripe.test/c/cs_1" });
+    expect(deposits.expireDeposit).toHaveBeenCalledWith("cs_test_old");
+    expect(create).toHaveBeenCalledWith(expect.anything(), { idempotencyKey: "deposit-6e2f7b3f-4c5d-4e6f-9a71-8b9c0d1e2f3a" });
+  });
+
+  it("still says unavailable, and gives nothing up, when Stripe is merely down", async () => {
+    deposits.claimStripeDeposit.mockResolvedValue(pending({ stripeSessionId: "cs_1" }));
+    retrieve.mockRejectedValueOnce(new Error("stripe down"));
+    expect(await startDepositAction(MINE)).toBe("unavailable");
+    expect(deposits.expireDeposit).not.toHaveBeenCalled();
   });
 
   // Ruling P8: this proves only our half. That Stripe then opens a single session is Task 10's proof.

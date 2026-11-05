@@ -51,6 +51,16 @@ export function verifyWebhook(body: string, signature: string | null): Stripe.Ev
 }
 
 /**
+ * Stripe has no such object for this key. A Checkout Session never disappears within one mode, so this is a
+ * session opened under the other mode's key: a test-mode checkout after the switch to live keys (2026-11-05).
+ * Nothing real can be paid on it. Read by shape, so callers and their test doubles need no Stripe class.
+ */
+export function isMissingAtStripe(error: unknown): boolean {
+  const e = error as { type?: unknown; code?: unknown } | null;
+  return e?.type === "StripeInvalidRequestError" && e.code === "resource_missing";
+}
+
+/**
  * Closes the client's card checkout before an owner records a deposit by hand (Review Focus 3).
  * "paid": Stripe says it completed, so a card payment is in flight — record nothing. "closed": it is
  * expired now, or was. "unknown": Stripe could not be asked, or refused to expire it because it
@@ -64,6 +74,8 @@ export async function closeCheckout(stripe: Stripe | null, sessionId: string): P
     if (session.status === "open") await stripe.checkout.sessions.expire(sessionId);
     return "closed";
   } catch (error) {
+    // A session this key can't see could not have taken a real payment: nothing to close.
+    if (isMissingAtStripe(error)) return "closed";
     console.error(`Could not close Checkout Session ${sessionId}`, error);
     return "unknown";
   }

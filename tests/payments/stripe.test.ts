@@ -4,7 +4,7 @@ import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import Stripe from "stripe";
 
-const { closeCheckout, refundPayment, stripeApiOverride, stripeClient, verifyWebhook } = await import("@/lib/payments/stripe");
+const { closeCheckout, isMissingAtStripe, refundPayment, stripeApiOverride, stripeClient, verifyWebhook } = await import("@/lib/payments/stripe");
 
 const signer = new Stripe("sk_test_unit");
 const payload = JSON.stringify({ id: "evt_1", object: "event", type: "checkout.session.expired", data: { object: { id: "cs_1", object: "checkout.session" } } });
@@ -116,6 +116,25 @@ describe("closeCheckout", () => {
     expect(await closeCheckout(null, "cs_1")).toBe("unknown");
     expect(await closeCheckout(fakeStripe(new Error("down")).client, "cs_1")).toBe("unknown");
     expect(await closeCheckout(fakeStripe({ status: "open" }, new Error("only open sessions")).client, "cs_1")).toBe("unknown");
+  });
+});
+
+// The real SDK's error for a session the key can't see: a test-mode checkout after the switch to live keys (2026-11-05).
+const missing = () => new Stripe.errors.StripeInvalidRequestError({ type: "invalid_request_error", code: "resource_missing", message: "No such checkout.session: cs_test_1" });
+
+describe("a checkout opened under the other mode's key", () => {
+  it("is recognised from the real SDK's error, and only that one", () => {
+    expect(isMissingAtStripe(missing())).toBe(true);
+    expect(isMissingAtStripe(new Stripe.errors.StripeInvalidRequestError({ type: "invalid_request_error", code: "parameter_invalid_empty", message: "x" }))).toBe(false);
+    expect(isMissingAtStripe(new Stripe.errors.StripeConnectionError({ message: "down" }))).toBe(false);
+    expect(isMissingAtStripe(new Error("resource_missing"))).toBe(false);
+    expect(isMissingAtStripe(null)).toBe(false);
+  });
+
+  it("answers closed, so the owner can record a check, since no real payment can be on it", async () => {
+    const fake = fakeStripe(missing());
+    expect(await closeCheckout(fake.client, "cs_test_1")).toBe("closed");
+    expect(fake.expire).not.toHaveBeenCalled();
   });
 });
 
