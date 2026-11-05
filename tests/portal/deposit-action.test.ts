@@ -16,7 +16,10 @@ vi.mock("@/lib/payments/stripe", () => ({ stripeClient, closeCheckout }));
 const redirect = vi.fn((path: string) => { throw new Error(`NEXT_REDIRECT ${path}`); });
 vi.mock("next/navigation", () => ({ redirect }));
 
+// The pay link is keyed off the Stripe secret: without one there is no checkout at all.
+process.env.STRIPE_SECRET_KEY = "sk_test_deposit_action";
 const { startDepositAction, startDepositFormAction } = await import("@/app/(site)/project/deposit-actions");
+const { payPath } = await import("@/lib/payments/pay-link");
 
 const MINE = "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c";
 const THEIRS = "9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d";
@@ -26,7 +29,7 @@ const EMAIL = "maria@example.com";
 // The clock is frozen. A fresh pending row is created at NOW, so its session closes at NOW + 22h.
 const NOW = new Date("2026-09-30T17:00:00Z");
 const EXPIRES_AT = Math.floor(NOW.getTime() / 1000) + 22 * 3600;
-const job = { id: MINE, name: "Maria Lopez", projectNo: 1048, status: "signed" };
+const job = { id: MINE, name: "Maria Lopez", projectNo: 1048, status: "signed", email: " Maria@Example.com " };
 const state = { jobStatus: "signed", versionId: VERSION, version: 1, versionStatus: "signed", soldCents: 184833, amountCents: 92417,
   signedAt: new Date("2026-09-28T17:00:00Z"), paid: null, pending: null, refunded: null };
 const pending = (over: Record<string, unknown> = {}) => ({ id: DEPOSIT, leadId: MINE, versionId: VERSION, amountCents: 92417,
@@ -103,8 +106,9 @@ describe("startDepositAction", () => {
       line_items: [{ quantity: 1, price_data: { currency: "usd", unit_amount: 92417, product_data: { name: "50% deposit — PSS-1048" } } }],
       metadata: { depositId: DEPOSIT, leadId: MINE },
       payment_intent_data: { metadata: { depositId: DEPOSIT, leadId: MINE } },
-      success_url: `https://pss.test/project/${MINE}?deposit=done`,
-      cancel_url: `https://pss.test/project/${MINE}`,
+      // Both land on the pay page, which sends a signed-in client on to their project page: one row, one set of parameters.
+      success_url: `https://pss.test${payPath(MINE)}?paid=1`,
+      cancel_url: `https://pss.test${payPath(MINE)}`,
     }, { idempotencyKey: `deposit-${DEPOSIT}` });
     expect(deposits.attachSession).toHaveBeenCalledWith(DEPOSIT, "cs_1");
   });
@@ -158,6 +162,26 @@ describe("startDepositAction", () => {
   it("takes cards only (Apple Pay and Google Pay arrive as cards)", async () => {
     await startDepositAction(MINE);
     expect((create.mock.calls[0][0] as { payment_method_types: string[] }).payment_method_types).toEqual(["card"]);
+  });
+
+  it("prefills the job's email in Checkout, and leaves it out when the job has none", async () => {
+    await startDepositAction(MINE);
+    expect((create.mock.calls[0][0] as { customer_email?: string }).customer_email).toBe(EMAIL);
+    create.mockClear();
+    requireCustomer.mockResolvedValue({ email: EMAIL, jobs: [{ ...job, email: null }] });
+    await startDepositAction(MINE);
+    expect(create.mock.calls[0][0]).not.toHaveProperty("customer_email");
+  });
+
+  it("opens nothing while card payments are not set up, since there is no pay page to come back to", async () => {
+    vi.stubEnv("STRIPE_SECRET_KEY", "");
+    try {
+      expect(await startDepositAction(MINE)).toBe("unavailable");
+    } finally {
+      vi.unstubAllEnvs();
+    }
+    expect(create).not.toHaveBeenCalled();
+    expect(deposits.claimStripeDeposit).not.toHaveBeenCalled();
   });
 
   it("reuses the open session of a pending deposit instead of creating another", async () => {

@@ -2,6 +2,7 @@ import "server-only";
 import { Resend } from "resend";
 import { business } from "@/content/business";
 import { getJob, type Job } from "@/lib/admin/jobs";
+import { db } from "@/lib/db";
 import { formatCents } from "@/lib/admin/money";
 import { adminOrigin } from "@/lib/admin/origin";
 import { formatDateOnly, formatShortDate } from "@/lib/admin/time";
@@ -154,4 +155,32 @@ export async function sendCancellationEmails(input: { job: Job; amountCents: num
     ].join("\n"),
   }));
   await settle("A cancellation", sends);
+}
+
+/**
+ * The deposit payment link, emailed to the client by the owner (owner 2026-11-04) for a client who can't
+ * manage the project page. Throws when it can't send, so the owner sees it failed. Once sent, it is logged on
+ * the job's timeline; a failure to log is only reported, since the email has gone.
+ */
+export async function sendPayLinkEmail(input: { job: Job; link: string; amountCents: number; actor: string }): Promise<void> {
+  const { job, link, amountCents, actor } = input;
+  const to = normalizeEmail(job.email);
+  if (!to) throw new Error("This job has no email address");
+  const projectNo = formatProjectNo(job.projectNo) ?? "your project";
+  const amount = formatCents(amountCents);
+  await emailClient(to, `Your deposit for ${projectNo}`, [
+    greeting(job), "",
+    `Your 50% deposit for ${projectNo} is ${amount}. You can pay it by card here, with no sign-in needed:`, "",
+    link, "",
+    "Open the link, press the Pay button, and type your card on Stripe's secure payment page. We'll email your receipt.", "",
+    `Rather pay over the phone? Call us at ${business.phone.display} and we'll take care of it.`, "",
+    business.name,
+  ].join("\n"));
+  try {
+    await db()`
+      insert into job_events (lead_id, actor, kind, body)
+      values (${job.id}, ${actor}, 'email', ${`Payment link for the ${amount} deposit emailed to ${to}`})`;
+  } catch (error) {
+    console.error(`Payment link emailed but not logged for job ${job.id}`, error);
+  }
 }

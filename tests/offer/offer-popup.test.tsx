@@ -62,6 +62,13 @@ describe("the offer pop-up (owner 2026-10-21)", () => {
     expect(popup()).toBeNull();
   });
 
+  it("stays off the deposit pay page, where a client is paying (owner 2026-11-04)", async () => {
+    nav.pathname = "/pay/3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c/abcdefghijklmnopqrstuv";
+    render(<OfferPopup />);
+    await wait(60_000);
+    expect(popup()).toBeNull();
+  });
+
   it("is gone once the offers end", async () => {
     vi.setSystemTime(new Date("2026-11-16T08:00:00Z"));
     render(<OfferPopup />);

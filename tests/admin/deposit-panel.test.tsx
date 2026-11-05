@@ -3,7 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const recordDepositAction = vi.fn();
 const cancelDepositAction = vi.fn();
-vi.mock("@/app/admin/jobs/[id]/deposit-actions", () => ({ recordDepositAction, cancelDepositAction }));
+const emailPayLinkAction = vi.fn();
+vi.mock("@/app/admin/jobs/[id]/deposit-actions", () => ({ recordDepositAction, cancelDepositAction, emailPayLinkAction }));
 const { DepositPanel } = await import("@/app/admin/jobs/[id]/DepositPanel");
 
 const J = "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c";
@@ -16,6 +17,7 @@ const paid = { id: "d1", amountCents: 92417, method: "stripe" as const, paidAt: 
 beforeEach(() => {
   recordDepositAction.mockReset().mockResolvedValue({ ok: true });
   cancelDepositAction.mockReset().mockResolvedValue({ ok: true });
+  emailPayLinkAction.mockReset().mockResolvedValue({ ok: true });
 });
 
 describe("DepositPanel", () => {
@@ -99,5 +101,51 @@ describe("DepositPanel", () => {
     render(<DepositPanel jobId={J} view={{ ...view, jobStatus: "lost", refunded: { amountCents: 92417, refundedAt: new Date("2026-09-30T17:00:00Z") } }} />);
     expect(screen.getByText("Deposit $924.17 refunded Sep 30, 2026.")).toBeInTheDocument();
     expect(screen.queryByRole("button")).toBeNull();
+  });
+});
+
+describe("DepositPanel card payment link (owner 2026-11-04)", () => {
+  const URL = "https://pss.test/pay/x/abcdefghijklmnopqrstuv";
+  const linked = { ...view, payUrl: URL, hasEmail: true };
+
+  it("offers the link to copy, email, or open to take a card by phone", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, { clipboard: { writeText } });
+    render(<DepositPanel jobId={J} view={linked} />);
+    expect(screen.getByText(URL)).toBeInTheDocument();
+    const phone = screen.getByRole("link", { name: "Take card by phone" });
+    expect(phone).toHaveAttribute("href", URL);
+    expect(phone).toHaveAttribute("target", "_blank");
+    fireEvent.click(screen.getByRole("button", { name: "Copy link" }));
+    expect(await screen.findByRole("status")).toHaveTextContent("Link copied.");
+    expect(writeText).toHaveBeenCalledWith(URL);
+    fireEvent.click(screen.getByRole("button", { name: "Email link to client" }));
+    expect(await screen.findByText("Payment link emailed to the client.")).toBeInTheDocument();
+    expect(emailPayLinkAction).toHaveBeenCalledWith(J);
+  });
+
+  it("shows the email's error", async () => {
+    emailPayLinkAction.mockResolvedValue({ error: "The email didn't send. Try again, or copy the link and text it." });
+    render(<DepositPanel jobId={J} view={linked} />);
+    fireEvent.click(screen.getByRole("button", { name: "Email link to client" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("The email didn't send.");
+  });
+
+  it("has no email button without an email, and says to text the link", () => {
+    render(<DepositPanel jobId={J} view={{ ...linked, hasEmail: false }} />);
+    expect(screen.queryByRole("button", { name: "Email link to client" })).toBeNull();
+    expect(screen.getByText(/No email on this job/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Copy link" })).toBeInTheDocument();
+  });
+
+  it("is gone once the deposit is paid, before the contract is signed, and when cards aren't set up", () => {
+    const { unmount } = render(<DepositPanel jobId={J} view={{ ...linked, paid }} />);
+    expect(screen.queryByRole("link", { name: "Take card by phone" })).toBeNull();
+    unmount();
+    const second = render(<DepositPanel jobId={J} view={{ ...linked, jobStatus: "sold" }} />);
+    expect(screen.queryByRole("button", { name: "Copy link" })).toBeNull();
+    second.unmount();
+    render(<DepositPanel jobId={J} view={{ ...linked, payUrl: null }} />);
+    expect(screen.queryByRole("button", { name: "Copy link" })).toBeNull();
   });
 });

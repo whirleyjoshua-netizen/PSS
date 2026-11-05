@@ -7,7 +7,8 @@ import { requireAdmin } from "@/lib/admin/session";
 import { isRefundableStage } from "@/lib/admin/stages";
 import { inCancellationWindow } from "@/lib/docs/business-days";
 import { cancelDeposit, depositById, depositState, isRecordedMethod, recordDepositPayment } from "@/lib/payments/deposits";
-import { alertUnrecordedRefund, sendCancellationEmails, sendDepositReceipts } from "@/lib/payments/emails";
+import { alertUnrecordedRefund, sendCancellationEmails, sendDepositReceipts, sendPayLinkEmail } from "@/lib/payments/emails";
+import { payLink } from "@/lib/payments/pay-link";
 import { closeCheckout, refundPayment, stripeClient } from "@/lib/payments/stripe";
 import { MISSING, refresh } from "../form-state";
 
@@ -102,6 +103,32 @@ export async function cancelDepositAction(jobId: string, depositId: string): Pro
   }
   const inWindow = inCancellationWindow(state.signedAt, new Date());
   after(() => sendCancellationEmails({ job, amountCents: deposit.amountCents, method: deposit.method, inWindow, actor: admin.email }));
+  refresh(job.id);
+  return { ok: true };
+}
+
+/**
+ * "Email link to client" (owner 2026-11-04): the deposit payment link, for a client who can't manage the
+ * project page. Only while a deposit is due, so the email never asks for money the job doesn't owe.
+ */
+export async function emailPayLinkAction(jobId: string): Promise<{ error?: string; ok?: boolean }> {
+  const admin = await requireAdmin();
+  const job = await getJob(jobId);
+  if (!job) return MISSING;
+  const state = await depositState(job.id);
+  if (state?.paid) return { error: "The deposit is already paid." };
+  if (job.status !== "signed" || !state || state.versionStatus !== "signed" || state.jobStatus !== "signed") {
+    return { error: "A deposit link can be sent once the contract is signed." };
+  }
+  if (!job.email?.trim()) return { error: "This job has no email address. Add one under Edit, or copy the link and text it." };
+  const link = payLink(job.id);
+  if (!link) return { error: "Card payments aren't set up, so there is no link to send." };
+  try {
+    await sendPayLinkEmail({ job, link, amountCents: state.amountCents, actor: admin.email });
+  } catch (error) {
+    console.error(`Could not email the payment link for job ${job.id}`, error);
+    return { error: "The email didn't send. Try again, or copy the link and text it." };
+  }
   refresh(job.id);
   return { ok: true };
 }

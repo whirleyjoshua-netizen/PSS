@@ -8,8 +8,10 @@ const jobs = { getJob: vi.fn() };
 vi.mock("@/lib/admin/jobs", () => jobs);
 const deposits = { depositState: vi.fn() };
 vi.mock("@/lib/payments/deposits", () => deposits);
+const sql = vi.fn();
+vi.mock("@/lib/db", () => ({ db: () => sql }));
 
-const { alertUnmatchedPayment, alertUnrecordedRefund, sendCancellationEmails, sendDepositReceipts } = await import("@/lib/payments/emails");
+const { alertUnmatchedPayment, alertUnrecordedRefund, sendCancellationEmails, sendDepositReceipts, sendPayLinkEmail } = await import("@/lib/payments/emails");
 
 const LEAD = "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c";
 const job = { id: LEAD, name: "Maria Lopez", email: " Maria@Example.com ", projectNo: 1048 };
@@ -145,5 +147,37 @@ describe("sendCancellationEmails", () => {
     expect(client.text).toContain("We will return your deposit of $500 to you in full.");
     expect(owners.text).toContain("Deposit:  $500 (check) — return it to the client");
     expect(owners.text).toContain("Cancellation window: closed");
+  });
+});
+
+describe("sendPayLinkEmail", () => {
+  const LINK = "https://pss.test/pay/x/abcdefghijklmnopqrstuv";
+  beforeEach(() => { sql.mockReset().mockResolvedValue([]); });
+
+  it("emails the client the link and the amount, and logs it on the job's timeline", async () => {
+    await sendPayLinkEmail({ job: job as never, link: LINK, amountCents: 92417, actor: "owner@example.com" });
+    const [message] = sent();
+    expect(message.to).toBe("maria@example.com");
+    expect(message.subject).toBe("Your deposit for PSS-1048");
+    expect(message.text).toContain("Hi Maria,");
+    expect(message.text).toContain("Your 50% deposit for PSS-1048 is $924.17.");
+    expect(message.text).toContain(LINK);
+    const values = sql.mock.calls[0].slice(1);
+    expect(values).toEqual([LEAD, "owner@example.com", "Payment link for the $924.17 deposit emailed to maria@example.com"]);
+    expect((sql.mock.calls[0][0] as TemplateStringsArray).join("?")).toContain("'email'");
+  });
+
+  it("throws when it can't send, and logs nothing", async () => {
+    send.mockResolvedValue({ error: { message: "bad" } });
+    await expect(sendPayLinkEmail({ job: job as never, link: LINK, amountCents: 92417, actor: "o" })).rejects.toThrow();
+    await expect(sendPayLinkEmail({ job: { ...job, email: null } as never, link: LINK, amountCents: 92417, actor: "o" })).rejects.toThrow();
+    expect(sql).not.toHaveBeenCalled();
+  });
+
+  it("still counts as sent when only the timeline entry fails", async () => {
+    sql.mockImplementation(async () => { throw new Error("db down"); });
+    await expect(sendPayLinkEmail({ job: job as never, link: LINK, amountCents: 92417, actor: "o" })).resolves.toBeUndefined();
+    expect(sent()).toHaveLength(1);
+    expect(console.error).toHaveBeenCalledWith(`Payment link emailed but not logged for job ${LEAD}`, expect.any(Error));
   });
 });

@@ -393,7 +393,8 @@ async function payDepositByCard({ page, browser, request, target, email }: {
   expect(sent.get("line_items[0][price_data][unit_amount]")).toBe(String(deposit));
   expect(sent.get("line_items[0][price_data][product_data][name]")).toBe(`50% deposit — ${formatProjectNo(target.projectNo)}`);
   expect(sent.get("customer_email")).toBe(email);
-  expect(sent.get("success_url")).toBe(`${origin}/project/${target.id}?deposit=done`);
+  // The pay page (owner 2026-11-04), which sends this signed-in client on to /project/<id>?deposit=done.
+  expect(sent.get("success_url")).toMatch(new RegExp(`^${origin}/pay/${target.id}/[A-Za-z0-9_-]{22}\\?paid=1$`));
   const [pending] = await sql()`select id, status, amount_cents, stripe_session_id from deposits where lead_id = ${target.id}`;
   expect(pending).toMatchObject({ status: "pending", amount_cents: deposit, id: sent.get("metadata[depositId]") });
 
@@ -404,7 +405,8 @@ async function payDepositByCard({ page, browser, request, target, email }: {
   expect(await sql()`select id from deposits where lead_id = ${target.id}`).toHaveLength(1);
 
   // The redirect alone proves nothing: before the webhook, the page says Processing.
-  await customer.goto(`/project/${target.id}?deposit=done`);
+  await customer.goto(sent.get("success_url")!);
+  await expect(customer).toHaveURL(`${origin}/project/${target.id}?deposit=done`);
   await expect(customer.getByText("Processing — we will email your receipt as soon as your payment is confirmed.")).toBeVisible();
 
   const paid = stub.complete(pending.stripe_session_id as string);

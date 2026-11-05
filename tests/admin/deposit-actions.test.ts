@@ -11,10 +11,12 @@ const deposits = { depositState: vi.fn(), depositById: vi.fn(), recordDepositPay
 vi.mock("@/lib/payments/deposits", () => deposits);
 const stripe = { stripeClient: vi.fn(() => ({}) as unknown), closeCheckout: vi.fn(), refundPayment: vi.fn() };
 vi.mock("@/lib/payments/stripe", () => stripe);
-const emails = { sendDepositReceipts: vi.fn(), sendCancellationEmails: vi.fn(), alertUnrecordedRefund: vi.fn() };
+const emails = { sendDepositReceipts: vi.fn(), sendCancellationEmails: vi.fn(), alertUnrecordedRefund: vi.fn(), sendPayLinkEmail: vi.fn() };
 vi.mock("@/lib/payments/emails", () => emails);
+const payLinks = { payLink: vi.fn() };
+vi.mock("@/lib/payments/pay-link", () => payLinks);
 
-const { cancelDepositAction, recordDepositAction } = await import("@/app/admin/jobs/[id]/deposit-actions");
+const { cancelDepositAction, emailPayLinkAction, recordDepositAction } = await import("@/app/admin/jobs/[id]/deposit-actions");
 
 const JOB = "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c";
 const VERSION = "7a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
@@ -39,6 +41,8 @@ beforeEach(() => {
   emails.sendDepositReceipts.mockReset().mockResolvedValue(undefined);
   emails.sendCancellationEmails.mockReset().mockResolvedValue(undefined);
   emails.alertUnrecordedRefund.mockReset().mockResolvedValue(undefined);
+  emails.sendPayLinkEmail.mockReset().mockResolvedValue(undefined);
+  payLinks.payLink.mockReset().mockReturnValue("https://pss.test/pay/x/y");
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
 
@@ -204,5 +208,40 @@ describe("cancelDepositAction", () => {
     expect(await cancelDepositAction(JOB, "6e2f7b3f-4c5d-4e6f-9a71-8b9c0d1e2f3a")).toEqual({ error: "This deposit is no longer paid. Reload the page." });
     expect(stripe.refundPayment).not.toHaveBeenCalled();
     expect(deposits.cancelDeposit).not.toHaveBeenCalled();
+  });
+});
+
+describe("emailPayLinkAction", () => {
+  it("emails the client the deposit link at the amount on record, as the signed-in owner", async () => {
+    expect(await emailPayLinkAction(JOB)).toEqual({ ok: true });
+    expect(requireAdmin).toHaveBeenCalled();
+    expect(payLinks.payLink).toHaveBeenCalledWith(JOB);
+    expect(emails.sendPayLinkEmail).toHaveBeenCalledWith({ job, link: "https://pss.test/pay/x/y", amountCents: 92417, actor: "owner@example.com" });
+  });
+
+  it("never asks for money the job doesn't owe", async () => {
+    deposits.depositState.mockResolvedValue({ ...state, paid });
+    expect(await emailPayLinkAction(JOB)).toEqual({ error: "The deposit is already paid." });
+    deposits.depositState.mockResolvedValue(state);
+    jobs.getJob.mockResolvedValue({ ...job, status: "approved" });
+    expect((await emailPayLinkAction(JOB)).error).toMatch(/once the contract is signed/);
+    jobs.getJob.mockResolvedValue(job);
+    deposits.depositState.mockResolvedValue({ ...state, versionStatus: "sent" });
+    expect((await emailPayLinkAction(JOB)).error).toMatch(/once the contract is signed/);
+    deposits.depositState.mockResolvedValue(null);
+    expect((await emailPayLinkAction(JOB)).error).toMatch(/once the contract is signed/);
+    expect(emails.sendPayLinkEmail).not.toHaveBeenCalled();
+  });
+
+  it("says what to do instead when there is no email, no link, or the send fails", async () => {
+    jobs.getJob.mockResolvedValue({ ...job, email: "  " });
+    expect((await emailPayLinkAction(JOB)).error).toMatch(/no email address/);
+    jobs.getJob.mockResolvedValue(job);
+    payLinks.payLink.mockReturnValue(null);
+    expect((await emailPayLinkAction(JOB)).error).toMatch(/aren't set up/);
+    expect(emails.sendPayLinkEmail).not.toHaveBeenCalled();
+    payLinks.payLink.mockReturnValue("https://pss.test/pay/x/y");
+    emails.sendPayLinkEmail.mockRejectedValue(new Error("resend down"));
+    expect((await emailPayLinkAction(JOB)).error).toMatch(/didn't send/);
   });
 });

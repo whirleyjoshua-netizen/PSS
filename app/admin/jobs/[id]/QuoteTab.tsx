@@ -3,6 +3,7 @@ import { loadReview, type Review } from "@/lib/dc/send";
 import { listQuoteOptions } from "@/lib/dc/store";
 import { cancellationWindowLastDay, inCancellationWindow } from "@/lib/docs/business-days";
 import { depositState, type DepositState } from "@/lib/payments/deposits";
+import { payLink } from "@/lib/payments/pay-link";
 import { formatOptionNo } from "@/lib/portal/project-no";
 import { AddQuoteOptionButton, CheckNowButton, DcButtons } from "./DcButtons";
 import { DepositPanel, type DepositView } from "./DepositPanel";
@@ -10,8 +11,9 @@ import { QuoteReview } from "./QuoteReview";
 import { HEADING } from "./ui";
 
 /** The panel's props from the stored deposit state, the window computed on the server at `now`. */
-export function toDepositView(state: DepositState, now: Date): DepositView {
+export function toDepositView(state: DepositState, now: Date, card: { payUrl: string | null; hasEmail: boolean } = { payUrl: null, hasEmail: false }): DepositView {
   return {
+    payUrl: card.payUrl, hasEmail: card.hasEmail,
     jobStatus: state.jobStatus, amountCents: state.amountCents, soldCents: state.soldCents,
     lastCancellableDay: cancellationWindowLastDay(state.signedAt), inWindow: inCancellationWindow(state.signedAt, now),
     paid: state.paid && state.paid.paidAt
@@ -61,11 +63,11 @@ function OptionCard({ jobId, letter, optionNo, review, now, labelled }: {
   );
 }
 
-export async function QuoteTab({ job }: { job: Pick<Job, "id" | "projectNo"> }) {
+export async function QuoteTab({ job }: { job: Pick<Job, "id" | "projectNo" | "email"> }) {
   const [letters, deposit] = await Promise.all([listQuoteOptions(job.id), depositState(job.id)]);
   const reviews = await Promise.all(letters.map((letter) => loadReview(job.id, letter)));
   const now = new Date();
-  const depositView = deposit ? toDepositView(deposit, now) : null;
+  const depositView = deposit ? toDepositView(deposit, now, { payUrl: payLink(job.id), hasEmail: Boolean(job.email?.trim()) }) : null;
   const labelled = letters.length > 1;
   return (
     <div className="flex flex-col gap-6">

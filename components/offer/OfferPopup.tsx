@@ -13,8 +13,8 @@ import { recallAttribution } from "@/lib/leads/attribution";
 import { trackOfferSignup } from "@/lib/analytics/events";
 import { HD_RESTRICTED_EXCLUSION } from "@/content/offer-terms";
 
-/** Pages that come after a lead, or belong to a customer: the pop-up would only get in the way. */
-const HIDDEN_ON = ["/thank-you", "/project", "/unsubscribe"];
+/** Pages that come after a lead, or belong to a customer: the pop-up would only get in the way. /pay is a client paying their deposit. */
+const HIDDEN_ON = ["/thank-you", "/project", "/unsubscribe", "/pay"];
 
 export function showsOfferPopup(pathname: string): boolean {
   return !HIDDEN_ON.some((path) => pathname === path || pathname.startsWith(`${path}/`));

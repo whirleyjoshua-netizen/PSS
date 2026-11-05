@@ -6,7 +6,7 @@ import { isRefundableStage } from "@/lib/admin/stages";
 import { formatDateOnly, formatShortDate } from "@/lib/admin/time";
 import type { DepositMethod } from "@/lib/payments/deposits";
 import { PAID_HOW } from "@/lib/payments/paid-how";
-import { cancelDepositAction, recordDepositAction } from "./deposit-actions";
+import { cancelDepositAction, emailPayLinkAction, recordDepositAction } from "./deposit-actions";
 
 export type DepositView = {
   jobStatus: string;
@@ -18,6 +18,9 @@ export type DepositView = {
   paid: { id: string; amountCents: number; method: DepositMethod; paidAt: Date } | null;
   refunded: { amountCents: number; refundedAt: Date } | null;
   cardPending: boolean;
+  /** The deposit payment link (owner 2026-11-04), or null when card payments aren't set up. */
+  payUrl?: string | null;
+  hasEmail?: boolean;
 };
 
 const field = "min-h-11 border border-rule px-2";
@@ -34,6 +37,24 @@ export function DepositPanel({ jobId, view }: { jobId: string; view: DepositView
   // Ruling P21: before Ordered, or Lost, while a deposit is paid. The action re-checks it.
   const canCancel = view.paid !== null && isRefundableStage(view.jobStatus);
   const lastDay = formatDateOnly(view.lastCancellableDay);
+  const payUrl = canRecord ? view.payUrl ?? null : null;
+
+  const copyLink = async () => {
+    if (!payUrl) return;
+    try {
+      await navigator.clipboard.writeText(payUrl);
+      setMessage({ ok: "Link copied. Paste it into a text to the client." });
+    } catch {
+      setMessage({ error: `Couldn't copy. Select the link and copy it: ${payUrl}` });
+    }
+  };
+
+  const emailLink = () => {
+    start(async () => {
+      const result = await emailPayLinkAction(jobId);
+      setMessage(result.error ? { error: result.error } : { ok: "Payment link emailed to the client." });
+    });
+  };
 
   const record = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -99,6 +120,25 @@ export function DepositPanel({ jobId, view }: { jobId: string; view: DepositView
             <button type="button" onClick={() => { setRecording(true); setMessage(null); }} className={secondary}>Payment received</button>
           </div>
         )
+      ) : null}
+
+      {payUrl ? (
+        <div className="flex flex-col gap-2 border border-rule p-3 text-sm">
+          <h3 className="font-semibold">Card payment link</h3>
+          <p className="text-ink-soft">
+            For a client who can&rsquo;t use their project page: send them this link, or open it yourself and type their card in while you&rsquo;re on the phone.
+            Either way PSS records the payment and emails the receipt.
+          </p>
+          <p className="break-all text-xs text-ink-soft">{payUrl}</p>
+          <div className="flex flex-wrap gap-3">
+            <button type="button" onClick={copyLink} className={secondary}>Copy link</button>
+            {view.hasEmail ? (
+              <button type="button" onClick={emailLink} disabled={pending} className={`${secondary} disabled:opacity-40`}>Email link to client</button>
+            ) : null}
+            <a href={payUrl} target="_blank" rel="noopener noreferrer" className={secondary}>Take card by phone</a>
+          </div>
+          {view.hasEmail ? null : <p className="text-ink-soft">No email on this job: copy the link and text it, or add an email under Edit.</p>}
+        </div>
       ) : null}
 
       {canCancel && view.paid ? (
