@@ -9,8 +9,9 @@ describe("sitemap", () => {
     // 1 home + 5 hubs + 12 products + 4 cities
     // + gallery, reviews, about, contact, privacy, accessibility, faq
     // + 2 guides (the guides index now redirects to /faq#care) + 3 buying guides (/learn, 2026-10-22)
-    expect(urls).toHaveLength(37);
-    expect(new Set(urls).size).toBe(37);
+    // + west-facing windows (2026-10-27) + roman shades (2026-11-06)
+    expect(urls).toHaveLength(38);
+    expect(new Set(urls).size).toBe(38);
   });
 
   it("lists the FAQ undated (its answers come from other files, so no one date is true), and not the retired guides index", async () => {

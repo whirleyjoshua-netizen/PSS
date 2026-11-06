@@ -263,6 +263,74 @@ export const articles: Article[] = [
       { name: "Motorization", href: "/motorization" },
     ],
   },
+  {
+    // Monthly guide 2 (keyword gap 2026-11-03: "roman shades", 390 searches a month in the Las Vegas DMA). Claims only
+    // from content/products.ts (roman, cellular, roller), content/faq.ts and the guides above. Alta's BLISS motors do
+    // not list roman shades, so this guide offers cordless lift, never motorization, for them.
+    slug: "roman-shades-las-vegas",
+    crumb: "Roman shades in Las Vegas",
+    title: "Roman shades in Las Vegas: the fold, the lining and the right window",
+    seo: {
+      title: "Roman Shades Buying Guide | Premier Shade Solutions",
+      description:
+        "Flat or hobbled, privacy or blackout lining, and which Las Vegas windows suit roman shades, from the family who measures and installs them.",
+    },
+    published: "2026-11-06",
+    updated: "2026-11-06",
+    quickAnswer:
+      "Roman shades are the most tailored shade there is, the choice when the fabric is meant to be part of the room. Pick the fold for the room: flat for contemporary, hobbled for traditional. Pick the lining for the job: privacy, or blackout for bedrooms. On west and south windows that take the afternoon sun, let an exterior solar screen do the heat work, so the roman shade can do the look.",
+    sections: [
+      {
+        heading: "What a roman shade is",
+        paragraphs: [
+          "A roman shade is a single panel of fabric that folds into horizontal pleats as it rises. It gives you the softness of drapery in the footprint of a shade, which is why it is the treatment people choose when the window is meant to be part of the room's design rather than a utility.",
+          "Because the fabric is the whole point, the selection matters. Roman shades come in an extensive range of designer fabrics, including linens and textured weaves, and the same fabric can be made into coordinating valances and pillows.",
+        ],
+      },
+      {
+        heading: "Flat fold or hobbled fold",
+        photo: install("/gallery/roman-shades-primary-bath.webp"),
+        paragraphs: [
+          "The fold decides the style. A flat roman lies smooth when it is lowered and stacks into clean pleats when it is raised, so it reads crisp and contemporary.",
+          "A hobbled roman keeps soft, cascading loops even when it is fully lowered. It suits a more traditional room.",
+        ],
+      },
+      {
+        heading: "Privacy lining or blackout lining",
+        paragraphs: [
+          "A roman shade can be lined for privacy, so the room is screened from the street at night, or interlined for genuine room darkening. In a primary bedroom, the blackout lining is usually worth it.",
+          "If someone in the house sleeps days and the room has to be truly dark at noon, we will tell you honestly that a blackout roller shade with side channels does that job best, because the channels close the light gaps at the edges. That can mean a roller in that one bedroom and roman shades everywhere the look matters.",
+        ],
+      },
+      {
+        heading: "Roman shades and the Las Vegas sun",
+        paragraphs: [
+          "West-facing glass in this valley takes direct sun from about two in the afternoon until sunset. The heat is easiest to stop before it reaches the window: an exterior solar screen turns away roughly 70–90% of the sun's heat, depending on the mesh. On a hot west or south window, that screen outside and a roman shade inside lets each one do what it does best.",
+          "If the main problem in a room is heat rather than looks, a cellular shade may be the better inside choice, because the air trapped in its cells adds insulation. And if you want the view with less glare, a solar shade does that better than any lined fabric. We will say so at the window.",
+        ],
+      },
+      {
+        heading: "Where roman shades belong, and where they don't",
+        photo: install("/gallery/roman-shades-woven-dining-room.webp"),
+        paragraphs: [
+          "They are the right call in formal living rooms, dining rooms and primary bedrooms: anywhere the fabric itself is meant to be seen. They are the wrong call above a kitchen sink, where fabric and cooking grease eventually meet.",
+          "For homes with small children or pets, roman shades come with a cordless lift, so there is no cord hanging at the window.",
+        ],
+      },
+      {
+        heading: "Choosing yours at the window",
+        paragraphs: [
+          "Fabric looks different in your own light than it does in a showroom. At your free consultation we bring roman shade fabrics, folds and linings to your home and hold them up at the windows they are meant for. Josh measures every window himself, backed by our measurement guarantee, and we install every shade ourselves.",
+        ],
+      },
+    ],
+    products: [
+      { name: "Roman shades", href: "/shades/roman-shades" },
+      { name: "Solar screens", href: "/outdoor/solar-screens" },
+      { name: "Cellular shades", href: "/shades/cellular-shades" },
+      { name: "Roller shades", href: "/shades/roller-shades" },
+    ],
+  },
 ];
 
 /**

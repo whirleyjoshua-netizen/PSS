@@ -104,3 +104,23 @@ describe("deeper city pages", () => {
         if (section.photo) expect(existsSync(path.join(process.cwd(), "public", section.photo.src)), section.photo.src).toBe(true);
   });
 });
+
+describe("the roman shades guide (keyword gap 2026-11-03)", () => {
+  const roman = articles.find((a) => a.slug === "roman-shades-las-vegas")!;
+
+  it("shows our own roman installs and links back from the roman shades page", async () => {
+    expect(roman.sections.flatMap((s) => (s.photo ? [s.photo.src] : []))).toEqual([
+      "/gallery/roman-shades-primary-bath.webp",
+      "/gallery/roman-shades-woven-dining-room.webp",
+    ]);
+    render(await ProductPage({ params: Promise.resolve({ category: "shades", product: "roman-shades" }) }));
+    expect(screen.getByRole("link", { name: /Roman shades in Las Vegas/ })).toHaveAttribute("href", "/learn/roman-shades-las-vegas");
+  });
+
+  // Alta's BLISS motors list roller, woven wood, honeycomb, sheer, banded, wood and faux wood styles: not roman.
+  it("offers cordless lift, never motorization, for roman shades", () => {
+    const text = JSON.stringify(roman.sections);
+    expect(text).toMatch(/cordless lift/);
+    expect(text).not.toMatch(/motoriz|BLISS/i);
+  });
+});
