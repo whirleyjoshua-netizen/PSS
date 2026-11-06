@@ -30,6 +30,7 @@ import { AfterWork } from "./AfterWork";
 import { ApprovalNotice, ApproveQuote } from "./ApproveQuote";
 import { CopyLinkButton } from "./CopyLinkButton";
 import { DepositCard, DepositNotice } from "./DepositCard";
+import { signedOrder } from "@/lib/portal/order";
 import { DetailsCard } from "./DetailsCard";
 import { FilesTabs } from "./FilesTabs";
 import { MessageForm } from "./MessageForm";
@@ -114,6 +115,8 @@ export async function ProjectView({
     justDocAck && justSignedFile && isUuid(justSignedFile) ? acknowledgementFor(justSignedFile) : Promise.resolve(null),
   ]);
   const acknowledgement = justAcknowledgement?.leadId === job.id ? justAcknowledgement : null;
+  // What the client bought, once a contract is signed (owner 2026-11-05): the deposit's signed version, already loaded above.
+  const order = deposit?.versionStatus === "signed" ? await signedOrder(deposit.versionId) : [];
   const project = toProject(job, {
     stageDates: dates,
     lastMeasuredAt: measuredAt,
@@ -264,7 +267,7 @@ export async function ProjectView({
         <p>{STEP_NEXT[current.key]}</p>
       </section>
 
-      <DetailsCard project={project} installLabel={installLabel} inProduction={current.key === "production"} />
+      <DetailsCard project={project} installLabel={installLabel} inProduction={current.key === "production"} order={order} />
 
       <section className="flex flex-col gap-2" aria-labelledby="install-heading">
         <h2 id="install-heading" className={heading}>Installation</h2>

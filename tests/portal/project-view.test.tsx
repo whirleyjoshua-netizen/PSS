@@ -44,6 +44,9 @@ vi.mock("@/lib/docs/templates", () => ({ liveTemplateOfKind }));
 const depositState = vi.fn(async (_id: string) => null as unknown);
 vi.mock("@/lib/payments/deposits", () => ({ depositState }));
 vi.mock("@/app/(site)/project/deposit-actions", () => ({ startDepositFormAction: vi.fn() }));
+// No signed order unless a test says otherwise.
+const signedOrder = vi.fn(async (_versionId: string) => [] as unknown[]);
+vi.mock("@/lib/portal/order", () => ({ signedOrder }));
 // No offered Direct Connect quote unless a test says otherwise.
 const offeredVersions = vi.fn(async (_id: string) => [] as unknown[]);
 vi.mock("@/lib/dc/approve", () => ({ offeredVersions }));
@@ -81,6 +84,7 @@ beforeEach(() => {
   acknowledgementFor.mockReset().mockResolvedValue(null);
   liveTemplateOfKind.mockReset().mockResolvedValue(null);
   depositState.mockReset().mockResolvedValue(null);
+  signedOrder.mockReset().mockResolvedValue([]);
   offeredVersions.mockReset().mockResolvedValue([]);
 });
 
@@ -451,8 +455,58 @@ describe("ProjectView details and updates", () => {
     const details = screen.getByRole("region", { name: "Project details" });
     expect(within(details).getByText("9")).toBeInTheDocument();
     expect(within(details).getByText("Shutters")).toBeInTheDocument();
-    expect(within(details).getByText("Designer")).toBeInTheDocument();
     expect(within(details).getByText("Not scheduled yet")).toBeInTheDocument();
+    // No Finish row: the questionnaire stopped asking, so it only ever said "Being chosen with you" (owner 2026-11-05).
+    expect(within(details).queryByText("Finish")).toBeNull();
+    expect(within(details).queryByText("Designer")).toBeNull();
+    expect(signedOrder).not.toHaveBeenCalled();
+  });
+
+  describe("once a contract is signed (owner 2026-11-05)", () => {
+    const signed = { jobStatus: "ordered", versionId: "6e2f7b3f-4c5d-4e6f-9a71-8b9c0d1e2f3a", version: 2, versionStatus: "signed",
+      soldCents: 184833, amountCents: 92417, signedAt: new Date("2026-09-28T17:00:00Z"), paid: { id: "d", status: "paid" }, pending: null, refunded: null };
+    const order = [
+      { room: "Primary Bedroom", product: "Silhouette PowerView Gen 3 Automation Bottom-Up", qty: 2 },
+      { room: "Kitchen", product: "Palm Beach Standard Rectangle or Tracks", qty: 2 },
+      { room: "Accessory", product: "PowerView Gateway", qty: 1 },
+    ];
+
+    it("lists the signed quote's rooms, products and quantities in place of the treatment answers", async () => {
+      depositState.mockResolvedValue(signed);
+      signedOrder.mockResolvedValue(order);
+      render(await ProjectView({ job }));
+      expect(signedOrder).toHaveBeenCalledWith(signed.versionId);
+      const details = screen.getByRole("region", { name: "Project details" });
+      expect(within(details).getByRole("heading", { name: "Your order" })).toBeInTheDocument();
+      const rows = within(details).getAllByRole("listitem");
+      expect(rows.map((row) => row.textContent)).toEqual([
+        "Primary BedroomSilhouette PowerView Gen 3 Automation Bottom-Up×2",
+        "KitchenPalm Beach Standard Rectangle or Tracks×2",
+        "AccessoryPowerView Gateway×1",
+      ]);
+      expect(within(details).queryByText("Treatments")).toBeNull();
+      // The owner's exact count wins: a shutter line's quantity can count panels.
+      expect(within(details).getByText("9")).toBeInTheDocument();
+      expect(details.textContent).not.toMatch(/\$/);
+    });
+
+    it("counts windows from the order's rooms when the owner hasn't entered a count", async () => {
+      depositState.mockResolvedValue(signed);
+      signedOrder.mockResolvedValue(order);
+      render(await ProjectView({ job: { ...job, windowCountExact: null } }));
+      const details = screen.getByRole("region", { name: "Project details" });
+      expect(within(details).getByText("4")).toBeInTheDocument();
+    });
+
+    it("shows no order for a cancelled contract, and keeps the treatment answers", async () => {
+      depositState.mockResolvedValue({ ...signed, versionStatus: "cancelled" });
+      signedOrder.mockResolvedValue(order);
+      render(await ProjectView({ job }));
+      expect(signedOrder).not.toHaveBeenCalled();
+      const details = screen.getByRole("region", { name: "Project details" });
+      expect(within(details).queryByRole("heading", { name: "Your order" })).toBeNull();
+      expect(within(details).getByText("Shutters")).toBeInTheDocument();
+    });
   });
 
   // A tick claims the work happened. This job was quoted off the consultation with no

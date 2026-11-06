@@ -61,10 +61,13 @@ export function keyDetails(options: [string, string][]): string {
   return [size, get("Mount Type"), fabric, get("Control System")].filter(Boolean).join(" · ");
 }
 
+/** A product as the quote, the contract and the client's project page name it: without the brand prefix. */
+export const productName = (description: string): string => description.replace(/^Hunter Douglas\s+/, "");
+
 export function contractRows(input: ContractInput): { rows: ContractRow[]; totals: [string, string][] } {
   const rows: ContractRow[] = input.lines.map((line) => ({
     room: line.room || "Accessory",
-    product: line.description.replace(/^Hunter Douglas\s+/, ""),
+    product: productName(line.description),
     details: keyDetails(line.options),
     qty: String(line.qty),
     unit: formatCents(line.sellUnitCents),
