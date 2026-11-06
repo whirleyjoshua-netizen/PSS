@@ -124,3 +124,34 @@ describe("the roman shades guide (keyword gap 2026-11-03)", () => {
     expect(text).not.toMatch(/motoriz|BLISS/i);
   });
 });
+
+describe("the cellular shades energy guide (content pipeline, queue item 1)", () => {
+  const cellular = articles.find((a) => a.slug === "cellular-shades-energy-las-vegas")!;
+  const text = JSON.stringify(cellular);
+
+  it("shows our own cellular installs and links back from the cellular shades page", async () => {
+    expect(cellular.sections.flatMap((s) => (s.photo ? [s.photo.src] : []))).toEqual([
+      "/gallery/cellular-shades-sitting-room.webp",
+      "/gallery/cellular-shades-top-down-bedroom.webp",
+    ]);
+    render(await ProductPage({ params: Promise.resolve({ category: "shades", product: "cellular-shades" }) }));
+    expect(screen.getByRole("link", { name: /Cellular shades in Las Vegas/ })).toHaveAttribute("href", "/learn/cellular-shades-energy-las-vegas");
+  });
+
+  // Research brief "Do NOT claim": no savings figures or R-values, no promise of a truly dark cellular room, no
+  // side channels for cellular, no Hunter Douglas product names, no drapes.
+  it("promises no number, no R-value and no cellular side channels", () => {
+    expect(text).toMatch(/won't promise you a number/);
+    expect(text).not.toMatch(/R-?value|pays for itself|\d+% (of )?(savings|less|more)|25%|AERC|low-e/i);
+    expect(text).not.toMatch(/drape|curtain|®[^"]*Hunter|Honeycomb Shades®|Duette/i);
+    for (const section of cellular.sections)
+      for (const p of section.paragraphs) if (/side channels/.test(p)) expect(p).toMatch(/blackout roller shade with side channels/);
+  });
+
+  it("keeps the 70–90% heat figure on solar screens only, and says exterior shading wins", () => {
+    const screens = cellular.sections.flatMap((s) => s.paragraphs).filter((p) => /70–90%/.test(p));
+    expect(screens).toHaveLength(1);
+    expect(screens[0]).toMatch(/exterior solar screen/);
+    expect(text).not.toMatch(/best (treatment|product) for Las Vegas heat/i);
+  });
+});
