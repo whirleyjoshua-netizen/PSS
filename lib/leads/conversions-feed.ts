@@ -2,7 +2,7 @@ import "server-only";
 import { db } from "@/lib/db";
 import { BOOKED_OR_LATER, SOLD_OR_LATER } from "@/lib/admin/stages";
 import { ATTRIBUTION_DAYS } from "./attribution";
-import { conversionsCsv, type ConversionRow } from "./conversions";
+import { conversionsCsv, type ConversionKind, type ConversionRow } from "./conversions";
 
 /**
  * Every ad-click lead still inside Google's 90-day window, as the offline
@@ -11,7 +11,7 @@ import { conversionsCsv, type ConversionRow } from "./conversions";
  * harmless: Google skips a conversion it has already recorded for that click,
  * name and time.
  */
-export async function conversionsCsvNow(): Promise<string> {
+export async function conversionsCsvNow(only?: ConversionKind): Promise<string> {
   // Reaching a stage counts from its first stage entry, so a job that skipped
   // ahead (booked straight to ordered) still reports when it was won. Both lists
   // come from the one stage definition, so a new stage counts without editing this.
@@ -37,5 +37,6 @@ export async function conversionsCsvNow(): Promise<string> {
       soldAt: row.sold_at ? new Date(row.sold_at as string) : null,
       soldCents: (row.sold_cents as number | null) ?? null,
     })),
+    only,
   );
 }

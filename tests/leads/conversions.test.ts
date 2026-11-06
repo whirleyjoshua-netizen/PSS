@@ -56,4 +56,26 @@ describe("conversionsCsv", () => {
     expect(csv.trim().split("\n").slice(1).map((line) => line.split(",")[1]))
       .toEqual(["Consultation request", "Appointment booked", "Sale"]);
   });
+
+  describe("one action only, for a Data Manager connection tied to that action (owner 2026-11-05)", () => {
+    const row = {
+      gclid: "Cj0abc",
+      createdAt: new Date("2026-09-14T20:05:00Z"),
+      bookedAt: new Date("2026-09-15T17:00:00Z"),
+      soldAt: new Date("2026-09-20T18:30:00Z"),
+      soldCents: 245000,
+      source: "hero",
+    };
+    const HEADER = "Google Click ID,Conversion Name,Conversion Time,Conversion Value,Conversion Currency";
+    it.each([
+      ["lead", "Cj0abc,Consultation request,2026-09-14 20:05:00+00:00,,"],
+      ["booked", "Cj0abc,Appointment booked,2026-09-15 17:00:00+00:00,,"],
+      ["sale", "Cj0abc,Sale,2026-09-20 18:30:00+00:00,2450.00,USD"],
+    ] as const)("%s", (kind, line) => {
+      expect(conversionsCsv([row], kind).split("\n")).toEqual([HEADER, line, ""]);
+    });
+    it("keeps the header when the action has no rows, and still skips a Google lead form's own submit", () => {
+      expect(conversionsCsv([{ ...row, source: "google_form" }], "lead")).toBe(`${HEADER}\n`);
+    });
+  });
 });

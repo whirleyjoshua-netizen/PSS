@@ -15,6 +15,9 @@ export const CONVERSIONS = {
   sale: "Sale",
 } as const;
 
+/** One of the three conversion actions. Google Data Manager ties each HTTPS connection to exactly one. */
+export type ConversionKind = keyof typeof CONVERSIONS;
+
 export type ConversionRow = {
   gclid: string;
   /** The lead's stored source. A Google lead form lead's submit is already Google's own conversion. */
@@ -33,11 +36,18 @@ export const conversionTime = (at: Date) => `${at.toISOString().slice(0, 19).rep
 /** A gclid is URL-safe base64, but quoting keeps a hand-edited value from breaking the row. */
 const cell = (value: string) => (/[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value);
 
-export function conversionsCsv(rows: ConversionRow[]): string {
+/**
+ * The file for every action, or, given `only`, for that one action alone: Data Manager connects each
+ * HTTPS source to a single conversion action and would count every row as that action (owner 2026-11-05).
+ */
+export function conversionsCsv(rows: ConversionRow[], only?: ConversionKind): string {
   const lines = [HEADER];
+  const wanted = only ? CONVERSIONS[only] : null;
   for (const row of rows) {
-    const add = (name: string, at: Date, value = "") =>
+    const add = (name: string, at: Date, value = "") => {
+      if (wanted && name !== wanted) return;
       lines.push([cell(row.gclid), name, conversionTime(at), value, value ? "USD" : ""].join(","));
+    };
     // Google counts a lead form submit as that form's conversion; uploading it again would double count. An offer
     // pop-up sign-up is a name and email, not a consultation request: it counts only once it books.
     if (row.source !== GOOGLE_FORM_SOURCE && row.source !== OFFER_SOURCE) add(CONVERSIONS.lead, row.createdAt);
