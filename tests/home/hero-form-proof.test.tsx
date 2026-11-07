@@ -17,7 +17,7 @@ afterEach(() => vi.useRealTimers());
 describe("the hero subhead", () => {
   it("names the products and every service-area city, in the serviceArea order", () => {
     expect(HERO_SUBHEAD).toBe(
-      "Custom blinds, shades, shutters and solar screens for Las Vegas, Henderson, Summerlin and North Las Vegas. Shade’ designs, Josh measures and installs. No call center, no subcontractors.",
+      "Custom blinds, shades, shutters and solar screens for Las Vegas, Henderson, Summerlin and North Las Vegas. Family owned and operated.",
     );
     const [first, ...rest] = business.serviceArea;
     expect(HERO_SUBHEAD).toContain(`for ${first}, ${rest.slice(0, -1).join(", ")} and ${rest.at(-1)}.`);

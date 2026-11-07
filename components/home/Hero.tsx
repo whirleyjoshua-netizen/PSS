@@ -24,7 +24,7 @@ const cities = (names: readonly string[]) =>
 /** The search words the homepage is meant to win, with the tagline kept as the line beneath (owner, 2026-10-27, SEO audit). */
 export const HERO_HEADLINE = "Custom blinds, shades and shutters in Las Vegas.";
 
-export const HERO_SUBHEAD = `Custom blinds, shades, shutters and solar screens for ${cities(business.serviceArea)}. Shade’ designs, Josh measures and installs. No call center, no subcontractors.`;
+export const HERO_SUBHEAD = `Custom blinds, shades, shutters and solar screens for ${cities(business.serviceArea)}. Family owned and operated.`;
 
 function HeroFormProof() {
   return (
