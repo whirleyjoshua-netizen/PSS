@@ -22,6 +22,8 @@ export type ConversionRow = {
   gclid: string;
   /** The lead's stored source. A Google lead form lead's submit is already Google's own conversion. */
   source: string | null;
+  /** Stored digits, or "" when none: an offer pop-up sign-up with a phone is a consultation request. */
+  phone?: string | null;
   createdAt: Date;
   bookedAt: Date | null;
   soldAt: Date | null;
@@ -49,8 +51,10 @@ export function conversionsCsv(rows: ConversionRow[], only?: ConversionKind): st
       lines.push([cell(row.gclid), name, conversionTime(at), value, value ? "USD" : ""].join(","));
     };
     // Google counts a lead form submit as that form's conversion; uploading it again would double count. An offer
-    // pop-up sign-up is a name and email, not a consultation request: it counts only once it books.
-    if (row.source !== GOOGLE_FORM_SOURCE && row.source !== OFFER_SOURCE) add(CONVERSIONS.lead, row.createdAt);
+    // pop-up sign-up with only a name and email is not a consultation request: it counts only once it books. With a
+    // phone number it is one (owner 2026-11-06).
+    const emailOnlyOffer = row.source === OFFER_SOURCE && !row.phone;
+    if (row.source !== GOOGLE_FORM_SOURCE && !emailOnlyOffer) add(CONVERSIONS.lead, row.createdAt);
     if (row.bookedAt) add(CONVERSIONS.booked, row.bookedAt);
     // A sale with no amount entered still counts; Google then uses the action's default value.
     if (row.soldAt) add(CONVERSIONS.sale, row.soldAt, row.soldCents ? (row.soldCents / 100).toFixed(2) : "");

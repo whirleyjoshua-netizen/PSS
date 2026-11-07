@@ -53,6 +53,7 @@ export function OfferPopup() {
   const dialog = useRef<HTMLDialogElement>(null);
   const [offers, setOffers] = useState<PopupOffer[] | null>(null);
   const [state, setState] = useState<"idle" | "submitting" | "success" | "error">("idle");
+  const [withPhone, setWithPhone] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const headingId = useId();
 
@@ -106,6 +107,7 @@ export function OfferPopup() {
     const parsed = offerSignupSchema.safeParse({
       name: String(data.get("name") ?? ""),
       email: String(data.get("email") ?? ""),
+      phone: String(data.get("phone") ?? ""),
       attribution: storedAttribution(),
       company: String(data.get("company") ?? ""),
     });
@@ -129,7 +131,9 @@ export function OfferPopup() {
         return;
       }
       remember(LEAD_SENT_KEY);
-      trackOfferSignup();
+      const called = parsed.data.phone.length > 0;
+      trackOfferSignup(called);
+      setWithPhone(called);
       setState("success");
     } catch {
       setError("We could not reach the server. Please check your connection or call us.");
@@ -156,8 +160,8 @@ export function OfferPopup() {
 
         {state === "success" ? (
           <div role="status" className="flex flex-col gap-4 pr-8">
-            <h2 id={headingId} className="font-display text-2xl font-light tracking-tight">{OFFER_POPUP.sentHeading}</h2>
-            <p className="text-sm text-ink-soft">{OFFER_POPUP.sentBody}</p>
+            <h2 id={headingId} className="font-display text-2xl font-light tracking-tight">{withPhone ? OFFER_POPUP.calledHeading : OFFER_POPUP.sentHeading}</h2>
+            <p className="text-sm text-ink-soft">{withPhone ? OFFER_POPUP.calledBody : OFFER_POPUP.sentBody}</p>
             <div className="flex flex-wrap items-center gap-4">
               <ButtonLink href="/#book" variant="solid">Book a time</ButtonLink>
               <a href={business.phone.href} className="text-sm underline underline-offset-4">{business.phone.display}</a>
@@ -175,6 +179,10 @@ export function OfferPopup() {
             <p className="text-sm text-ink-soft">{OFFER_POPUP.intro}</p>
             <TextField id="offer-name" name="name" label="Name" autoComplete="name" required />
             <TextField id="offer-email" name="email" label="Email" type="email" inputMode="email" autoComplete="email" required />
+            <div className="flex flex-col gap-1">
+              <TextField id="offer-phone" name="phone" label="Phone (optional)" type="tel" inputMode="tel" autoComplete="tel" />
+              <p className="text-xs text-ink-soft">{OFFER_POPUP.phoneHint}</p>
+            </div>
             <Honeypot />
             <FormMessage state={state} error={error} phone={business.phone} successTitle="" successBody="" />
             <Button type="submit" disabled={state === "submitting"} className="w-full">

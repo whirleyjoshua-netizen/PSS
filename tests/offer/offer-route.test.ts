@@ -39,6 +39,22 @@ describe("POST /api/offer", () => {
     expect(sendOfferEmail).toHaveBeenCalledTimes(1);
   });
 
+  it("with a phone number, stores it and files it as a consultation request to call", async () => {
+    const response = await POST(request({ ...body, phone: "1 (702) 555-0142" }));
+    expect(response.status).toBe(201);
+    const lead = insertOfferLead.mock.calls[0][0];
+    expect(lead.phone).toBe("7025550142");
+    expect(lead.notes).toContain("Call them.");
+    expect(lead.notes).toContain(HOLIDAY_LEAD_NOTE);
+  });
+
+  it("without one, stores it empty as an email sign-up", async () => {
+    await POST(request(body));
+    const lead = insertOfferLead.mock.calls[0][0];
+    expect(lead.phone).toBe("");
+    expect(lead.notes).toContain("name and email only");
+  });
+
   it("asks for a name and a real email", async () => {
     const response = await POST(request({ name: "Dana", email: "nope" }));
     expect(response.status).toBe(400);

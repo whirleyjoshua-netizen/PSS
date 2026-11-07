@@ -31,7 +31,7 @@ describe("Hunter Douglas advertising rules", () => {
     vi.stubEnv("RESEND_API_KEY", "k");
     send.mockResolvedValue({ error: null });
     const { sendOfferEmail } = await import("@/lib/leads/offer-signup");
-    await sendOfferEmail({ name: "Dana Reyes", email: "d@example.com" }, new Date("2026-10-22T20:00:00Z"));
+    await sendOfferEmail({ name: "Dana Reyes", email: "d@example.com", phone: "" }, new Date("2026-10-22T20:00:00Z"));
     expect(send.mock.calls[0][0].text).toContain(HD_RESTRICTED_EXCLUSION);
   });
 

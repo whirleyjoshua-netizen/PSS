@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { offerSignupSchema } from "@/lib/leads/schema";
 import { ownerRecipients } from "@/lib/leads/email";
 import { liveOffers } from "@/content/offer-popup";
-import { insertOfferLead, offerSignupNotes, sendOfferEmail, sendOfferNotification } from "@/lib/leads/offer-signup";
+import { insertOfferLead, offerHasPhone, offerSignupNotes, sendOfferEmail, sendOfferNotification } from "@/lib/leads/offer-signup";
 
 /**
  * The offer pop-up's sign-up (owner 2026-10-21). The same never-lose-a-lead rule as /api/consultation: the lead and
@@ -36,7 +36,7 @@ export async function POST(request: Request) {
     return Response.json({ ok: false, error: "This offer has ended. Call us and we'll tell you what's on now." }, { status: 410 });
   }
   const id = randomUUID();
-  const notes = offerSignupNotes(now);
+  const notes = offerSignupNotes(now, offerHasPhone(parsed.data));
   const [stored, emailed] = await Promise.allSettled([
     insertOfferLead({ ...parsed.data, id, notes }),
     sendOfferNotification({ ...parsed.data, notes }, id, ownerRecipients()),

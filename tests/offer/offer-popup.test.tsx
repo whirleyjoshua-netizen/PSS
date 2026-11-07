@@ -26,7 +26,7 @@ afterEach(() => {
 });
 
 describe("the offer pop-up (owner 2026-10-21)", () => {
-  it("shows as soon as they land, with both running offers, and asks for a name and email", async () => {
+  it("shows as soon as they land, with both running offers, and asks for a name and email, and an optional phone", async () => {
     render(<OfferPopup />);
     expect(popup()).toBeNull();
     await wait(1_500);
@@ -35,7 +35,7 @@ describe("the offer pop-up (owner 2026-10-21)", () => {
     expect(screen.getByText(SOLAR_FORM_LINE)).toBeInTheDocument();
     expect(screen.getByLabelText(/^name/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/^email/i)).toBeInTheDocument();
-    expect(screen.queryByLabelText(/^phone/i)).toBeNull();
+    expect(screen.getByLabelText(/^phone/i)).not.toBeRequired();
   });
 
   it("shows once per browser", async () => {
@@ -101,6 +101,35 @@ describe("the offer pop-up (owner 2026-10-21)", () => {
     expect(window.localStorage.getItem(LEAD_SENT_KEY)).toBe("1");
     expect(sendGAEvent).toHaveBeenCalledWith("event", "offer_signup", {});
     expect(sendGAEvent).not.toHaveBeenCalledWith("event", "generate_lead", expect.anything());
+  });
+
+  it("with a phone number it is a consultation request: sends the digits, says we'll call, counts as a lead", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ ok: true }), { status: 201 }));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<OfferPopup />);
+    await wait(1_500);
+    fireEvent.change(screen.getByLabelText(/^name/i), { target: { value: "Dana Reyes" } });
+    fireEvent.change(screen.getByLabelText(/^email/i), { target: { value: "dana@example.com" } });
+    fireEvent.change(screen.getByLabelText(/^phone/i), { target: { value: "(702) 555-0142" } });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Claim my offer" })); });
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toMatchObject({ phone: "7025550142" });
+    expect(screen.getByText("You're all set.")).toBeInTheDocument();
+    expect(screen.getByText(/We'll call you within a business day/)).toBeInTheDocument();
+    expect(sendGAEvent).toHaveBeenCalledWith("event", "generate_lead", { form: "offer" });
+    expect(sendGAEvent).not.toHaveBeenCalledWith("event", "offer_signup", expect.anything());
+  });
+
+  it("refuses a phone number that isn't 10 digits, and sends nothing", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    render(<OfferPopup />);
+    await wait(1_500);
+    fireEvent.change(screen.getByLabelText(/^name/i), { target: { value: "Dana Reyes" } });
+    fireEvent.change(screen.getByLabelText(/^email/i), { target: { value: "dana@example.com" } });
+    fireEvent.change(screen.getByLabelText(/^phone/i), { target: { value: "555-01" } });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Claim my offer" })); });
+    expect(screen.getByRole("alert")).toHaveTextContent("Please enter a 10-digit phone number, or leave it blank.");
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("shows the problem and sends nothing when the email is wrong", async () => {

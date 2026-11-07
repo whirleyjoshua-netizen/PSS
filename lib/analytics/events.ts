@@ -24,10 +24,11 @@ function send(name: string, params: Record<string, string>) {
 export const trackLead = (form: LeadSource) => send(EVENTS.lead, { form });
 
 /**
- * An offer pop-up sign-up: a name and email, not a consultation request, so it is not generate_lead and never feeds
- * the Ads lead conversion.
+ * An offer pop-up sign-up. Name and email only is not a consultation request, so it is offer_signup and never feeds
+ * the Ads lead conversion. With a phone number it is one (owner 2026-11-06), so it is generate_lead.
  */
-export const trackOfferSignup = () => send(EVENTS.offer, {});
+export const trackOfferSignup = (withPhone = false) =>
+  withPhone ? send(EVENTS.lead, { form: "offer" }) : send(EVENTS.offer, {});
 
 /** A click on the announcement strip, so we can see which promo brings consults. */
 export const trackPromoClick = (promo: string, page: string) => send(EVENTS.promo, { promo, page });

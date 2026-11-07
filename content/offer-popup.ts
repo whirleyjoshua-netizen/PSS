@@ -1,3 +1,4 @@
+import { CALLBACK_WINDOW } from "./consultation";
 import { isPromoLive, type Season } from "@/lib/promo";
 import { holidayOffer, solarOffer } from "./promo";
 import { HOLIDAY_FORM_LINE, HOLIDAY_LEAD_NOTE, HOLIDAY_OFFER_LAST_DAY } from "./holiday";
@@ -19,10 +20,14 @@ export const liveOffers = (now: Date): PopupOffer[] => POPUP_OFFERS.filter((offe
 
 export const OFFER_POPUP = {
   heading: "Claim your holiday offer before it's too late.",
-  intro: `Not ready to book yet? Send us your name and email and we'll email you the offer. Book your free consult by ${HOLIDAY_OFFER_LAST_DAY} to use it.`,
+  intro: `Leave your number and we'll call to set up your free consult, or just your email and we'll send you the offer. Book by ${HOLIDAY_OFFER_LAST_DAY} to use it.`,
+  phoneHint: "Optional. Add it and we'll call you to book.",
   button: "Claim my offer",
   sentHeading: "Check your email.",
   sentBody: "The offer is on its way. When you're ready, book a time online or call us.",
+  /** With a phone number it is a consultation request (owner 2026-11-06). */
+  calledHeading: "You're all set.",
+  calledBody: `We'll call you ${CALLBACK_WINDOW} to set up your free consult. Your offer is in your email too.`,
 } as const;
 
 /**

@@ -14,8 +14,9 @@ export type LeadSource = (typeof LEAD_SOURCES)[number];
 export const GOOGLE_FORM_SOURCE = "google_form";
 
 /**
- * A name-and-email sign-up from the offer pop-up (app/api/offer): not a consultation request yet, so it has no phone
- * or city (stored empty) and is never counted as a lead conversion.
+ * A sign-up from the offer pop-up (app/api/offer). Name and email only is not a consultation request yet: no phone or
+ * city (stored empty), never counted as a lead conversion. With a phone number it is a consultation request (owner
+ * 2026-11-06): the owners call, and it counts as one.
  */
 export const OFFER_SOURCE = "offer";
 
@@ -87,6 +88,14 @@ export type ConsultationInput = z.infer<typeof consultationSchema>;
 export const offerSignupSchema = z.object({
   name: consultationSchema.shape.name,
   email: consultationSchema.shape.email,
+  /** Optional (owner 2026-11-06): blank stays an email sign-up; anything typed must be a real 10-digit number. */
+  phone: z
+    .string()
+    .max(40)
+    .optional()
+    .transform((value) => (value ?? "").replace(/\D/g, ""))
+    .transform((digits) => (digits.length === 11 && digits.startsWith("1") ? digits.slice(1) : digits))
+    .refine((digits) => digits.length === 0 || digits.length === 10, "Please enter a 10-digit phone number, or leave it blank."),
   attribution: attributionSchema.optional().catch(undefined),
   company: z.string().max(0, "Rejected").optional(),
 });
