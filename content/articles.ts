@@ -331,6 +331,99 @@ export const articles: Article[] = [
       { name: "Roller shades", href: "/shades/roller-shades" },
     ],
   },
+  {
+    // Content pipeline queue item 1, GUIDE cellular-shades-energy-las-vegas ("cellular shades", 140 searches a month in
+    // the Las Vegas DMA). Every claim comes from docs/content-pipeline/cellular-shades-energy-las-vegas/research.md:
+    // product claims from content/products.ts, content/faq.ts, content/cities.ts and the guides above; general facts
+    // from the DOE/PNNL, NV Energy and National Weather Service sources cited there. No savings figures, no R-values.
+    slug: "cellular-shades-energy-las-vegas",
+    crumb: "Cellular shades and energy",
+    title: "Cellular shades in Las Vegas: how the honeycomb handles the heat",
+    seo: {
+      title: "Cellular Shades for Las Vegas Heat | Premier Shade Solutions",
+      description:
+        "Do cellular shades keep a Las Vegas home cooler? How the honeycomb works in summer, which windows it helps most, and when to pair it with a solar screen.",
+    },
+    published: "2026-11-09",
+    updated: "2026-11-09",
+    quickAnswer:
+      "They do, and not only in winter. A cellular shade's honeycomb traps still air against the glass, and in a Las Vegas summer that layer slows the afternoon heat coming in, most of all on single-pane glass in older aluminum frames and on west- and south-facing windows. They only help when they're down, so put them on a schedule. On the hottest walls, pair them with an exterior solar screen, which stops the heat before it reaches the glass.",
+    sections: [
+      {
+        heading: "Not just a winter product",
+        paragraphs: [
+          "Most of what you'll read about cellular shades was written for cold places, and it's mostly about keeping heat in. Even the Department of Energy's fact sheet on them says the trapped air is particularly beneficial in colder climates, and the experiments behind it focused on the heating season. So it's fair to ask whether any of that matters in a valley where the normal July high is about 104°F.",
+          "It does, in the direction people forget. A cellular shade's insulation slows heat coming in, not just heat leaking out. The same fact sheet notes that cellular shades reduce unwanted solar heat gain, and a study at Pacific Northwest National Laboratory, a Department of Energy lab, found real energy-saving potential in the summer cooling season, with one big condition we'll get to: the shades have to be down on the windows taking the sun.",
+          "Winter still counts here too. December and January nights in Las Vegas average lows around 40°F, and the same shade that slows the afternoon heat in July keeps those nights from pulling warmth out through the glass. We'll be honest that the hot-weather research is thinner than the cold-weather research, so we won't oversell it: what you get depends on which windows you cover and when.",
+        ],
+      },
+      {
+        heading: "How the honeycomb works",
+        photo: install("/gallery/cellular-shades-sitting-room.webp"),
+        paragraphs: [
+          "Cellular shades, sometimes called honeycomb shades, are built from pleated cells that trap a layer of still air against the glass, with more still air held between the shade and the window. That trapped air is genuine insulation, and it's the reason this is the highest-performing energy product among shades. It's why we call it the insulating one.",
+          "They come in single, double and triple cell constructions, for increasing insulation. On a single-pane window or an older aluminum frame, a double-cell shade makes a measurable difference in how hard the air conditioning has to work in the afternoon. What we usually recommend is double cell, with 1½-inch cells rather than ¾-inch ones.",
+          "If your windows still have plain vinyl blinds, this is a real upgrade. The Department of Energy's fact sheet notes that blinds block some of the sun but don't provide much insulation, and in the PNNL tests double-cell shades outperformed typical vinyl blinds in every case and scenario they tested.",
+          "Some of the cellular shades we carry have an energy rating from the Attachments Energy Rating Council (AERC), an independent rating program the Department of Energy helped set up. AERC-certified products carry a Cool Climate and a Warm Climate rating. In Las Vegas, the Warm Climate rating is the one to look at, and you can look up any certified product with the AERC's product search.",
+        ],
+      },
+      {
+        heading: "The windows where they matter most",
+        paragraphs: [
+          "Start with the glass. In older parts of Las Vegas we're often working with single-pane windows in aluminum frames, and there an insulating cellular shade slows the heat coming through the glass more than anything else we sell.",
+          "Then look at which way the window faces. West-facing glass in the Las Vegas valley takes direct sun from about two in the afternoon until sunset, in the hottest part of the day. The Department of Energy's Building America guidance says that in hotter climates, shading east- and west-facing surfaces well is of primary importance, and the PNNL study singled out the large west and south windows.",
+          "Newer homes are a different conversation. In newer construction the glass is bigger and better, and the problem shifts from heat loss to glare and UV, which is usually a solar shade or a shutter conversation instead. We'll tell you which one your windows are.",
+        ],
+      },
+      {
+        heading: "Room by room",
+        photo: install("/gallery/cellular-shades-top-down-bedroom.webp"),
+        paragraphs: [
+          "Bedrooms: this is where cellular shades earn their keep. They come in light-filtering and blackout cell fabrics, and on a front-facing bedroom we often make them top-down bottom-up, so you drop the top for daylight while the bottom half stays private. If someone in the house sleeps days, a blackout cellular shade is a strong option: it blocks heat as well as light, and it leaves smaller light gaps at the sides than an ordinary shade. The most reliable setup for a truly dark room is still a blackout roller shade with side channels, because the channels close the light gaps at the edges. Our guide to blackout shades for day sleepers walks through it.",
+          "Street-side bathrooms: top-down bottom-up again, for daylight up top and privacy below.",
+          "Living rooms and great rooms with tall windows: cellular shades stack remarkably small. Raised to the top of a tall window, one takes up a fraction of the space a comparable roman or roller would, which keeps the glass usable. Glass too high to reach gets motorized.",
+          "Patio sliders: vertical blinds are still the most sensible answer on most sliding doors, and a cellular shade is another good one, because it keeps the door working while cutting the glare.",
+          "Rooms where the view is the point: choose a solar shade instead. It cuts heat and glare while you still see out. Cellular is the one for insulation; a solar shade is the one for the view.",
+        ],
+      },
+      {
+        heading: "They only help when they're down.",
+        paragraphs: [
+          "This is the condition from the summer research, and it's the part most people miss. In the PNNL study, when the large west and south windows were left uncovered during the day, most of the summer benefit disappeared. A cellular shade raised to the top of a west window at three in the afternoon isn't doing much about the heat.",
+          "NV Energy's list of conservation measures says the same thing: use shades to block sunlight in the cooling season, let sunlight in during the heating season, and cover windows tightly at night when it's cold. In practice, close the west and south shades before the afternoon sun arrives in summer. In winter, open the sunny ones during the day and close everything at night.",
+          "That routine is easy to forget, which is where motorization comes in. Honeycomb is one of the styles we install Alta's BLISS® Automation 2.0 on: set timers by the clock or by your local sunrise and sunset, and each motor recharges overnight with a USB-C cable. The Department of Energy's guidance notes that window coverings can be automated to save energy even when the home is empty, and a motorized shade can close itself at 2pm every summer afternoon, whether or not anyone is home.",
+          "That's also the honest answer to what they'll save you. It depends on your windows and which way they face: single-pane or dual-pane glass, west and south or north and east, the cell construction, whether there's a screen outside, and whether the shades are actually down in the afternoon. So we won't promise you a number.",
+        ],
+      },
+      {
+        heading: "Cellular inside, solar screen outside",
+        paragraphs: [
+          "We'll be straight about the limits. Any inside shade, however good, is working on heat that has already come through the glass. The Department of Energy's guidance puts it simply: exterior window attachments block solar heat before it reaches the window, and it's harder to reflect heat back out a window than to block it before it gets there.",
+          "That's why, on the hardest walls, we start outside. An exterior solar screen turns away roughly 70–90% of the sun's heat, and screens are the most economical way to treat a whole west or south wall. Inside that screen, a cellular shade adds its insulation. Our guide to west-facing windows and our comparison of solar screens and solar shades go deeper on the outside layer.",
+        ],
+      },
+      {
+        heading: "Living with them in the desert dust",
+        paragraphs: [
+          "Dust is the main thing in this valley: fine desert dust settles on window coverings and works its way into headrails. Dust or vacuum your cellular shades with a soft brush regularly, and check the maker's care instructions before using anything wet on the fabric.",
+          "Cordless is an option on every cellular shade we sell. If a cordless cellular shade starts drifting down, a two-minute reset usually fixes it, and our guide to a cordless cellular shade that won't stay up shows you how.",
+        ],
+      },
+      {
+        heading: "Choosing yours at the window",
+        paragraphs: [
+          "Cell fabrics look different in your own light than they do in a showroom. At your free consultation we walk the house with you, note which windows take the afternoon sun, and bring cellular, solar shade and screen samples to hold up at the windows they're meant for. We carry Hunter Douglas, Alta and Norman.",
+          "Josh measures every window himself, backed by our measurement guarantee, and we install every shade ourselves. We work across the whole Las Vegas valley, from older central Las Vegas homes with single-pane glass to Henderson neighborhoods like Green Valley and MacDonald Highlands, plus Pahrump and Mesquite.",
+        ],
+      },
+    ],
+    products: [
+      { name: "Cellular shades", href: "/shades/cellular-shades" },
+      { name: "Solar screens", href: "/outdoor/solar-screens" },
+      { name: "Solar shades", href: "/shades/solar-shades" },
+      { name: "Motorization", href: "/motorization" },
+    ],
+  },
 ];
 
 /**
