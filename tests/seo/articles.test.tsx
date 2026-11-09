@@ -142,7 +142,7 @@ describe("the cellular shades energy guide (content pipeline, queue item 1)", ()
   // side channels for cellular, no Hunter Douglas product names, no drapes.
   it("promises no number, no R-value and no cellular side channels", () => {
     expect(text).toMatch(/won't promise you a number/);
-    expect(text).not.toMatch(/R-?value|pays for itself|\d+% (of )?(savings|less|more)|25%|AERC|low-e/i);
+    expect(text).not.toMatch(/R-?value|pays for itself|\d+% (of )?(savings|less|more)|25%|low-e|reflective/i);
     expect(text).not.toMatch(/drape|curtain|®[^"]*Hunter|Honeycomb Shades®|Duette/i);
     for (const section of cellular.sections)
       for (const p of section.paragraphs) if (/side channels/.test(p)) expect(p).toMatch(/blackout roller shade with side channels/);
@@ -153,5 +153,16 @@ describe("the cellular shades energy guide (content pipeline, queue item 1)", ()
     expect(screens).toHaveLength(1);
     expect(screens[0]).toMatch(/exterior solar screen/);
     expect(text).not.toMatch(/best (treatment|product) for Las Vegas heat/i);
+  });
+
+  // Owner answers (docs/content-pipeline/cellular-shades-energy-las-vegas/owner-answers.md).
+  it("follows the owner answers: double cell, cordless option, AERC Warm Climate, rollers stay the day-sleeper answer", () => {
+    expect(text).toMatch(/double cell, with 1½-inch cells rather than ¾-inch/);
+    expect(text).toMatch(/Cordless is an option on every cellular shade we sell/);
+    expect(text).toMatch(/Some of the cellular shades we carry have an energy rating/);
+    expect(text).toMatch(/Warm Climate rating is the one to look at/);
+    expect(text).not.toMatch(/(Alta|Norman)[^.]*AERC|AERC[^.]*(Alta|Norman)/);
+    expect(text).toMatch(/blackout cellular shade is a strong option/);
+    expect(text).toMatch(/most reliable setup for a truly dark room is still a blackout roller shade with side channels/);
   });
 });
