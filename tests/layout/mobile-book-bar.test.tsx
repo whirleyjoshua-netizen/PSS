@@ -238,4 +238,19 @@ describe("SiteChrome", () => {
     const footer = screen.getByRole("contentinfo");
     expect(footer.compareDocumentPosition(bar()!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
+
+  // Owner 2026-11-10: no offer pop-up on any public page. The date sits inside the fall offer window,
+  // so the old pop-up would have opened here.
+  it("never opens an offer pop-up", () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+    vi.setSystemTime(new Date("2026-11-10T18:00:00Z"));
+    try {
+      pathname = "/";
+      const { container } = render(<SiteChrome>page</SiteChrome>);
+      act(() => { vi.advanceTimersByTime(10_000); });
+      expect(container.querySelector("dialog")).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
