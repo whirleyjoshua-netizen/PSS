@@ -59,16 +59,13 @@ vi.mock("@simplewebauthn/browser", () => ({
 }));
 
 const agentStore = {
-  listAgentCards: vi.fn(async (): Promise<unknown[]> => []),
-  getAgentSettings: vi.fn(async () => ({ mailingAddress: null as string | null, signature: null as string | null, lastDigestAt: null })),
   listSuppressions: vi.fn(async (): Promise<unknown[]> => []),
 };
 vi.mock("@/lib/agents/store", () => agentStore);
 vi.mock("@/lib/column/store", () => ({ getColumnKey: vi.fn(async () => null) }));
 vi.mock("@/app/admin/settings/column-actions", () => ({ createColumnKeyAction: vi.fn(async () => ({})), disconnectColumnAction: vi.fn(async () => ({})) }));
 vi.mock("@/app/admin/settings/agent-actions", () => ({
-  addAgentAction: vi.fn(async () => ({})), createKeyAction: vi.fn(async () => ({})),
-  saveAgentSettingsAction: vi.fn(async () => ({})), addSuppressionAction: vi.fn(async () => ({})),
+  addSuppressionAction: vi.fn(async () => ({})),
   removeSuppressionAction: vi.fn(),
 }));
 
@@ -286,27 +283,21 @@ describe("Direct Connect sections", () => {
   });
 });
 
-describe("agents section", () => {
-  it("shows the agents on the Marketing tab, with the saved mailing address", async () => {
+describe("do-not-contact section", () => {
+  it("shows the do-not-contact list on the Marketing tab, with no agent setup", async () => {
     calendarEnabled.mockReturnValue(false);
-    agentStore.getAgentSettings.mockResolvedValueOnce({ mailingAddress: "PO Box 1", signature: null, lastDigestAt: null });
     render(await openTab("marketing"));
-    expect(screen.getByRole("region", { name: "Agents" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Agents" })).toHaveAttribute("id", "agents-heading");
-    expect(screen.getByLabelText("Mailing address")).toHaveValue("PO Box 1");
+    expect(screen.getByRole("heading", { name: "Do not contact" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Agents" })).toBeNull();
+    expect(screen.queryByLabelText("Mailing address")).toBeNull();
   });
 
-  it("still loads when the agents tables are missing (migration 044 not applied)", async () => {
+  it("still loads when the list can't be read", async () => {
     calendarEnabled.mockReturnValue(false);
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
-    const missing = new Error('relation "agents" does not exist');
-    agentStore.listAgentCards.mockRejectedValueOnce(missing);
-    agentStore.getAgentSettings.mockRejectedValueOnce(missing);
-    agentStore.listSuppressions.mockRejectedValueOnce(missing);
+    agentStore.listSuppressions.mockRejectedValueOnce(new Error('relation "agent_suppressions" does not exist'));
     render(await openTab("marketing"));
-    expect(screen.getByRole("heading", { name: "Settings" })).toBeInTheDocument();
-    expect(screen.getByText("No agents yet.")).toBeInTheDocument();
-    expect(screen.getByLabelText("Mailing address")).toHaveValue("");
+    expect(screen.getByText("No one is on the do-not-contact list.")).toBeInTheDocument();
     error.mockRestore();
   });
 });
@@ -316,7 +307,7 @@ describe("settings tabs", () => {
     team: ["Team", "Admin access", "New leads"],
     pricing: ["Installation rates", "Markup by product line", "Contract terms"],
     scheduling: ["Routes", "Outlook calendar"],
-    marketing: ["Agents", "Column", "Google Ads"],
+    marketing: ["Do not contact", "Column", "Google Ads"],
     device: ["Face ID sign-in", "Install on your phone"],
   } as const;
   const sectionHeadings = () => screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
@@ -358,13 +349,13 @@ describe("settings tabs", () => {
     listTeam.mockClear();
     getSyncState.mockClear().mockResolvedValue({ subscriptionId: null, expiresAt: null, lastError: null, lastErrorAt: null });
     dcStore.listMarkupRules.mockClear();
-    agentStore.listAgentCards.mockClear();
+    agentStore.listSuppressions.mockClear();
     listPasskeys.mockClear();
     render(await openTab("pricing"));
     expect(dcStore.listMarkupRules).toHaveBeenCalled();
     expect(listTeam).not.toHaveBeenCalled();
     expect(getSyncState).not.toHaveBeenCalled();
-    expect(agentStore.listAgentCards).not.toHaveBeenCalled();
+    expect(agentStore.listSuppressions).not.toHaveBeenCalled();
     expect(listPasskeys).not.toHaveBeenCalled();
   });
 });

@@ -22,8 +22,8 @@ import { getDcSettings, listMarkupRules, listSeenCollections } from "@/lib/dc/st
 import { MarkupSection } from "./MarkupSection";
 import { TermsSection } from "./TermsSection";
 import { liveTemplateOfKind } from "@/lib/docs/templates";
-import { getAgentSettings, listAgentCards, listSuppressions } from "@/lib/agents/store";
-import { AgentsSection } from "./AgentsSection";
+import { listSuppressions } from "@/lib/agents/store";
+import { DoNotContactSection } from "./AgentsSection";
 import { getColumnKey } from "@/lib/column/store";
 import { ColumnSection } from "./ColumnSection";
 import { business } from "@/content/business";
@@ -145,21 +145,10 @@ async function schedulingTab() {
 }
 
 async function marketingTab(email: string) {
-  // Each falls back, so Settings still loads before migration 044 (the agents tables) is applied.
-  const [agents, agentSettings, suppressions] = await Promise.all([
-    listAgentCards().catch((error: unknown) => {
-      console.error("Could not read the agents", error);
-      return [];
-    }),
-    getAgentSettings().catch((error: unknown) => {
-      console.error("Could not read the agent settings", error);
-      return { mailingAddress: null, signature: null };
-    }),
-    listSuppressions().catch((error: unknown) => {
-      console.error("Could not read the do-not-contact list", error);
-      return [];
-    }),
-  ]);
+  const suppressions = await listSuppressions().catch((error: unknown) => {
+    console.error("Could not read the do-not-contact list", error);
+    return [];
+  });
   // Before migration 045 is applied this reads as not connected.
   const column = isOwner(email)
     ? await getColumnKey().catch((error: unknown) => {
@@ -169,7 +158,7 @@ async function marketingTab(email: string) {
     : null;
   return (
     <>
-      <AgentsSection agents={agents} settings={agentSettings} suppressions={suppressions} />
+      <DoNotContactSection suppressions={suppressions} />
       {isOwner(email) ? (
         <ColumnSection
           siteUrl={business.domain}

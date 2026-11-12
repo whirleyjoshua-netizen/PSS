@@ -4,7 +4,6 @@
     { "path": "/api/cron/calendar", "schedule": "0 16 * * *" },
     { "path": "/api/cron/follow-ups", "schedule": "0 14 * * *" },
     { "path": "/api/cron/dc-quotes", "schedule": "0 15 * * *" },
-    { "path": "/api/cron/tasks", "schedule": "0 14 * * *" },
-    { "path": "/api/cron/agent-digest", "schedule": "30 17 * * 1-5" }
+    { "path": "/api/cron/tasks", "schedule": "0 14 * * *" }
   ]
 }
