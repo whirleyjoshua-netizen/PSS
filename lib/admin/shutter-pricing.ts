@@ -37,7 +37,11 @@ export const COUNTED_KINDS: readonly OptionKind[] = ["each", "per_linear_ft"];
  * `clientCentsPerSqft` is the line's own client price, installed and shipped. When set it
  * replaces the markup for this line. Null uses the markup.
  */
-export type ShutterLine = { id: string; supplier: Supplier; name: string; costCentsPerSqft: number; minSqft: number; clientCentsPerSqft: number | null };
+export type ShutterLine = {
+  id: string; supplier: Supplier; name: string; costCentsPerSqft: number; minSqft: number; clientCentsPerSqft: number | null;
+  /** What the frame adds to the window's width and to its height, in eighths: the supplier bills the framed size. */
+  frameAddEighths: number;
+};
 export type ShutterOption = { id: string; supplier: Supplier; name: string; kind: OptionKind; amount: number };
 
 /**
@@ -99,7 +103,7 @@ const SQ_EIGHTHS_PER_SQFT = 9216; // 144 sq in, in eighths squared
 
 export type PricedWindow = QuoteWindow & {
   lineName: string;
-  /** Area of one shutter in sq ft, before the line's minimum. */
+  /** Area of one shutter in sq ft, frame included, before the line's minimum. */
   sqft: number;
   /** Area billed for one shutter: at least the line's minimum. */
   billedSqft: number;
@@ -180,7 +184,9 @@ export function priceQuote(rates: ShutterRates, install: ShutterInstallRate, inp
   const partial = input.windows.map((w) => {
     const line = lines.get(w.lineId);
     if (!line) throw new Error(`${w.room || "A window"}: pick a ${supplierLabel(input.supplier)} line`);
-    const sqft = sqftOf(w.widthEighths, w.heightEighths);
+    // The window size as entered; the supplier bills (and we install) on the shutter with its frame.
+    const framed = { widthEighths: w.widthEighths + line.frameAddEighths, heightEighths: w.heightEighths + line.frameAddEighths };
+    const sqft = sqftOf(framed.widthEighths, framed.heightEighths);
     const billedSqft = Math.max(sqft, line.minSqft);
     const base = billedSqft * line.costCentsPerSqft;
     let perShutter = base;
@@ -195,7 +201,10 @@ export function priceQuote(rates: ShutterRates, install: ShutterInstallRate, inp
     }
     const costCents = Math.round(perShutter * w.quantity);
     const baseCents = Math.round(base * w.quantity);
-    return { ...w, line, lineName: line.name, sqft, billedSqft, costCents, addOnCents: costCents - baseCents, installCents: installFor(install, w) };
+    return {
+      ...w, line, lineName: line.name, sqft, billedSqft, framedWidthEighths: framed.widthEighths,
+      costCents, addOnCents: costCents - baseCents, installCents: installFor(install, { ...w, ...framed }),
+    };
   });
 
   let orderCostCents = 0;
@@ -205,7 +214,8 @@ export function priceQuote(rates: ShutterRates, install: ShutterInstallRate, inp
   }
 
   const freightRule = rates.freight.find((f) => f.supplier === input.supplier) ?? NO_FREIGHT(input.supplier);
-  const freightCents = freightFor(freightRule, partial);
+  // Oversize is the shutter's width, frame included.
+  const freightCents = freightFor(freightRule, partial.map((w) => ({ ...w, widthEighths: w.framedWidthEighths })));
   const productCostCents = partial.reduce((s, w) => s + w.costCents, 0) + orderCostCents;
   const installCents = partial.reduce((s, w) => s + w.installCents, 0);
   const supplierCostCents = productCostCents + freightCents;
@@ -216,7 +226,7 @@ export function priceQuote(rates: ShutterRates, install: ShutterInstallRate, inp
   const shared = allocate(freightCents + orderCostCents, partial.map((w) => w.costCents));
   const freightShare = allocate(freightCents, partial.map((w) => w.costCents));
   const orderShare = allocate(orderCostCents, partial.map((w) => w.costCents));
-  const priced: PricedWindow[] = partial.map(({ line, addOnCents, ...w }, i) => {
+  const priced: PricedWindow[] = partial.map(({ line, addOnCents, framedWidthEighths: _framed, ...w }, i) => {
     let priceCents: number | null = null;
     if (line.clientCentsPerSqft !== null) {
       // The line's own price covers the shutter, its freight and install. Add-ons (and its
@@ -301,6 +311,7 @@ export const ratesSchema = z.object({
     costCentsPerSqft: cents.refine((n) => n > 0, "Every line needs a $/sq ft cost"),
     minSqft: z.number().int().min(0).max(100),
     clientCentsPerSqft: cents.refine((n) => n > 0, "A client price must be more than $0").nullable().default(null),
+    frameAddEighths: z.number().int().min(0, "A frame can't take away from the size").max(96, "A frame adds at most 12 inches").default(0),
   })),
   options: z.array(z.object({
     supplier: z.enum(SUPPLIERS),

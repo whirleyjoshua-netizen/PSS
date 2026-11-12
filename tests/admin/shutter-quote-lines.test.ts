@@ -7,8 +7,8 @@ import { formatCents } from "@/lib/admin/money";
 // Made-up rates: the real dealer costs never go in this public repo.
 const rates: ShutterRates = {
   lines: [
-    { id: "a", supplier: "norman", name: "Alpha", costCentsPerSqft: 1000, minSqft: 8, clientCentsPerSqft: 2500 },
-    { id: "b", supplier: "norman", name: "Beta", costCentsPerSqft: 1200, minSqft: 8, clientCentsPerSqft: null },
+    { id: "a", supplier: "norman", name: "Alpha", costCentsPerSqft: 1000, minSqft: 8, clientCentsPerSqft: 2500, frameAddEighths: 0 },
+    { id: "b", supplier: "norman", name: "Beta", costCentsPerSqft: 1200, minSqft: 8, clientCentsPerSqft: null, frameAddEighths: 0 },
   ],
   options: [
     { id: "shape", supplier: "norman", name: "Angle top", kind: "per_window", amount: 20_000 },
@@ -80,6 +80,16 @@ describe("buildShutterQuote", () => {
   it("refuses a quote that has no price", () => {
     const q = priceQuote({ ...rates, markupHundredths: null }, install, { supplier: "norman", windows: [win({ lineId: "b" })], orderOptions: {} });
     expect(() => buildShutterQuote(q, "norman", rates.options)).toThrow("client price");
+  });
+});
+
+describe("buildShutterQuote with a frame", () => {
+  it("prints the window size on the quote while pricing the framed size", () => {
+    const framedRates = { ...rates, lines: rates.lines.map((l) => (l.id === "a" ? { ...l, frameAddEighths: 32 } : l)) };
+    const q = priceQuote(framedRates, install, { supplier: "norman", windows: [win({ widthEighths: 38 * 8, heightEighths: 25 * 8 })], orderOptions: {} });
+    const built = buildShutterQuote(q, "norman", rates.options);
+    expect(built.lines[0].options.slice(0, 2)).toEqual([["Order Width", "38"], ["Order Height", "25"]]);
+    expect(built.lines[0].msrpUnitCents).toBe(Math.round((42 * 29) / 144 * 2500));
   });
 });
 

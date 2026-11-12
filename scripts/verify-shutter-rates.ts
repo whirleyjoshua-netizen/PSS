@@ -46,7 +46,7 @@ async function throws(run: () => Promise<unknown>): Promise<boolean> {
   try { await run(); return false; } catch { return true; }
 }
 async function apply() {
-  for (const file of ["048_shutter_pricing.sql", "049_shutter_install_rate.sql", "050_shutter_client_rate.sql"]) {
+  for (const file of ["048_shutter_pricing.sql", "049_shutter_install_rate.sql", "050_shutter_client_rate.sql", "052_shutter_frame_allowance.sql"]) {
     const statements = readFileSync(`db/migrations/${file}`, "utf8")
       .split("\n").filter((line) => !line.trim().startsWith("--")).join("\n")
       .split(";").map((s) => s.trim()).filter(Boolean);
@@ -74,9 +74,9 @@ test("shutter rates against a real database", async () => {
 
   const full: RatesInput = {
     lines: [
-      { supplier: "norman", name: "Zeta", costCentsPerSqft: 1111, minSqft: 8, clientCentsPerSqft: 2700 },
-      { supplier: "norman", name: "Alpha", costCentsPerSqft: 2222, minSqft: 8, clientCentsPerSqft: null },
-      { supplier: "onyx", name: "Gamma", costCentsPerSqft: 999, minSqft: 0, clientCentsPerSqft: null },
+      { supplier: "norman", name: "Zeta", costCentsPerSqft: 1111, minSqft: 8, clientCentsPerSqft: 2700, frameAddEighths: 32 },
+      { supplier: "norman", name: "Alpha", costCentsPerSqft: 2222, minSqft: 8, clientCentsPerSqft: null, frameAddEighths: 0 },
+      { supplier: "onyx", name: "Gamma", costCentsPerSqft: 999, minSqft: 0, clientCentsPerSqft: null, frameAddEighths: 0 },
     ],
     options: [
       { supplier: "norman", name: "Premium", kind: "percent", amount: 1000 },
@@ -119,6 +119,8 @@ test("shutter rates against a real database", async () => {
   check(await throws(() => sql`insert into shutter_options (supplier, name, kind, amount) values ('norman', 'X', 'weekly', 1)`), "an unknown kind is refused");
   check(await throws(() => sql`update shutter_settings set markup_hundredths = 90`), "a markup under 1× is refused");
   check(await throws(() => sql`update shutter_lines set client_cents_per_sqft = 0`), "a $0 client price is refused");
+  check(await throws(() => sql`update shutter_lines set frame_add_eighths = 97`), "a frame over 12 inches is refused");
+  check(await throws(() => sql`update shutter_lines set frame_add_eighths = -1`), "a negative frame is refused");
   check(!(await throws(() => sql`update shutter_lines set client_cents_per_sqft = null`)), "a client price can be cleared to null");
   check(await throws(() => sql`insert into shutter_settings (id) values (false)`), "a second settings row is refused");
 

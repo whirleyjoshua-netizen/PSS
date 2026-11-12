@@ -159,7 +159,7 @@ export function ShutterQuote({ rates, install, jobs }: { rates: ShutterRates; in
               <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
                 {priced ? (
                   <p>
-                    {formatSqft(priced.sqft)} sq ft{priced.billedSqft > priced.sqft ? ` (billed as ${formatSqft(priced.billedSqft)})` : ""}
+                    {formatSqft(priced.sqft)} sq ft{(lines.find((l) => l.id === row.lineId)?.frameAddEighths ?? 0) > 0 ? " with frame" : ""}{priced.billedSqft > priced.sqft ? ` (billed as ${formatSqft(priced.billedSqft)})` : ""}
                     {" · "}Cost {formatCents(priced.costCents)}
                     {" · "}Install {formatCents(priced.installCents)}
                     {" · "}<strong>Price {money(priced.priceCents)}</strong>

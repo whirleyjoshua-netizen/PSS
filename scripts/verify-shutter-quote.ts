@@ -65,7 +65,7 @@ async function throws(run: () => Promise<unknown>): Promise<boolean> {
   try { await run(); return false; } catch { return true; }
 }
 async function apply() {
-  for (const file of ["048_shutter_pricing.sql", "049_shutter_install_rate.sql", "050_shutter_client_rate.sql", "051_shutter_quotes.sql"]) {
+  for (const file of ["048_shutter_pricing.sql", "049_shutter_install_rate.sql", "050_shutter_client_rate.sql", "051_shutter_quotes.sql", "052_shutter_frame_allowance.sql"]) {
     const statements = readFileSync(`db/migrations/${file}`, "utf8")
       .split("\n").filter((line) => !line.trim().startsWith("--")).join("\n")
       .split(";").map((s) => s.trim()).filter(Boolean);
@@ -92,8 +92,8 @@ test("Make this a quote against a real database", async () => {
 
   await saveShutterRates({
     lines: [
-      { supplier: "norman", name: "Alpha", costCentsPerSqft: 1000, minSqft: 8, clientCentsPerSqft: 2500 },
-      { supplier: "norman", name: "Beta", costCentsPerSqft: 1200, minSqft: 8, clientCentsPerSqft: null },
+      { supplier: "norman", name: "Alpha", costCentsPerSqft: 1000, minSqft: 8, clientCentsPerSqft: 2500, frameAddEighths: 0 },
+      { supplier: "norman", name: "Beta", costCentsPerSqft: 1200, minSqft: 8, clientCentsPerSqft: null, frameAddEighths: 0 },
     ],
     options: [{ supplier: "norman", name: "Angle top", kind: "per_window", amount: 20_000 }],
     freight: [

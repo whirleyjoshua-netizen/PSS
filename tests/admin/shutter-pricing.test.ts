@@ -9,8 +9,8 @@ import { formatCents } from "@/lib/admin/money";
 // Made-up rates. The real ones are the owners' dealer costs and must never be in this public repo.
 const rates: ShutterRates = {
   lines: [
-    { id: "a", supplier: "norman", name: "Alpha", costCentsPerSqft: 1000, minSqft: 8, clientCentsPerSqft: null },
-    { id: "b", supplier: "onyx", name: "Beta", costCentsPerSqft: 800, minSqft: 0, clientCentsPerSqft: null },
+    { id: "a", supplier: "norman", name: "Alpha", costCentsPerSqft: 1000, minSqft: 8, clientCentsPerSqft: null, frameAddEighths: 0 },
+    { id: "b", supplier: "onyx", name: "Beta", costCentsPerSqft: 800, minSqft: 0, clientCentsPerSqft: null, frameAddEighths: 0 },
   ],
   options: [
     { id: "pct10", supplier: "norman", name: "Premium color", kind: "percent", amount: 1000 },
@@ -210,13 +210,47 @@ describe("a line's own client price", () => {
   it("with no markup, a quote mixing a priced line and an unpriced one has no total", () => {
     const mixed: ShutterRates = {
       ...rates, markupHundredths: null,
-      lines: [...rates.lines.map((l) => (l.id === "a" ? { ...l, clientCentsPerSqft: 2500 } : l)), { id: "c", supplier: "norman", name: "Gamma", costCentsPerSqft: 1000, minSqft: 8, clientCentsPerSqft: null }],
+      lines: [...rates.lines.map((l) => (l.id === "a" ? { ...l, clientCentsPerSqft: 2500, frameAddEighths: 0 } : l)), { id: "c", supplier: "norman", name: "Gamma", costCentsPerSqft: 1000, minSqft: 8, clientCentsPerSqft: null, frameAddEighths: 0 }],
     };
     const q = priceQuote(mixed, install,
       { supplier: "norman", windows: [win(), win({ lineId: "c" })], orderOptions: {} });
     expect(q.windows[0].priceCents).toBe(37_500);
     expect(q.windows[1].priceCents).toBeNull();
     expect(q.priceCents).toBeNull();
+  });
+});
+
+describe("a line's frame allowance", () => {
+  // Alpha at $10/sq ft with a 4" frame (32 eighths): a 38 × 25 window is billed as 42 × 29 = 8.46 sq ft.
+  const framed = (add: number): ShutterRates => ({ ...rates, lines: rates.lines.map((l) => (l.id === "a" ? { ...l, frameAddEighths: add } : l)) });
+  const small = win({ widthEighths: 38 * 8, heightEighths: 25 * 8 });
+
+  it("bills the window plus the frame, each way", () => {
+    const q = priceQuote(framed(32), null, { supplier: "norman", windows: [small], orderOptions: {} });
+    expect(q.windows[0].sqft).toBeCloseTo((42 * 29) / 144, 6);
+    expect(q.windows[0].costCents).toBe(Math.round(((42 * 29) / 144) * 1000));
+  });
+
+  it("keeps the window size on the priced window, for the quote", () => {
+    const q = priceQuote(framed(32), null, { supplier: "norman", windows: [small], orderOptions: {} });
+    expect([q.windows[0].widthEighths, q.windows[0].heightEighths]).toEqual([38 * 8, 25 * 8]);
+  });
+
+  it("without a frame the same window is 6.6 sq ft, billed at the 8 sq ft minimum", () => {
+    const q = priceQuote(framed(0), null, { supplier: "norman", windows: [small], orderOptions: {} });
+    expect(q.windows[0].billedSqft).toBe(8);
+    expect(q.windows[0].costCents).toBe(8000);
+  });
+
+  it("installs on the framed size: 8.46 sq ft rounds up to 9, so $54 at $6", () => {
+    const q = priceQuote(framed(32), guideInstallRate(rates), { supplier: "norman", windows: [small], orderOptions: {} });
+    expect(q.windows[0].installCents).toBe(5400);
+  });
+
+  it("counts the frame toward oversize freight: an 87\" window with a 4\" frame is a 91\" shutter", () => {
+    const wide = win({ widthEighths: 87 * 8, heightEighths: 60 * 8 });
+    expect(priceQuote(framed(0), null, { supplier: "norman", windows: [wide], orderOptions: {} }).freightCents).toBe(7500);
+    expect(priceQuote(framed(32), null, { supplier: "norman", windows: [wide], orderOptions: {} }).freightCents).toBe(7500 + 8000);
   });
 });
 

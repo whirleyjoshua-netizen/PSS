@@ -2,12 +2,13 @@
 
 import { useActionState, useState } from "react";
 import {
-  OPTION_KINDS, OPTION_KIND_LABEL, SUPPLIERS, parseMarkup, parseOptionRows, supplierLabel,
+  OPTION_KINDS, OPTION_KIND_LABEL, SUPPLIERS, parseInches, parseMarkup, parseOptionRows, supplierLabel,
   type OptionKind, type RatesInput, type ShutterRates, type Supplier,
 } from "@/lib/admin/shutter-pricing";
+import { plainInches as formatInchesPlain } from "@/lib/admin/shutter-quote-lines";
 import { saveShutterRatesAction, type ShutterRatesState } from "../actions";
 
-type LineRow = { key: number; supplier: Supplier; name: string; cost: string; minSqft: string; client: string };
+type LineRow = { key: number; supplier: Supplier; name: string; cost: string; minSqft: string; client: string; frame: string };
 type OptionRow = { key: number; supplier: Supplier; name: string; kind: OptionKind; amount: string };
 type FreightRow = { first: string; additional: string; oversizeWidth: string; oversizeFirst: string; oversizeAdditional: string; perSqft: string; minSqft: string };
 
@@ -30,12 +31,22 @@ function toWhole(text: string, label: string, errors: string[]): number {
   if (!/^\d+$/.test(cleaned)) { errors.push(`${label}: "${text}" is not a whole number`); return 0; }
   return Number(cleaned);
 }
+/** "4", "3 1/2" or "3.5" inches → eighths. Blank or 0 is no frame. */
+function toFrame(text: string, label: string, errors: string[]): number {
+  const cleaned = text.trim();
+  if (cleaned === "" || /^0+(\.0*)?$/.test(cleaned)) return 0;
+  const eighths = parseInches(cleaned);
+  if (eighths === null) { errors.push(`${label}: "${text}" is not a size in inches`); return 0; }
+  if (eighths > 96) { errors.push(`${label}: a frame adds at most 12 inches`); return 0; }
+  return eighths;
+}
 
 export function RatesEditor({ rates }: { rates: ShutterRates }) {
   const [state, action, pending] = useActionState<ShutterRatesState, FormData>(saveShutterRatesAction, {});
   const [lines, setLines] = useState<LineRow[]>(() => rates.lines.map((l) => ({
     key: nextKey++, supplier: l.supplier, name: l.name, cost: hundredths(l.costCentsPerSqft), minSqft: l.minSqft ? String(l.minSqft) : "",
     client: l.clientCentsPerSqft === null ? "" : hundredths(l.clientCentsPerSqft),
+    frame: l.frameAddEighths ? formatInchesPlain(l.frameAddEighths) : "",
   })));
   const [options, setOptions] = useState<OptionRow[]>(() => rates.options.map((o) => ({
     key: nextKey++, supplier: o.supplier, name: o.name, kind: o.kind, amount: hundredths(o.amount),
@@ -65,6 +76,7 @@ export function RatesEditor({ rates }: { rates: ShutterRates }) {
       minSqft: toWhole(l.minSqft, `${supplierLabel(l.supplier)} line ${l.name || i + 1} minimum`, errors),
       // Blank keeps the markup for this line.
       clientCentsPerSqft: l.client.trim() === "" ? null : toHundredths(l.client, `${supplierLabel(l.supplier)} line ${l.name || i + 1} client price`, errors),
+      frameAddEighths: toFrame(l.frame, `${supplierLabel(l.supplier)} line ${l.name || i + 1} frame`, errors),
     })),
     options: options.map((o, i) => ({
       supplier: o.supplier, name: o.name.trim(), kind: o.kind,
@@ -128,7 +140,7 @@ export function RatesEditor({ rates }: { rates: ShutterRates }) {
 
             <fieldset className="flex flex-col gap-2">
               <legend className="text-sm font-semibold">Lines, cost per sq ft</legend>
-              <p className="text-xs text-ink-soft">Client $ / sq ft is that line&apos;s price installed and shipped. It replaces the markup for the line. Leave it blank to use the markup.</p>
+              <p className="text-xs text-ink-soft">Client $ / sq ft is that line&apos;s price installed and shipped. It replaces the markup for the line. Leave it blank to use the markup. Frame adds is how much the frame adds to the window&apos;s width and to its height (Norman&apos;s 2&quot; deco frame adds 4). Enter window sizes in the guide: it prices the framed size and the quote shows the window size.</p>
               {lines.filter((l) => l.supplier === s).map((l) => (
                 <div key={l.key} className="flex flex-wrap items-end gap-2">
                   <label className="flex flex-col gap-1 text-xs">Line
@@ -140,6 +152,9 @@ export function RatesEditor({ rates }: { rates: ShutterRates }) {
                   <label className="flex flex-col gap-1 text-xs">Client $ / sq ft
                     <input value={l.client} inputMode="decimal" placeholder="Markup" onChange={(e) => setLine(l.key, { client: e.target.value })} className={`${field} w-24`} />
                   </label>
+                  <label className="flex flex-col gap-1 text-xs">Frame adds (in)
+                    <input value={l.frame} inputMode="decimal" placeholder="0" onChange={(e) => setLine(l.key, { frame: e.target.value })} className={`${field} w-24`} />
+                  </label>
                   <label className="flex flex-col gap-1 text-xs">Minimum sq ft
                     <input value={l.minSqft} inputMode="numeric" placeholder="None" onChange={(e) => setLine(l.key, { minSqft: e.target.value })} className={`${field} w-24`} />
                   </label>
@@ -148,7 +163,7 @@ export function RatesEditor({ rates }: { rates: ShutterRates }) {
                   </button>
                 </div>
               ))}
-              <button type="button" onClick={() => setLines((all) => [...all, { key: nextKey++, supplier: s, name: "", cost: "", minSqft: "", client: "" }])}
+              <button type="button" onClick={() => setLines((all) => [...all, { key: nextKey++, supplier: s, name: "", cost: "", minSqft: "", client: "", frame: "" }])}
                 className="min-h-11 self-start border border-charcoal px-3 text-sm">Add a {name} line</button>
             </fieldset>
 
