@@ -63,9 +63,14 @@ export type ShutterRates = {
   freight: SupplierFreight[];
   /** Client price multiple of cost in hundredths (191 = 1.91×). Null until the owner sets it. */
   markupHundredths: number | null;
+  /**
+   * What PSS charges to install, per sq ft, in this guide only. Separate from Settings →
+   * Installation rates, which prices install-only jobs. Null until set.
+   */
+  installCentsPerSqft: number | null;
 };
 
-/** How PSS charges to install shutters, from Settings → Installation rates. Null when not set. */
+/** How the guide charges to install. Null when not set. */
 export type ShutterInstallRate = { basis: Basis; rateCents: number } | null;
 
 export type QuoteWindow = {
@@ -242,6 +247,10 @@ export function parseInches(text: string): number | null {
   return eighths > 0 && eighths <= 4800 ? eighths : null;
 }
 
+/** The guide's install rate as the pricing takes it: per whole sq ft, rounded up per shutter. */
+export const guideInstallRate = (rates: ShutterRates): ShutterInstallRate =>
+  rates.installCentsPerSqft === null ? null : { basis: "sq_ft", rateCents: rates.installCentsPerSqft };
+
 export const formatSqft =(sqft: number) => (Math.round(sqft * 100) / 100).toLocaleString("en-US", { maximumFractionDigits: 2 });
 
 /** "1.91" → 191. Blank is null (not set). */
@@ -287,6 +296,7 @@ export const ratesSchema = z.object({
     oversizeFirstCents: cents, oversizeAdditionalCents: cents, perSqftCents: cents, minSqft: z.number().int().min(0).max(10_000),
   })),
   markupHundredths: z.number().int().min(100).max(1000).nullable(),
+  installCentsPerSqft: cents.nullable(),
 });
 export type RatesInput = z.infer<typeof ratesSchema>;
 

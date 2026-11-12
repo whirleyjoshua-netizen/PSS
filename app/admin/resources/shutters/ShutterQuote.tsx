@@ -99,9 +99,9 @@ export function ShutterQuote({ rates, install }: { rates: ShutterRates; install:
       </fieldset>
 
       {!install ? (
-        <p role="note" className="text-sm text-overdue">No shutter installation rate is set, so prices leave install out. Set it in Settings → Installation rates.</p>
+        <p role="note" className="text-sm text-overdue">No installation rate is set, so prices leave install out. Set it on the Rates screen.</p>
       ) : (
-        <p className="text-xs text-ink-soft">Installation: {formatCents(install.rateCents)} {basisLabel(install.basis).toLowerCase()}, from Settings.</p>
+        <p className="text-xs text-ink-soft">Installation: {formatCents(install.rateCents)} {basisLabel(install.basis).toLowerCase()}, rounded up per shutter.</p>
       )}
       {rates.markupHundredths === null ? (
         <p role="note" className="text-sm text-overdue">No markup is set, so this shows your cost only. Set it on the Rates screen.</p>

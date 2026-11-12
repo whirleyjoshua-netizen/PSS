@@ -27,7 +27,7 @@ async function reset() {
   await sql()`delete from shutter_lines`;
   await sql()`delete from shutter_options`;
   await sql()`delete from shutter_freight`;
-  await sql()`update shutter_settings set markup_hundredths = null`;
+  await sql()`update shutter_settings set markup_hundredths = null, install_cents_per_sqft = null`;
   await sql()`delete from install_rates where treatment = 'shutters'`;
 }
 
@@ -41,7 +41,8 @@ test.afterAll(async () => {
 });
 
 test("rates entered on the Rates screen price a window on the quote screen", async ({ page }) => {
-  await sql()`insert into install_rates (treatment, basis, rate_cents) values ('shutters', 'sq_ft', 600)`;
+  // Settings' shutter rate prices install-only jobs; the guide must ignore it and use its own.
+  await sql()`insert into install_rates (treatment, basis, rate_cents) values ('shutters', 'sq_ft', 930)`;
   await signIn(page);
 
   await page.goto("/admin/resources");
@@ -60,6 +61,7 @@ test("rates entered on the Rates screen price a window on the quote screen", asy
   await norman.getByLabel("First shutter ($)", { exact: true }).fill("75");
   await norman.getByLabel("Each additional ($)", { exact: true }).fill("25");
   await page.getByLabel("Markup (× cost)").fill("2");
+  await page.getByLabel("Installation ($ per sq ft)").fill("6");
   await shot(page, "rates-desktop");
   await page.getByRole("button", { name: "Save rates" }).click();
   await expect(page.getByRole("status")).toHaveText("Saved.");

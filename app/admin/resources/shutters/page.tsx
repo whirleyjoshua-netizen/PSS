@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { requireAdmin } from "@/lib/admin/session";
-import { getShutterInstallRate, getShutterRates } from "@/lib/admin/shutter-rates";
+import { guideInstallRate } from "@/lib/admin/shutter-pricing";
+import { getShutterRates } from "@/lib/admin/shutter-rates";
 import { ShutterQuote } from "./ShutterQuote";
 
 /** Quick shutter quoting from the owners' Norman and Onyx costs. Team only: it shows dealer cost. */
 export default async function ShutterPricingPage() {
   await requireAdmin();
-  const [rates, install] = await Promise.all([getShutterRates(), getShutterInstallRate()]);
+  const rates = await getShutterRates();
   return (
     <div className="flex max-w-4xl flex-col gap-6">
       <div className="flex flex-col gap-1">
@@ -17,7 +18,7 @@ export default async function ShutterPricingPage() {
         </div>
         <p className="text-sm text-ink-soft">A quick price from your Norman and Onyx costs. Nothing here is saved or shown to clients.</p>
       </div>
-      <ShutterQuote rates={rates} install={install} />
+      <ShutterQuote rates={rates} install={guideInstallRate(rates)} />
     </div>
   );
 }

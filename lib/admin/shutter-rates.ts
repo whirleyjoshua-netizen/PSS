@@ -1,8 +1,7 @@
 import "server-only";
 import { db } from "@/lib/db";
-import type { Basis } from "./install-pricing";
 import {
-  NO_FREIGHT, SUPPLIERS, type OptionKind, type RatesInput, type ShutterInstallRate, type ShutterRates, type Supplier,
+  NO_FREIGHT, SUPPLIERS, type OptionKind, type RatesInput, type ShutterRates, type Supplier,
 } from "./shutter-pricing";
 
 export async function getShutterRates(): Promise<ShutterRates> {
@@ -11,7 +10,7 @@ export async function getShutterRates(): Promise<ShutterRates> {
     sql`select id, supplier, name, cost_cents_per_sqft, min_sqft from shutter_lines order by supplier, position, name`,
     sql`select id, supplier, name, kind, amount from shutter_options order by supplier, position, name`,
     sql`select * from shutter_freight`,
-    sql`select markup_hundredths from shutter_settings where id = true`,
+    sql`select markup_hundredths, install_cents_per_sqft from shutter_settings where id = true`,
   ]);
   const freightBySupplier = new Map(freight.map((row) => [row.supplier as Supplier, row]));
   return {
@@ -38,14 +37,8 @@ export async function getShutterRates(): Promise<ShutterRates> {
       };
     }),
     markupHundredths: settings[0]?.markup_hundredths == null ? null : Number(settings[0].markup_hundredths),
+    installCentsPerSqft: settings[0]?.install_cents_per_sqft == null ? null : Number(settings[0].install_cents_per_sqft),
   };
-}
-
-/** The shutter row of Settings → Installation rates, the one place the install charge is set. */
-export async function getShutterInstallRate(): Promise<ShutterInstallRate> {
-  const rows = await db()`select basis, rate_cents from install_rates where treatment = 'shutters'`;
-  const row = rows[0];
-  return row ? { basis: row.basis as Basis, rateCents: Number(row.rate_cents) } : null;
 }
 
 /**
@@ -84,6 +77,7 @@ export async function saveShutterRates(rates: RatesInput, actor: string): Promis
         oversize_additional_cents = excluded.oversize_additional_cents, per_sqft_cents = excluded.per_sqft_cents,
         min_sqft = excluded.min_sqft
     )
-    update shutter_settings set markup_hundredths = ${rates.markupHundredths}, updated_by = ${actor}, updated_at = now()
+    update shutter_settings set markup_hundredths = ${rates.markupHundredths},
+      install_cents_per_sqft = ${rates.installCentsPerSqft}, updated_by = ${actor}, updated_at = now()
     where id = true`;
 }

@@ -1,11 +1,11 @@
 /**
- * Behavioural proof of the shutter rates SQL: lib/admin/shutter-rates.ts and migration 048.
+ * Behavioural proof of the shutter rates SQL: lib/admin/shutter-rates.ts and migrations 048 and 049.
  *
  * THIS IS NOT AUTOMATED COVERAGE. It is run by hand and CI does not run it. If you change
  * lib/admin/shutter-rates.ts or migration 048, run it yourself, or say the SQL is unverified.
  *
  * Against a throwaway database it:
- *   1. applies migration 048 twice (re-runnable) and finds the single settings row;
+ *   1. applies migrations 048 and 049 twice (re-runnable) and finds the single settings row;
  *   2. reads empty rates (no lines, zero freight, markup null) and the shutter install rate;
  *   3. saves a full set and reads back exactly what was saved, in the order entered;
  *   4. saves a smaller set: removed rows are gone, freight and markup are replaced, markup can go back to null;
@@ -23,7 +23,7 @@
 import { readFileSync } from "node:fs";
 import { neon } from "@neondatabase/serverless";
 import { test } from "vitest";
-import { getShutterInstallRate, getShutterRates, saveShutterRates } from "../lib/admin/shutter-rates";
+import { getShutterRates, saveShutterRates } from "../lib/admin/shutter-rates";
 import type { RatesInput } from "../lib/admin/shutter-pricing";
 
 function refuse(reason: string): never {
@@ -46,10 +46,12 @@ async function throws(run: () => Promise<unknown>): Promise<boolean> {
   try { await run(); return false; } catch { return true; }
 }
 async function apply() {
-  const statements = readFileSync("db/migrations/048_shutter_pricing.sql", "utf8")
-    .split("\n").filter((line) => !line.trim().startsWith("--")).join("\n")
-    .split(";").map((s) => s.trim()).filter(Boolean);
-  for (const statement of statements) await sql.query(statement);
+  for (const file of ["048_shutter_pricing.sql", "049_shutter_install_rate.sql"]) {
+    const statements = readFileSync(`db/migrations/${file}`, "utf8")
+      .split("\n").filter((line) => !line.trim().startsWith("--")).join("\n")
+      .split(";").map((s) => s.trim()).filter(Boolean);
+    for (const statement of statements) await sql.query(statement);
+  }
 }
 const freight = (supplier: "norman" | "onyx", over: Partial<RatesInput["freight"][number]> = {}) => ({
   supplier, firstCents: 0, additionalCents: 0, oversizeWidthEighths: 0, oversizeFirstCents: 0,
@@ -63,13 +65,12 @@ test("shutter rates against a real database", async () => {
   const settingsRows = await sql`select count(*)::int as n from shutter_settings`;
   check(settingsRows[0].n === 1, "048 applies twice and leaves exactly one settings row", JSON.stringify(settingsRows));
 
-  await saveShutterRates({ lines: [], options: [], freight: [freight("norman"), freight("onyx")], markupHundredths: null }, "verify@example.com");
+  await saveShutterRates({ lines: [], options: [], freight: [freight("norman"), freight("onyx")], markupHundredths: null, installCentsPerSqft: null }, "verify@example.com");
   const empty = await getShutterRates();
   check(empty.lines.length === 0 && empty.options.length === 0, "an empty save reads back empty");
   check(empty.markupHundredths === null, "markup reads null when not set");
   check(empty.freight.length === 2 && empty.freight.every((f) => f.firstCents === 0), "freight reads one zero rule per supplier");
-  const install = await getShutterInstallRate();
-  check(install === null || typeof install.rateCents === "number", "the shutter install rate reads (or is null)", JSON.stringify(install));
+  check(empty.installCentsPerSqft === null, "the guide's install rate reads null when not set");
 
   const full: RatesInput = {
     lines: [
@@ -87,6 +88,7 @@ test("shutter rates against a real database", async () => {
       freight("onyx", { perSqftCents: 100, minSqft: 200 }),
     ],
     markupHundredths: 190,
+    installCentsPerSqft: 600,
   };
   await saveShutterRates(full, "verify@example.com");
   const read = await getShutterRates();
@@ -96,17 +98,20 @@ test("shutter rates against a real database", async () => {
     "add-ons read back exactly, in order", JSON.stringify(read.options));
   check(JSON.stringify(read.freight) === JSON.stringify(full.freight), "freight reads back exactly", JSON.stringify(read.freight));
   check(read.markupHundredths === 190, "markup reads back");
+  check(read.installCentsPerSqft === 600, "the guide's install rate reads back");
   const who = await sql`select updated_by from shutter_settings`;
   check(who[0].updated_by === "verify@example.com", "the save records who made it");
 
   await saveShutterRates({
-    lines: [full.lines[2]], options: [], freight: [freight("norman"), freight("onyx", { perSqftCents: 125, minSqft: 150 })], markupHundredths: null,
+    lines: [full.lines[2]], options: [], freight: [freight("norman"), freight("onyx", { perSqftCents: 125, minSqft: 150 })], markupHundredths: null, installCentsPerSqft: null,
   }, "verify@example.com");
   const smaller = await getShutterRates();
   check(smaller.lines.length === 1 && smaller.lines[0].name === "Gamma", "removed lines are gone", JSON.stringify(smaller.lines));
   check(smaller.options.length === 0, "removed add-ons are gone");
   check(smaller.freight[0].firstCents === 0 && smaller.freight[1].perSqftCents === 125 && smaller.freight[1].minSqft === 150, "freight is replaced");
   check(smaller.markupHundredths === null, "markup can be cleared back to not set");
+  check(smaller.installCentsPerSqft === null, "the install rate can be cleared back to not set");
+  check(await throws(() => sql`update shutter_settings set install_cents_per_sqft = -1`), "a negative install rate is refused");
 
   check(await throws(() => sql`insert into shutter_lines (supplier, name, cost_cents_per_sqft) values ('hunter', 'X', 100)`), "a supplier we do not use is refused");
   check(await throws(() => sql`insert into shutter_lines (supplier, name, cost_cents_per_sqft) values ('norman', 'X', 0)`), "a free line is refused");
@@ -114,6 +119,6 @@ test("shutter rates against a real database", async () => {
   check(await throws(() => sql`update shutter_settings set markup_hundredths = 90`), "a markup under 1× is refused");
   check(await throws(() => sql`insert into shutter_settings (id) values (false)`), "a second settings row is refused");
 
-  await saveShutterRates({ lines: [], options: [], freight: [freight("norman"), freight("onyx")], markupHundredths: null }, "verify@example.com");
+  await saveShutterRates({ lines: [], options: [], freight: [freight("norman"), freight("onyx")], markupHundredths: null, installCentsPerSqft: null }, "verify@example.com");
   console.log("\nverify-shutter-rates: all checks passed, rates cleared.\n");
 });

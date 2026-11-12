@@ -49,6 +49,7 @@ export function RatesEditor({ rates }: { rates: ShutterRates }) {
     }];
   })) as Record<Supplier, FreightRow>);
   const [markup, setMarkup] = useState(rates.markupHundredths === null ? "" : hundredths(rates.markupHundredths));
+  const [install, setInstall] = useState(rates.installCentsPerSqft === null ? "" : hundredths(rates.installCentsPerSqft));
   const [paste, setPaste] = useState<Record<Supplier, string>>({ norman: "", onyx: "" });
   const [pasteErrors, setPasteErrors] = useState<string[]>([]);
 
@@ -83,6 +84,8 @@ export function RatesEditor({ rates }: { rates: ShutterRates }) {
       };
     }),
     markupHundredths,
+    // Blank is "not set" (prices leave install out); 0 would claim install is free.
+    installCentsPerSqft: install.trim() === "" ? null : toHundredths(install, "Installation per sq ft", errors),
   };
 
   const setLine = (key: number, patch: Partial<LineRow>) => setLines((all) => all.map((l) => (l.key === key ? { ...l, ...patch } : l)));
@@ -105,6 +108,12 @@ export function RatesEditor({ rates }: { rates: ShutterRates }) {
         <label htmlFor="markup" className="font-semibold">Markup (× cost)</label>
         <input id="markup" aria-describedby="markup-hint" value={markup} onChange={(e) => setMarkup(e.target.value)} inputMode="decimal" placeholder="Not set" className={field} />
         <p id="markup-hint" className="text-xs text-ink-soft">Client price = (product + freight) × markup, plus installation. Blank shows cost only.</p>
+      </div>
+
+      <div className="flex flex-col gap-1 text-sm sm:max-w-xs">
+        <label htmlFor="install" className="font-semibold">Installation ($ per sq ft)</label>
+        <input id="install" aria-describedby="install-hint" value={install} onChange={(e) => setInstall(e.target.value)} inputMode="decimal" placeholder="Not set" className={field} />
+        <p id="install-hint" className="text-xs text-ink-soft">For this guide only, never marked up, and rounded up to whole sq ft per shutter. Install-only jobs use Settings → Installation rates.</p>
       </div>
 
       {SUPPLIERS.map((s) => {

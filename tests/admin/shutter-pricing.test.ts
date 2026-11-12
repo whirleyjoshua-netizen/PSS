@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  allocate, clientSummary, freightFor, parseInches, parseMarkup, parseOptionRows, priceQuote,
+  allocate, clientSummary, freightFor, guideInstallRate, parseInches, parseMarkup, parseOptionRows, priceQuote,
   type QuoteWindow, type ShutterRates,
 } from "@/lib/admin/shutter-pricing";
 import { formatEighths } from "@/lib/admin/measure-units";
@@ -28,6 +28,7 @@ const rates: ShutterRates = {
     { supplier: "onyx", firstCents: 0, additionalCents: 0, oversizeWidthEighths: 0, oversizeFirstCents: 0, oversizeAdditionalCents: 0, perSqftCents: 100, minSqft: 200 },
   ],
   markupHundredths: 200,
+  installCentsPerSqft: 600,
 };
 
 const win = (over: Partial<QuoteWindow> = {}): QuoteWindow => ({
@@ -153,6 +154,13 @@ describe("the client price", () => {
     expect(q.marginCents).toBeNull();
     expect(q.windows[0].priceCents).toBeNull();
     expect(q.supplierCostCents).toBe(22_500);
+  });
+});
+
+describe("guideInstallRate", () => {
+  it("is the guide's own per-sq-ft rate, or null when not set", () => {
+    expect(guideInstallRate(rates)).toEqual({ basis: "sq_ft", rateCents: 600 });
+    expect(guideInstallRate({ ...rates, installCentsPerSqft: null })).toBeNull();
   });
 });
 

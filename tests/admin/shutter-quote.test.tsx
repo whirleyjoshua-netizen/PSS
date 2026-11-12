@@ -31,6 +31,7 @@ const rates: ShutterRates = {
     { supplier: "onyx", firstCents: 0, additionalCents: 0, oversizeWidthEighths: 0, oversizeFirstCents: 0, oversizeAdditionalCents: 0, perSqftCents: 100, minSqft: 200 },
   ],
   markupHundredths: 200,
+  installCentsPerSqft: 600,
 };
 const install = { basis: "sq_ft" as const, rateCents: 600 };
 
@@ -104,7 +105,7 @@ describe("ShutterQuote", () => {
 
   it("warns when no install rate is set", () => {
     render(<ShutterQuote rates={rates} install={null} />);
-    expect(screen.getByRole("note")).toHaveTextContent("No shutter installation rate is set");
+    expect(screen.getByRole("note")).toHaveTextContent("No installation rate is set, so prices leave install out. Set it on the Rates screen.");
   });
 
   it("copies client prices without any cost", async () => {
@@ -146,6 +147,7 @@ describe("RatesEditor", () => {
     const sent = payload(container);
     expect(sent.lines[0]).toEqual({ supplier: "norman", name: "Alpha", costCentsPerSqft: 1234, minSqft: 8 });
     expect(sent.markupHundredths).toBe(190);
+    expect(sent.installCentsPerSqft).toBe(600);
     expect(sent.freight[0]).toMatchObject({ supplier: "norman", firstCents: 7500, oversizeWidthEighths: 720 });
   });
 
@@ -168,6 +170,15 @@ describe("RatesEditor", () => {
     expect(screen.getByRole("button", { name: "Save rates" })).toBeDisabled();
   });
 
+  it("edits the guide's install rate, and blank means not set rather than free", () => {
+    const { container } = render(<RatesEditor rates={rates} />);
+    expect(screen.getByLabelText("Installation ($ per sq ft)")).toHaveValue("6");
+    fireEvent.change(screen.getByLabelText("Installation ($ per sq ft)"), { target: { value: "7.50" } });
+    expect(payload(container).installCentsPerSqft).toBe(750);
+    fireEvent.change(screen.getByLabelText("Installation ($ per sq ft)"), { target: { value: "" } });
+    expect(payload(container).installCentsPerSqft).toBeNull();
+  });
+
   it("allows a blank markup", () => {
     const { container } = render(<RatesEditor rates={rates} />);
     fireEvent.change(screen.getByLabelText("Markup (× cost)"), { target: { value: "" } });
@@ -187,6 +198,7 @@ describe("saveShutterRatesAction", () => {
     options: [{ supplier: "norman", name: "Angle top", kind: "per_window", amount: 20_000 }],
     freight: [{ supplier: "norman", firstCents: 0, additionalCents: 0, oversizeWidthEighths: 0, oversizeFirstCents: 0, oversizeAdditionalCents: 0, perSqftCents: 0, minSqft: 0 }],
     markupHundredths: null,
+    installCentsPerSqft: 600,
   };
 
   it("saves valid rates as the signed-in admin", async () => {
