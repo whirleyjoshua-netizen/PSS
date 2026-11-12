@@ -1,5 +1,6 @@
 import { getFile, readFile } from "@/lib/admin/files";
 import { contentDisposition } from "@/lib/admin/uploads";
+import { recordFileOpened } from "@/lib/portal/file-views";
 import { requireCustomer } from "@/lib/portal/session";
 
 const NOT_FOUND = () => new Response("Not found", { status: 404 });
@@ -17,7 +18,7 @@ const DOWNLOADABLE: readonly string[] = ["photo", "document"];
  * this customer's own jobs.
  */
 export async function GET(_request: Request, { params }: { params: Promise<{ fileId: string }> }) {
-  const { jobs } = await requireCustomer();
+  const { email, jobs } = await requireCustomer();
   const { fileId } = await params;
 
   const file = await getFile(fileId);
@@ -32,6 +33,13 @@ export async function GET(_request: Request, { params }: { params: Promise<{ fil
     return NOT_FOUND();
   }
   if (!content) return NOT_FOUND();
+
+  // The owners see on the job's Activity tab when the client first opened a document. A failure
+  // here never stops the client getting their file.
+  if (file.kind === "document") {
+    await recordFileOpened({ leadId: file.leadId, fileName: file.name, docType: file.docType ?? null, email })
+      .catch((error) => console.error(`Could not log that file ${fileId} was opened`, error));
+  }
 
   return new Response(content.stream, {
     headers: {

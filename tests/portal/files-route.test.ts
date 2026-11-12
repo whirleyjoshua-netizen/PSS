@@ -5,6 +5,8 @@ const requireCustomer = vi.fn();
 vi.mock("@/lib/portal/session", () => ({ requireCustomer }));
 const files = { getFile: vi.fn(), readFile: vi.fn() };
 vi.mock("@/lib/admin/files", () => files);
+const views = { recordFileOpened: vi.fn() };
+vi.mock("@/lib/portal/file-views", () => views);
 
 const { GET } = await import("@/app/(site)/project/files/[fileId]/route");
 const JOB = "3f2b8c1e-8c52-4a53-9a1c-1d2e3f4a5b6c";
@@ -18,6 +20,7 @@ beforeEach(() => {
   requireCustomer.mockReset().mockResolvedValue({ email: "maria@example.com", jobs: [{ id: JOB }] });
   files.getFile.mockReset().mockResolvedValue(photo());
   files.readFile.mockReset().mockResolvedValue({ stream: new Blob(["jpeg"]).stream(), contentType: "image/jpeg" });
+  views.recordFileOpened.mockReset().mockResolvedValue(undefined);
 });
 
 describe("customer file route", () => {
@@ -79,4 +82,33 @@ describe("customer file route", () => {
     await expect(call()).rejects.toThrow("NEXT_REDIRECT");
     expect(files.getFile).not.toHaveBeenCalled();
   });
+
+  describe("logging that the client opened it", () => {
+    it("logs a shared document the client opens, with their email, the file name and its type", async () => {
+      files.getFile.mockResolvedValue(photo({ kind: "document", name: "Quote PSS-1033-2.pdf", docType: "quote" }));
+      files.readFile.mockResolvedValue({ stream: new Blob(["%PDF"]).stream(), contentType: "application/pdf" });
+      expect((await call()).status).toBe(200);
+      expect(views.recordFileOpened).toHaveBeenCalledWith({ leadId: JOB, fileName: "Quote PSS-1033-2.pdf", docType: "quote", email: "maria@example.com" });
+    });
+
+    it("does not log photos", async () => {
+      expect((await call()).status).toBe(200);
+      expect(views.recordFileOpened).not.toHaveBeenCalled();
+    });
+
+    it("does not log a refused file", async () => {
+      files.getFile.mockResolvedValue(photo({ kind: "document", sharedAt: null }));
+      expect((await call()).status).toBe(404);
+      expect(views.recordFileOpened).not.toHaveBeenCalled();
+    });
+
+    it("still gives the client the file when logging fails", async () => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      files.getFile.mockResolvedValue(photo({ kind: "document", name: "Contract.pdf", docType: "contract" }));
+      files.readFile.mockResolvedValue({ stream: new Blob(["%PDF"]).stream(), contentType: "application/pdf" });
+      views.recordFileOpened.mockRejectedValue(new Error("db down"));
+      expect((await call()).status).toBe(200);
+    });
+  });
 });
+
