@@ -39,26 +39,29 @@ export function PageHero({
   title,
   lead,
   trail,
+  compact = false,
 }: {
   eyebrow?: string;
   title: string;
   lead?: string;
   trail: Crumb[];
+  /** A shorter band for pages where the content below is the point (owner 2026-11-12: /contact). */
+  compact?: boolean;
 }) {
   return (
     <div className="border-b border-rule bg-sand">
       <Container>
-        <div className="flex flex-col gap-6 py-12 md:py-16">
+        <div className={compact ? "flex flex-col gap-3 py-6 md:py-8" : "flex flex-col gap-6 py-12 md:py-16"}>
           <Breadcrumbs trail={trail} />
           {eyebrow ? (
             <p className="font-display text-xs font-medium uppercase tracking-[0.22em] text-champagne-ink">
               {eyebrow}
             </p>
           ) : null}
-          <h1 className="max-w-3xl text-4xl font-light leading-tight tracking-tight text-charcoal md:text-5xl">
+          <h1 className={`max-w-3xl font-light leading-tight tracking-tight text-charcoal ${compact ? "text-3xl md:text-4xl" : "text-4xl md:text-5xl"}`}>
             {title}
           </h1>
-          {lead ? <p className="max-w-2xl text-lg text-ink-soft">{lead}</p> : null}
+          {lead ? <p className={`max-w-2xl text-ink-soft ${compact ? "text-base" : "text-lg"}`}>{lead}</p> : null}
         </div>
       </Container>
     </div>

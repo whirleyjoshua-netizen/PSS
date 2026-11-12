@@ -16,6 +16,8 @@ export type SectionTone = keyof typeof TONES;
 const PADDING = {
   default: "py-20 md:py-28",
   "tight-top": "pt-4 pb-20 md:py-28",
+  /** Under a compact page hero: the content starts close to the band. */
+  "after-hero": "pt-8 pb-20 md:pt-10 md:pb-28",
 } as const;
 
 export function Section({

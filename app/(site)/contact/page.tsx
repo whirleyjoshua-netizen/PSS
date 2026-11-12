@@ -26,9 +26,10 @@ export default function ContactPage() {
         title="Let's look at your windows together."
         lead="Tell us a little about the project and we will get you on the schedule. There is no charge and no obligation."
         trail={[{ name: "Contact", url: "/contact" }]}
+        compact
       />
 
-      <Section tone="ivory">
+      <Section tone="ivory" padding="after-hero">
         <div className="grid gap-12 lg:grid-cols-[minmax(0,64rem)_22rem] lg:gap-16">
           <ConsultationForm />
 

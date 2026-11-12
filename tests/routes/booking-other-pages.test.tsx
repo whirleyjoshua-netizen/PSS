@@ -57,4 +57,12 @@ describe("/contact", () => {
     expect(screen.queryByRole("img", { name: /Josh and Shade/ })).toBeNull();
     expect(container.querySelector('img[alt="' + consultationPhoto.alt + '"]')).toBeNull();
   });
+
+  // Owner 2026-11-12: the top band was too tall for what it says.
+  it("uses the compact page hero", () => {
+    render(<ContactPage />);
+    const band = screen.getByRole("heading", { level: 1 }).parentElement!;
+    expect(band.className).toContain("py-6");
+    expect(band.className).not.toContain("py-12");
+  });
 });
