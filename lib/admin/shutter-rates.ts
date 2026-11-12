@@ -7,7 +7,7 @@ import {
 export async function getShutterRates(): Promise<ShutterRates> {
   const sql = db();
   const [lines, options, freight, settings] = await Promise.all([
-    sql`select id, supplier, name, cost_cents_per_sqft, min_sqft from shutter_lines order by supplier, position, name`,
+    sql`select id, supplier, name, cost_cents_per_sqft, min_sqft, client_cents_per_sqft from shutter_lines order by supplier, position, name`,
     sql`select id, supplier, name, kind, amount from shutter_options order by supplier, position, name`,
     sql`select * from shutter_freight`,
     sql`select markup_hundredths, install_cents_per_sqft from shutter_settings where id = true`,
@@ -17,6 +17,7 @@ export async function getShutterRates(): Promise<ShutterRates> {
     lines: lines.map((row) => ({
       id: String(row.id), supplier: row.supplier as Supplier, name: String(row.name),
       costCentsPerSqft: Number(row.cost_cents_per_sqft), minSqft: Number(row.min_sqft),
+      clientCentsPerSqft: row.client_cents_per_sqft == null ? null : Number(row.client_cents_per_sqft),
     })),
     options: options.map((row) => ({
       id: String(row.id), supplier: row.supplier as Supplier, name: String(row.name),
@@ -51,11 +52,12 @@ export async function saveShutterRates(rates: RatesInput, actor: string): Promis
     with removed_lines as (delete from shutter_lines),
     removed_options as (delete from shutter_options),
     added_lines as (
-      insert into shutter_lines (supplier, name, cost_cents_per_sqft, min_sqft, position)
-      select supplier, name, cost, min_sqft, ord - 1
+      insert into shutter_lines (supplier, name, cost_cents_per_sqft, min_sqft, client_cents_per_sqft, position)
+      select supplier, name, cost, min_sqft, client, ord - 1
       from unnest(${lines.map((l) => l.supplier)}::text[], ${lines.map((l) => l.name)}::text[],
-        ${lines.map((l) => l.costCentsPerSqft)}::int[], ${lines.map((l) => l.minSqft)}::int[])
-        with ordinality as incoming(supplier, name, cost, min_sqft, ord)
+        ${lines.map((l) => l.costCentsPerSqft)}::int[], ${lines.map((l) => l.minSqft)}::int[],
+        ${lines.map((l) => l.clientCentsPerSqft)}::int[])
+        with ordinality as incoming(supplier, name, cost, min_sqft, client, ord)
     ),
     added_options as (
       insert into shutter_options (supplier, name, kind, amount, position)

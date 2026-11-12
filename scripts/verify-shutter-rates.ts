@@ -1,11 +1,11 @@
 /**
- * Behavioural proof of the shutter rates SQL: lib/admin/shutter-rates.ts and migrations 048 and 049.
+ * Behavioural proof of the shutter rates SQL: lib/admin/shutter-rates.ts and migrations 048, 049 and 050.
  *
  * THIS IS NOT AUTOMATED COVERAGE. It is run by hand and CI does not run it. If you change
  * lib/admin/shutter-rates.ts or migration 048, run it yourself, or say the SQL is unverified.
  *
  * Against a throwaway database it:
- *   1. applies migrations 048 and 049 twice (re-runnable) and finds the single settings row;
+ *   1. applies migrations 048, 049 and 050 twice (re-runnable) and finds the single settings row;
  *   2. reads empty rates (no lines, zero freight, markup null) and the shutter install rate;
  *   3. saves a full set and reads back exactly what was saved, in the order entered;
  *   4. saves a smaller set: removed rows are gone, freight and markup are replaced, markup can go back to null;
@@ -46,7 +46,7 @@ async function throws(run: () => Promise<unknown>): Promise<boolean> {
   try { await run(); return false; } catch { return true; }
 }
 async function apply() {
-  for (const file of ["048_shutter_pricing.sql", "049_shutter_install_rate.sql"]) {
+  for (const file of ["048_shutter_pricing.sql", "049_shutter_install_rate.sql", "050_shutter_client_rate.sql"]) {
     const statements = readFileSync(`db/migrations/${file}`, "utf8")
       .split("\n").filter((line) => !line.trim().startsWith("--")).join("\n")
       .split(";").map((s) => s.trim()).filter(Boolean);
@@ -74,9 +74,9 @@ test("shutter rates against a real database", async () => {
 
   const full: RatesInput = {
     lines: [
-      { supplier: "norman", name: "Zeta", costCentsPerSqft: 1111, minSqft: 8 },
-      { supplier: "norman", name: "Alpha", costCentsPerSqft: 2222, minSqft: 8 },
-      { supplier: "onyx", name: "Gamma", costCentsPerSqft: 999, minSqft: 0 },
+      { supplier: "norman", name: "Zeta", costCentsPerSqft: 1111, minSqft: 8, clientCentsPerSqft: 2700 },
+      { supplier: "norman", name: "Alpha", costCentsPerSqft: 2222, minSqft: 8, clientCentsPerSqft: null },
+      { supplier: "onyx", name: "Gamma", costCentsPerSqft: 999, minSqft: 0, clientCentsPerSqft: null },
     ],
     options: [
       { supplier: "norman", name: "Premium", kind: "percent", amount: 1000 },
@@ -107,6 +107,7 @@ test("shutter rates against a real database", async () => {
   }, "verify@example.com");
   const smaller = await getShutterRates();
   check(smaller.lines.length === 1 && smaller.lines[0].name === "Gamma", "removed lines are gone", JSON.stringify(smaller.lines));
+  check(smaller.lines[0].clientCentsPerSqft === null, "a line saved without a client price reads back null");
   check(smaller.options.length === 0, "removed add-ons are gone");
   check(smaller.freight[0].firstCents === 0 && smaller.freight[1].perSqftCents === 125 && smaller.freight[1].minSqft === 150, "freight is replaced");
   check(smaller.markupHundredths === null, "markup can be cleared back to not set");
@@ -117,6 +118,8 @@ test("shutter rates against a real database", async () => {
   check(await throws(() => sql`insert into shutter_lines (supplier, name, cost_cents_per_sqft) values ('norman', 'X', 0)`), "a free line is refused");
   check(await throws(() => sql`insert into shutter_options (supplier, name, kind, amount) values ('norman', 'X', 'weekly', 1)`), "an unknown kind is refused");
   check(await throws(() => sql`update shutter_settings set markup_hundredths = 90`), "a markup under 1× is refused");
+  check(await throws(() => sql`update shutter_lines set client_cents_per_sqft = 0`), "a $0 client price is refused");
+  check(!(await throws(() => sql`update shutter_lines set client_cents_per_sqft = null`)), "a client price can be cleared to null");
   check(await throws(() => sql`insert into shutter_settings (id) values (false)`), "a second settings row is refused");
 
   await saveShutterRates({ lines: [], options: [], freight: [freight("norman"), freight("onyx")], markupHundredths: null, installCentsPerSqft: null }, "verify@example.com");

@@ -17,8 +17,8 @@ const { saveShutterRatesAction } = await vi.importActual<typeof import("@/app/ad
 // Made-up rates: the real dealer costs never go in this public repo.
 const rates: ShutterRates = {
   lines: [
-    { id: "a", supplier: "norman", name: "Alpha", costCentsPerSqft: 1000, minSqft: 8 },
-    { id: "b", supplier: "onyx", name: "Beta", costCentsPerSqft: 800, minSqft: 0 },
+    { id: "a", supplier: "norman", name: "Alpha", costCentsPerSqft: 1000, minSqft: 8, clientCentsPerSqft: null },
+    { id: "b", supplier: "onyx", name: "Beta", costCentsPerSqft: 800, minSqft: 0, clientCentsPerSqft: null },
   ],
   options: [
     { id: "shape", supplier: "norman", name: "Angle top", kind: "per_window", amount: 20_000 },
@@ -103,6 +103,16 @@ describe("ShutterQuote", () => {
     expect(screen.getByRole("button", { name: "Copy client prices" })).toBeDisabled();
   });
 
+  it("prices a line with its own client price even with no markup, and copies it", () => {
+    const priced = { ...rates, markupHundredths: null, lines: rates.lines.map((l) => (l.id === "a" ? { ...l, clientCentsPerSqft: 2500 } : l)) };
+    render(<ShutterQuote rates={priced} install={install} />);
+    expect(screen.queryByRole("note")).toBeNull();
+    type("Width (in)", "36");
+    type("Height (in)", "60");
+    expect(window1()).toHaveTextContent("Price $375");
+    expect(screen.getByRole("button", { name: "Copy client prices" })).toBeEnabled();
+  });
+
   it("warns when no install rate is set", () => {
     render(<ShutterQuote rates={rates} install={null} />);
     expect(screen.getByRole("note")).toHaveTextContent("No installation rate is set, so prices leave install out. Set it on the Rates screen.");
@@ -145,7 +155,7 @@ describe("RatesEditor", () => {
     fireEvent.change(screen.getAllByLabelText("$ / sq ft")[0], { target: { value: "12.34" } });
     fireEvent.change(screen.getByLabelText("Markup (× cost)"), { target: { value: "1.9" } });
     const sent = payload(container);
-    expect(sent.lines[0]).toEqual({ supplier: "norman", name: "Alpha", costCentsPerSqft: 1234, minSqft: 8 });
+    expect(sent.lines[0]).toEqual({ supplier: "norman", name: "Alpha", costCentsPerSqft: 1234, minSqft: 8, clientCentsPerSqft: null });
     expect(sent.markupHundredths).toBe(190);
     expect(sent.installCentsPerSqft).toBe(600);
     expect(sent.freight[0]).toMatchObject({ supplier: "norman", firstCents: 7500, oversizeWidthEighths: 720 });
@@ -179,6 +189,14 @@ describe("RatesEditor", () => {
     expect(payload(container).installCentsPerSqft).toBeNull();
   });
 
+  it("edits a line's client price, and blank keeps the markup", () => {
+    const { container } = render(<RatesEditor rates={rates} />);
+    fireEvent.change(screen.getAllByLabelText("Client $ / sq ft")[0], { target: { value: "27" } });
+    expect(payload(container).lines[0].clientCentsPerSqft).toBe(2700);
+    fireEvent.change(screen.getAllByLabelText("Client $ / sq ft")[0], { target: { value: "" } });
+    expect(payload(container).lines[0].clientCentsPerSqft).toBeNull();
+  });
+
   it("allows a blank markup", () => {
     const { container } = render(<RatesEditor rates={rates} />);
     fireEvent.change(screen.getByLabelText("Markup (× cost)"), { target: { value: "" } });
@@ -194,7 +212,7 @@ describe("saveShutterRatesAction", () => {
     return data;
   };
   const valid = {
-    lines: [{ supplier: "norman", name: "Alpha", costCentsPerSqft: 1000, minSqft: 8 }],
+    lines: [{ supplier: "norman", name: "Alpha", costCentsPerSqft: 1000, minSqft: 8, clientCentsPerSqft: null }],
     options: [{ supplier: "norman", name: "Angle top", kind: "per_window", amount: 20_000 }],
     freight: [{ supplier: "norman", firstCents: 0, additionalCents: 0, oversizeWidthEighths: 0, oversizeFirstCents: 0, oversizeAdditionalCents: 0, perSqftCents: 0, minSqft: 0 }],
     markupHundredths: null,
@@ -207,7 +225,7 @@ describe("saveShutterRatesAction", () => {
   });
 
   it("names the row that is wrong", async () => {
-    const bad = { ...valid, lines: [...valid.lines, { supplier: "norman", name: "", costCentsPerSqft: 900, minSqft: 0 }] };
+    const bad = { ...valid, lines: [...valid.lines, { supplier: "norman", name: "", costCentsPerSqft: 900, minSqft: 0, clientCentsPerSqft: null }] };
     expect(await saveShutterRatesAction({}, form(bad))).toEqual({ error: "Line 2: Every line needs a name" });
     expect(store.saveShutterRates).not.toHaveBeenCalled();
   });

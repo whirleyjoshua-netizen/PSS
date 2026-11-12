@@ -33,7 +33,11 @@ export const OPTION_KIND_LABEL: Record<OptionKind, string> = {
 /** Kinds where the person quoting types a count (or feet) for each window. */
 export const COUNTED_KINDS: readonly OptionKind[] = ["each", "per_linear_ft"];
 
-export type ShutterLine = { id: string; supplier: Supplier; name: string; costCentsPerSqft: number; minSqft: number };
+/**
+ * `clientCentsPerSqft` is the line's own client price, installed and shipped. When set it
+ * replaces the markup for this line. Null uses the markup.
+ */
+export type ShutterLine = { id: string; supplier: Supplier; name: string; costCentsPerSqft: number; minSqft: number; clientCentsPerSqft: number | null };
 export type ShutterOption = { id: string; supplier: Supplier; name: string; kind: OptionKind; amount: number };
 
 /**
@@ -165,7 +169,9 @@ function installFor(rate: ShutterInstallRate, w: QuoteWindow): number {
  * add-ons are each a share of that base (they do not stack on each other); the rest are
  * flat or per unit. Then × quantity. Freight is added once for the order and shared
  * across windows by cost. Client price = (product + freight) × markup + install; the
- * install charge is never marked up.
+ * install charge is never marked up. A line with its own client price uses that instead:
+ * billed area × the price (install and freight included), plus its add-ons × the product
+ * multiple the price implies. The quote has a price only when every window does.
  */
 export function priceQuote(rates: ShutterRates, install: ShutterInstallRate, input: QuoteInput): PricedQuote {
   const lines = new Map(rates.lines.filter((l) => l.supplier === input.supplier).map((l) => [l.id, l]));
@@ -187,7 +193,9 @@ export function priceQuote(rates: ShutterRates, install: ShutterInstallRate, inp
       else if (option.kind === "per_sqft") perShutter += option.amount * sqft;
       else perShutter += option.amount * count; // each, per_linear_ft
     }
-    return { ...w, lineName: line.name, sqft, billedSqft, costCents: Math.round(perShutter * w.quantity), installCents: installFor(install, w) };
+    const costCents = Math.round(perShutter * w.quantity);
+    const baseCents = Math.round(base * w.quantity);
+    return { ...w, line, lineName: line.name, sqft, billedSqft, costCents, addOnCents: costCents - baseCents, installCents: installFor(install, w) };
   });
 
   let orderCostCents = 0;
@@ -207,12 +215,21 @@ export function priceQuote(rates: ShutterRates, install: ShutterInstallRate, inp
   // so each window's client price is complete and the window prices add up to the total.
   const shared = allocate(freightCents + orderCostCents, partial.map((w) => w.costCents));
   const freightShare = allocate(freightCents, partial.map((w) => w.costCents));
-  const priced: PricedWindow[] = partial.map((w, i) => ({
-    ...w,
-    freightCents: freightShare[i],
-    priceCents: markup === null ? null : Math.round(((w.costCents + shared[i]) * markup) / 100) + w.installCents,
-  }));
-  const priceCents = markup === null ? null : priced.reduce((s, w) => s + (w.priceCents ?? 0), 0);
+  const orderShare = allocate(orderCostCents, partial.map((w) => w.costCents));
+  const priced: PricedWindow[] = partial.map(({ line, addOnCents, ...w }, i) => {
+    let priceCents: number | null = null;
+    if (line.clientCentsPerSqft !== null) {
+      // The line's own price covers the shutter, its freight and install. Add-ons (and its
+      // share of per-order ones) get the product markup that price implies, never below cost.
+      const productCentsPerSqft = line.clientCentsPerSqft - (install?.basis === "sq_ft" ? install.rateCents : 0);
+      const multiple = Math.max(1, productCentsPerSqft / line.costCentsPerSqft);
+      priceCents = Math.round(w.billedSqft * line.clientCentsPerSqft * w.quantity) + Math.round((addOnCents + orderShare[i]) * multiple);
+    } else if (markup !== null) {
+      priceCents = Math.round(((w.costCents + shared[i]) * markup) / 100) + w.installCents;
+    }
+    return { ...w, freightCents: freightShare[i], priceCents };
+  });
+  const priceCents = priced.some((w) => w.priceCents === null) ? null : priced.reduce((s, w) => s + (w.priceCents ?? 0), 0);
 
   return {
     windows: priced,
@@ -283,6 +300,7 @@ export const ratesSchema = z.object({
     name: z.string().trim().min(1, "Every line needs a name").max(120),
     costCentsPerSqft: cents.refine((n) => n > 0, "Every line needs a $/sq ft cost"),
     minSqft: z.number().int().min(0).max(100),
+    clientCentsPerSqft: cents.refine((n) => n > 0, "A client price must be more than $0").nullable().default(null),
   })),
   options: z.array(z.object({
     supplier: z.enum(SUPPLIERS),

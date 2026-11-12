@@ -9,8 +9,8 @@ import { formatCents } from "@/lib/admin/money";
 // Made-up rates. The real ones are the owners' dealer costs and must never be in this public repo.
 const rates: ShutterRates = {
   lines: [
-    { id: "a", supplier: "norman", name: "Alpha", costCentsPerSqft: 1000, minSqft: 8 },
-    { id: "b", supplier: "onyx", name: "Beta", costCentsPerSqft: 800, minSqft: 0 },
+    { id: "a", supplier: "norman", name: "Alpha", costCentsPerSqft: 1000, minSqft: 8, clientCentsPerSqft: null },
+    { id: "b", supplier: "onyx", name: "Beta", costCentsPerSqft: 800, minSqft: 0, clientCentsPerSqft: null },
   ],
   options: [
     { id: "pct10", supplier: "norman", name: "Premium color", kind: "percent", amount: 1000 },
@@ -154,6 +154,69 @@ describe("the client price", () => {
     expect(q.marginCents).toBeNull();
     expect(q.windows[0].priceCents).toBeNull();
     expect(q.supplierCostCents).toBe(22_500);
+  });
+});
+
+describe("a line's own client price", () => {
+  // Alpha costs $10/sq ft; at $25 installed and shipped, with $6 install the product multiple is (25 − 6) / 10 = 1.9.
+  const withClient = (client: number | null, over: Partial<ShutterRates> = {}): ShutterRates => ({
+    ...rates, ...over, lines: rates.lines.map((l) => (l.id === "a" ? { ...l, clientCentsPerSqft: client } : l)),
+  });
+  const install = guideInstallRate(rates);
+
+  it("is billed area × the price, install and freight included: 15 sq ft at $25 is $375", () => {
+    const q = priceQuote(withClient(2500), install, { supplier: "norman", windows: [win()], orderOptions: {} });
+    expect(q.windows[0].priceCents).toBe(37_500);
+    expect(q.priceCents).toBe(37_500);
+  });
+
+  it("replaces the markup, and works with no markup set", () => {
+    const q = priceQuote(withClient(2500, { markupHundredths: null }), install, { supplier: "norman", windows: [win()], orderOptions: {} });
+    expect(q.priceCents).toBe(37_500);
+  });
+
+  it("uses the billed minimum: a 2 sq ft shutter is billed as 8, so $200", () => {
+    const q = priceQuote(withClient(2500), install, { supplier: "norman", windows: [win({ widthEighths: 12 * 8, heightEighths: 24 * 8 })], orderOptions: {} });
+    expect(q.priceCents).toBe(20_000);
+  });
+
+  it("marks add-ons up by the multiple the price implies: a $200 angle top becomes $380", () => {
+    const q = priceQuote(withClient(2500), install, { supplier: "norman", windows: [win({ options: { shape: 1 } })], orderOptions: {} });
+    expect(q.priceCents).toBe(37_500 + 38_000);
+  });
+
+  it("marks a per-order add-on up the same way: a $200 custom color becomes $380", () => {
+    const q = priceQuote(withClient(2500), install, { supplier: "norman", windows: [win()], orderOptions: { color: 1 } });
+    expect(q.priceCents).toBe(37_500 + 38_000);
+  });
+
+  it("with no install rate, the whole price is product: the multiple is 2.5", () => {
+    const q = priceQuote(withClient(2500), null, { supplier: "norman", windows: [win({ options: { shape: 1 } })], orderOptions: {} });
+    expect(q.priceCents).toBe(37_500 + 50_000);
+  });
+
+  it("never sells an add-on below cost, even when the price barely covers install", () => {
+    const q = priceQuote(withClient(1200), install, { supplier: "norman", windows: [win({ options: { shape: 1 } })], orderOptions: {} });
+    expect(q.priceCents).toBe(18_000 + 20_000);
+  });
+
+  it("the margin is the price less what Norman bills and the install charge", () => {
+    const q = priceQuote(withClient(2500), install, { supplier: "norman", windows: [win({ quantity: 2 })], orderOptions: {} });
+    // 2 × 15 sq ft × $25 = $750; product 2 × $150 = $300; freight $75 + $25 = $100; install 2 × 15 × $6 = $180.
+    expect(q.priceCents).toBe(75_000);
+    expect(q.marginCents).toBe(75_000 - 30_000 - 10_000 - 18_000);
+  });
+
+  it("with no markup, a quote mixing a priced line and an unpriced one has no total", () => {
+    const mixed: ShutterRates = {
+      ...rates, markupHundredths: null,
+      lines: [...rates.lines.map((l) => (l.id === "a" ? { ...l, clientCentsPerSqft: 2500 } : l)), { id: "c", supplier: "norman", name: "Gamma", costCentsPerSqft: 1000, minSqft: 8, clientCentsPerSqft: null }],
+    };
+    const q = priceQuote(mixed, install,
+      { supplier: "norman", windows: [win(), win({ lineId: "c" })], orderOptions: {} });
+    expect(q.windows[0].priceCents).toBe(37_500);
+    expect(q.windows[1].priceCents).toBeNull();
+    expect(q.priceCents).toBeNull();
   });
 });
 

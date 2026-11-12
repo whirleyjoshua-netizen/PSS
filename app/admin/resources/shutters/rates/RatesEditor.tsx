@@ -7,7 +7,7 @@ import {
 } from "@/lib/admin/shutter-pricing";
 import { saveShutterRatesAction, type ShutterRatesState } from "../actions";
 
-type LineRow = { key: number; supplier: Supplier; name: string; cost: string; minSqft: string };
+type LineRow = { key: number; supplier: Supplier; name: string; cost: string; minSqft: string; client: string };
 type OptionRow = { key: number; supplier: Supplier; name: string; kind: OptionKind; amount: string };
 type FreightRow = { first: string; additional: string; oversizeWidth: string; oversizeFirst: string; oversizeAdditional: string; perSqft: string; minSqft: string };
 
@@ -35,6 +35,7 @@ export function RatesEditor({ rates }: { rates: ShutterRates }) {
   const [state, action, pending] = useActionState<ShutterRatesState, FormData>(saveShutterRatesAction, {});
   const [lines, setLines] = useState<LineRow[]>(() => rates.lines.map((l) => ({
     key: nextKey++, supplier: l.supplier, name: l.name, cost: hundredths(l.costCentsPerSqft), minSqft: l.minSqft ? String(l.minSqft) : "",
+    client: l.clientCentsPerSqft === null ? "" : hundredths(l.clientCentsPerSqft),
   })));
   const [options, setOptions] = useState<OptionRow[]>(() => rates.options.map((o) => ({
     key: nextKey++, supplier: o.supplier, name: o.name, kind: o.kind, amount: hundredths(o.amount),
@@ -62,6 +63,8 @@ export function RatesEditor({ rates }: { rates: ShutterRates }) {
       supplier: l.supplier, name: l.name.trim(),
       costCentsPerSqft: toHundredths(l.cost, `${supplierLabel(l.supplier)} line ${l.name || i + 1}`, errors),
       minSqft: toWhole(l.minSqft, `${supplierLabel(l.supplier)} line ${l.name || i + 1} minimum`, errors),
+      // Blank keeps the markup for this line.
+      clientCentsPerSqft: l.client.trim() === "" ? null : toHundredths(l.client, `${supplierLabel(l.supplier)} line ${l.name || i + 1} client price`, errors),
     })),
     options: options.map((o, i) => ({
       supplier: o.supplier, name: o.name.trim(), kind: o.kind,
@@ -125,6 +128,7 @@ export function RatesEditor({ rates }: { rates: ShutterRates }) {
 
             <fieldset className="flex flex-col gap-2">
               <legend className="text-sm font-semibold">Lines, cost per sq ft</legend>
+              <p className="text-xs text-ink-soft">Client $ / sq ft is that line&apos;s price installed and shipped. It replaces the markup for the line. Leave it blank to use the markup.</p>
               {lines.filter((l) => l.supplier === s).map((l) => (
                 <div key={l.key} className="flex flex-wrap items-end gap-2">
                   <label className="flex flex-col gap-1 text-xs">Line
@@ -132,6 +136,9 @@ export function RatesEditor({ rates }: { rates: ShutterRates }) {
                   </label>
                   <label className="flex flex-col gap-1 text-xs">$ / sq ft
                     <input value={l.cost} inputMode="decimal" onChange={(e) => setLine(l.key, { cost: e.target.value })} className={`${field} w-24`} />
+                  </label>
+                  <label className="flex flex-col gap-1 text-xs">Client $ / sq ft
+                    <input value={l.client} inputMode="decimal" placeholder="Markup" onChange={(e) => setLine(l.key, { client: e.target.value })} className={`${field} w-24`} />
                   </label>
                   <label className="flex flex-col gap-1 text-xs">Minimum sq ft
                     <input value={l.minSqft} inputMode="numeric" placeholder="None" onChange={(e) => setLine(l.key, { minSqft: e.target.value })} className={`${field} w-24`} />
@@ -141,7 +148,7 @@ export function RatesEditor({ rates }: { rates: ShutterRates }) {
                   </button>
                 </div>
               ))}
-              <button type="button" onClick={() => setLines((all) => [...all, { key: nextKey++, supplier: s, name: "", cost: "", minSqft: "" }])}
+              <button type="button" onClick={() => setLines((all) => [...all, { key: nextKey++, supplier: s, name: "", cost: "", minSqft: "", client: "" }])}
                 className="min-h-11 self-start border border-charcoal px-3 text-sm">Add a {name} line</button>
             </fieldset>
 

@@ -103,8 +103,8 @@ export function ShutterQuote({ rates, install }: { rates: ShutterRates; install:
       ) : (
         <p className="text-xs text-ink-soft">Installation: {formatCents(install.rateCents)} {basisLabel(install.basis).toLowerCase()}, rounded up per shutter.</p>
       )}
-      {rates.markupHundredths === null ? (
-        <p role="note" className="text-sm text-overdue">No markup is set, so this shows your cost only. Set it on the Rates screen.</p>
+      {rates.markupHundredths === null && lines.some((l) => l.clientCentsPerSqft === null) ? (
+        <p role="note" className="text-sm text-overdue">No markup is set, so lines without a client price show your cost only. Set either on the Rates screen.</p>
       ) : null}
 
       <ol className="flex flex-col gap-4">
