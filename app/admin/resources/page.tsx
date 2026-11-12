@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { CARD } from "@/app/admin/jobs/[id]/ui";
 import { requireAdmin } from "@/lib/admin/session";
 import { listCategories, listResources } from "@/lib/admin/resources";
@@ -17,6 +18,13 @@ export default async function ResourcesPage() {
         <h1 className="text-2xl font-semibold">Resources</h1>
         <p className="text-sm text-ink-soft">Company files for the team only. Clients never see these.</p>
       </div>
+      <section aria-labelledby="tools-heading" className={CARD}>
+        <h2 id="tools-heading" className="text-lg font-semibold">Pricing tools</h2>
+        <Link href="/admin/resources/shutters" className="min-h-11 self-start py-2 underline underline-offset-4">
+          Shutter pricing
+        </Link>
+        <p className="text-sm text-ink-soft">A quick shutter price from your Norman and Onyx costs.</p>
+      </section>
       <section aria-label="Upload files" className={CARD}>
         <ResourceUploader categories={choices} />
       </section>

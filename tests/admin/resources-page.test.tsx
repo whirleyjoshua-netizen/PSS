@@ -254,8 +254,9 @@ describe("Resources page", () => {
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Resources");
     expect(screen.getByLabelText("Choose files")).toBeInTheDocument();
     expect(screen.getAllByRole("region").map((r) => r.getAttribute("aria-label") ?? within(r).getByRole("heading").textContent)).toEqual([
-      "Upload files", "Categories", "Licenses (2)", "Spec books (1)", "Tax (0)",
+      "Pricing tools", "Upload files", "Categories", "Licenses (2)", "Spec books (1)", "Tax (0)",
     ]);
+    expect(screen.getByRole("link", { name: "Shutter pricing" })).toHaveAttribute("href", "/admin/resources/shutters");
     expect(within(screen.getByRole("region", { name: "Tax (0)" })).getByText("No files yet.")).toBeInTheDocument();
     expect(within(screen.getByRole("combobox", { name: "Category" })).getAllByRole("option").map((o) => o.textContent))
       .toEqual(["Licenses", "Spec books", "Tax", "Uncategorized"]);
