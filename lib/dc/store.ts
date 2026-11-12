@@ -13,6 +13,8 @@ export type StoredVersion = {
   option: string;
   /** DC's "Client:" name as printed, "" when blank. Shown so a quote on the wrong household stands out. */
   clientName: string;
+  /** Where it came from (migration 051): a Direct Connect import, or a Norman or Onyx quote from the shutter price guide. */
+  source: "direct_connect" | "shutter_guide";
   sourceFileId: string; sourceSha256: string; status: "draft" | "offered" | "sent" | "signed" | "superseded" | "cancelled";
   subtotalCents: number; handlingFeeCents: number; oversizedFeeCents: number; dealerTotalCents: number;
   waiveHandling: boolean; noInstall: boolean;
@@ -195,7 +197,8 @@ export async function listVersions(leadId: string): Promise<StoredVersion[]> {
   return versions.map((v) => ({
     id: v.id as string, leadId: v.lead_id as string, version: Number(v.version), dcQuoteNo: v.dc_quote_no as string,
     option: (v.option as string | null) ?? "A",
-    poReference: v.po_reference as string, clientName: (v.client_name as string | null) ?? "", sourceFileId: v.source_file_id as string, sourceSha256: v.source_sha256 as string,
+    poReference: v.po_reference as string, clientName: (v.client_name as string | null) ?? "", source: v.source === "shutter_guide" ? "shutter_guide" : "direct_connect",
+    sourceFileId: v.source_file_id as string, sourceSha256: v.source_sha256 as string,
     status: v.status as StoredVersion["status"], subtotalCents: Number(v.dealer_subtotal_cents),
     handlingFeeCents: Number(v.handling_fee_cents), oversizedFeeCents: Number(v.oversized_fee_cents),
     dealerTotalCents: Number(v.dealer_total_cents), waiveHandling: v.waive_handling === true, noInstall: v.no_install === true,
@@ -286,7 +289,8 @@ export async function listSeenCollections(): Promise<string[]> {
     select collection from (
       select distinct on (lower(collection)) collection from (
         select collection, 0 as ruled_first from markup_rules
-        union all select trim(collection), 1 from dc_quote_lines
+        union all select trim(l.collection), 1 from dc_quote_lines l
+          join dc_quote_versions v on v.id = l.version_id where v.source = 'direct_connect'
       ) seen
       order by lower(collection), ruled_first, collection
     ) folded

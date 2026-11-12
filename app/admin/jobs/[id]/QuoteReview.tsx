@@ -202,7 +202,10 @@ export function QuoteReview({ jobId, review, now }: { jobId: string; review: Rev
       else setSendResult({ ok: result.emailed === false ? CONTRACT_EMAIL_FAILED : "Contract sent." });
     });
 
-  const installNote = version.noInstall
+  const guide = version.source === "shutter_guide";
+  const installNote = guide
+    ? "Installation and shipping are in the shutter prices"
+    : version.noInstall
     ? "No installation"
     : install
       ? `${install.kind === "final" ? "Final install price" : "Estimate"}, ${formatShortDate(install.createdAt)}`
@@ -212,12 +215,12 @@ export function QuoteReview({ jobId, review, now }: { jobId: string; review: Rev
     <section aria-labelledby={ids.heading} className="flex flex-col gap-5">
       <header className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
         <h2 id={ids.heading} className="text-lg font-semibold">
-          DC quote {version.dcQuoteNo} · version {version.version}{olderVersions.length > 0 ? ` of ${olderVersions.length + 1}` : ""}
+          {guide ? "Shutter quote" : `DC quote ${version.dcQuoteNo}`} · version {version.version}{olderVersions.length > 0 ? ` of ${olderVersions.length + 1}` : ""}
         </h2>
         {/* The name DC printed, so a quote filed on the wrong household is visible before it is priced. */}
-        <span className="text-sm">Direct Connect client: {version.clientName || "none given"}</span>
+        {guide ? null : <span className="text-sm">Direct Connect client: {version.clientName || "none given"}</span>}
         <span className="border border-rule px-2 py-0.5 text-xs uppercase tracking-wide">{STATUS[version.status]}</span>
-        <a className={TEXT_LINK} href={`/admin/files/${version.sourceFileId}`} target="_blank" rel="noreferrer">Dealer copy</a>
+        <a className={TEXT_LINK} href={`/admin/files/${version.sourceFileId}`} target="_blank" rel="noreferrer">{guide ? "Cost sheet" : "Dealer copy"}</a>
       </header>
 
       {version.status === "offered" && version.offeredAt ? (
@@ -231,14 +234,18 @@ export function QuoteReview({ jobId, review, now }: { jobId: string; review: Rev
         <div className="flex flex-col gap-1">
           {inWindow && version.signedAt && lastCancellableDay ? (
             <p className="text-sm font-semibold">
-              Signed {formatShortDate(version.signedAt)}. Cancellation window ends at the end of {formatDateOnly(lastCancellableDay)} — place the Direct Connect order after that.
+              Signed {formatShortDate(version.signedAt)}. Cancellation window ends at the end of {formatDateOnly(lastCancellableDay)} — place the {guide ? "shutter" : "Direct Connect"} order after that.
             </p>
           ) : (
             <>
               {version.signedAt ? <p className="text-sm">Signed {formatShortDate(version.signedAt)}</p> : null}
-              <a className={`${TEXT_LINK} font-semibold`} href={dcQuoteUrl(version.dcQuoteNo)} target="_blank" rel="noopener noreferrer">
-                Signed — ready to order: Open quote {version.dcQuoteNo} in Direct Connect
-              </a>
+              {guide ? (
+                <p className="text-sm font-semibold">Signed — ready to order the shutters. The cost sheet lists each window.</p>
+              ) : (
+                <a className={`${TEXT_LINK} font-semibold`} href={dcQuoteUrl(version.dcQuoteNo)} target="_blank" rel="noopener noreferrer">
+                  Signed — ready to order: Open quote {version.dcQuoteNo} in Direct Connect
+                </a>
+              )}
             </>
           )}
         </div>
@@ -265,8 +272,8 @@ export function QuoteReview({ jobId, review, now }: { jobId: string; review: Rev
               <th className={cell}>Product</th>
               <th className={cell}>Details</th>
               <th className={`${cell} text-right`}>Qty</th>
-              <th className={`${cell} text-right`}>MSRP</th>
-              <th className={`${cell} text-right`}>% of MSRP</th>
+              <th className={`${cell} text-right`}>{guide ? "Guide price" : "MSRP"}</th>
+              <th className={`${cell} text-right`}>{guide ? "% of guide price" : "% of MSRP"}</th>
               <th className={`${cell} text-right`}>Sell</th>
               <th className={`${cell} text-right`}>Cost</th>
               <th className={`${cell} text-right`}>Margin</th>
@@ -308,11 +315,13 @@ export function QuoteReview({ jobId, review, now }: { jobId: string; review: Rev
         <Total label="Products" value={formatCents(priced.productsCents)} />
         {/* The fee is built into the line prices (and Products), so it is shown, muted, outside the sum.
             Only a version sent before that prints it as its own line. */}
-        <Total label="HD handling fee" muted={priced.handlingChargedCents === 0}
-          value={priced.handlingChargedCents > 0 ? formatCents(priced.handlingChargedCents)
-            : priced.waiveHandling ? "Waived" : priced.handlingFoldedCents > 0 ? inLines(priced.handlingFoldedCents, version.handlingFeeCents) : "None"}>
-          <Choice label="Waive" checked={priced.waiveHandling} locked={locked} busy={choosing} resets={refusals} onChange={(checked) => choose({ waiveHandling: checked })} />
-        </Total>
+        {guide ? null : (
+          <Total label="HD handling fee" muted={priced.handlingChargedCents === 0}
+            value={priced.handlingChargedCents > 0 ? formatCents(priced.handlingChargedCents)
+              : priced.waiveHandling ? "Waived" : priced.handlingFoldedCents > 0 ? inLines(priced.handlingFoldedCents, version.handlingFeeCents) : "None"}>
+            <Choice label="Waive" checked={priced.waiveHandling} locked={locked} busy={choosing} resets={refusals} onChange={(checked) => choose({ waiveHandling: checked })} />
+          </Total>
+        )}
         {priced.oversizedCents > 0 ? <Total label="Oversized" value={formatCents(priced.oversizedCents)} /> : null}
         {/* Installation is built into the line prices too, evenly per shade: shown muted, outside the sum.
             Only a version sent before that prints it as its own line. */}
@@ -322,7 +331,7 @@ export function QuoteReview({ jobId, review, now }: { jobId: string; review: Rev
           {installNote ? <span className="text-xs text-ink-soft">{installNote}</span> : (
             <a className={TEXT_LINK} href={`/admin/jobs/${jobId}?tab=install`}>No installation price saved yet</a>
           )}
-          <Choice label="No installation on this job" checked={version.noInstall} locked={locked} busy={choosing} resets={refusals} onChange={(checked) => choose({ noInstall: checked })} />
+          {guide ? null : <Choice label="No installation on this job" checked={version.noInstall} locked={locked} busy={choosing} resets={refusals} onChange={(checked) => choose({ noInstall: checked })} />}
         </Total>
         {/* Shown to the client only when there is one: the quote and contract print it above the total. */}
         {priced.discountCents > 0 ? (
@@ -333,7 +342,7 @@ export function QuoteReview({ jobId, review, now }: { jobId: string; review: Rev
         <div className="border-t border-charcoal pt-1 font-semibold">
           <Total label="Client total" value={formatCents(priced.clientTotalCents)} />
         </div>
-        <Total label="Your cost (HD)" value={formatCents(priced.costCents)} muted />
+        <Total label={guide ? "Your cost (shutters + freight)" : "Your cost (HD)"} value={formatCents(priced.costCents)} muted />
         <Total label="Margin" value={formatCents(priced.marginCents)} muted />
         {choiceError ? <p role="alert" className="text-sm text-red-700">{choiceError}</p> : null}
       </dl>

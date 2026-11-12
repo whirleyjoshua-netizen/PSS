@@ -2,12 +2,13 @@ import Link from "next/link";
 import { requireAdmin } from "@/lib/admin/session";
 import { guideInstallRate } from "@/lib/admin/shutter-pricing";
 import { getShutterRates } from "@/lib/admin/shutter-rates";
+import { listQuotableJobs } from "@/lib/admin/shutter-quote";
 import { ShutterQuote } from "./ShutterQuote";
 
 /** Quick shutter quoting from the owners' Norman and Onyx costs. Team only: it shows dealer cost. */
 export default async function ShutterPricingPage() {
   await requireAdmin();
-  const rates = await getShutterRates();
+  const [rates, jobs] = await Promise.all([getShutterRates(), listQuotableJobs()]);
   return (
     <div className="flex max-w-4xl flex-col gap-6">
       <div className="flex flex-col gap-1">
@@ -16,9 +17,9 @@ export default async function ShutterPricingPage() {
           <h1 className="text-2xl font-semibold">Shutter pricing</h1>
           <Link href="/admin/resources/shutters/rates" className="min-h-11 py-2 text-sm underline underline-offset-4">Rates</Link>
         </div>
-        <p className="text-sm text-ink-soft">A quick price from your Norman and Onyx costs. Nothing here is saved or shown to clients.</p>
+        <p className="text-sm text-ink-soft">A quick price from your Norman and Onyx costs. Nothing is saved unless you make it a quote.</p>
       </div>
-      <ShutterQuote rates={rates} install={guideInstallRate(rates)} />
+      <ShutterQuote rates={rates} install={guideInstallRate(rates)} jobs={jobs} />
     </div>
   );
 }

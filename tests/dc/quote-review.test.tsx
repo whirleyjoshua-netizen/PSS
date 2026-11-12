@@ -43,7 +43,7 @@ const LINES: StoredLine[] = [
 ];
 
 const version = (over: Partial<StoredVersion> = {}): StoredVersion => ({
-  id: V, leadId: J, version: 2, option: "A", dcQuoteNo: "12345678", poReference: "PSS-1042", clientName: "Jane Client", sourceFileId: "file-1", sourceSha256: "x",
+  id: V, leadId: J, version: 2, option: "A", dcQuoteNo: "12345678", poReference: "PSS-1042", clientName: "Jane Client", source: "direct_connect", sourceFileId: "file-1", sourceSha256: "x",
   status: "draft", subtotalCents: 0, handlingFeeCents: 2500, oversizedFeeCents: 0, dealerTotalCents: 121277,
   waiveHandling: false, noInstall: false, installQuoteId: null, installCents: null, productsCents: null, clientTotalCents: null,
   contractFileId: null, sentAt: null, signedAt: null, createdAt: new Date("2026-09-20T18:00:00Z"),
@@ -183,6 +183,20 @@ describe("QuoteReview figures", () => {
     expect(screen.getByRole("heading", { name: "DC quote 12345678 · version 2 of 2" })).toBeInTheDocument();
     expect(screen.getByText("Draft")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Dealer copy" })).toHaveAttribute("href", "/admin/files/file-1");
+  });
+
+  it("heads a shutter guide quote as a shutter quote with its cost sheet, and drops the HD-only parts", () => {
+    const r = review({ install: null });
+    render(<QuoteReview jobId={J} review={{ ...r, version: version({ source: "shutter_guide", dcQuoteNo: "", noInstall: true, status: "signed", signedAt: new Date("2026-09-01T18:00:00Z") }) }} now={new Date("2026-11-12T18:00:00Z")} />);
+    expect(screen.getByRole("heading", { name: "Shutter quote · version 2" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Cost sheet" })).toHaveAttribute("href", "/admin/files/file-1");
+    expect(screen.queryByText(/Direct Connect client/)).toBeNull();
+    expect(screen.queryByText("HD handling fee", { selector: "dt" })).toBeNull();
+    expect(screen.queryByLabelText("No installation on this job")).toBeNull();
+    expect(screen.getByText("Installation and shipping are in the shutter prices")).toBeInTheDocument();
+    expect(screen.getByText("Your cost (shutters + freight)", { selector: "dt" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Direct Connect/ })).toBeNull();
+    expect(screen.getByText(/Signed — ready to order the shutters/)).toBeInTheDocument();
   });
 
   it("names the Direct Connect client beside the quote number, so a wrong household stands out", () => {

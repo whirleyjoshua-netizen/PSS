@@ -46,7 +46,7 @@ const quote = parsed.quote;
 
 const version: StoredVersion = {
   id: V1, leadId: JOB, version: 1, option: "A", dcQuoteNo: quote.quoteNo, poReference: quote.poReference,
-  sourceFileId: "77777777-7777-4777-8777-777777777777", sourceSha256: "abc", clientName: "Test", status: "draft",
+  source: "direct_connect", sourceFileId: "77777777-7777-4777-8777-777777777777", sourceSha256: "abc", clientName: "Test", status: "draft",
   subtotalCents: quote.subtotalCents, handlingFeeCents: quote.handlingFeeCents, oversizedFeeCents: quote.oversizedFeeCents,
   dealerTotalCents: quote.dealerTotalCents, waiveHandling: false, noInstall: false,
   installQuoteId: null, installCents: null, productsCents: null, clientTotalCents: null,

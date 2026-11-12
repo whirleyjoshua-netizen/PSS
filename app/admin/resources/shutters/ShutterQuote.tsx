@@ -5,9 +5,10 @@ import { formatEighths } from "@/lib/admin/measure-units";
 import { formatCents } from "@/lib/admin/money";
 import {
   COUNTED_KINDS, SUPPLIERS, clientSummary, formatSqft, parseInches, priceQuote, supplierLabel,
-  type PricedQuote, type ShutterInstallRate, type ShutterRates, type Supplier,
+  type PricedQuote, type QuoteInput, type ShutterInstallRate, type ShutterRates, type Supplier,
 } from "@/lib/admin/shutter-pricing";
 import { basisLabel } from "@/lib/admin/install-pricing";
+import { MakeQuote, type JobChoice } from "./MakeQuote";
 
 type Row = {
   key: number;
@@ -25,7 +26,7 @@ let nextKey = 1;
 const blankRow = (lineId: string): Row => ({ key: nextKey++, room: "", lineId, width: "", height: "", quantity: 1, panels: 2, options: {} });
 const money = (cents: number | null) => (cents === null ? "—" : formatCents(cents));
 
-export function ShutterQuote({ rates, install }: { rates: ShutterRates; install: ShutterInstallRate }) {
+export function ShutterQuote({ rates, install, jobs }: { rates: ShutterRates; install: ShutterInstallRate; jobs?: JobChoice[] }) {
   const available = SUPPLIERS.filter((s) => rates.lines.some((l) => l.supplier === s));
   const [supplier, setSupplier] = useState<Supplier>(available[0] ?? "norman");
   const lines = rates.lines.filter((l) => l.supplier === supplier);
@@ -50,21 +51,19 @@ export function ShutterQuote({ rates, install }: { rates: ShutterRates; install:
 
   // Only windows with a readable size are priced; the rest show what is missing.
   const ready = rows.map((r) => ({ row: r, w: parseInches(r.width), h: parseInches(r.height) }));
+  const input: QuoteInput = {
+    supplier,
+    windows: ready.filter((x) => x.w !== null && x.h !== null).map(({ row, w, h }) => ({
+      room: row.room, lineId: row.lineId, widthEighths: w!, heightEighths: h!,
+      quantity: row.quantity, panels: row.panels, options: row.options,
+    })),
+    orderOptions: orderCounts,
+  };
+  const unsized = ready.filter((x) => x.w === null || x.h === null).length;
   const { quote, error } = ((): { quote: PricedQuote | null; error: string | null } => {
-    const priced = ready.filter((x) => x.w !== null && x.h !== null);
-    if (priced.length === 0) return { quote: null, error: null };
+    if (input.windows.length === 0) return { quote: null, error: null };
     try {
-      return {
-        quote: priceQuote(rates, install, {
-          supplier,
-          windows: priced.map(({ row, w, h }) => ({
-            room: row.room, lineId: row.lineId, widthEighths: w!, heightEighths: h!,
-            quantity: row.quantity, panels: row.panels, options: row.options,
-          })),
-          orderOptions: orderCounts,
-        }),
-        error: null,
-      };
+      return { quote: priceQuote(rates, install, input), error: null };
     } catch (e) {
       return { quote: null, error: e instanceof Error ? e.message : "This quote cannot be priced" };
     }
@@ -215,6 +214,10 @@ export function ShutterQuote({ rates, install }: { rates: ShutterRates; install:
             {copied ? "Copied" : "Copy client prices"}
           </button>
           <p className="text-xs text-ink-soft">Copies each window&apos;s price and the total for a text or email. Your costs are never copied.</p>
+          {jobs ? (
+            <MakeQuote jobs={jobs} input={input} totalCents={quote.priceCents}
+              blocked={unsized > 0 ? `Enter a size for every window, or remove the empty ${unsized === 1 ? "one" : "ones"}.` : null} />
+          ) : null}
         </section>
       ) : null}
     </div>

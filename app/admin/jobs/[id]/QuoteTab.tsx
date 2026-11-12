@@ -43,7 +43,7 @@ function OptionCard({ jobId, letter, optionNo, review, now, labelled }: {
 }) {
   const body = (
     <>
-      <DcButtons projectNo={optionNo} dcQuoteNo={review?.version.dcQuoteNo ?? null} />
+      {review?.version.source === "shutter_guide" ? null : <DcButtons projectNo={optionNo} dcQuoteNo={review?.version.dcQuoteNo ?? null} />}
       {review ? (
         <QuoteReview jobId={jobId} review={review} now={now} />
       ) : (

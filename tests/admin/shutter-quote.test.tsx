@@ -1,18 +1,23 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ShutterRates } from "@/lib/admin/shutter-pricing";
+import { formatCents } from "@/lib/admin/money";
 
-const actions = { saveShutterRatesAction: vi.fn() };
+const actions = { saveShutterRatesAction: vi.fn(), makeShutterQuoteAction: vi.fn(async () => ({})) };
 vi.mock("@/app/admin/resources/shutters/actions", () => actions);
 const requireAdmin = vi.fn();
 vi.mock("@/lib/admin/session", () => ({ requireAdmin }));
 const store = { getShutterRates: vi.fn(), getShutterInstallRate: vi.fn(), saveShutterRates: vi.fn() };
 vi.mock("@/lib/admin/shutter-rates", () => store);
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+const quoteStore = { makeShutterQuote: vi.fn(), listQuotableJobs: vi.fn() };
+vi.mock("@/lib/admin/shutter-quote", () => quoteStore);
+const redirect = vi.fn((url: string): never => { throw new Error(`NEXT_REDIRECT ${url}`); });
+vi.mock("next/navigation", () => ({ redirect }));
 
 const { ShutterQuote } = await import("@/app/admin/resources/shutters/ShutterQuote");
 const { RatesEditor } = await import("@/app/admin/resources/shutters/rates/RatesEditor");
-const { saveShutterRatesAction } = await vi.importActual<typeof import("@/app/admin/resources/shutters/actions")>("@/app/admin/resources/shutters/actions");
+const { saveShutterRatesAction, makeShutterQuoteAction } = await vi.importActual<typeof import("@/app/admin/resources/shutters/actions")>("@/app/admin/resources/shutters/actions");
 
 // Made-up rates: the real dealer costs never go in this public repo.
 const rates: ShutterRates = {
@@ -245,5 +250,109 @@ describe("saveShutterRatesAction", () => {
     requireAdmin.mockRejectedValue(new Error("NEXT_REDIRECT"));
     await expect(saveShutterRatesAction({}, form(valid))).rejects.toThrow("NEXT_REDIRECT");
     expect(store.saveShutterRates).not.toHaveBeenCalled();
+  });
+});
+
+describe("Make this a quote", () => {
+  const jobs = [
+    { id: "11111111-1111-4111-8111-111111111111", name: "Jane Client", projectNo: 1042 },
+    { id: "22222222-2222-4222-8222-222222222222", name: "Sam Other", projectNo: 1043 },
+  ];
+  const form = () => screen.getByRole("form", { name: "Make this a quote" });
+  const hidden = (name: string) => (form().querySelector(`input[name="${name}"]`) as HTMLInputElement).value;
+  const sized = () => {
+    type("Width (in)", "36");
+    type("Height (in)", "60");
+  };
+
+  it("is offered once a window is priced, and waits for a job", () => {
+    render(<ShutterQuote rates={rates} install={install} jobs={jobs} />);
+    expect(screen.queryByRole("form", { name: "Make this a quote" })).toBeNull();
+    sized();
+    const button = within(form()).getByRole("button", { name: /^Make this a \$[\d,.]+ quote$/ });
+    expect(button).toBeDisabled();
+    expect(form()).toHaveTextContent("Pick the client's job.");
+    fireEvent.change(within(form()).getByLabelText("Job"), { target: { value: jobs[0].id } });
+    expect(button).toBeEnabled();
+  });
+
+  it("sends exactly the windows and the total on screen", () => {
+    render(<ShutterQuote rates={rates} install={install} jobs={jobs} />);
+    type("Room", "Kitchen");
+    type("Width (in)", "36 1/2");
+    type("Height (in)", "60");
+    expect(JSON.parse(hidden("quote"))).toEqual({
+      supplier: "norman",
+      windows: [{ room: "Kitchen", lineId: "a", widthEighths: 292, heightEighths: 480, quantity: 1, panels: 2, options: {} }],
+      orderOptions: {},
+    });
+    const total = Number(hidden("total"));
+    expect(total).toBeGreaterThan(0);
+    expect(within(form()).getByRole("button", { name: /^Make this a/ })).toHaveTextContent(formatCents(total));
+    expect(totals()).toHaveTextContent(formatCents(total));
+  });
+
+  it("will not make a quote while a window has no size", () => {
+    render(<ShutterQuote rates={rates} install={install} jobs={jobs} />);
+    sized();
+    fireEvent.click(screen.getByRole("button", { name: "Add a window" }));
+    fireEvent.change(within(form()).getByLabelText("Job"), { target: { value: jobs[0].id } });
+    expect(within(form()).getByRole("button", { name: /^Make this a/ })).toBeDisabled();
+    expect(form()).toHaveTextContent("Enter a size for every window");
+  });
+
+  it("finds a job by name or PSS number", () => {
+    render(<ShutterQuote rates={rates} install={install} jobs={jobs} />);
+    sized();
+    const listed = () => within(within(form()).getByLabelText("Job")).getAllByRole("option").map((o) => o.textContent);
+    fireEvent.change(within(form()).getByLabelText("Find the job"), { target: { value: "sam" } });
+    expect(listed()).toEqual(["Pick a job", "Sam Other · PSS-1043"]);
+    fireEvent.change(within(form()).getByLabelText("Find the job"), { target: { value: "PSS-1042" } });
+    expect(listed()).toEqual(["Pick a job", "Jane Client · PSS-1042"]);
+  });
+
+  it("is not offered where no job list is given", () => {
+    render(<ShutterQuote rates={rates} install={install} />);
+    sized();
+    expect(screen.queryByRole("form", { name: "Make this a quote" })).toBeNull();
+  });
+});
+
+describe("makeShutterQuoteAction", () => {
+  const input = { supplier: "norman", windows: [{ room: "Kitchen", lineId: "a", widthEighths: 288, heightEighths: 480, quantity: 1, panels: 2, options: {} }], orderOptions: {} };
+  const job = "11111111-1111-4111-8111-111111111111";
+  const form = (quote: unknown, total: string | number = 37_500) => {
+    const data = new FormData();
+    data.set("quote", typeof quote === "string" ? quote : JSON.stringify(quote));
+    data.set("total", String(total));
+    data.set("jobId", job);
+    return data;
+  };
+
+  it("makes the quote as the signed-in admin and opens the job's Quote tab", async () => {
+    quoteStore.makeShutterQuote.mockResolvedValue({ ok: true, jobId: job, option: "A", version: 1 });
+    await expect(makeShutterQuoteAction({}, form(input))).rejects.toThrow("NEXT_REDIRECT");
+    expect(quoteStore.makeShutterQuote).toHaveBeenCalledWith({ jobId: job, quote: input, expectedTotalCents: 37_500, actor: "owner@example.com" });
+    expect(redirect).toHaveBeenCalledWith(`/admin/jobs/${job}?tab=quote`);
+  });
+
+  it("shows the reason when the quote is refused", async () => {
+    quoteStore.makeShutterQuote.mockResolvedValue({ error: "This job is marked Lost." });
+    expect(await makeShutterQuoteAction({}, form(input))).toEqual({ error: "This job is marked Lost." });
+    expect(redirect).not.toHaveBeenCalled();
+  });
+
+  it("refuses unreadable windows, no windows and a missing total before pricing anything", async () => {
+    expect((await makeShutterQuoteAction({}, form("{nope"))).error).toMatch(/could not be read/);
+    expect((await makeShutterQuoteAction({}, form({ ...input, windows: [] }))).error).toBe("Add at least one window.");
+    expect((await makeShutterQuoteAction({}, form({ ...input, supplier: "hunter" }))).error).toBeTruthy();
+    expect((await makeShutterQuoteAction({}, form(input, ""))).error).toBe("Price every window first.");
+    expect(quoteStore.makeShutterQuote).not.toHaveBeenCalled();
+  });
+
+  it("requires an admin", async () => {
+    requireAdmin.mockRejectedValue(new Error("NEXT_REDIRECT"));
+    await expect(makeShutterQuoteAction({}, form(input))).rejects.toThrow("NEXT_REDIRECT");
+    expect(quoteStore.makeShutterQuote).not.toHaveBeenCalled();
   });
 });
