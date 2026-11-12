@@ -4,7 +4,7 @@ import CityPage from "@/app/(site)/service-area/[city]/page";
 import ReviewsPage from "@/app/(site)/reviews/page";
 import ContactPage from "@/app/(site)/contact/page";
 import { cities } from "@/content/cities";
-import { consultationPhoto } from "@/content/gallery";
+import { consultationPhoto, contactCollage } from "@/content/gallery";
 
 describe.each(cities.map((city) => [city.slug, city] as const))("/service-area/%s", (slug, city) => {
   it("books with the short form, filed under this city, under its own heading", async () => {
@@ -45,11 +45,16 @@ describe("/reviews booking block", () => {
 });
 
 describe("/contact", () => {
-  // Owner 2026-10-01: the family photo replaces the install stand-in here.
-  it("shows the owners' family photo beside the form", () => {
+  // Owner 2026-11-12: the family photo comes off /contact; three real installs replace it.
+  it("shows the install snapshots beside the form, not the family photo or the stand-in", () => {
     const { container } = render(<ContactPage />);
-    const img = screen.getByRole("img", { name: /Josh and Shade/ });
-    expect(decodeURIComponent(img.getAttribute("src") ?? "")).toContain("/brand/family-backyard-pool.webp");
+    const srcs = Array.from(container.querySelectorAll("img")).map((img) => decodeURIComponent(img.getAttribute("src") ?? ""));
+    for (const { photo } of contactCollage) {
+      expect(screen.getByRole("img", { name: photo.alt })).toBeTruthy();
+      expect(srcs.some((src) => src.includes(photo.src))).toBe(true);
+    }
+    expect(srcs.some((src) => src.includes("/brand/"))).toBe(false);
+    expect(screen.queryByRole("img", { name: /Josh and Shade/ })).toBeNull();
     expect(container.querySelector('img[alt="' + consultationPhoto.alt + '"]')).toBeNull();
   });
 });

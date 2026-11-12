@@ -226,3 +226,20 @@ export const gallery: GalleryItem[] = [
  * Alta stock photos, so it is the sheer shadings dining room, not a gallery photo.
  */
 export const consultationPhoto: Photo = altaPhotos.sheerShadingsDiningRoom;
+
+function galleryPhoto(src: string): GalleryItem {
+  const photo = gallery.find((p) => p.src === src);
+  if (!photo) throw new Error(`No gallery photo at ${src}`);
+  return photo;
+}
+
+/**
+ * The snapshot collage beside the /contact form (owner 2026-11-12: the family
+ * photo comes off that page in favour of our prettiest real installs). Order
+ * is the collage's: large back photo, tall right photo, wide front photo.
+ */
+export const contactCollage: { photo: GalleryItem; label: string }[] = [
+  { photo: galleryPhoto("/gallery/cellular-shades-great-room.webp"), label: "Cellular shades" },
+  { photo: galleryPhoto("/gallery/plantation-shutters-bath.webp"), label: "Plantation shutters" },
+  { photo: galleryPhoto("/gallery/transitional-shades-slider-wall.webp"), label: "Sheer shades" },
+];

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { pageMetadata } from "@/lib/seo/metadata";
-import { consultationPhoto } from "@/content/gallery";
-import Image from "next/image";
+import { consultationPhoto, contactCollage } from "@/content/gallery";
+import { SnapshotCollage } from "@/components/consultation/SnapshotCollage";
 import Link from "next/link";
 import { Section } from "@/components/ui/Section";
 import { PageHero } from "@/components/product/ProductParts";
@@ -33,15 +33,7 @@ export default function ContactPage() {
           <ConsultationForm />
 
           <aside className="flex flex-col gap-8">
-            <div className="relative aspect-4/5 w-full overflow-hidden bg-sand">
-              <Image
-                src="/brand/family-backyard-pool.webp"
-                alt="Josh and Shade’ smiling by a backyard pool under palm trees, each holding one of their two young children"
-                fill
-                sizes="(min-width: 1024px) 22rem, 100vw"
-                className="object-cover"
-              />
-            </div>
+            <SnapshotCollage snapshots={contactCollage} title="A few of our installs" />
             <div className="border border-rule bg-sand/50 p-6">
               <h2 className="font-display text-xs font-medium uppercase tracking-[0.2em] text-champagne-ink">
                 Prefer to call?
