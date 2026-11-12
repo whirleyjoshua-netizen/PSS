@@ -9,6 +9,13 @@ import type { LeadSource } from "@/lib/leads/schema";
  */
 export const EVENTS = { lead: "generate_lead", phone: "phone_click", promo: "promo_click", leadTimes: "lead_times_open", guideCta: "guide_cta_click", offer: "offer_signup" } as const;
 
+/**
+ * The Google Ads website conversion "Website consultation request" (Submit lead form, primary, created
+ * 2026-11-12 for the owner's $300 conversion-tracking credit). Sent by the Ads tag that SiteAnalytics loads
+ * on the public site, alongside GA4's generate_lead, whenever a consultation request goes through.
+ */
+export const ADS_LEAD_CONVERSION = "AW-18438614507/qi2fCOvetbcdEOvbm9hE";
+
 /** Where a tap on our number is a lead already counted or an existing customer, not a new lead. */
 const NOT_A_NEW_LEAD = ["/thank-you", "/project"];
 
@@ -21,14 +28,20 @@ function send(name: string, params: Record<string, string>) {
   }
 }
 
-export const trackLead = (form: LeadSource) => send(EVENTS.lead, { form });
+/** A consultation request: GA4's generate_lead, and the Google Ads website conversion. */
+function sendLead(form: string) {
+  send(EVENTS.lead, { form });
+  send("conversion", { send_to: ADS_LEAD_CONVERSION });
+}
+
+export const trackLead = (form: LeadSource) => sendLead(form);
 
 /**
  * An offer pop-up sign-up. Name and email only is not a consultation request, so it is offer_signup and never feeds
  * the Ads lead conversion. With a phone number it is one (owner 2026-11-06), so it is generate_lead.
  */
 export const trackOfferSignup = (withPhone = false) =>
-  withPhone ? send(EVENTS.lead, { form: "offer" }) : send(EVENTS.offer, {});
+  withPhone ? sendLead("offer") : send(EVENTS.offer, {});
 
 /** A click on the announcement strip, so we can see which promo brings consults. */
 export const trackPromoClick = (promo: string, page: string) => send(EVENTS.promo, { promo, page });
