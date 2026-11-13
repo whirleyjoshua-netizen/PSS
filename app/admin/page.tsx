@@ -87,7 +87,16 @@ export default async function BoardPage({
 
         <FollowUpsDue jobs={followUps} now={now} />
 
-        <section aria-label="Board">
+        <JobList jobs={listed} now={now} filter={filter} q={q} />
+
+        {/* Owner 2026-11-12: the list is the main view; the stage board folds away and opens on demand. */}
+        <details className="group rounded-xl border border-rule bg-ivory">
+          <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-4 text-sm font-medium text-charcoal">
+            <span>Board by stage</span>
+            <span aria-hidden className="text-ink-soft group-open:hidden">Show</span>
+            <span aria-hidden className="hidden text-ink-soft group-open:inline">Hide</span>
+          </summary>
+          <section aria-label="Board" className="px-3 pb-3">
           {/* Stacked on phones; one scrolling row of columns from md up. */}
           <div className="flex flex-col gap-4 md:flex-row md:overflow-x-auto md:pb-4">
             {groups.map((group) => {
@@ -123,8 +132,8 @@ export default async function BoardPage({
             })}
           </div>
         </section>
+        </details>
 
-        <JobList jobs={listed} now={now} filter={filter} q={q} />
       </div>
 
     </div>

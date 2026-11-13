@@ -4,6 +4,14 @@ import { randomBytes } from "node:crypto";
 // The app's own hashes (tokens.ts has no server-only import), so the specs never re-derive them.
 import { codeHash, hashToken } from "../lib/admin/tokens";
 
+/** The stage board folds away under the job list (owner 2026-11-12): open it, then use it. */
+async function openBoard(page: import("@playwright/test").Page) {
+  const board = page.getByRole("region", { name: "Board" });
+  if (!(await board.isVisible())) await page.getByText("Board by stage").click();
+  return board;
+}
+
+
 const url = process.env.E2E_POSTGRES_URL;
 test.skip(!url, "Set E2E_POSTGRES_URL to a Neon branch to run admin tests");
 
@@ -156,7 +164,7 @@ test("a board card opens the full job page, not the panel", async ({ page }) => 
   const { name, id } = await makeJob("Card");
   await signIn(page);
 
-  await page.getByRole("region", { name: "Board" }).getByRole("link", { name: new RegExp(name) }).click();
+  await (await openBoard(page)).getByRole("link", { name: new RegExp(name) }).click();
 
   await expect(page).toHaveURL(new RegExp(`/admin/jobs/${id}`));
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(name);

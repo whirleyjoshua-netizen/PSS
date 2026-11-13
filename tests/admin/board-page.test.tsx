@@ -95,6 +95,20 @@ describe("board page", () => {
   });
 });
 
+describe("list first, board folded", () => {
+  // Owner 2026-11-12: the boards were too much; the list is the main view.
+  it("puts the job list above the board and starts the board closed", async () => {
+    await open({});
+    const board = screen.getByRole("region", { name: "Board" });
+    const fold = board.closest("details")!;
+    expect(fold).not.toBeNull();
+    expect(fold.open).toBe(false);
+    expect(within(fold.querySelector("summary")!).getByText("Board by stage")).toBeInTheDocument();
+    const listHeading = screen.getAllByText(/All jobs/)[0];
+    expect(listHeading.compareDocumentPosition(fold) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+});
+
 describe("board look and conveniences", () => {
   it("has no stage tiles and no lost toggle", async () => {
     await open({});

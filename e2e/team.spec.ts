@@ -2,6 +2,14 @@ import { test, expect, type Page } from "@playwright/test";
 import { neon } from "@neondatabase/serverless";
 import { createHash, randomBytes } from "node:crypto";
 
+/** The stage board folds away under the job list (owner 2026-11-12): open it, then use it. */
+async function openBoard(page: import("@playwright/test").Page) {
+  const board = page.getByRole("region", { name: "Board" });
+  if (!(await board.isVisible())) await page.getByText("Board by stage").click();
+  return board;
+}
+
+
 const url = process.env.E2E_POSTGRES_URL;
 test.skip(!url, "Set E2E_POSTGRES_URL to a Neon branch to run team tests");
 test.describe.configure({ mode: "serial" });
@@ -56,8 +64,7 @@ test("add a person, assign a job, see it on the board, remove them", async ({ pa
   // The card's link is just the customer name now; the assignee line is its sibling,
   // so assert against the card (the link's nearest div ancestor), not the link.
   await expect(
-    page
-      .getByRole("region", { name: "Board" })
+    (await openBoard(page))
       .getByRole("link", { name: new RegExp(jobName) })
       .locator("xpath=ancestor::div[1]"),
   ).toContainText(`${person} · Designer`);

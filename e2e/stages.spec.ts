@@ -2,6 +2,14 @@ import { test, expect, type Page } from "@playwright/test";
 import { neon } from "@neondatabase/serverless";
 import { createHash, randomBytes } from "node:crypto";
 
+/** The stage board folds away under the job list (owner 2026-11-12): open it, then use it. */
+async function openBoard(page: import("@playwright/test").Page) {
+  const board = page.getByRole("region", { name: "Board" });
+  if (!(await board.isVisible())) await page.getByText("Board by stage").click();
+  return board;
+}
+
+
 const url = process.env.E2E_POSTGRES_URL;
 test.skip(!url, "Set E2E_POSTGRES_URL to a Neon branch to run stage tests");
 test.describe.configure({ mode: "serial" });
@@ -98,7 +106,7 @@ test("mark contacted logs how, shows last contacted, and moves a new lead to Con
 
   // On the board the card now sits in the Contacted column, and no longer in New lead.
   await page.goto("/admin");
-  const board = page.getByRole("region", { name: "Board" });
+  const board = (await openBoard(page));
   await expect(board.getByRole("region", { name: /^Contacted ·/ }).getByRole("link", { name: new RegExp(name) })).toBeVisible();
   await expect(board.getByRole("region", { name: /^New lead ·/ }).getByRole("link", { name: new RegExp(name) })).toHaveCount(0);
 });
@@ -116,8 +124,8 @@ test("completing an installed job moves it from the board to the list", async ({
   await expect(page.getByRole("list", { name: "Stage" }).locator('[aria-current="step"]')).toContainText("Completed");
 
   await page.goto("/admin");
-  await expect(page.getByRole("region", { name: "Board" }).getByRole("heading", { name: /^Installed ·/ })).toBeVisible();
-  await expect(page.getByRole("region", { name: "Board" }).getByText(name)).toHaveCount(0);
+  await expect((await openBoard(page)).getByRole("heading", { name: /^Installed ·/ })).toBeVisible();
+  await expect((await openBoard(page)).getByText(name)).toHaveCount(0);
   await page.getByLabel("Stage", { exact: true }).selectOption("completed");
   await expect(page).toHaveURL(/list=completed/);
   await expect(page.getByRole("region", { name: /all jobs/i }).getByRole("link", { name })).toBeVisible();

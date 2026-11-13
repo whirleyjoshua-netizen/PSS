@@ -3,6 +3,14 @@ import { test, expect, type Page } from "@playwright/test";
 import { neon } from "@neondatabase/serverless";
 import { createHash, randomBytes } from "node:crypto";
 
+/** The stage board folds away under the job list (owner 2026-11-12): open it, then use it. */
+async function openBoard(page: import("@playwright/test").Page) {
+  const board = page.getByRole("region", { name: "Board" });
+  if (!(await board.isVisible())) await page.getByText("Board by stage").click();
+  return board;
+}
+
+
 const url = process.env.E2E_POSTGRES_URL;
 test.skip(!url, "Set E2E_POSTGRES_URL to a Neon branch to run admin tests");
 
@@ -300,7 +308,7 @@ test("a board card opens the full job page, and an old ?job= link redirects ther
 
   await signIn(page);
   // The All jobs list under the board has a link with the same name; open the board card.
-  await page.getByRole("region", { name: "Board" }).getByRole("link", { name: new RegExp(name) }).click();
+  await (await openBoard(page)).getByRole("link", { name: new RegExp(name) }).click();
   await expect(page).toHaveURL(new RegExp(`/admin/jobs/${row.id}`));
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(name);
   // Nothing opens beside the board any more, at any width.
