@@ -11,8 +11,9 @@
  */
 
 import { altaPhotos } from "./stock-photos";
-import { leadTimes } from "./lead-times";
+import { leadTimes, MOTORIZED_EXTRA_WEEKS } from "./lead-times";
 import { HD_DEALER } from "./offer-terms";
+import { gallery, type GalleryItem } from "./gallery";
 
 const shutterLeadTime = leadTimes.find((leadTime) => leadTime.label === "Shutters");
 if (!shutterLeadTime) throw new Error("No lead time for Shutters");
@@ -20,6 +21,16 @@ const SHUTTER_WEEKS = `${shutterLeadTime.minWeeks} to ${shutterLeadTime.maxWeeks
 const shadeLeadTime = leadTimes.find((leadTime) => leadTime.label === "Shades");
 if (!shadeLeadTime) throw new Error("No lead time for Shades");
 const SHADE_WEEKS = `${shadeLeadTime.minWeeks} to ${shadeLeadTime.maxWeeks} weeks`;
+const blindLeadTime = leadTimes.find((leadTime) => leadTime.label === "Blinds");
+if (!blindLeadTime) throw new Error("No lead time for Blinds");
+const BLIND_WEEKS = `${blindLeadTime.minWeeks} to ${blindLeadTime.maxWeeks} weeks`;
+
+/** One of our own installs from content/gallery.ts, by its file, so the alt text and caption have one home. */
+const install = (src: string): GalleryItem => {
+  const found = gallery.find((item) => item.src === src);
+  if (!found) throw new Error(`No gallery photo ${src}`);
+  return found;
+};
 
 export const CATEGORY_SLUGS = [
   "blinds",
@@ -54,6 +65,17 @@ export type CategoryStory = {
   caption: { eyebrow: string; line: string };
 };
 
+/** One block of a category hub's longer copy, shown under the product cards (components/treatment/CategorySections.tsx). */
+export type CategorySection = {
+  /** A noun phrase stays bare; a sentence ends with a period. */
+  heading: string;
+  paragraphs: string[];
+  /** Pages this block points to, linked under it. */
+  links?: { name: string; href: string }[];
+  /** One of our own installs (content/gallery.ts), never stock of a brand we carry. */
+  photo?: GalleryItem;
+};
+
 export type Category = {
   slug: CategorySlug;
   name: string;
@@ -72,6 +94,8 @@ export type Category = {
   /** Exactly four; product pages reuse their category's row. */
   highlights: Highlight[];
   story: CategoryStory;
+  /** Longer copy under the product cards, for a hub that has to answer more than the intro can. */
+  sections?: CategorySection[];
   seo: Seo;
 };
 
@@ -107,11 +131,17 @@ export const categories: Category[] = [
   {
     slug: "blinds",
     name: "Blinds",
+    // Content pipeline 2026-11-11, queue item 2 (PAGE /blinds): "custom blinds las vegas" 320/mo, "window blinds las
+    // vegas" 50, "faux wood blinds" 140, "cordless blinds" 70. Every claim comes from
+    // docs/content-pipeline/blinds-hub/research.md: this file, content/faq.ts, content/cities.ts, the guides, and two
+    // cited sources (CPSC, PNNL). Cordless and BLISS motors are for wood and faux wood only, never verticals.
+    heading: "Custom Blinds",
     navLabel: "Blinds",
     tagline: "Precise control, slat by slat.",
     intro: [
       "Blinds give you something no other treatment does: the ability to keep the light and lose the glare. Tilt the slats and an afternoon that was unusable becomes comfortable, without closing the room off or giving up the view.",
-      "They are also the most practical choice for the rooms that take the hardest use — kitchens, bathrooms, garages, and home offices — because they wipe clean, tolerate humidity, and cost less to cover a lot of glass than most alternatives.",
+      "Window blinds are also the most practical choice for the rooms that take the hardest use — kitchens, bathrooms, garages, and home offices — because they wipe clean, tolerate humidity, and cost less to cover a lot of glass than most alternatives.",
+      "Ours are custom: Josh measures every window himself, each blind is made to those measurements, and we install it ourselves. In this valley that usually means faux wood wherever the sun hits, real wood in shaded, formal rooms, and vertical blinds on sliding doors.",
     ],
     image: altaPhotos.fauxWoodLivingRoom,
     bookingPhoto: altaPhotos.woodBlindsKitchen,
@@ -126,10 +156,95 @@ export const categories: Category[] = [
       heading: "Control Without Closing the Room Off",
       caption: { eyebrow: "Made for hard-working rooms", line: "Kitchens, baths and home offices." },
     },
+    sections: [
+      {
+        heading: "What custom means with us",
+        paragraphs: [
+          "It starts with a free in-home consultation. We bring samples to your home, so you see every finish in your own light, and Josh measures every window himself. Your blinds are made to those measurements, and the measurement guarantee stands behind them: if a measurement is off, we remake it and install it again, free.",
+          `You get a written quote with your lead time on it: ${BLIND_WEEKS} for blinds, counted from the day you order. On install day we install every blind ourselves, walk through every window with you, clean up, and haul your old blinds away free. From your first call to the final install, we're family.`,
+          `Josh has spent more than twenty years in window treatments. We carry three makers: as an ${HD_DEALER} we offer Hunter Douglas, and we also carry Alta and Norman.`,
+        ],
+        links: [{ name: "Hunter Douglas, Alta and Norman: how we choose", href: "/learn/hunter-douglas-alta-norman-las-vegas" }],
+      },
+      {
+        heading: "Which blind goes on which window",
+        paragraphs: [
+          "Start with the sun. West-facing glass in the Las Vegas valley takes direct sun from about two in the afternoon until sunset, in the hottest part of the day. Faux wood blinds will not warp, fade or crack in direct desert sun, so we put them everywhere the sun actually hits.",
+          "Then the room. Kitchens and baths want something that wipes clean and goes where moisture lives, which is faux wood again. Real wood blinds belong in shaded, formal rooms where the trim and the floor are already doing the talking. Sliding glass doors, patio doors and windows wider than they are tall get vertical blinds, so the door still works as a door.",
+          "You don't have to sort it out alone. At your free consultation we walk the house with you, note which windows take the afternoon sun, and hold samples up at each one.",
+        ],
+      },
+      {
+        heading: "Faux wood blinds that stand up to the sun.",
+        photo: install("/gallery/faux-wood-blinds-living-room.webp"),
+        paragraphs: [
+          "Faux wood is the more practical sibling of real wood and, in this climate, usually the smarter buy. It will not warp, fade or crack in direct desert sun, and it handles the humidity of a kitchen or a bathroom. Modern faux wood is embossed and color-matched well enough that most people cannot tell the difference from across the room.",
+          "Real basswood is light and takes stain beautifully, and it still has a place: a shaded, formal room. We just keep it off the sunny side, because we have replaced too many sun-bleached real wood blinds on west elevations to recommend otherwise. Both come with 2 inch or 2 1/2 inch slats for a substantial, architectural look, with optional decorative valances and cloth tapes.",
+        ],
+        links: [{ name: "Wood and faux wood blinds", href: "/blinds/wood-blinds" }],
+      },
+      {
+        // CPSC advice only, never a certification or rule claim: https://www.cpsc.gov/gocordless
+        heading: "Cordless blinds for homes with kids and pets",
+        paragraphs: [
+          "Cordless lift is available on our wood and faux wood blinds. If you have little ones or pets at home, tell us at the consult and we will steer every window toward cordless or motorized options. The U.S. Consumer Product Safety Commission's advice is plain: when young children are in the home, cordless is the safest option.",
+          `Wood and faux wood blinds can also be motorized. We install Alta's BLISS® Automation 2.0 on wood and faux wood styles: open and close them from the free BLISS app on iPhone or Android or from a remote, and set timers by the clock or by your local sunrise and sunset. Each motor recharges with a USB-C cable, so there is no wiring and no electrician. Motorized blinds take about ${MOTORIZED_EXTRA_WEEKS} week longer than the lead time above.`,
+        ],
+        links: [{ name: "Motorized shades and blinds", href: "/motorization" }],
+      },
+      {
+        heading: "Vertical blinds for sliders and wide glass",
+        photo: install("/gallery/vertical-blinds-patio-door-valance.webp"),
+        paragraphs: [
+          "Sliding doors are the hardest openings in most Las Vegas homes, and vertical blinds are still the most sensible answer. The vanes stack to the left, to the right, or split to a center opening, so the door still works as a door, and they tilt to block the low western sun that a horizontal blind cannot reach.",
+          "Today's vertical is not the brittle plastic one you might remember. Fabric, faux wood and PVC vanes in warm neutral finishes hang straight and look considered. Because the vanes hang rather than stack, they shed dust instead of collecting it on every slat, and if one gets damaged, that one vane replaces easily.",
+        ],
+        links: [{ name: "Vertical blinds", href: "/blinds/vertical-blinds" }],
+      },
+      {
+        heading: "Upgrading builder blinds",
+        paragraphs: [
+          "Many new homes in Henderson come with basic builder blinds, often 2-inch faux wood, and a lot of homes in North Las Vegas were handed over with builder-grade blinds or nothing at all. They work, but they are rarely matched to the room: the same blind on a west-facing great room and a north-facing bedroom.",
+          "Upgrading is usually about putting the right product on the windows that take the sun, and we quote it room by room so you can start with the ones that matter most. Taking your old blinds down is priced per window on your quote; hauling them away is free.",
+        ],
+        links: [
+          { name: "Window treatments in Henderson", href: "/service-area/henderson" },
+          { name: "Window treatments in North Las Vegas", href: "/service-area/north-las-vegas" },
+        ],
+      },
+      {
+        // PNNL Building America Solution Center, "Window Attachments: Solar Control and Energy Efficiency":
+        // https://basc.pnnl.gov/resource-guides/window-attachments-solar-control-and-energy-efficiency
+        // No energy-savings claim for blinds (research.md, Do NOT claim).
+        heading: "Blinds, heat and the west wall",
+        paragraphs: [
+          "Blinds are about control: tilt the slats to keep the light and lose the glare, or close them against direct sun. What an inside blind cannot do is stop the heat before it reaches the glass. The Building America Solution Center at Pacific Northwest National Laboratory notes that interior attachments don't block direct sunlight until after it has already passed through the window, and that in hotter climates, shading east- and west-facing surfaces is of primary importance.",
+          "So for a west or south wall that bakes a room every afternoon, we look outside first: a solar screen mounted over the window turns away most of the afternoon sun before it reaches the glass. Blinds inside then handle glare and privacy, the same way PNNL describes interior attachments supplementing exterior shading.",
+        ],
+        links: [
+          { name: "Solar screens", href: "/outdoor/solar-screens" },
+          { name: "The best window treatments for west-facing windows", href: "/learn/west-facing-windows-las-vegas" },
+        ],
+      },
+      {
+        heading: "What sets the price of custom blinds",
+        paragraphs: [
+          "It depends on your windows, so we don't publish a price list. What moves the price: how many windows, how big they are, the product and finish you choose, how it operates (cordless, chain or motorized) and any extras.",
+        ],
+      },
+      {
+        heading: "Living with blinds in desert dust",
+        paragraphs: [
+          "Dust is the main thing in this valley: fine desert dust settles on slats and works its way into headrails. Dust or vacuum with a soft brush regularly. Blinds wipe clean, and vertical blinds shed dust rather than collecting it.",
+          "If a slat cracks, replacing it takes about fifteen minutes, and our step-by-step guide shows you how.",
+        ],
+        links: [{ name: "How to replace a broken blind slat", href: "/guides/replace-a-broken-blind-slat" }],
+      },
+    ],
     seo: {
-      title: "Blinds in Las Vegas, NV | Premier Shade Solutions",
+      title: "Custom Blinds in Las Vegas, NV | Premier Shade Solutions",
       description:
-        "Custom vertical, wood, and faux wood blinds for Las Vegas homes. Free in-home consultation, measured and installed by the owners.",
+        "Custom faux wood, wood and vertical blinds for Las Vegas homes, with cordless lift on wood and faux wood. Free in-home consultation, installed by the owners.",
     },
   },
   {

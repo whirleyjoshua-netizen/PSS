@@ -260,6 +260,8 @@ export const articles: Article[] = [
       { name: "Solar shades", href: "/shades/solar-shades" },
       { name: "Composite shutters", href: "/shutters/composite-shutters" },
       { name: "Sliding door shutters", href: "/shutters/sliding-door-shutters" },
+      // Content pipeline 2026-11-11: the "Patio slider" paragraph above recommends vertical blinds.
+      { name: "Vertical blinds", href: "/blinds/vertical-blinds" },
       { name: "Motorization", href: "/motorization" },
     ],
   },

@@ -6,6 +6,8 @@ import ArticlePage, { generateMetadata } from "@/app/(site)/learn/[slug]/page";
 import ProductPage from "@/app/(site)/[category]/[product]/page";
 import FaqPage from "@/app/(site)/faq/page";
 import CityPage from "@/app/(site)/service-area/[city]/page";
+import CategoryPage from "@/app/(site)/[category]/page";
+import { guides } from "@/content/guides";
 import { HELD_ARTICLES, articles } from "@/content/articles";
 import sitemap from "@/app/sitemap";
 import { generateStaticParams } from "@/app/(site)/learn/[slug]/page";
@@ -164,5 +166,79 @@ describe("the cellular shades energy guide (content pipeline, queue item 1)", ()
     expect(text).not.toMatch(/(Alta|Norman)[^.]*AERC|AERC[^.]*(Alta|Norman)/);
     expect(text).toMatch(/blackout cellular shade is a strong option/);
     expect(text).toMatch(/most reliable setup for a truly dark room is still a blackout roller shade with side channels/);
+  });
+});
+
+// Content pipeline 2026-11-11, queue item 2: the /blinds hub (docs/content-pipeline/blinds-hub/research.md).
+describe("the /blinds hub answers custom, faux wood and cordless", () => {
+  const blinds = categories.find((c) => c.slug === "blinds")!;
+  const sections = blinds.sections ?? [];
+  const copy = [...blinds.intro, blinds.seo.description, ...sections.flatMap((s) => [s.heading, ...s.paragraphs])];
+  const text = copy.join(" ");
+  const sentences = copy.flatMap((p) => p.split(/(?<=[.:;])\s+/));
+  const renderBlinds = async () => render(await CategoryPage({ params: Promise.resolve({ category: "blinds" }) }));
+
+  it("leads with Custom Blinds in Las Vegas and renders every section heading", async () => {
+    const { container } = await renderBlinds();
+    expect(screen.getByRole("heading", { level: 1, name: "Custom Blinds in Las Vegas" })).toBeInTheDocument();
+    expect(container.querySelectorAll("h1")).toHaveLength(1);
+    expect(sections.length).toBeGreaterThanOrEqual(5);
+    for (const section of sections) expect(screen.getByRole("heading", { level: 2, name: section.heading })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2, name: "Questions about custom blinds." })).toBeInTheDocument();
+  });
+
+  it("never promises cordless or motorized vertical blinds", () => {
+    // A sentence may name verticals and cordless together only when it pins cordless to wood and faux wood (the meta description).
+    for (const sentence of sentences)
+      if (/vertical/i.test(sentence) && /cordless|motori|BLISS/i.test(sentence))
+        expect(sentence, sentence).toMatch(/^[^]*vertical[^]*(cordless|motori)[^ ]* (lift )?on wood and faux wood\.$/i);
+    expect(text).toMatch(/Cordless lift is available on our wood and faux wood blinds/);
+    expect(text).toMatch(/BLISS® Automation 2\.0 on wood and faux wood styles/);
+  });
+
+  it("makes no price, savings, certification, carried-line or drapery claim", () => {
+    expect(text).not.toMatch(/\$|\d+ ?%|affordable|budget|lower your|cut cooling|savings|save money/i);
+    expect(text).not.toMatch(/certified|federal standard|required by law|meets the/i);
+    expect(text).not.toMatch(/aluminum|mini blind|wholesale|drape|curtain|lifetime warranty|exclusive|\bbest\b|#1|authorized (alta|norman)/i);
+    expect(text).not.toMatch(/we repair|repair service|repairing/i);
+  });
+
+  it("shows two of our own install photos with their captions, and never the drapery photo or a repeat", async () => {
+    const photos = sections.flatMap((s) => (s.photo ? [s.photo] : []));
+    expect(photos.map((p) => p.src)).toEqual([
+      "/gallery/faux-wood-blinds-living-room.webp",
+      "/gallery/vertical-blinds-patio-door-valance.webp",
+    ]);
+    const { container } = await renderBlinds();
+    for (const photo of photos) {
+      const img = container.querySelector(`img[alt="${photo.alt}"]`);
+      expect(img, photo.src).not.toBeNull();
+      expect(img!.closest("figure")!.textContent).toContain(photo.caption!);
+    }
+    const all = Array.from(container.querySelectorAll("img")).map((img) => decodeURIComponent(img.getAttribute("src") ?? ""));
+    expect(all.some((src) => src.includes("faux-wood-blinds-front-window"))).toBe(false);
+    expect(new Set(all).size).toBe(all.length);
+  });
+
+  it("links only to pages that exist, including both blinds pages", async () => {
+    const known = new Set([
+      ...categories.map((c) => `/${c.slug}`),
+      ...products.map((p) => `/${p.category}/${p.slug}`),
+      ...articles.map((a) => `/learn/${a.slug}`),
+      ...guides.map((g) => `/guides/${g.slug}`),
+      ...cities.map((c) => `/service-area/${c.slug}`),
+    ]);
+    const hrefs = sections.flatMap((s) => (s.links ?? []).map((l) => l.href));
+    for (const href of hrefs) expect(known, href).toContain(href);
+    expect(hrefs).toEqual(expect.arrayContaining(["/blinds/wood-blinds", "/blinds/vertical-blinds", "/outdoor/solar-screens", "/motorization"]));
+    await renderBlinds();
+    expect(screen.getByRole("link", { name: /Wood and faux wood blinds →/ })).toHaveAttribute("href", "/blinds/wood-blinds");
+  });
+
+  it("the vertical blinds page links back to the west-facing guide, which recommends verticals for sliders", async () => {
+    const west = articles.find((a) => a.slug === "west-facing-windows-las-vegas")!;
+    expect(west.products).toContainEqual({ name: "Vertical blinds", href: "/blinds/vertical-blinds" });
+    render(await ProductPage({ params: Promise.resolve({ category: "blinds", product: "vertical-blinds" }) }));
+    expect(screen.getByRole("link", { name: new RegExp(west.title) })).toHaveAttribute("href", `/learn/${west.slug}`);
   });
 });

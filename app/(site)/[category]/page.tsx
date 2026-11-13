@@ -7,6 +7,7 @@ import { spotlightReviewsExceptFeatured } from "@/components/booking/FeaturedRev
 import { IconRow } from "@/components/treatment/IconRow";
 import { StorySection } from "@/components/treatment/StorySection";
 import { PhotoCardGrid } from "@/components/treatment/PhotoCardGrid";
+import { CategorySections } from "@/components/treatment/CategorySections";
 import { Section } from "@/components/ui/Section";
 import { ReviewSpotlight } from "@/components/reviews/ReviewSpotlight";
 import { uniquePhotos } from "@/lib/content/page-photos";
@@ -57,11 +58,15 @@ export default async function CategoryPage({
 
   const trail = [{ name: found.name, url: `/${found.slug}` }];
 
-  const [heroPhoto, storyPhoto, ...cardPhotos] = uniquePhotos([
+  const sections = found.sections ?? [];
+  const [heroPhoto, storyPhoto, ...rest] = uniquePhotos([
     found.bookingPhoto ?? consultationPhoto,
     found.image,
     ...children.map((product) => product.image),
+    ...sections.map((section) => section.photo),
   ]);
+  const cardPhotos = rest.slice(0, children.length);
+  const sectionPhotos = rest.slice(children.length);
 
   return (
     <>
@@ -99,6 +104,7 @@ export default async function CategoryPage({
           }))}
         />
       ) : null}
+      <CategorySections sections={sections.map((section, index) => ({ ...section, showPhoto: sectionPhotos[index] !== undefined }))} />
       <PageFaq title={`Questions about ${(found.heading ?? found.name).toLowerCase()}.`} items={faqsFor(found.slug)} path={`/${found.slug}`} />
       <MoreReading path={`/${found.slug}`} />
       <ReviewSpotlight reviews={spotlightReviewsExceptFeatured} />

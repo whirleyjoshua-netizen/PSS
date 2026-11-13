@@ -27,7 +27,7 @@ const SHUTTERS = [WORTH, LAST, HEAT, LEAD_TIME];
 
 /** Keyed by the page's path, without the leading slash. */
 export const PAGE_FAQS: Record<string, readonly string[]> = {
-  blinds: [BLINDS_VS_SHADES, BIG_WINDOWS, LAST, LEAD_TIME],
+  blinds: [BLINDS_VS_SHADES, SAFE, LAST, BIG_WINDOWS, LEAD_TIME],
   "blinds/vertical-blinds": [BIG_WINDOWS, CLEAN, LEAD_TIME, WARRANTY],
   "blinds/wood-blinds": [LAST, SAFE, CLEAN, LEAD_TIME],
   shades: [BLINDS_VS_SHADES, BLOCK_SUN, PRIVACY, LEAD_TIME],
